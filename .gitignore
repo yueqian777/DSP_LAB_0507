@@ -1,0 +1,11 @@
+# Root-level CCS generated build outputs
+/Debug/
+/Release/
+
+# Local temporary extraction/diagnostic files
+/tmp/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+desktop.ini

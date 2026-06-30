@@ -1,0 +1,14 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "DSP_LAB_0507",
+            "type": "ccs-debug",
+            "request": "launch",
+            "projectInfo": {
+                "name": "DSP_LAB_0507",
+                "resourceId": "/DSP_LAB_0507"
+            }
+        }
+    ]
+}
