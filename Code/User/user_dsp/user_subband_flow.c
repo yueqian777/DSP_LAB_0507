@@ -1,101 +1,63 @@
 /**
  * user_subband_flow.c
  *
- * Flow-only subband analysis/synthesis test. The current analysis step only
- * demultiplexes samples into D phase bands, and synthesis interleaves them
- * back. Real filter coefficients can be added inside the marked stage later.
+ * 描述: 子频带分析-合成实时测试例程
+ * 功能: 8 个通道全部经过 1024 点子带分析-合成接口，暂不加入额外处理
  */
 
 #include "user_subband_flow.h"
 #include "string.h"
 
-void Subband_Flow_Init(SUBBAND_FLOW_STATE *state)
+#ifndef SUBBAND_FLOW_ALGO_ONLY
+#include "dac_api.h"
+#include "system.h"
+#include "key_api.h"
+#endif
+
+typedef struct
 {
-    if (state == 0)
-    {
-        return;
-    }
+    long ana_sub_out[SUBBAND_D][SUBBAND_LEN];
+} ANA_STATE;
 
-    memset(state->subband, 0, sizeof(state->subband));
-}
-
-static void Subband_Flow_Analyze(SUBBAND_FLOW_STATE *state,
-                                 const short input[SUBBAND_FLOW_FRAME_LEN])
+typedef struct
 {
-    unsigned int band;
-    unsigned int group;
-    unsigned int index;
+    long syn_sub_in[SUBBAND_D][SUBBAND_LEN];
+} SYN_STATE;
 
-    for (group = 0u; group < SUBBAND_FLOW_SUBBAND_LEN; group++)
-    {
-        for (band = 0u; band < SUBBAND_FLOW_BAND_COUNT; band++)
-        {
-            index = group * SUBBAND_FLOW_BAND_COUNT + band;
-            state->subband[band][group] = input[index];
-        }
-    }
-}
-
-static void Subband_Flow_ProcessSubbands(SUBBAND_FLOW_STATE *state)
-{
-    (void)state;
-}
-
-static void Subband_Flow_Synthesize(const SUBBAND_FLOW_STATE *state,
-                                    short output[SUBBAND_FLOW_FRAME_LEN])
-{
-    unsigned int band;
-    unsigned int group;
-    unsigned int index;
-
-    for (group = 0u; group < SUBBAND_FLOW_SUBBAND_LEN; group++)
-    {
-        for (band = 0u; band < SUBBAND_FLOW_BAND_COUNT; band++)
-        {
-            index = group * SUBBAND_FLOW_BAND_COUNT + band;
-            output[index] = state->subband[band][group];
-        }
-    }
-}
-
-void Subband_Flow_ProcessFrame(SUBBAND_FLOW_STATE *state,
-                               const short input[SUBBAND_FLOW_FRAME_LEN],
-                               short output[SUBBAND_FLOW_FRAME_LEN])
-{
-    if ((state == 0) || (input == 0) || (output == 0))
-    {
-        return;
-    }
-
-    Subband_Flow_Analyze(state, input);
-    Subband_Flow_ProcessSubbands(state);
-    Subband_Flow_Synthesize(state, output);
-}
+static ANA_STATE Ana_State;
+static SYN_STATE Syn_State;
 
 #ifndef SUBBAND_FLOW_ALGO_ONLY
 
-#include "adc_api.h"
-#include "dac_api.h"
-#include "key_api.h"
-#include "system.h"
+static short AD_Buffer1[ADC_SAMPLE_1024];
+static short AD_Buffer2[ADC_SAMPLE_1024];
+static short AD_Buffer3[ADC_SAMPLE_1024];
+static short AD_Buffer4[ADC_SAMPLE_1024];
+static short AD_Buffer5[ADC_SAMPLE_1024];
+static short AD_Buffer6[ADC_SAMPLE_1024];
+static short AD_Buffer7[ADC_SAMPLE_1024];
+static short AD_Buffer8[ADC_SAMPLE_1024];
 
-#define SUBBAND_FLOW_SAMPLE_BYTES  (2u * SUBBAND_FLOW_FRAME_LEN)
-
-static SUBBAND_FLOW_STATE SubbandFlow_State;
-static short SubbandFlow_Input[SUBBAND_FLOW_FRAME_LEN];
-static short SubbandFlow_Output[SUBBAND_FLOW_FRAME_LEN];
-static short SubbandFlow_Silence[SUBBAND_FLOW_FRAME_LEN];
+static short DA_Buffer1[DAC_SAMPLE_1024];
+static short DA_Buffer2[DAC_SAMPLE_1024];
+static short DA_Buffer3[DAC_SAMPLE_1024];
+static short DA_Buffer4[DAC_SAMPLE_1024];
+static short DA_Buffer5[DAC_SAMPLE_1024];
+static short DA_Buffer6[DAC_SAMPLE_1024];
+static short DA_Buffer7[DAC_SAMPLE_1024];
+static short DA_Buffer8[DAC_SAMPLE_1024];
 
 volatile unsigned long SUBBAND_DebugAdFrames = 0;
 volatile unsigned long SUBBAND_DebugDaFrames = 0;
-volatile unsigned short SUBBAND_DebugInputPeak = 0;
-volatile unsigned short SUBBAND_DebugOutputPeak = 0;
-volatile unsigned short SUBBAND_DebugBand0Peak = 0;
 volatile unsigned char SUBBAND_DebugFrameReady = 0;
 volatile unsigned char SUBBAND_DebugLastAdPingPong = 0;
 volatile unsigned char SUBBAND_DebugLastDaPingPong = 0;
 
-static short Subband_Flow_ClipToShort(long value)
+#endif
+
+#if !ADDA_SUBBAND_BYPASS
+
+static short Saturate_To_Short(long value)
 {
     if (value > 32767L)
     {
@@ -109,139 +71,166 @@ static short Subband_Flow_ClipToShort(long value)
     return (short)value;
 }
 
-static unsigned short Subband_Flow_AbsShort(short value)
+static void Analyze_Subband_1024(short *in)
 {
-    long sample;
+    int k;
+    int i;
+    int n;
 
-    sample = (long)value;
-    if (sample < 0L)
+    for (i = 0; i < SUBBAND_LEN; i++)
     {
-        sample = -sample;
+        for (k = 0; k < SUBBAND_D; k++)
+        {
+            n = i * SUBBAND_D + k;
+            Ana_State.ana_sub_out[k][i] = (long)in[n];
+        }
     }
-    if (sample > 32768L)
-    {
-        sample = 32768L;
-    }
-
-    return (unsigned short)sample;
 }
 
-static void Subband_Flow_UpdatePeaks(void)
+static void Process_Subband_1024(void)
 {
-    unsigned int index;
-    unsigned short samplePeak;
-    unsigned short inputPeak;
-    unsigned short outputPeak;
-    unsigned short band0Peak;
+    int k;
+    int i;
 
-    inputPeak = 0u;
-    outputPeak = 0u;
-    band0Peak = 0u;
-
-    for (index = 0u; index < SUBBAND_FLOW_FRAME_LEN; index++)
+    for (k = 0; k < SUBBAND_D; k++)
     {
-        samplePeak = Subband_Flow_AbsShort(SubbandFlow_Input[index]);
-        if (samplePeak > inputPeak)
+        for (i = 0; i < SUBBAND_LEN; i++)
         {
-            inputPeak = samplePeak;
-        }
-
-        samplePeak = Subband_Flow_AbsShort(SubbandFlow_Output[index]);
-        if (samplePeak > outputPeak)
-        {
-            outputPeak = samplePeak;
+            Syn_State.syn_sub_in[k][i] = Ana_State.ana_sub_out[k][i];
         }
     }
-
-    for (index = 0u; index < SUBBAND_FLOW_SUBBAND_LEN; index++)
-    {
-        samplePeak = Subband_Flow_AbsShort(SubbandFlow_State.subband[0][index]);
-        if (samplePeak > band0Peak)
-        {
-            band0Peak = samplePeak;
-        }
-    }
-
-    SUBBAND_DebugInputPeak = inputPeak;
-    SUBBAND_DebugOutputPeak = outputPeak;
-    SUBBAND_DebugBand0Peak = band0Peak;
 }
 
-static void Subband_Flow_CaptureMonoInput(void)
+static void Synthesize_Subband_1024(short *out)
 {
-    const short *ch1;
-    const short *ch2;
-    unsigned int index;
-    long mixed;
+    int k;
+    int i;
+    int n;
 
+    for (i = 0; i < SUBBAND_LEN; i++)
+    {
+        for (k = 0; k < SUBBAND_D; k++)
+        {
+            n = i * SUBBAND_D + k;
+            out[n] = Saturate_To_Short(Syn_State.syn_sub_in[k][i]);
+        }
+    }
+}
+
+#endif
+
+void Subband_Process_1024(short *in, short *out)
+{
+    if ((in == 0) || (out == 0))
+    {
+        return;
+    }
+
+#if ADDA_SUBBAND_BYPASS
+    {
+        int i;
+
+        (void)Ana_State;
+        (void)Syn_State;
+
+        for (i = 0; i < SUBBAND_FRM_LEN; i++)
+        {
+            out[i] = in[i];
+        }
+    }
+#else
+    Analyze_Subband_1024(in);
+    Process_Subband_1024();
+    Synthesize_Subband_1024(out);
+#endif
+}
+
+#ifndef SUBBAND_FLOW_ALGO_ONLY
+
+static void Capture_Adc_Frame(void)
+{
     SUBBAND_DebugLastAdPingPong = AD_Ping_Pong;
 
     if (AD_Ping_Pong == AD_BUFFER_PONG)
     {
-        ch1 = AD_CH1_Buf0;
-        ch2 = AD_CH2_Buf0;
+        memcpy(AD_Buffer1, AD_CH1_Buf0, 2 * ADC_SAMPLE_1024);
+        memcpy(AD_Buffer2, AD_CH2_Buf0, 2 * ADC_SAMPLE_1024);
+        memcpy(AD_Buffer3, AD_CH3_Buf0, 2 * ADC_SAMPLE_1024);
+        memcpy(AD_Buffer4, AD_CH4_Buf0, 2 * ADC_SAMPLE_1024);
+        memcpy(AD_Buffer5, AD_CH5_Buf0, 2 * ADC_SAMPLE_1024);
+        memcpy(AD_Buffer6, AD_CH6_Buf0, 2 * ADC_SAMPLE_1024);
+        memcpy(AD_Buffer7, AD_CH7_Buf0, 2 * ADC_SAMPLE_1024);
+        memcpy(AD_Buffer8, AD_CH8_Buf0, 2 * ADC_SAMPLE_1024);
     }
     else
     {
-        ch1 = AD_CH1_Buf1;
-        ch2 = AD_CH2_Buf1;
+        memcpy(AD_Buffer1, AD_CH1_Buf1, 2 * ADC_SAMPLE_1024);
+        memcpy(AD_Buffer2, AD_CH2_Buf1, 2 * ADC_SAMPLE_1024);
+        memcpy(AD_Buffer3, AD_CH3_Buf1, 2 * ADC_SAMPLE_1024);
+        memcpy(AD_Buffer4, AD_CH4_Buf1, 2 * ADC_SAMPLE_1024);
+        memcpy(AD_Buffer5, AD_CH5_Buf1, 2 * ADC_SAMPLE_1024);
+        memcpy(AD_Buffer6, AD_CH6_Buf1, 2 * ADC_SAMPLE_1024);
+        memcpy(AD_Buffer7, AD_CH7_Buf1, 2 * ADC_SAMPLE_1024);
+        memcpy(AD_Buffer8, AD_CH8_Buf1, 2 * ADC_SAMPLE_1024);
     }
 
-    for (index = 0u; index < SUBBAND_FLOW_FRAME_LEN; index++)
-    {
-        mixed = ((long)ch1[index] + (long)ch2[index]) / 2L;
-        SubbandFlow_Input[index] = Subband_Flow_ClipToShort(mixed);
-    }
+    Subband_Process_1024(AD_Buffer1, DA_Buffer1);
+    Subband_Process_1024(AD_Buffer2, DA_Buffer2);
+    Subband_Process_1024(AD_Buffer3, DA_Buffer3);
+    Subband_Process_1024(AD_Buffer4, DA_Buffer4);
+    Subband_Process_1024(AD_Buffer5, DA_Buffer5);
+    Subband_Process_1024(AD_Buffer6, DA_Buffer6);
+    Subband_Process_1024(AD_Buffer7, DA_Buffer7);
+    Subband_Process_1024(AD_Buffer8, DA_Buffer8);
 }
 
-static void Subband_Flow_FillDacPingBuffer(const short *buffer)
+static void Fill_Dac_Ping_Buffer(void)
 {
-    memcpy(DA_CH1_Buf0, buffer, SUBBAND_FLOW_SAMPLE_BYTES);
-    memcpy(DA_CH2_Buf0, buffer, SUBBAND_FLOW_SAMPLE_BYTES);
+    memcpy(DA_CH1_Buf0, DA_Buffer1, 2 * DAC_SAMPLE_1024);
+    memcpy(DA_CH2_Buf0, DA_Buffer2, 2 * DAC_SAMPLE_1024);
+    memcpy(DA_CH3_Buf0, DA_Buffer3, 2 * DAC_SAMPLE_1024);
+    memcpy(DA_CH4_Buf0, DA_Buffer4, 2 * DAC_SAMPLE_1024);
+    memcpy(DA_CH5_Buf0, DA_Buffer5, 2 * DAC_SAMPLE_1024);
+    memcpy(DA_CH6_Buf0, DA_Buffer6, 2 * DAC_SAMPLE_1024);
+    memcpy(DA_CH7_Buf0, DA_Buffer7, 2 * DAC_SAMPLE_1024);
+    memcpy(DA_CH8_Buf0, DA_Buffer8, 2 * DAC_SAMPLE_1024);
 }
 
-static void Subband_Flow_FillDacPongBuffer(const short *buffer)
+static void Fill_Dac_Pong_Buffer(void)
 {
-    memcpy(DA_CH1_Buf1, buffer, SUBBAND_FLOW_SAMPLE_BYTES);
-    memcpy(DA_CH2_Buf1, buffer, SUBBAND_FLOW_SAMPLE_BYTES);
+    memcpy(DA_CH1_Buf1, DA_Buffer1, 2 * DAC_SAMPLE_1024);
+    memcpy(DA_CH2_Buf1, DA_Buffer2, 2 * DAC_SAMPLE_1024);
+    memcpy(DA_CH3_Buf1, DA_Buffer3, 2 * DAC_SAMPLE_1024);
+    memcpy(DA_CH4_Buf1, DA_Buffer4, 2 * DAC_SAMPLE_1024);
+    memcpy(DA_CH5_Buf1, DA_Buffer5, 2 * DAC_SAMPLE_1024);
+    memcpy(DA_CH6_Buf1, DA_Buffer6, 2 * DAC_SAMPLE_1024);
+    memcpy(DA_CH7_Buf1, DA_Buffer7, 2 * DAC_SAMPLE_1024);
+    memcpy(DA_CH8_Buf1, DA_Buffer8, 2 * DAC_SAMPLE_1024);
 }
 
-static void Subband_Flow_FillDacBuffers(const short *buffer)
-{
-    Subband_Flow_FillDacPingBuffer(buffer);
-    Subband_Flow_FillDacPongBuffer(buffer);
-}
-
-static void Subband_Flow_FillDacInactiveBuffer(const short *buffer)
+static void Fill_Dac_Inactive_Buffer(void)
 {
     SUBBAND_DebugLastDaPingPong = DA_Ping_Pong;
 
     if (DA_Ping_Pong == DA_BUFFER_PONG)
     {
-        Subband_Flow_FillDacPingBuffer(buffer);
+        Fill_Dac_Ping_Buffer();
     }
     else
     {
-        Subband_Flow_FillDacPongBuffer(buffer);
+        Fill_Dac_Pong_Buffer();
     }
 }
 
 void Subband_Flow_Example(void)
 {
-    unsigned char frameReady;
-
-    frameReady = 0u;
-    Subband_Flow_Init(&SubbandFlow_State);
+    unsigned char FLAG_AD_DONE = 0;
 
     Sys_Init();
     Key_Init();
 
     Adc_Init(ADC_50KHZ, ADC_SAMPLE_1024);
-    Dac_Init(DAC_50KHZ, DAC_SAMPLE_1024, DAC_CHANNEL_12);
-
-    FLAG_AD = 0;
-    FLAG_DA = 0;
-    Subband_Flow_FillDacBuffers(SubbandFlow_Silence);
+    Dac_Init(DAC_50KHZ, DAC_SAMPLE_1024, DAC_CHANNEL_ALL);
 
     Adc_Start();
     Dac_Start();
@@ -251,34 +240,22 @@ void Subband_Flow_Example(void)
         if (FLAG_AD == 1)
         {
             FLAG_AD = 0;
+            FLAG_AD_DONE = 1;
             SUBBAND_DebugAdFrames++;
 
-            Subband_Flow_CaptureMonoInput();
-            Subband_Flow_ProcessFrame(&SubbandFlow_State,
-                                      SubbandFlow_Input,
-                                      SubbandFlow_Output);
-            Subband_Flow_UpdatePeaks();
-
-            frameReady = 1u;
-            SUBBAND_DebugFrameReady = frameReady;
+            Capture_Adc_Frame();
         }
 
-        if (FLAG_DA == 1)
+        if (FLAG_DA == 1 && FLAG_AD_DONE == 1)
         {
             FLAG_DA = 0;
+            FLAG_AD_DONE = 0;
             SUBBAND_DebugDaFrames++;
 
-            if (frameReady == 1u)
-            {
-                Subband_Flow_FillDacInactiveBuffer(SubbandFlow_Output);
-                frameReady = 0u;
-                SUBBAND_DebugFrameReady = frameReady;
-            }
-            else
-            {
-                Subband_Flow_FillDacInactiveBuffer(SubbandFlow_Silence);
-            }
+            Fill_Dac_Inactive_Buffer();
         }
+
+        SUBBAND_DebugFrameReady = FLAG_AD_DONE;
 
         if (FLAG_KEY1 == 1)
         {

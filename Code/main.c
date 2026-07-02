@@ -10,13 +10,6 @@
 
 #define SW_BREAKPOINT     asm(" SWBP 0 ")
 
-// 1: run subband analysis/synthesis flow test; 0: use the ADDA/DAC switch below
-#define RUN_SUBBAND_FLOW_TEST 1
-
-// 1: DAC 输出链路自测；0: ADC->DAC 回放电脑/麦克风输入
-#define RUN_DAC_SELF_TEST 0
-
-
 /**
  * @brief 主函数
  * @return 无
@@ -33,13 +26,7 @@ int main(void)
 //    Rs485_Example_Interrupt();
 //    Flash_Example();
 //    EEPROM_Example();
-//#if RUN_SUBBAND_FLOW_TEST
-   // Subband_Flow_Example();
-//#elif RUN_DAC_SELF_TEST
-   // Dac_Example();
-//#else
-    Adda_Example();
-//#endif
+    Subband_Flow_Example();
 
 
     while (1)
