@@ -13,6 +13,8 @@
 #endif
 
 #define SUBBAND_D        8
+#define SUBBAND_ORD      64
+#define SUBBAND_RECON_GAIN (1.0 / SUBBAND_D)
 
 #ifdef SUBBAND_FLOW_ALGO_ONLY
 #define SUBBAND_FRM_LEN  1024
@@ -23,6 +25,7 @@
 
 #define SUBBAND_LEN      (SUBBAND_FRM_LEN / SUBBAND_D)
 
+void Subband_FilterBank_Init(void);
 void Subband_Process_1024(short *in, short *out);
 
 #ifndef SUBBAND_FLOW_ALGO_ONLY

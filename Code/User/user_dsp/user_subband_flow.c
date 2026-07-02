@@ -2,10 +2,11 @@
  * user_subband_flow.c
  *
  * 描述: 子频带分析-合成实时测试例程
- * 功能: 8 个通道全部经过 1024 点子带分析-合成接口，暂不加入额外处理
+ * 功能: CH1 经过 1024 点子带分析-合成接口，CH2~CH8 暂保持直通
  */
 
 #include "user_subband_flow.h"
+#include "math.h"
 #include "string.h"
 
 #ifndef SUBBAND_FLOW_ALGO_ONLY
@@ -14,18 +15,31 @@
 #include "key_api.h"
 #endif
 
+#define SUBBAND_PI 3.1415926535897932384626433832795
+#define SUBBAND_LINE_LEN (SUBBAND_ORD - 1 + SUBBAND_FRM_LEN)
+
+#if !ADDA_SUBBAND_BYPASS
+
 typedef struct
 {
-    long ana_sub_out[SUBBAND_D][SUBBAND_LEN];
+    double ana_line[SUBBAND_LINE_LEN];
 } ANA_STATE;
 
 typedef struct
 {
-    long syn_sub_in[SUBBAND_D][SUBBAND_LEN];
+    double syn_line[SUBBAND_D][SUBBAND_LINE_LEN][2];
 } SYN_STATE;
 
 static ANA_STATE Ana_State;
 static SYN_STATE Syn_State;
+static double Prototype_H[SUBBAND_ORD];
+static double Hk[SUBBAND_D][SUBBAND_ORD][2];
+static double Ana_Sub_Out[SUBBAND_D][SUBBAND_FRM_LEN][2];
+static double Syn_Sub_In[SUBBAND_D][SUBBAND_FRM_LEN][2];
+
+#endif
+
+static unsigned char Subband_FilterBank_Ready = 0;
 
 #ifndef SUBBAND_FLOW_ALGO_ONLY
 
@@ -39,31 +53,96 @@ static short AD_Buffer7[ADC_SAMPLE_1024];
 static short AD_Buffer8[ADC_SAMPLE_1024];
 
 static short DA_Buffer1[DAC_SAMPLE_1024];
-static short DA_Buffer2[DAC_SAMPLE_1024];
-static short DA_Buffer3[DAC_SAMPLE_1024];
-static short DA_Buffer4[DAC_SAMPLE_1024];
-static short DA_Buffer5[DAC_SAMPLE_1024];
-static short DA_Buffer6[DAC_SAMPLE_1024];
-static short DA_Buffer7[DAC_SAMPLE_1024];
-static short DA_Buffer8[DAC_SAMPLE_1024];
 
 volatile unsigned long SUBBAND_DebugAdFrames = 0;
 volatile unsigned long SUBBAND_DebugDaFrames = 0;
 volatile unsigned char SUBBAND_DebugFrameReady = 0;
 volatile unsigned char SUBBAND_DebugLastAdPingPong = 0;
 volatile unsigned char SUBBAND_DebugLastDaPingPong = 0;
+volatile unsigned long SUBBAND_FilterbankFrames = 0;
 
 #endif
 
 #if !ADDA_SUBBAND_BYPASS
 
-static short Saturate_To_Short(long value)
+static void Clear_FilterBank_State(void)
 {
-    if (value > 32767L)
+    memset(&Ana_State, 0, sizeof(Ana_State));
+    memset(&Syn_State, 0, sizeof(Syn_State));
+    memset(Ana_Sub_Out, 0, sizeof(Ana_Sub_Out));
+    memset(Syn_Sub_In, 0, sizeof(Syn_Sub_In));
+}
+
+#endif
+
+void Subband_FilterBank_Init(void)
+{
+#if !ADDA_SUBBAND_BYPASS
+    int k;
+    int n;
+    double m;
+    double wc;
+    double sum;
+    double phase;
+
+    if (Subband_FilterBank_Ready != 0)
+    {
+        return;
+    }
+
+    wc = SUBBAND_PI / (double)SUBBAND_D;
+    sum = 0.0;
+
+    for (n = 0; n < SUBBAND_ORD; n++)
+    {
+        m = (double)n - ((double)SUBBAND_ORD - 1.0) / 2.0;
+
+        if ((m > -1.0e-12) && (m < 1.0e-12))
+        {
+            Prototype_H[n] = wc / SUBBAND_PI;
+        }
+        else
+        {
+            Prototype_H[n] = sin(wc * m) / (SUBBAND_PI * m);
+        }
+
+        Prototype_H[n] *= 0.54 - 0.46 * cos((2.0 * SUBBAND_PI * (double)n) / ((double)SUBBAND_ORD - 1.0));
+        sum += Prototype_H[n];
+    }
+
+    if ((sum > 1.0e-12) || (sum < -1.0e-12))
+    {
+        for (n = 0; n < SUBBAND_ORD; n++)
+        {
+            Prototype_H[n] /= sum;
+        }
+    }
+
+    for (k = 0; k < SUBBAND_D; k++)
+    {
+        for (n = 0; n < SUBBAND_ORD; n++)
+        {
+            phase = (2.0 * SUBBAND_PI * (double)n * (double)k) / (double)SUBBAND_D;
+            Hk[k][n][0] = Prototype_H[n] * cos(phase);
+            Hk[k][n][1] = Prototype_H[n] * sin(phase);
+        }
+    }
+
+    Clear_FilterBank_State();
+#endif
+
+    Subband_FilterBank_Ready = 1;
+}
+
+#if !ADDA_SUBBAND_BYPASS
+
+static short Saturate_To_Short(double value)
+{
+    if (value > 32767.0)
     {
         return 32767;
     }
-    if (value < -32768L)
+    if (value < -32768.0)
     {
         return -32768;
     }
@@ -71,49 +150,123 @@ static short Saturate_To_Short(long value)
     return (short)value;
 }
 
-static void Analyze_Subband_1024(short *in)
+static void Analysis_Filter_1024(short *in)
 {
     int k;
     int i;
     int n;
+    double vr;
+    double vi;
+    double x;
 
-    for (i = 0; i < SUBBAND_LEN; i++)
+    for (n = 0; n < SUBBAND_ORD - 1; n++)
     {
-        for (k = 0; k < SUBBAND_D; k++)
+        Ana_State.ana_line[n] = Ana_State.ana_line[SUBBAND_FRM_LEN + n];
+    }
+
+    for (i = 0; i < SUBBAND_FRM_LEN; i++)
+    {
+        Ana_State.ana_line[SUBBAND_ORD - 1 + i] = (double)in[i];
+    }
+
+    for (k = 0; k < SUBBAND_D; k++)
+    {
+        for (i = 0; i < SUBBAND_FRM_LEN; i++)
         {
-            n = i * SUBBAND_D + k;
-            Ana_State.ana_sub_out[k][i] = (long)in[n];
+            vr = 0.0;
+            vi = 0.0;
+
+            for (n = 0; n < SUBBAND_ORD; n++)
+            {
+                x = Ana_State.ana_line[i + n];
+                vr += Hk[k][n][0] * x;
+                vi += Hk[k][n][1] * x;
+            }
+
+            Ana_Sub_Out[k][i][0] = vr;
+            Ana_Sub_Out[k][i][1] = vi;
         }
     }
 }
 
-static void Process_Subband_1024(void)
+static void Subband_Direct_Through_1024(void)
 {
     int k;
     int i;
 
     for (k = 0; k < SUBBAND_D; k++)
     {
-        for (i = 0; i < SUBBAND_LEN; i++)
+        for (i = 0; i < SUBBAND_FRM_LEN; i++)
         {
-            Syn_State.syn_sub_in[k][i] = Ana_State.ana_sub_out[k][i];
+            if ((i % SUBBAND_D) == 0)
+            {
+                Syn_Sub_In[k][i][0] = Ana_Sub_Out[k][i][0];
+                Syn_Sub_In[k][i][1] = Ana_Sub_Out[k][i][1];
+            }
+            else
+            {
+                Syn_Sub_In[k][i][0] = 0.0;
+                Syn_Sub_In[k][i][1] = 0.0;
+            }
         }
     }
 }
 
-static void Synthesize_Subband_1024(short *out)
+static void Synthesis_Filter_1024(short *out)
 {
     int k;
     int i;
     int n;
+    double xr;
+    double xi;
+    double hr;
+    double hi;
+    double vr;
+    double vi;
+    double acc;
 
-    for (i = 0; i < SUBBAND_LEN; i++)
+    for (k = 0; k < SUBBAND_D; k++)
     {
+        for (n = 0; n < SUBBAND_ORD - 1; n++)
+        {
+            Syn_State.syn_line[k][n][0] = Syn_State.syn_line[k][SUBBAND_FRM_LEN + n][0];
+            Syn_State.syn_line[k][n][1] = Syn_State.syn_line[k][SUBBAND_FRM_LEN + n][1];
+        }
+
+        for (i = 0; i < SUBBAND_FRM_LEN; i++)
+        {
+            Syn_State.syn_line[k][SUBBAND_ORD - 1 + i][0] = Syn_Sub_In[k][i][0];
+            Syn_State.syn_line[k][SUBBAND_ORD - 1 + i][1] = Syn_Sub_In[k][i][1];
+        }
+    }
+
+    for (i = 0; i < SUBBAND_FRM_LEN; i++)
+    {
+        acc = 0.0;
+
         for (k = 0; k < SUBBAND_D; k++)
         {
-            n = i * SUBBAND_D + k;
-            out[n] = Saturate_To_Short(Syn_State.syn_sub_in[k][i]);
+            vr = 0.0;
+            vi = 0.0;
+
+            for (n = 0; n < SUBBAND_ORD; n++)
+            {
+                xr = Syn_State.syn_line[k][i + n][0];
+                xi = Syn_State.syn_line[k][i + n][1];
+                hr = Hk[k][n][0];
+                hi = Hk[k][n][1];
+
+                vr += hr * xr - hi * xi;
+                vi += hr * xi + hi * xr;
+            }
+
+            (void)vi;
+            acc += vr;
         }
+
+        /* Reconstruction gain compensation. Tune this if the filterbank output is too quiet or too loud. */
+        acc *= SUBBAND_RECON_GAIN;
+        out[i] = Saturate_To_Short(acc);
     }
 }
 
@@ -121,27 +274,30 @@ static void Synthesize_Subband_1024(short *out)
 
 void Subband_Process_1024(short *in, short *out)
 {
+#if ADDA_SUBBAND_BYPASS
+    int i;
+#endif
+
     if ((in == 0) || (out == 0))
     {
         return;
     }
 
+    Subband_FilterBank_Init();
+
 #if ADDA_SUBBAND_BYPASS
+    for (i = 0; i < SUBBAND_FRM_LEN; i++)
     {
-        int i;
-
-        (void)Ana_State;
-        (void)Syn_State;
-
-        for (i = 0; i < SUBBAND_FRM_LEN; i++)
-        {
-            out[i] = in[i];
-        }
+        out[i] = in[i];
     }
 #else
-    Analyze_Subband_1024(in);
-    Process_Subband_1024();
-    Synthesize_Subband_1024(out);
+    Analysis_Filter_1024(in);
+    Subband_Direct_Through_1024();
+    Synthesis_Filter_1024(out);
+#endif
+
+#ifndef SUBBAND_FLOW_ALGO_ONLY
+    SUBBAND_FilterbankFrames++;
 #endif
 }
 
@@ -175,37 +331,30 @@ static void Capture_Adc_Frame(void)
     }
 
     Subband_Process_1024(AD_Buffer1, DA_Buffer1);
-    Subband_Process_1024(AD_Buffer2, DA_Buffer2);
-    Subband_Process_1024(AD_Buffer3, DA_Buffer3);
-    Subband_Process_1024(AD_Buffer4, DA_Buffer4);
-    Subband_Process_1024(AD_Buffer5, DA_Buffer5);
-    Subband_Process_1024(AD_Buffer6, DA_Buffer6);
-    Subband_Process_1024(AD_Buffer7, DA_Buffer7);
-    Subband_Process_1024(AD_Buffer8, DA_Buffer8);
 }
 
 static void Fill_Dac_Ping_Buffer(void)
 {
     memcpy(DA_CH1_Buf0, DA_Buffer1, 2 * DAC_SAMPLE_1024);
-    memcpy(DA_CH2_Buf0, DA_Buffer2, 2 * DAC_SAMPLE_1024);
-    memcpy(DA_CH3_Buf0, DA_Buffer3, 2 * DAC_SAMPLE_1024);
-    memcpy(DA_CH4_Buf0, DA_Buffer4, 2 * DAC_SAMPLE_1024);
-    memcpy(DA_CH5_Buf0, DA_Buffer5, 2 * DAC_SAMPLE_1024);
-    memcpy(DA_CH6_Buf0, DA_Buffer6, 2 * DAC_SAMPLE_1024);
-    memcpy(DA_CH7_Buf0, DA_Buffer7, 2 * DAC_SAMPLE_1024);
-    memcpy(DA_CH8_Buf0, DA_Buffer8, 2 * DAC_SAMPLE_1024);
+    memcpy(DA_CH2_Buf0, AD_Buffer2, 2 * DAC_SAMPLE_1024);
+    memcpy(DA_CH3_Buf0, AD_Buffer3, 2 * DAC_SAMPLE_1024);
+    memcpy(DA_CH4_Buf0, AD_Buffer4, 2 * DAC_SAMPLE_1024);
+    memcpy(DA_CH5_Buf0, AD_Buffer5, 2 * DAC_SAMPLE_1024);
+    memcpy(DA_CH6_Buf0, AD_Buffer6, 2 * DAC_SAMPLE_1024);
+    memcpy(DA_CH7_Buf0, AD_Buffer7, 2 * DAC_SAMPLE_1024);
+    memcpy(DA_CH8_Buf0, AD_Buffer8, 2 * DAC_SAMPLE_1024);
 }
 
 static void Fill_Dac_Pong_Buffer(void)
 {
     memcpy(DA_CH1_Buf1, DA_Buffer1, 2 * DAC_SAMPLE_1024);
-    memcpy(DA_CH2_Buf1, DA_Buffer2, 2 * DAC_SAMPLE_1024);
-    memcpy(DA_CH3_Buf1, DA_Buffer3, 2 * DAC_SAMPLE_1024);
-    memcpy(DA_CH4_Buf1, DA_Buffer4, 2 * DAC_SAMPLE_1024);
-    memcpy(DA_CH5_Buf1, DA_Buffer5, 2 * DAC_SAMPLE_1024);
-    memcpy(DA_CH6_Buf1, DA_Buffer6, 2 * DAC_SAMPLE_1024);
-    memcpy(DA_CH7_Buf1, DA_Buffer7, 2 * DAC_SAMPLE_1024);
-    memcpy(DA_CH8_Buf1, DA_Buffer8, 2 * DAC_SAMPLE_1024);
+    memcpy(DA_CH2_Buf1, AD_Buffer2, 2 * DAC_SAMPLE_1024);
+    memcpy(DA_CH3_Buf1, AD_Buffer3, 2 * DAC_SAMPLE_1024);
+    memcpy(DA_CH4_Buf1, AD_Buffer4, 2 * DAC_SAMPLE_1024);
+    memcpy(DA_CH5_Buf1, AD_Buffer5, 2 * DAC_SAMPLE_1024);
+    memcpy(DA_CH6_Buf1, AD_Buffer6, 2 * DAC_SAMPLE_1024);
+    memcpy(DA_CH7_Buf1, AD_Buffer7, 2 * DAC_SAMPLE_1024);
+    memcpy(DA_CH8_Buf1, AD_Buffer8, 2 * DAC_SAMPLE_1024);
 }
 
 static void Fill_Dac_Inactive_Buffer(void)
@@ -231,6 +380,7 @@ void Subband_Flow_Example(void)
 
     Adc_Init(ADC_50KHZ, ADC_SAMPLE_1024);
     Dac_Init(DAC_50KHZ, DAC_SAMPLE_1024, DAC_CHANNEL_ALL);
+    Subband_FilterBank_Init();
 
     Adc_Start();
     Dac_Start();
