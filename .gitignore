@@ -5,6 +5,11 @@
 # Local temporary extraction/diagnostic files
 /tmp/
 
+# Generated local audio diagnostics
+*.wav
+*.mp3
+*.raw
+
 # OS/editor noise
 .DS_Store
 Thumbs.db

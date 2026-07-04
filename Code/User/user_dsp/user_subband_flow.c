@@ -15,27 +15,42 @@
 #include "key_api.h"
 #endif
 
+#if defined(SUBBAND_FLOW_ALGO_ONLY) && defined(SUBBAND_OFFLINE_TEST_MAIN)
+#include "stdio.h"
+#endif
+
 #define SUBBAND_PI 3.1415926535897932384626433832795
 #define SUBBAND_LINE_LEN (SUBBAND_ORD - 1 + SUBBAND_FRM_LEN)
+
+typedef float SUBBAND_REAL;
 
 #if !ADDA_SUBBAND_BYPASS
 
 typedef struct
 {
-    double ana_line[SUBBAND_LINE_LEN];
+    SUBBAND_REAL ana_line[SUBBAND_LINE_LEN];
 } ANA_STATE;
 
 typedef struct
 {
-    double syn_line[SUBBAND_D][SUBBAND_LINE_LEN][2];
+    SUBBAND_REAL syn_line[SUBBAND_D][SUBBAND_LINE_LEN][2];
 } SYN_STATE;
+
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+#pragma DATA_SECTION(Ana_State, ".subband_l2")
+#pragma DATA_SECTION(Syn_State, ".subband_l2")
+#pragma DATA_SECTION(Prototype_H, ".subband_l2")
+#pragma DATA_SECTION(Hk, ".subband_l2")
+#pragma DATA_SECTION(Ana_Sub_Out, ".subband_l2")
+#pragma DATA_SECTION(Syn_Sub_In, ".subband_l2")
+#endif
 
 static ANA_STATE Ana_State;
 static SYN_STATE Syn_State;
-static double Prototype_H[SUBBAND_ORD];
-static double Hk[SUBBAND_D][SUBBAND_ORD][2];
-static double Ana_Sub_Out[SUBBAND_D][SUBBAND_FRM_LEN][2];
-static double Syn_Sub_In[SUBBAND_D][SUBBAND_FRM_LEN][2];
+static SUBBAND_REAL Prototype_H[SUBBAND_ORD];
+static SUBBAND_REAL Hk[SUBBAND_D][SUBBAND_ORD][2];
+static SUBBAND_REAL Ana_Sub_Out[SUBBAND_D][SUBBAND_FRM_LEN][2];
+static SUBBAND_REAL Syn_Sub_In[SUBBAND_D][SUBBAND_FRM_LEN][2];
 
 #endif
 
@@ -123,8 +138,8 @@ void Subband_FilterBank_Init(void)
         for (n = 0; n < SUBBAND_ORD; n++)
         {
             phase = (2.0 * SUBBAND_PI * (double)n * (double)k) / (double)SUBBAND_D;
-            Hk[k][n][0] = Prototype_H[n] * cos(phase);
-            Hk[k][n][1] = Prototype_H[n] * sin(phase);
+            Hk[k][n][0] = (SUBBAND_REAL)(Prototype_H[n] * cos(phase));
+            Hk[k][n][1] = (SUBBAND_REAL)(Prototype_H[n] * sin(phase));
         }
     }
 
@@ -136,13 +151,13 @@ void Subband_FilterBank_Init(void)
 
 #if !ADDA_SUBBAND_BYPASS
 
-static short Saturate_To_Short(double value)
+static short Saturate_Real_To_Short(SUBBAND_REAL value)
 {
-    if (value > 32767.0)
+    if (value > (SUBBAND_REAL)32767.0)
     {
         return 32767;
     }
-    if (value < -32768.0)
+    if (value < (SUBBAND_REAL)-32768.0)
     {
         return -32768;
     }
@@ -155,9 +170,10 @@ static void Analysis_Filter_1024(short *in)
     int k;
     int i;
     int n;
-    double vr;
-    double vi;
-    double x;
+    int i_step;
+    SUBBAND_REAL vr;
+    SUBBAND_REAL vi;
+    SUBBAND_REAL x;
 
     for (n = 0; n < SUBBAND_ORD - 1; n++)
     {
@@ -166,15 +182,21 @@ static void Analysis_Filter_1024(short *in)
 
     for (i = 0; i < SUBBAND_FRM_LEN; i++)
     {
-        Ana_State.ana_line[SUBBAND_ORD - 1 + i] = (double)in[i];
+        Ana_State.ana_line[SUBBAND_ORD - 1 + i] = (SUBBAND_REAL)in[i];
     }
+
+#if SUBBAND_USE_CRITICAL_SAMPLING
+    i_step = SUBBAND_D;
+#else
+    i_step = 1;
+#endif
 
     for (k = 0; k < SUBBAND_D; k++)
     {
-        for (i = 0; i < SUBBAND_FRM_LEN; i++)
+        for (i = 0; i < SUBBAND_FRM_LEN; i += i_step)
         {
-            vr = 0.0;
-            vi = 0.0;
+            vr = (SUBBAND_REAL)0.0;
+            vi = (SUBBAND_REAL)0.0;
 
             for (n = 0; n < SUBBAND_ORD; n++)
             {
@@ -198,6 +220,12 @@ static void Subband_Direct_Through_1024(void)
     {
         for (i = 0; i < SUBBAND_FRM_LEN; i++)
         {
+#if SUBBAND_USE_CRITICAL_SAMPLING
+            /*
+             * Guidebook critical-sampling path: keep one sample every SUBBAND_D
+             * points and insert zeros before synthesis. Reconstruction quality
+             * depends strongly on the prototype order, so keep SNR tests enabled.
+             */
             if ((i % SUBBAND_D) == 0)
             {
                 Syn_Sub_In[k][i][0] = Ana_Sub_Out[k][i][0];
@@ -208,6 +236,10 @@ static void Subband_Direct_Through_1024(void)
                 Syn_Sub_In[k][i][0] = 0.0;
                 Syn_Sub_In[k][i][1] = 0.0;
             }
+#else
+            Syn_Sub_In[k][i][0] = Ana_Sub_Out[k][i][0];
+            Syn_Sub_In[k][i][1] = Ana_Sub_Out[k][i][1];
+#endif
         }
     }
 }
@@ -217,13 +249,13 @@ static void Synthesis_Filter_1024(short *out)
     int k;
     int i;
     int n;
-    double xr;
-    double xi;
-    double hr;
-    double hi;
-    double vr;
-    double vi;
-    double acc;
+    SUBBAND_REAL xr;
+    SUBBAND_REAL xi;
+    SUBBAND_REAL hr;
+    SUBBAND_REAL hi;
+    SUBBAND_REAL vr;
+    SUBBAND_REAL vi;
+    SUBBAND_REAL acc;
 
     for (k = 0; k < SUBBAND_D; k++)
     {
@@ -242,14 +274,18 @@ static void Synthesis_Filter_1024(short *out)
 
     for (i = 0; i < SUBBAND_FRM_LEN; i++)
     {
-        acc = 0.0;
+        acc = (SUBBAND_REAL)0.0;
 
         for (k = 0; k < SUBBAND_D; k++)
         {
-            vr = 0.0;
-            vi = 0.0;
+            vr = (SUBBAND_REAL)0.0;
+            vi = (SUBBAND_REAL)0.0;
 
+#if SUBBAND_USE_CRITICAL_SAMPLING
+            for (n = (SUBBAND_D - (i % SUBBAND_D)) % SUBBAND_D; n < SUBBAND_ORD; n += SUBBAND_D)
+#else
             for (n = 0; n < SUBBAND_ORD; n++)
+#endif
             {
                 xr = Syn_State.syn_line[k][i + n][0];
                 xi = Syn_State.syn_line[k][i + n][1];
@@ -265,8 +301,8 @@ static void Synthesis_Filter_1024(short *out)
         }
 
         /* Reconstruction gain compensation. Tune this if the filterbank output is too quiet or too loud. */
-        acc *= SUBBAND_RECON_GAIN;
-        out[i] = Saturate_To_Short(acc);
+        acc *= (SUBBAND_REAL)SUBBAND_RECON_GAIN;
+        out[i] = Saturate_Real_To_Short(acc);
     }
 }
 
@@ -300,6 +336,164 @@ void Subband_Process_1024(short *in, short *out)
     SUBBAND_FilterbankFrames++;
 #endif
 }
+
+#ifdef SUBBAND_FLOW_ALGO_ONLY
+
+void Subband_Offline_Sine_Test(double freq_hz, double sample_rate_hz, double amplitude,
+                               SUBBAND_OFFLINE_METRICS *metrics)
+{
+    short input[SUBBAND_FRM_LEN];
+    short output[SUBBAND_FRM_LEN];
+    int i;
+    double phase;
+    double diff;
+    double abs_diff;
+    double err_sum;
+    double input_energy;
+    double output_energy;
+    double sample_rate;
+    int lag;
+    int best_lag;
+    double best_snr;
+    double best_gain;
+
+    if (metrics == 0)
+    {
+        return;
+    }
+
+    if ((sample_rate_hz > 1.0e-12) && (sample_rate_hz < 1.0e12))
+    {
+        sample_rate = sample_rate_hz;
+    }
+    else
+    {
+        sample_rate = 50000.0;
+    }
+
+    for (i = 0; i < SUBBAND_FRM_LEN; i++)
+    {
+        phase = (2.0 * SUBBAND_PI * freq_hz * (double)i) / sample_rate;
+        input[i] = (short)(amplitude * sin(phase));
+        output[i] = 0;
+    }
+
+    Subband_FilterBank_Init();
+#if !ADDA_SUBBAND_BYPASS
+    Clear_FilterBank_State();
+#endif
+    Subband_Process_1024(input, output);
+
+    metrics->max_error = 0.0;
+    err_sum = 0.0;
+    input_energy = 0.0;
+    output_energy = 0.0;
+
+    for (i = 0; i < SUBBAND_FRM_LEN; i++)
+    {
+        diff = (double)output[i] - (double)input[i];
+        abs_diff = fabs(diff);
+        if (abs_diff > metrics->max_error)
+        {
+            metrics->max_error = abs_diff;
+        }
+
+        err_sum += diff * diff;
+        input_energy += (double)input[i] * (double)input[i];
+        output_energy += (double)output[i] * (double)output[i];
+    }
+
+    metrics->mse = err_sum / (double)SUBBAND_FRM_LEN;
+    metrics->input_energy = input_energy;
+    if (input_energy > 1.0e-12)
+    {
+        metrics->output_energy_ratio = output_energy / input_energy;
+    }
+    else
+    {
+        metrics->output_energy_ratio = 0.0;
+    }
+
+    best_snr = -1.0e9;
+    best_lag = 0;
+    best_gain = 0.0;
+    for (lag = 0; lag <= SUBBAND_FILTER_ORDER; lag++)
+    {
+        double xy;
+        double xx;
+        double yy;
+        double ee;
+        double gain;
+        double snr;
+
+        xy = 0.0;
+        xx = 0.0;
+        yy = 0.0;
+        ee = 0.0;
+
+        for (i = 0; i < SUBBAND_FRM_LEN - lag; i++)
+        {
+            xy += (double)input[i] * (double)output[i + lag];
+            xx += (double)input[i] * (double)input[i];
+            yy += (double)output[i + lag] * (double)output[i + lag];
+        }
+
+        if (xx > 1.0e-12)
+        {
+            gain = xy / xx;
+        }
+        else
+        {
+            gain = 0.0;
+        }
+
+        for (i = 0; i < SUBBAND_FRM_LEN - lag; i++)
+        {
+            double d;
+
+            d = (double)output[i + lag] - gain * (double)input[i];
+            ee += d * d;
+        }
+
+        snr = 10.0 * log10((yy + 1.0e-12) / (ee + 1.0e-12));
+        if (snr > best_snr)
+        {
+            best_snr = snr;
+            best_lag = lag;
+            best_gain = gain;
+        }
+    }
+
+    metrics->aligned_snr_db = best_snr;
+    metrics->aligned_lag = best_lag;
+    metrics->aligned_gain = best_gain;
+}
+
+#ifdef SUBBAND_OFFLINE_TEST_MAIN
+int main(void)
+{
+    SUBBAND_OFFLINE_METRICS metrics;
+
+    Subband_Offline_Sine_Test(1000.0, 50000.0, 12000.0, &metrics);
+
+    printf("ADDA_SUBBAND_BYPASS=%d SUBBAND_USE_CRITICAL_SAMPLING=%d "
+           "max_error=%.3f mse=%.3f input_energy=%.3f output_energy_ratio=%.9f "
+           "aligned_lag=%d aligned_gain=%.9f aligned_snr_db=%.3f\n",
+           ADDA_SUBBAND_BYPASS,
+           SUBBAND_USE_CRITICAL_SAMPLING,
+           metrics.max_error,
+           metrics.mse,
+           metrics.input_energy,
+           metrics.output_energy_ratio,
+           metrics.aligned_lag,
+           metrics.aligned_gain,
+           metrics.aligned_snr_db);
+
+    return 0;
+}
+#endif
+
+#endif
 
 #ifndef SUBBAND_FLOW_ALGO_ONLY
 

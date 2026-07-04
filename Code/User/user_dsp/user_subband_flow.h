@@ -13,8 +13,23 @@
 #endif
 
 #define SUBBAND_D        8
-#define SUBBAND_ORD      64
-#define SUBBAND_RECON_GAIN (1.0 / SUBBAND_D)
+/* Guidebook N is the FIR order. Coefficient count is N + 1. */
+#define SUBBAND_FILTER_ORDER 128
+#define SUBBAND_ORD      (SUBBAND_FILTER_ORDER + 1)
+
+#ifndef SUBBAND_USE_CRITICAL_SAMPLING
+#define SUBBAND_USE_CRITICAL_SAMPLING 1
+#endif
+
+/*
+ * Full-rate smoke-test reconstruction uses the FIR bank without down/up sampling.
+ * Critical-sampling mode follows the guidebook example and needs D gain compensation.
+ */
+#if SUBBAND_USE_CRITICAL_SAMPLING
+#define SUBBAND_RECON_GAIN ((double)SUBBAND_D)
+#else
+#define SUBBAND_RECON_GAIN 1.0
+#endif
 
 #ifdef SUBBAND_FLOW_ALGO_ONLY
 #define SUBBAND_FRM_LEN  1024
@@ -24,6 +39,22 @@
 #endif
 
 #define SUBBAND_LEN      (SUBBAND_FRM_LEN / SUBBAND_D)
+
+#ifdef SUBBAND_FLOW_ALGO_ONLY
+typedef struct
+{
+    double max_error;
+    double mse;
+    double input_energy;
+    double output_energy_ratio;
+    double aligned_snr_db;
+    double aligned_gain;
+    int aligned_lag;
+} SUBBAND_OFFLINE_METRICS;
+
+void Subband_Offline_Sine_Test(double freq_hz, double sample_rate_hz, double amplitude,
+                               SUBBAND_OFFLINE_METRICS *metrics);
+#endif
 
 void Subband_FilterBank_Init(void);
 void Subband_Process_1024(short *in, short *out);
