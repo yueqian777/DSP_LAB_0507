@@ -12,6 +12,16 @@
 #define ADDA_SUBBAND_BYPASS 0
 #endif
 
+#ifndef SUBBAND_BYPASS
+#define SUBBAND_BYPASS ADDA_SUBBAND_BYPASS
+#endif
+
+#ifndef SUBBAND_USE_LEGACY_FIR
+#define SUBBAND_USE_LEGACY_FIR 0
+#endif
+
+#include "user_subband_wola.h"
+
 #define SUBBAND_D        8
 /* Guidebook N is the FIR order. Coefficient count is N + 1. */
 #define SUBBAND_FILTER_ORDER 128
@@ -40,7 +50,7 @@
 
 #define SUBBAND_LEN      (SUBBAND_FRM_LEN / SUBBAND_D)
 
-#ifdef SUBBAND_FLOW_ALGO_ONLY
+#if SUBBAND_USE_LEGACY_FIR && defined(SUBBAND_FLOW_ALGO_ONLY)
 typedef struct
 {
     double max_error;

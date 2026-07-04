@@ -35,6 +35,10 @@
 #include "user_adda.h"
 // Subband flow test
 #include "user_subband_flow.h"
+#include "user_subband_wola.h"
+#ifdef SUBBAND_ALGO_ONLY
+#include "user_subband_test.h"
+#endif
 
 
 

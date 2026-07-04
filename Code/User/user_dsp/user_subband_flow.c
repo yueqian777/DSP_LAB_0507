@@ -6,6 +6,7 @@
  */
 
 #include "user_subband_flow.h"
+#include "user_subband_wola.h"
 #include "math.h"
 #include "string.h"
 
@@ -24,7 +25,7 @@
 
 typedef float SUBBAND_REAL;
 
-#if !ADDA_SUBBAND_BYPASS
+#if SUBBAND_USE_LEGACY_FIR && !ADDA_SUBBAND_BYPASS
 
 typedef struct
 {
@@ -78,7 +79,7 @@ volatile unsigned long SUBBAND_FilterbankFrames = 0;
 
 #endif
 
-#if !ADDA_SUBBAND_BYPASS
+#if SUBBAND_USE_LEGACY_FIR && !ADDA_SUBBAND_BYPASS
 
 static void Clear_FilterBank_State(void)
 {
@@ -92,18 +93,18 @@ static void Clear_FilterBank_State(void)
 
 void Subband_FilterBank_Init(void)
 {
-#if !ADDA_SUBBAND_BYPASS
+    if (Subband_FilterBank_Ready != 0)
+    {
+        return;
+    }
+
+#if SUBBAND_USE_LEGACY_FIR && !ADDA_SUBBAND_BYPASS
     int k;
     int n;
     double m;
     double wc;
     double sum;
     double phase;
-
-    if (Subband_FilterBank_Ready != 0)
-    {
-        return;
-    }
 
     wc = SUBBAND_PI / (double)SUBBAND_D;
     sum = 0.0;
@@ -144,12 +145,14 @@ void Subband_FilterBank_Init(void)
     }
 
     Clear_FilterBank_State();
+#else
+    SubbandWOLA_Init();
 #endif
 
     Subband_FilterBank_Ready = 1;
 }
 
-#if !ADDA_SUBBAND_BYPASS
+#if SUBBAND_USE_LEGACY_FIR && !ADDA_SUBBAND_BYPASS
 
 static short Saturate_Real_To_Short(SUBBAND_REAL value)
 {
@@ -310,7 +313,7 @@ static void Synthesis_Filter_1024(short *out)
 
 void Subband_Process_1024(short *in, short *out)
 {
-#if ADDA_SUBBAND_BYPASS
+#if SUBBAND_USE_LEGACY_FIR && ADDA_SUBBAND_BYPASS
     int i;
 #endif
 
@@ -321,6 +324,7 @@ void Subband_Process_1024(short *in, short *out)
 
     Subband_FilterBank_Init();
 
+#if SUBBAND_USE_LEGACY_FIR
 #if ADDA_SUBBAND_BYPASS
     for (i = 0; i < SUBBAND_FRM_LEN; i++)
     {
@@ -331,13 +335,16 @@ void Subband_Process_1024(short *in, short *out)
     Subband_Direct_Through_1024();
     Synthesis_Filter_1024(out);
 #endif
+#else
+    SubbandWOLA_ProcessFrame(in, out);
+#endif
 
 #ifndef SUBBAND_FLOW_ALGO_ONLY
     SUBBAND_FilterbankFrames++;
 #endif
 }
 
-#ifdef SUBBAND_FLOW_ALGO_ONLY
+#if SUBBAND_USE_LEGACY_FIR && defined(SUBBAND_FLOW_ALGO_ONLY)
 
 void Subband_Offline_Sine_Test(double freq_hz, double sample_rate_hz, double amplitude,
                                SUBBAND_OFFLINE_METRICS *metrics)
@@ -379,7 +386,7 @@ void Subband_Offline_Sine_Test(double freq_hz, double sample_rate_hz, double amp
     }
 
     Subband_FilterBank_Init();
-#if !ADDA_SUBBAND_BYPASS
+#if SUBBAND_USE_LEGACY_FIR && !ADDA_SUBBAND_BYPASS
     Clear_FilterBank_State();
 #endif
     Subband_Process_1024(input, output);
