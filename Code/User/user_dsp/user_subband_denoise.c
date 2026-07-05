@@ -216,15 +216,7 @@ void SubbandDenoise_SetEnabled(int enable)
 {
     SubbandDenoise_Init();
 
-    if (enable != 0)
-    {
-        SubbandDenoise_State.enabled = 1;
-    }
-    else
-    {
-        SubbandDenoise_State.enabled = 0;
-        SubbandDenoise_State.learning = 0;
-    }
+    SubbandDenoise_State.enabled = (enable != 0) ? 1 : 0;
     Update_Debug_State();
 }
 
@@ -238,6 +230,13 @@ void SubbandDenoise_StartNoiseLearning(void)
 {
     SubbandDenoise_Init();
     Start_Learning_Internal();
+}
+
+void SubbandDenoise_StopLearning(void)
+{
+    SubbandDenoise_Init();
+    SubbandDenoise_State.learning = 0;
+    Update_Debug_State();
 }
 
 int SubbandDenoise_IsLearning(void)

@@ -23,9 +23,18 @@ volatile float SUBBAND_EVAL_DebugCpuUsagePercent = 0.0f;
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
+/*
+ * Default PC test-vector location. Extract
+ * subband_eval_audio_50k_with_2s_noise.zip to:
+ *   test_vectors/subband_eval_audio/
+ *
+ * A PC test build can override it, for example:
+ *   -DSUBBAND_EVAL_AUDIO_DIR=\"D:/NDM/subband_eval_audio_50k_with_2s_noise\"
+ */
 #ifndef SUBBAND_EVAL_AUDIO_DIR
-#define SUBBAND_EVAL_AUDIO_DIR "D:/NDM/subband_eval_audio_50k_with_2s_noise"
+#define SUBBAND_EVAL_AUDIO_DIR "test_vectors/subband_eval_audio"
 #endif
 
 #define EVAL_MAX_SAMPLES 500000
@@ -55,6 +64,20 @@ static float Eval_Abs_Float(float x)
     return x;
 }
 
+static int Eval_Abs_Int(int x)
+{
+    if (x < 0)
+    {
+        return -x;
+    }
+    return x;
+}
+
+static double Eval_Now_Ms(void)
+{
+    return ((double)clock() * 1000.0) / (double)CLOCKS_PER_SEC;
+}
+
 static void Eval_Clear_Result(SubbandEvalResult *r)
 {
     if (r != 0)
@@ -62,8 +85,11 @@ static void Eval_Clear_Result(SubbandEvalResult *r)
         memset(r, 0, sizeof(*r));
         r->frame_budget_ms =
             ((float)SUBBAND_FRAME_LEN / SUBBAND_SAMPLE_RATE) * 1000.0f;
+        r->gain_avg = 1.0f;
         r->gain_min = 1.0f;
         r->gain_max = 1.0f;
+        r->expected_delay_samples = SUBBAND_EXPECTED_DELAY;
+        r->board_realtime_status = SUBBAND_EVAL_BOARD_NOT_MEASURED;
     }
 }
 
@@ -74,6 +100,7 @@ static void Eval_Reset_For_Passthrough(void)
     SubbandWOLA_ResetAllGains();
     SubbandWOLA_SetBypass(0);
     SubbandDenoise_Reset();
+    SubbandDenoise_StopLearning();
     SubbandDenoise_SetEnabled(0);
 }
 
@@ -160,16 +187,23 @@ static void Eval_Process_Frames(short *input, short *output, int frames)
     }
 }
 
-static int Eval_Find_Aligned_Lag(short *input, short *output, int count)
+static int Eval_Find_Aligned_Lag_From(short *input, short *output,
+                                      int count, int start)
 {
     int lag;
     int best_lag;
-    int start;
     double best_err;
 
-    start = 4 * SUBBAND_FRAME_LEN;
     best_lag = SUBBAND_EXPECTED_DELAY;
     best_err = 1.0e300;
+    if (start < 0)
+    {
+        start = 0;
+    }
+    if ((count - start) <= (SUBBAND_NFFT + EVAL_SKIP_TAIL + 1))
+    {
+        return best_lag;
+    }
 
     for (lag = 0; lag <= SUBBAND_NFFT; lag++)
     {
@@ -192,6 +226,12 @@ static int Eval_Find_Aligned_Lag(short *input, short *output, int count)
     }
 
     return best_lag;
+}
+
+static int Eval_Find_Aligned_Lag(short *input, short *output, int count)
+{
+    return Eval_Find_Aligned_Lag_From(input, output, count,
+                                      4 * SUBBAND_FRAME_LEN);
 }
 
 static float Eval_Aligned_Snr(short *ref, short *out, int count,
@@ -471,10 +511,15 @@ static void Eval_Write_Csv_Header(FILE *fp)
 {
     if (fp != 0)
     {
-        fprintf(fp, "eval_case,input_snr_db,output_snr_db,"
-                    "snr_improvement_db,noise_reduction_db,energy_ratio,"
-                    "speech_preservation_ratio,corr,gain_avg,gain_min,"
-                    "gain_max,max_ms,cpu_usage_percent,pass\n");
+        fprintf(fp, "eval_case,wola_passthrough_snr_db,wola_energy_ratio,"
+                    "wola_delay_samples,learn_target_hops,"
+                    "learn_actual_hops,learn_progress_final,"
+                    "noise_psd_avg,input_snr_db,output_snr_db,"
+                    "snr_improvement_db,noise_reduction_db,"
+                    "output_input_energy_ratio,speech_preservation_ratio,"
+                    "clean_output_corr,gain_avg,gain_min,gain_max,"
+                    "pc_runtime_ms,board_last_ms,board_max_ms,"
+                    "cpu_usage_percent,board_realtime_status,pass\n");
     }
 }
 
@@ -483,9 +528,17 @@ static void Eval_Write_Csv_Row(FILE *fp, const char *name,
 {
     if ((fp != 0) && (r != 0))
     {
-        fprintf(fp, "%s,%.3f,%.3f,%.3f,%.3f,%.6f,%.6f,%.6f,"
-                    "%.6f,%.6f,%.6f,%.6f,%.3f,%d\n",
+        fprintf(fp, "%s,%.3f,%.6f,%d,%lu,%lu,%.6f,%.3f,"
+                    "%.3f,%.3f,%.3f,%.3f,%.6f,%.6f,%.6f,"
+                    "%.6f,%.6f,%.6f,%.3f,%.3f,%.3f,%.3f,%s,%d\n",
                 name,
+                r->wola_passthrough_snr_db,
+                r->wola_energy_ratio,
+                r->wola_delay_samples,
+                r->learn_target_hops,
+                r->learn_actual_hops,
+                r->learn_progress_final,
+                r->noise_psd_avg,
                 r->input_snr_db,
                 r->output_snr_db,
                 r->snr_improvement_db,
@@ -496,8 +549,12 @@ static void Eval_Write_Csv_Row(FILE *fp, const char *name,
                 r->gain_avg,
                 r->gain_min,
                 r->gain_max,
-                r->denoise_max_ms,
+                r->pc_runtime_ms,
+                r->board_last_ms,
+                r->board_max_ms,
                 r->cpu_usage_percent,
+                (r->board_realtime_status != 0) ?
+                    r->board_realtime_status : SUBBAND_EVAL_BOARD_NOT_MEASURED,
                 r->pass_overall);
     }
 }
@@ -513,10 +570,19 @@ void SubbandEval_PrintReport(const SubbandEvalResult *r)
     printf("WOLA passthrough SNR: %.2f dB\n", r->wola_passthrough_snr_db);
     printf("WOLA energy ratio: %.6f\n", r->wola_energy_ratio);
     printf("WOLA delay samples: %d\n", r->wola_delay_samples);
+    printf("Expected delay samples: %d\n", r->expected_delay_samples);
+    printf("Measured delay samples: %d\n", r->measured_delay_samples);
     printf("Noise learning target hops: %lu\n", r->learn_target_hops);
     printf("Noise learning actual hops: %lu\n", r->learn_actual_hops);
     printf("Noise PSD avg: %.3f\n", r->noise_psd_avg);
-    printf("Learning pass: %s\n", r->pass_learning ? "PASS" : "FAIL");
+    if (r->learn_target_hops == 0UL)
+    {
+        printf("Learning pass: N/A\n");
+    }
+    else
+    {
+        printf("Learning pass: %s\n", r->pass_learning ? "PASS" : "FAIL");
+    }
     printf("Input SNR: %.2f dB\n", r->input_snr_db);
     printf("Output SNR: %.2f dB\n", r->output_snr_db);
     printf("SNR improvement: %.2f dB\n", r->snr_improvement_db);
@@ -526,8 +592,13 @@ void SubbandEval_PrintReport(const SubbandEvalResult *r)
     printf("Gain avg/min/max: %.3f / %.3f / %.3f\n",
            r->gain_avg, r->gain_min, r->gain_max);
     printf("Frame budget: %.2f ms\n", r->frame_budget_ms);
-    printf("Denoise max time: %.3f ms\n", r->denoise_max_ms);
+    printf("PC runtime: %.3f ms\n", r->pc_runtime_ms);
+    printf("Board last/max time: %.3f / %.3f ms\n",
+           r->board_last_ms, r->board_max_ms);
     printf("CPU usage: %.2f %%\n", r->cpu_usage_percent);
+    printf("Board realtime: %s\n",
+           (r->board_realtime_status != 0) ?
+               r->board_realtime_status : SUBBAND_EVAL_BOARD_NOT_MEASURED);
     printf("Overall result: %s\n", r->pass_overall ? "PASS" : "FAIL");
     printf("=======================================================\n");
 }
@@ -539,10 +610,12 @@ int SubbandEval_RunWolaPassthroughTest(SubbandEvalResult *r)
     int samples;
     int lag;
     int fail;
+    double begin_ms;
     float worst_snr;
     float worst_ratio;
 
     Eval_Clear_Result(r);
+    begin_ms = Eval_Now_Ms();
     frames = 48;
     samples = frames * SUBBAND_FRAME_LEN;
     fail = 0;
@@ -587,6 +660,10 @@ int SubbandEval_RunWolaPassthroughTest(SubbandEvalResult *r)
         {
             fail = 1;
         }
+        if (Eval_Abs_Int(lag - SUBBAND_EXPECTED_DELAY) > 2)
+        {
+            fail = 1;
+        }
         printf("eval_wola_passthrough case=%d snr_db=%.3f energy_ratio=%.6f lag=%d\n",
                cases, snr, ratio, lag);
     }
@@ -596,6 +673,9 @@ int SubbandEval_RunWolaPassthroughTest(SubbandEvalResult *r)
         r->wola_passthrough_snr_db = worst_snr;
         r->wola_energy_ratio = worst_ratio;
         r->wola_delay_samples = lag;
+        r->expected_delay_samples = SUBBAND_EXPECTED_DELAY;
+        r->measured_delay_samples = lag;
+        r->pc_runtime_ms = (float)(Eval_Now_Ms() - begin_ms);
         r->pass_wola = (fail == 0);
         r->pass_overall = r->pass_wola;
     }
@@ -612,8 +692,10 @@ int SubbandEval_RunNoiseLearningTest(SubbandEvalResult *r)
     unsigned long actual;
     float progress;
     float psd_avg;
+    double begin_ms;
 
     Eval_Clear_Result(r);
+    begin_ms = Eval_Now_Ms();
 
     target = (unsigned long)
         ((SUBBAND_DENOISE_DEFAULT_LEARN_SECONDS * SUBBAND_SAMPLE_RATE /
@@ -649,6 +731,7 @@ int SubbandEval_RunNoiseLearningTest(SubbandEvalResult *r)
         r->learn_actual_hops = actual;
         r->learn_progress_final = progress;
         r->noise_psd_avg = psd_avg;
+        r->pc_runtime_ms = (float)(Eval_Now_Ms() - begin_ms);
         r->pass_learning = (fail == 0);
         r->pass_overall = r->pass_learning;
     }
@@ -670,9 +753,12 @@ int SubbandEval_RunNoiseSuppressionTest(SubbandEvalResult *r,
     int samples;
     int start;
     int fail;
+    int measured_delay;
     float reduction;
+    double begin_ms;
 
     Eval_Clear_Result(r);
+    begin_ms = Eval_Now_Ms();
     Eval_Join_Path(path, sizeof(path), audio_dir,
                    "noise_only_50k_10s_for_suppression_test.wav");
     if (!Eval_Read_Wav(path, Eval_Input, EVAL_MAX_SAMPLES, &rate, &count))
@@ -687,12 +773,16 @@ int SubbandEval_RunNoiseSuppressionTest(SubbandEvalResult *r,
     Eval_Process_Frames(Eval_Input, Eval_Output, frames);
 
     start = (int)(2.5f * SUBBAND_SAMPLE_RATE);
+    measured_delay = Eval_Find_Aligned_Lag_From(Eval_Input, Eval_Output,
+                                                samples, start);
     reduction = Eval_Noise_Reduction(Eval_Input, Eval_Output, samples,
-                                     SUBBAND_EXPECTED_DELAY, start);
+                                     measured_delay, start);
     fail = (reduction < -3.0f) ? 0 : 1;
 
     if (r != 0)
     {
+        r->expected_delay_samples = SUBBAND_EXPECTED_DELAY;
+        r->measured_delay_samples = measured_delay;
         r->noise_reduction_db = reduction;
         r->output_input_energy_ratio = (float)pow(10.0, reduction / 10.0);
         r->gain_avg = SubbandDenoise_GetGainAvg();
@@ -702,21 +792,19 @@ int SubbandEval_RunNoiseSuppressionTest(SubbandEvalResult *r,
         r->learn_actual_hops = SubbandDenoise_GetLearnCount();
         r->learn_progress_final = SubbandDenoise_GetLearnProgress();
         r->noise_psd_avg = SubbandDenoise_GetNoisePsdAvg();
-        r->denoise_last_ms = SUBBAND_EVAL_DebugDenoiseLastMs;
-        r->denoise_max_ms = SUBBAND_EVAL_DebugDenoiseMaxMs;
-        r->cpu_usage_percent = SUBBAND_EVAL_DebugCpuUsagePercent;
+        r->pc_runtime_ms = (float)(Eval_Now_Ms() - begin_ms);
         r->pass_noise_reduction = (fail == 0);
         r->pass_learning =
             ((r->learn_actual_hops == r->learn_target_hops) &&
              (r->learn_progress_final >= 0.999f) &&
              (r->noise_psd_avg > SUBBAND_DENOISE_EPS));
-        r->pass_realtime = 1;
         r->pass_overall = (fail == 0);
     }
 
-    printf("eval_noise_suppression noise_reduction_db=%.3f gain_avg=%.3f "
-           "gain_min=%.3f gain_max=%.3f %s\n",
+    printf("eval_noise_suppression noise_reduction_db=%.3f measured_delay=%d "
+           "gain_avg=%.3f gain_min=%.3f gain_max=%.3f %s\n",
            reduction,
+           measured_delay,
            SubbandDenoise_GetGainAvg(),
            SubbandDenoise_GetGainMin(),
            SubbandDenoise_GetGainMax(),
@@ -763,8 +851,11 @@ int SubbandEval_RunSNRImprovementTest(float target_snr_db,
     int samples;
     int start;
     int fail;
+    int measured_delay;
+    double begin_ms;
 
     Eval_Clear_Result(r);
+    begin_ms = Eval_Now_Ms();
     Eval_Join_Path(noisy_path, sizeof(noisy_path), audio_dir,
                    Eval_Noisy_Name(target_snr_db));
     Eval_Join_Path(clean_path, sizeof(clean_path), audio_dir,
@@ -791,16 +882,20 @@ int SubbandEval_RunSNRImprovementTest(float target_snr_db,
     Eval_Process_Frames(Eval_Input, Eval_Output, frames);
 
     start = (int)(2.5f * SUBBAND_SAMPLE_RATE);
+    measured_delay = Eval_Find_Aligned_Lag_From(Eval_Clean, Eval_Output,
+                                                samples, start);
+    r->expected_delay_samples = SUBBAND_EXPECTED_DELAY;
+    r->measured_delay_samples = measured_delay;
     r->input_snr_db = Eval_Input_Snr(Eval_Input, Eval_Clean, samples, start);
     r->output_snr_db =
         Eval_Output_Snr(Eval_Output, Eval_Clean, samples,
-                        SUBBAND_EXPECTED_DELAY, start);
+                        measured_delay, start);
     r->snr_improvement_db = r->output_snr_db - r->input_snr_db;
     r->output_input_energy_ratio =
         Eval_Aligned_Energy_Ratio(Eval_Input, Eval_Output, samples,
-                                  SUBBAND_EXPECTED_DELAY, start);
+                                  measured_delay, start);
     Eval_Preservation_And_Corr(Eval_Output, Eval_Clean, samples,
-                               SUBBAND_EXPECTED_DELAY, start,
+                               measured_delay, start,
                                &r->speech_preservation_ratio,
                                &r->clean_output_corr);
     r->gain_avg = SubbandDenoise_GetGainAvg();
@@ -810,8 +905,13 @@ int SubbandEval_RunSNRImprovementTest(float target_snr_db,
     r->learn_target_hops = SubbandDenoise_GetTargetHops();
     r->learn_actual_hops = SubbandDenoise_GetLearnCount();
     r->learn_progress_final = SubbandDenoise_GetLearnProgress();
+    r->pc_runtime_ms = (float)(Eval_Now_Ms() - begin_ms);
 
     fail = 0;
+    if (Eval_Abs_Int(measured_delay - SUBBAND_EXPECTED_DELAY) > 2)
+    {
+        fail = 1;
+    }
     if (target_snr_db < 15.0f)
     {
         if (r->snr_improvement_db <= 2.0f)
@@ -842,10 +942,9 @@ int SubbandEval_RunSNRImprovementTest(float target_snr_db,
         ((r->learn_actual_hops == r->learn_target_hops) &&
          (r->learn_progress_final >= 0.999f) &&
          (r->noise_psd_avg > SUBBAND_DENOISE_EPS));
-    r->pass_realtime = 1;
     r->pass_overall = (fail == 0);
     Eval_Compute_Band_Energy(Eval_Input, Eval_Output, samples,
-                             SUBBAND_EXPECTED_DELAY, start);
+                             measured_delay, start);
     if (target_snr_db < 7.5f)
     {
         Eval_Print_Band_Energy_Line("snr5");
@@ -860,12 +959,15 @@ int SubbandEval_RunSNRImprovementTest(float target_snr_db,
     }
 
     printf("eval_snr target=%.0f input_snr_db=%.3f output_snr_db=%.3f "
-           "improvement_db=%.3f preserve=%.3f corr=%.3f "
-           "gain_avg=%.3f gain_min=%.3f gain_max=%.3f %s\n",
+           "improvement_db=%.3f expected_delay=%d measured_delay=%d "
+           "preserve=%.3f corr=%.3f gain_avg=%.3f gain_min=%.3f "
+           "gain_max=%.3f %s\n",
            target_snr_db,
            r->input_snr_db,
            r->output_snr_db,
            r->snr_improvement_db,
+           SUBBAND_EXPECTED_DELAY,
+           measured_delay,
            r->speech_preservation_ratio,
            r->clean_output_corr,
            r->gain_avg,
@@ -1067,6 +1169,9 @@ int SubbandEval_OfflineTest_All(void)
     }
 
     printf("CSV report: subband_eval_report.csv\n");
+    printf("Eval audio dir: %s\n", audio_dir);
+    SubbandEval_PrintReport(&wola);
+    SubbandEval_PrintReport(&learning);
     SubbandEval_PrintReport(&noise);
     SubbandEval_PrintReport(&snr5);
     SubbandEval_PrintReport(&snr10);

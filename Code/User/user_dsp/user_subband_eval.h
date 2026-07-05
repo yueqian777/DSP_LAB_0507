@@ -7,11 +7,17 @@
 #ifndef _USER_SUBBAND_EVAL_H_
 #define _USER_SUBBAND_EVAL_H_
 
+#define SUBBAND_EVAL_BOARD_NOT_MEASURED "NOT_MEASURED_ON_PC"
+#define SUBBAND_EVAL_BOARD_PASS "PASS"
+#define SUBBAND_EVAL_BOARD_FAIL "FAIL"
+
 typedef struct
 {
     float wola_passthrough_snr_db;
     float wola_energy_ratio;
     int wola_delay_samples;
+    int expected_delay_samples;
+    int measured_delay_samples;
     unsigned long learn_target_hops;
     unsigned long learn_actual_hops;
     float learn_progress_final;
@@ -31,9 +37,13 @@ typedef struct
     float frame_budget_ms;
     float wola_only_last_ms;
     float wola_only_max_ms;
+    float pc_runtime_ms;
+    float board_last_ms;
+    float board_max_ms;
     float denoise_last_ms;
     float denoise_max_ms;
     float cpu_usage_percent;
+    const char *board_realtime_status;
     int pass_wola;
     int pass_learning;
     int pass_snr_improvement;

@@ -44,7 +44,34 @@ static void Reset_WOLA_Test_State(void)
     SubbandWOLA_ResetStream();
     SubbandWOLA_ResetAllGains();
     SubbandDenoise_Reset();
+    SubbandDenoise_StopLearning();
     SubbandDenoise_SetEnabled(0);
+}
+
+static int Run_Denoise_SetEnabled_Does_Not_Stop_Learning_Test(void)
+{
+    int fail;
+
+    fail = 0;
+    SubbandDenoise_Reset();
+    if (SubbandDenoise_IsLearning() == 0)
+    {
+        fail = 1;
+    }
+    SubbandDenoise_SetEnabled(0);
+    if (SubbandDenoise_IsLearning() == 0)
+    {
+        fail = 1;
+    }
+    SubbandDenoise_StopLearning();
+    if (SubbandDenoise_IsLearning() != 0)
+    {
+        fail = 1;
+    }
+
+    printf("denoise_setenabled_learning_semantics %s\n",
+           fail ? "FAIL" : "PASS");
+    return fail;
 }
 
 static void Fill_Sine(short *dst, float freq_hz, float amplitude)
@@ -779,6 +806,7 @@ void SubbandWOLA_OfflineTest_All(void)
     failures += Run_WOLA_Float_Reconstruction_Test();
     failures += Run_Single_Band_Retention_Test();
     failures += Run_Gain_Perturbation_Test();
+    failures += Run_Denoise_SetEnabled_Does_Not_Stop_Learning_Test();
     failures += SubbandEval_OfflineTest_All();
 
     SubbandWOLA_TestFailures = failures;

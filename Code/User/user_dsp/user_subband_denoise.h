@@ -72,6 +72,7 @@ void SubbandDenoise_Reset(void);
 void SubbandDenoise_SetEnabled(int enable);
 int SubbandDenoise_IsEnabled(void);
 void SubbandDenoise_StartNoiseLearning(void);
+void SubbandDenoise_StopLearning(void);
 int SubbandDenoise_IsLearning(void);
 int SubbandDenoise_IsReady(void);
 float SubbandDenoise_GetLearnProgress(void);
