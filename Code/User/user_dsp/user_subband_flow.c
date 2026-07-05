@@ -7,6 +7,7 @@
 
 #include "user_subband_flow.h"
 #include "user_subband_wola.h"
+#include "user_subband_eval.h"
 #include "math.h"
 #include "string.h"
 
@@ -593,6 +594,7 @@ void Subband_Flow_Example(void)
             FLAG_AD = 0;
             FLAG_AD_DONE = 1;
             SUBBAND_DebugAdFrames++;
+            SUBBAND_EVAL_DebugAdFrames = SUBBAND_DebugAdFrames;
 
             Capture_Adc_Frame();
         }
@@ -602,6 +604,7 @@ void Subband_Flow_Example(void)
             FLAG_DA = 0;
             FLAG_AD_DONE = 0;
             SUBBAND_DebugDaFrames++;
+            SUBBAND_EVAL_DebugDaFrames = SUBBAND_DebugDaFrames;
 
             Fill_Dac_Inactive_Buffer();
         }

@@ -5,6 +5,8 @@
  */
 
 #include "user_subband_wola.h"
+#include "user_subband_denoise.h"
+#include "user_subband_eval.h"
 #include "math.h"
 #include "string.h"
 
@@ -48,6 +50,25 @@ volatile unsigned long SUBBAND_WOLA_DebugLastCycles = 0;
 volatile unsigned long SUBBAND_WOLA_DebugMaxCycles = 0;
 volatile float SUBBAND_WOLA_DebugLastMs = 0.0f;
 volatile float SUBBAND_WOLA_DebugMaxMs = 0.0f;
+
+static void Update_Eval_Frame_Debug(void)
+{
+    SUBBAND_EVAL_DebugWolaFrames = SUBBAND_WOLA_DebugFrames;
+    SUBBAND_EVAL_DebugDenoiseFrames = SUBBAND_WOLA_DebugFrames;
+    SUBBAND_EVAL_DebugFrameBudgetMs =
+        ((float)SUBBAND_FRAME_LEN / SUBBAND_SAMPLE_RATE) * 1000.0f;
+    SUBBAND_EVAL_DebugDenoiseLastMs = SUBBAND_WOLA_DebugLastMs;
+    if (SUBBAND_WOLA_DebugMaxMs > SUBBAND_EVAL_DebugDenoiseMaxMs)
+    {
+        SUBBAND_EVAL_DebugDenoiseMaxMs = SUBBAND_WOLA_DebugMaxMs;
+    }
+    if (SUBBAND_EVAL_DebugFrameBudgetMs > 1.0e-20f)
+    {
+        SUBBAND_EVAL_DebugCpuUsagePercent =
+            (SUBBAND_EVAL_DebugDenoiseMaxMs /
+             SUBBAND_EVAL_DebugFrameBudgetMs) * 100.0f;
+    }
+}
 
 static short Saturate_To_Short(float x)
 {
@@ -261,6 +282,8 @@ static void Process_Hop_Float(float *input_hop, float *output_hop)
     }
 
     FFT_InPlace(SubbandWOLA_State.fft_re, SubbandWOLA_State.fft_im);
+    SubbandDenoise_ProcessSpectrum(SubbandWOLA_State.fft_re,
+                                   SubbandWOLA_State.fft_im);
     Apply_Band_Gain();
     IFFT_InPlace(SubbandWOLA_State.fft_re, SubbandWOLA_State.fft_im);
 
@@ -370,10 +393,49 @@ void SubbandWOLA_Init(void)
     SubbandWOLA_State.bypass = SUBBAND_BYPASS;
     SubbandWOLA_State.initialized = 1;
     SUBBAND_WOLA_DebugBypass = SubbandWOLA_State.bypass;
+    SubbandDenoise_Init();
 #if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
     TSCL = 0;
     TSCH = 0;
 #endif
+}
+
+void SubbandWOLA_ResetStream(void)
+{
+    SubbandWOLA_Init();
+    memset(SubbandWOLA_State.analysis_buf, 0,
+           sizeof(SubbandWOLA_State.analysis_buf));
+    memset(SubbandWOLA_State.ola_buf, 0, sizeof(SubbandWOLA_State.ola_buf));
+    memset(SubbandWOLA_State.fft_re, 0, sizeof(SubbandWOLA_State.fft_re));
+    memset(SubbandWOLA_State.fft_im, 0, sizeof(SubbandWOLA_State.fft_im));
+    memset(SubbandWOLA_State.time_buf, 0, sizeof(SubbandWOLA_State.time_buf));
+    memset(SubbandWOLA_State.hop_in, 0, sizeof(SubbandWOLA_State.hop_in));
+    memset(SubbandWOLA_State.hop_out, 0, sizeof(SubbandWOLA_State.hop_out));
+    SubbandWOLA_State.frame_count = 0UL;
+    SUBBAND_WOLA_DebugFrames = 0UL;
+    SUBBAND_WOLA_DebugInputEnergy = 0.0f;
+    SUBBAND_WOLA_DebugOutputEnergy = 0.0f;
+    SUBBAND_WOLA_DebugEnergyRatio = 0.0f;
+    SUBBAND_WOLA_DebugLastCycles = 0UL;
+    SUBBAND_WOLA_DebugMaxCycles = 0UL;
+    SUBBAND_WOLA_DebugLastMs = 0.0f;
+    SUBBAND_WOLA_DebugMaxMs = 0.0f;
+    SUBBAND_EVAL_DebugWolaFrames = 0UL;
+    SUBBAND_EVAL_DebugDenoiseFrames = 0UL;
+    SUBBAND_EVAL_DebugDenoiseLastMs = 0.0f;
+    SUBBAND_EVAL_DebugDenoiseMaxMs = 0.0f;
+    SUBBAND_EVAL_DebugCpuUsagePercent = 0.0f;
+}
+
+void SubbandWOLA_ResetAllGains(void)
+{
+    int band;
+
+    SubbandWOLA_Init();
+    for (band = 0; band < SUBBAND_NUM_BANDS; band++)
+    {
+        SubbandWOLA_State.band_gain[band] = 1.0f;
+    }
 }
 
 void SubbandWOLA_SetBandGain(int band, float gain)
@@ -476,6 +538,7 @@ void SubbandWOLA_ProcessFrame(short *in, short *out)
             SUBBAND_WOLA_DebugMaxMs = SUBBAND_WOLA_DebugLastMs;
         }
 #endif
+        Update_Eval_Frame_Debug();
         return;
     }
 
@@ -500,6 +563,7 @@ void SubbandWOLA_ProcessFrame(short *in, short *out)
         SUBBAND_WOLA_DebugMaxMs = SUBBAND_WOLA_DebugLastMs;
     }
 #endif
+    Update_Eval_Frame_Debug();
 }
 
 #ifdef SUBBAND_ALGO_ONLY

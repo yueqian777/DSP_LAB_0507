@@ -57,6 +57,8 @@ extern volatile float SUBBAND_WOLA_DebugLastMs;
 extern volatile float SUBBAND_WOLA_DebugMaxMs;
 
 void SubbandWOLA_Init(void);
+void SubbandWOLA_ResetStream(void);
+void SubbandWOLA_ResetAllGains(void);
 void SubbandWOLA_ProcessFrame(short *in, short *out);
 void SubbandWOLA_SetBandGain(int band, float gain);
 void SubbandWOLA_SetBypass(int enable);

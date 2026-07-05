@@ -6,6 +6,8 @@
 
 #include "user_subband_wola.h"
 #include "user_subband_test.h"
+#include "user_subband_denoise.h"
+#include "user_subband_eval.h"
 
 #ifdef SUBBAND_ALGO_ONLY
 #include <math.h>
@@ -34,6 +36,15 @@ static void Set_All_Gains(float gain)
     {
         SubbandWOLA_SetBandGain(band, gain);
     }
+}
+
+static void Reset_WOLA_Test_State(void)
+{
+    SubbandWOLA_Init();
+    SubbandWOLA_ResetStream();
+    SubbandWOLA_ResetAllGains();
+    SubbandDenoise_Reset();
+    SubbandDenoise_SetEnabled(0);
 }
 
 static void Fill_Sine(short *dst, float freq_hz, float amplitude)
@@ -326,7 +337,7 @@ static int Run_Bypass_Sine_Test(void)
     Fill_Sine(Test_Input, 1000.0f, 12000.0f);
     memset(Test_Output, 0, sizeof(Test_Output));
 
-    SubbandWOLA_Init();
+    Reset_WOLA_Test_State();
     SubbandWOLA_SetBypass(1);
     SubbandWOLA_ProcessFrame(Test_Input, Test_Output);
 
@@ -351,7 +362,7 @@ static int Run_Bypass_Noise_Test(void)
     Fill_Noise_Stream(Test_Input, SUBBAND_FRAME_LEN, 7UL, 12000.0f);
     memset(Test_Output, 0, sizeof(Test_Output));
 
-    SubbandWOLA_Init();
+    Reset_WOLA_Test_State();
     SubbandWOLA_SetBypass(1);
     SubbandWOLA_ProcessFrame(Test_Input, Test_Output);
 
@@ -373,7 +384,7 @@ static int Run_COLA_Test(void)
 {
     float max_error;
 
-    SubbandWOLA_Init();
+    Reset_WOLA_Test_State();
     max_error = SubbandWOLA_GetCOLAMaxError();
     printf("cola_check max_cola_error=%.9g\n", max_error);
 
@@ -401,7 +412,7 @@ static int Run_Impulse_Delay_Test(void)
     impulse_index = TEST_SKIP_SAMPLES + 64;
     Test_Stream_In[impulse_index] = 12000;
 
-    SubbandWOLA_Init();
+    Reset_WOLA_Test_State();
     SubbandWOLA_SetBypass(0);
     Set_All_Gains(1.0f);
     Process_Stream(Test_Stream_In, Test_Stream_Out, TEST_FRAMES);
@@ -490,7 +501,7 @@ static int Run_Band0_Rejects_10k_Test(void)
     float ratio;
     int frame;
 
-    SubbandWOLA_Init();
+    Reset_WOLA_Test_State();
     SubbandWOLA_SetBypass(0);
     Set_All_Gains(0.0f);
     SubbandWOLA_SetBandGain(0, 1.0f);
@@ -536,7 +547,7 @@ static int Run_WOLA_Passthrough_Test(const char *name, float freq_hz, int is_noi
         Fill_Sine_Stream(Test_Stream_In, TEST_SAMPLES, freq_hz, 12000.0f);
     }
 
-    SubbandWOLA_Init();
+    Reset_WOLA_Test_State();
     SubbandWOLA_SetBypass(0);
     Set_All_Gains(1.0f);
     Process_Stream(Test_Stream_In, Test_Stream_Out, TEST_FRAMES);
@@ -571,7 +582,7 @@ static int Run_WOLA_Float_Reconstruction_Test(void)
     Fill_Float_Noise(Test_Float_In, TEST_SAMPLES, 999UL, 10000.0f);
     memset(Test_Float_Out, 0, sizeof(Test_Float_Out));
 
-    SubbandWOLA_Init();
+    Reset_WOLA_Test_State();
     SubbandWOLA_SetBypass(0);
     Set_All_Gains(1.0f);
 
@@ -639,7 +650,7 @@ static int Run_Single_Band_Retention_Test(void)
             Fill_Sine_Stream(Test_Stream_In, TEST_SAMPLES, freq_hz, 12000.0f);
             memset(Test_Stream_Out, 0, sizeof(Test_Stream_Out));
 
-            SubbandWOLA_Init();
+            Reset_WOLA_Test_State();
             SubbandWOLA_SetBypass(0);
             Set_All_Gains(0.0f);
             SubbandWOLA_SetBandGain(target_band, 1.0f);
@@ -717,7 +728,7 @@ static int Run_Gain_Perturbation_Test(void)
         SubbandWOLATestMetrics metrics;
 
         memset(Test_Stream_Out, 0, sizeof(Test_Stream_Out));
-        SubbandWOLA_Init();
+        Reset_WOLA_Test_State();
         SubbandWOLA_SetBypass(0);
         for (band = 0; band < SUBBAND_NUM_BANDS; band++)
         {
@@ -768,6 +779,7 @@ void SubbandWOLA_OfflineTest_All(void)
     failures += Run_WOLA_Float_Reconstruction_Test();
     failures += Run_Single_Band_Retention_Test();
     failures += Run_Gain_Perturbation_Test();
+    failures += SubbandEval_OfflineTest_All();
 
     SubbandWOLA_TestFailures = failures;
     printf("SubbandWOLA_OfflineTest_All failures=%d\n", failures);
