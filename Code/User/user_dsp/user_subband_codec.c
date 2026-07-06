@@ -291,6 +291,25 @@ static void Codec_Clear_Band_Work(void)
     }
 }
 
+static int Codec_Effective_Scalar_Bits(int bits)
+{
+    /* Values below 2 are drop modes and carry no scalar payload bits. */
+    if (bits < 2)
+    {
+        return 0;
+    }
+    return bits;
+}
+
+static int Codec_Next_Band_Bits(int bits)
+{
+    if (bits < 2)
+    {
+        return 2;
+    }
+    return bits + 1;
+}
+
 static unsigned long Codec_Current_Payload_Bits(void)
 {
     int band;
@@ -300,7 +319,8 @@ static unsigned long Codec_Current_Payload_Bits(void)
     for (band = 0; band < SUBBAND_NUM_BANDS; band++)
     {
         bits += (unsigned long)SubbandCodec_State.scalar_count[band] *
-                (unsigned long)SubbandCodec_State.band_bits[band];
+                (unsigned long)Codec_Effective_Scalar_Bits(
+                    SubbandCodec_State.band_bits[band]);
     }
     return bits;
 }
@@ -362,20 +382,28 @@ static void Codec_Allocate_Bits(int target_bitrate_kbps)
         {
             unsigned long extra_bits;
             float score;
+            int next_bits;
+            int cur_payload_bits;
+            int next_payload_bits;
 
-            if (SubbandCodec_State.band_bits[band] >=
-                SUBBAND_CODEC_MAX_BITS_PER_SCALAR)
+            next_bits = Codec_Next_Band_Bits(
+                SubbandCodec_State.band_bits[band]);
+            if (next_bits > SUBBAND_CODEC_MAX_BITS_PER_SCALAR)
             {
                 continue;
             }
+            cur_payload_bits = Codec_Effective_Scalar_Bits(
+                SubbandCodec_State.band_bits[band]);
+            next_payload_bits = Codec_Effective_Scalar_Bits(next_bits);
             extra_bits =
-                (unsigned long)SubbandCodec_State.scalar_count[band];
+                (unsigned long)SubbandCodec_State.scalar_count[band] *
+                (unsigned long)(next_payload_bits - cur_payload_bits);
             if ((payload_bits + extra_bits) > budget_bits)
             {
                 continue;
             }
             score = logf(SubbandCodec_State.band_energy[band] + 1.0f) /
-                    (float)(SubbandCodec_State.band_bits[band] + 1);
+                    (float)(next_bits + 1);
             if (score > best_score)
             {
                 best_score = score;
@@ -386,9 +414,20 @@ static void Codec_Allocate_Bits(int target_bitrate_kbps)
         {
             break;
         }
-        payload_bits +=
-            (unsigned long)SubbandCodec_State.scalar_count[best_band];
-        SubbandCodec_State.band_bits[best_band]++;
+        {
+            int cur_bits;
+            int next_bits;
+
+            cur_bits = Codec_Effective_Scalar_Bits(
+                SubbandCodec_State.band_bits[best_band]);
+            next_bits = Codec_Next_Band_Bits(
+                SubbandCodec_State.band_bits[best_band]);
+            payload_bits +=
+                (unsigned long)SubbandCodec_State.scalar_count[best_band] *
+                (unsigned long)(Codec_Effective_Scalar_Bits(next_bits) -
+                                cur_bits);
+            SubbandCodec_State.band_bits[best_band] = next_bits;
+        }
     }
 }
 
@@ -398,7 +437,7 @@ static float Codec_Quantize_Value(float x, float scale, int bits)
     int q;
     float qf;
 
-    if (bits <= 0)
+    if (bits < 2)
     {
         return 0.0f;
     }
@@ -442,9 +481,17 @@ static unsigned long Codec_Quantize_Dequantize(float *re, float *im)
 
         band = Codec_Positive_Bin_To_Band(bin);
         bits = SubbandCodec_State.band_bits[band];
-        payload_bits += (unsigned long)bits *
-                        (unsigned long)Codec_Bin_Scalar_Count(bin);
-        qmax = (1 << (bits - 1)) - 1;
+        payload_bits +=
+            (unsigned long)Codec_Effective_Scalar_Bits(bits) *
+            (unsigned long)Codec_Bin_Scalar_Count(bin);
+        if (bits >= 2)
+        {
+            qmax = (1 << (bits - 1)) - 1;
+        }
+        else
+        {
+            qmax = 0;
+        }
         if (qmax > 0)
         {
             scale = SubbandCodec_State.band_scale[band] / (float)qmax;
@@ -600,7 +647,8 @@ static unsigned long Codec_Process_Hop(const short *input,
             (unsigned long)SubbandCodec_State.scalar_count[band];
         stats->scalar_bits +=
             (unsigned long)SubbandCodec_State.scalar_count[band] *
-            (unsigned long)SubbandCodec_State.band_bits[band];
+            (unsigned long)Codec_Effective_Scalar_Bits(
+                SubbandCodec_State.band_bits[band]);
     }
 
     Codec_Shift_OLA();

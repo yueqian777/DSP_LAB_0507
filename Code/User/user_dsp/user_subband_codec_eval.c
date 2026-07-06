@@ -345,15 +345,19 @@ static void CodecEval_Write_Header(FILE *fp)
                 "avg_bits_per_scalar");
     for (band = 0; band < SUBBAND_NUM_BANDS; band++)
     {
-        fprintf(fp, ",band_energy_%d_before", band);
+        fprintf(fp, ",direct_band_energy_%d", band);
     }
     for (band = 0; band < SUBBAND_NUM_BANDS; band++)
     {
-        fprintf(fp, ",band_energy_%d_after", band);
+        fprintf(fp, ",denoise_band_energy_%d", band);
     }
     for (band = 0; band < SUBBAND_NUM_BANDS; band++)
     {
-        fprintf(fp, ",band_bits_%d", band);
+        fprintf(fp, ",direct_band_bits_%d", band);
+    }
+    for (band = 0; band < SUBBAND_NUM_BANDS; band++)
+    {
+        fprintf(fp, ",denoise_band_bits_%d", band);
     }
     fprintf(fp, ",pass\n");
 }
@@ -392,6 +396,10 @@ static void CodecEval_Write_Row(FILE *fp, const char *case_name,
     for (band = 0; band < SUBBAND_NUM_BANDS; band++)
     {
         fprintf(fp, ",%.3f", row->denoise_stats.band_energy_before[band]);
+    }
+    for (band = 0; band < SUBBAND_NUM_BANDS; band++)
+    {
+        fprintf(fp, ",%.3f", row->direct_stats.band_bits[band]);
     }
     for (band = 0; band < SUBBAND_NUM_BANDS; band++)
     {

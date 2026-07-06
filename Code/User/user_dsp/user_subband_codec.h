@@ -11,7 +11,8 @@
 #include "user_subband_wola.h"
 
 #define SUBBAND_CODEC_PCM_BITRATE_KBPS 800.0f
-#define SUBBAND_CODEC_MIN_BITS_PER_SCALAR 1
+/* 0 means drop/zero the band; signed scalar quantization starts at 2 bits. */
+#define SUBBAND_CODEC_MIN_BITS_PER_SCALAR 0
 #define SUBBAND_CODEC_MAX_BITS_PER_SCALAR 6
 #define SUBBAND_CODEC_BAND_BITS_SIDE_BITS 3
 #define SUBBAND_CODEC_BAND_SCALE_SIDE_BITS 16
