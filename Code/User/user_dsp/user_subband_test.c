@@ -9,6 +9,7 @@
 #include "user_subband_denoise.h"
 #include "user_subband_eval.h"
 #include "user_subband_codec_eval.h"
+#include "user_subband_audio_compare.h"
 
 #ifdef SUBBAND_ALGO_ONLY
 #include <math.h>
@@ -816,8 +817,13 @@ void SubbandWOLA_OfflineTest_All(void)
 }
 
 #ifdef SUBBAND_TEST_MAIN
-int main(void)
+int main(int argc, char **argv)
 {
+    if ((argc >= 3) && (strcmp(argv[1], "compare") == 0))
+    {
+        return SubbandAudioCompare_ExportAll(argv[2]);
+    }
+
     SubbandWOLA_OfflineTest_All();
     if (SubbandWOLA_TestFailures != 0)
     {
