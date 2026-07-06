@@ -41,6 +41,7 @@
 #include "user_subband_codec.h"
 #include "user_subband_codec_eval.h"
 #include "user_subband_audio_compare.h"
+#include "user_subband_denoise_ms_eval.h"
 #ifdef SUBBAND_ALGO_ONLY
 #include "user_subband_test.h"
 #endif

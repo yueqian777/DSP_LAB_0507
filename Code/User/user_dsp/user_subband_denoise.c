@@ -18,10 +18,18 @@ typedef struct
     float gain_floor;
     float gain_smooth_up;
     float gain_smooth_down;
+    float ms_smooth_power[SUBBAND_POS_BINS];
+    float ms_learned_psd[SUBBAND_POS_BINS];
+    float ms_block_min[SUBBAND_DENOISE_MS_NUM_BLOCKS][SUBBAND_POS_BINS];
+    float ms_min[SUBBAND_POS_BINS];
     unsigned long learn_count;
     unsigned long target_hops;
     unsigned long fade_count;
     unsigned long fade_total_hops;
+    unsigned long ms_update_count;
+    int noise_track_mode;
+    int ms_block_index;
+    int ms_hop_in_block;
     int initialized;
     int enabled;
     int learning;
@@ -46,6 +54,20 @@ volatile float SUBBAND_DENOISE_DebugMinGain = 1.0f;
 volatile float SUBBAND_DENOISE_DebugMaxGain = 1.0f;
 volatile float SUBBAND_DENOISE_DebugNoisePsdAvg = 0.0f;
 volatile float SUBBAND_DENOISE_DebugFade = 0.0f;
+volatile int SUBBAND_DENOISE_DebugNoiseTrackMode =
+    SUBBAND_DENOISE_TRACK_DEFAULT;
+volatile unsigned long SUBBAND_DENOISE_DebugMsUpdateCount = 0UL;
+volatile float SUBBAND_DENOISE_DebugMsNoisePsdAvg = 0.0f;
+volatile float SUBBAND_DENOISE_DebugMsMinPsdAvg = 0.0f;
+volatile float SUBBAND_DENOISE_DebugMsBias = SUBBAND_DENOISE_MS_BIAS;
+volatile float SUBBAND_DENOISE_DebugMsWindowSeconds = 0.0f;
+
+#define SUBBAND_DENOISE_MS_LARGE 1.0e30f
+#define SUBBAND_DENOISE_MS_HYBRID_SPEECH_GUARD 16.0f
+#define SUBBAND_DENOISE_MS_HYBRID_POWER_GUARD 12.0f
+#define SUBBAND_DENOISE_MS_HYBRID_MAX_FACTOR 12.0f
+#define SUBBAND_DENOISE_MS_HYBRID_TRIGGER_FACTOR 1.80f
+#define SUBBAND_DENOISE_MS_HYBRID_TRIGGER_BINS (SUBBAND_POS_BINS / 6)
 
 static unsigned long Round_To_Hops(float seconds)
 {
@@ -80,9 +102,257 @@ static float Clamp_Float(float value, float lo, float hi)
     return value;
 }
 
+static int Normalize_Noise_Track_Mode(int mode)
+{
+    switch (mode)
+    {
+    case SUBBAND_DENOISE_TRACK_FIXED:
+    case SUBBAND_DENOISE_TRACK_MINSTAT:
+    case SUBBAND_DENOISE_TRACK_HYBRID:
+        return mode;
+    default:
+        return SUBBAND_DENOISE_TRACK_FIXED;
+    }
+}
+
+static float MinStat_Window_Seconds(void)
+{
+    return ((float)(SUBBAND_DENOISE_MS_NUM_BLOCKS *
+                    SUBBAND_DENOISE_MS_BLOCK_HOPS *
+                    SUBBAND_HOP)) /
+           SUBBAND_SAMPLE_RATE;
+}
+
+static void Clear_MinStat_Block(int block_index, float value)
+{
+    int k;
+
+    if ((block_index < 0) ||
+        (block_index >= SUBBAND_DENOISE_MS_NUM_BLOCKS))
+    {
+        return;
+    }
+
+    for (k = 0; k < SUBBAND_POS_BINS; k++)
+    {
+        SubbandDenoise_State.ms_block_min[block_index][k] = value;
+    }
+}
+
+static void Reset_Noise_Tracker_Internal(void)
+{
+    int b;
+    int k;
+
+    for (k = 0; k < SUBBAND_POS_BINS; k++)
+    {
+        float base;
+
+        base = SubbandDenoise_State.noise_psd[k];
+        if (base < SUBBAND_DENOISE_EPS)
+        {
+            base = SUBBAND_DENOISE_EPS;
+        }
+
+        SubbandDenoise_State.ms_smooth_power[k] = base;
+        SubbandDenoise_State.ms_learned_psd[k] = base;
+        SubbandDenoise_State.ms_min[k] = base;
+        for (b = 0; b < SUBBAND_DENOISE_MS_NUM_BLOCKS; b++)
+        {
+            SubbandDenoise_State.ms_block_min[b][k] = base;
+        }
+    }
+
+    SubbandDenoise_State.ms_block_index = 0;
+    SubbandDenoise_State.ms_hop_in_block = 0;
+    SubbandDenoise_State.ms_update_count = 0UL;
+}
+
+static void Update_Minimum_Statistics(const float *re, const float *im)
+{
+    int b;
+    int k;
+    int block_index;
+    int hybrid_allow_update;
+    int hybrid_trigger_bins;
+
+    block_index = SubbandDenoise_State.ms_block_index;
+    hybrid_allow_update = 1;
+    hybrid_trigger_bins = 0;
+
+    for (k = 0; k < SUBBAND_POS_BINS; k++)
+    {
+        float power;
+        float smooth_power;
+        float min_power;
+        float candidate;
+        float old_noise;
+        float candidate_hi;
+
+        power = re[k] * re[k] + im[k] * im[k];
+        smooth_power =
+            SUBBAND_DENOISE_MS_POWER_ALPHA *
+                SubbandDenoise_State.ms_smooth_power[k] +
+            (1.0f - SUBBAND_DENOISE_MS_POWER_ALPHA) * power;
+        if (smooth_power < SUBBAND_DENOISE_EPS)
+        {
+            smooth_power = SUBBAND_DENOISE_EPS;
+        }
+        SubbandDenoise_State.ms_smooth_power[k] = smooth_power;
+
+        if (smooth_power <
+            SubbandDenoise_State.ms_block_min[block_index][k])
+        {
+            SubbandDenoise_State.ms_block_min[block_index][k] =
+                smooth_power;
+        }
+
+        min_power = SubbandDenoise_State.ms_block_min[0][k];
+        for (b = 1; b < SUBBAND_DENOISE_MS_NUM_BLOCKS; b++)
+        {
+            if (SubbandDenoise_State.ms_block_min[b][k] < min_power)
+            {
+                min_power = SubbandDenoise_State.ms_block_min[b][k];
+            }
+        }
+        if (min_power < SUBBAND_DENOISE_EPS)
+        {
+            min_power = SUBBAND_DENOISE_EPS;
+        }
+        SubbandDenoise_State.ms_min[k] = min_power;
+
+        candidate = SUBBAND_DENOISE_MS_BIAS * min_power;
+        if (candidate < SUBBAND_DENOISE_EPS)
+        {
+            candidate = SUBBAND_DENOISE_EPS;
+        }
+        candidate_hi = power + (4.0f * SUBBAND_DENOISE_EPS);
+        if (candidate > candidate_hi)
+        {
+            candidate = candidate_hi;
+        }
+
+        old_noise = SubbandDenoise_State.noise_psd[k];
+        if (old_noise < SUBBAND_DENOISE_EPS)
+        {
+            old_noise = SUBBAND_DENOISE_EPS;
+        }
+
+        if ((candidate >
+             old_noise * SUBBAND_DENOISE_MS_HYBRID_TRIGGER_FACTOR) &&
+            (power <=
+             old_noise * SUBBAND_DENOISE_MS_HYBRID_POWER_GUARD))
+        {
+            hybrid_trigger_bins++;
+        }
+    }
+
+    if ((SubbandDenoise_State.noise_track_mode ==
+         SUBBAND_DENOISE_TRACK_HYBRID) &&
+        (hybrid_trigger_bins < SUBBAND_DENOISE_MS_HYBRID_TRIGGER_BINS))
+    {
+        hybrid_allow_update = 0;
+    }
+
+    for (k = 0; k < SUBBAND_POS_BINS; k++)
+    {
+        float power;
+        float min_power;
+        float candidate;
+        float old_noise;
+        float learned_noise;
+        float noise_alpha;
+        float candidate_hi;
+
+        power = re[k] * re[k] + im[k] * im[k];
+        min_power = SubbandDenoise_State.ms_min[k];
+        if (min_power < SUBBAND_DENOISE_EPS)
+        {
+            min_power = SUBBAND_DENOISE_EPS;
+        }
+
+        candidate = SUBBAND_DENOISE_MS_BIAS * min_power;
+        if (candidate < SUBBAND_DENOISE_EPS)
+        {
+            candidate = SUBBAND_DENOISE_EPS;
+        }
+        candidate_hi = power + (4.0f * SUBBAND_DENOISE_EPS);
+        if (candidate > candidate_hi)
+        {
+            candidate = candidate_hi;
+        }
+
+        old_noise = SubbandDenoise_State.noise_psd[k];
+        if (old_noise < SUBBAND_DENOISE_EPS)
+        {
+            old_noise = SUBBAND_DENOISE_EPS;
+        }
+
+        if (SubbandDenoise_State.noise_track_mode ==
+            SUBBAND_DENOISE_TRACK_HYBRID)
+        {
+            learned_noise = SubbandDenoise_State.ms_learned_psd[k];
+            if (learned_noise < SUBBAND_DENOISE_EPS)
+            {
+                learned_noise = SUBBAND_DENOISE_EPS;
+            }
+
+            if ((hybrid_allow_update == 0) ||
+                (power >
+                 old_noise * SUBBAND_DENOISE_MS_HYBRID_POWER_GUARD) ||
+                (candidate >
+                 old_noise * SUBBAND_DENOISE_MS_HYBRID_SPEECH_GUARD))
+            {
+                candidate = old_noise;
+            }
+            candidate_hi =
+                learned_noise * SUBBAND_DENOISE_MS_HYBRID_MAX_FACTOR;
+            if (candidate > candidate_hi)
+            {
+                candidate = candidate_hi;
+            }
+        }
+
+        if (candidate > old_noise)
+        {
+            noise_alpha = SUBBAND_DENOISE_MS_NOISE_UP_ALPHA;
+        }
+        else
+        {
+            noise_alpha = SUBBAND_DENOISE_MS_NOISE_DOWN_ALPHA;
+        }
+
+        SubbandDenoise_State.noise_psd[k] =
+            noise_alpha * old_noise + (1.0f - noise_alpha) * candidate;
+        if (SubbandDenoise_State.noise_psd[k] < SUBBAND_DENOISE_EPS)
+        {
+            SubbandDenoise_State.noise_psd[k] = SUBBAND_DENOISE_EPS;
+        }
+    }
+
+    SubbandDenoise_State.ms_update_count++;
+    SubbandDenoise_State.ms_hop_in_block++;
+    if (SubbandDenoise_State.ms_hop_in_block >=
+        SUBBAND_DENOISE_MS_BLOCK_HOPS)
+    {
+        SubbandDenoise_State.ms_hop_in_block = 0;
+        SubbandDenoise_State.ms_block_index++;
+        if (SubbandDenoise_State.ms_block_index >=
+            SUBBAND_DENOISE_MS_NUM_BLOCKS)
+        {
+            SubbandDenoise_State.ms_block_index = 0;
+        }
+        Clear_MinStat_Block(SubbandDenoise_State.ms_block_index,
+                            SUBBAND_DENOISE_MS_LARGE);
+    }
+}
+
 static void Update_Debug_State(void)
 {
+    int k;
     float progress;
+    float noise_sum;
+    float ms_min_sum;
 
     if (SubbandDenoise_State.target_hops > 0UL)
     {
@@ -105,6 +375,26 @@ static void Update_Debug_State(void)
     SUBBAND_DENOISE_DebugTargetHops = SubbandDenoise_State.target_hops;
     SUBBAND_DENOISE_DebugLearnProgress = progress;
     SUBBAND_DENOISE_DebugFade = SubbandDenoise_GetFade();
+    SUBBAND_DENOISE_DebugNoiseTrackMode =
+        SubbandDenoise_State.noise_track_mode;
+    SUBBAND_DENOISE_DebugMsUpdateCount =
+        SubbandDenoise_State.ms_update_count;
+    SUBBAND_DENOISE_DebugMsBias = SUBBAND_DENOISE_MS_BIAS;
+    SUBBAND_DENOISE_DebugMsWindowSeconds = MinStat_Window_Seconds();
+
+    noise_sum = 0.0f;
+    ms_min_sum = 0.0f;
+    for (k = 0; k < SUBBAND_POS_BINS; k++)
+    {
+        noise_sum += SubbandDenoise_State.noise_psd[k];
+        ms_min_sum += SubbandDenoise_State.ms_min[k];
+    }
+    SUBBAND_DENOISE_DebugNoisePsdAvg =
+        noise_sum / (float)SUBBAND_POS_BINS;
+    SUBBAND_DENOISE_DebugMsNoisePsdAvg =
+        SUBBAND_DENOISE_DebugNoisePsdAvg;
+    SUBBAND_DENOISE_DebugMsMinPsdAvg =
+        ms_min_sum / (float)SUBBAND_POS_BINS;
 }
 
 static void Start_Learning_Internal(void)
@@ -125,15 +415,18 @@ static void Start_Learning_Internal(void)
 
     SubbandDenoise_State.learn_count = 0UL;
     SubbandDenoise_State.fade_count = 0UL;
+    SubbandDenoise_State.ms_update_count = 0UL;
+    SubbandDenoise_State.ms_block_index = 0;
+    SubbandDenoise_State.ms_hop_in_block = 0;
     SubbandDenoise_State.learning = 1;
     SubbandDenoise_State.ready = 0;
     SubbandDenoise_State.enabled = 0;
+    Reset_Noise_Tracker_Internal();
     SUBBAND_DENOISE_DebugInputPowerAvg = 0.0f;
     SUBBAND_DENOISE_DebugOutputPowerAvg = 0.0f;
     SUBBAND_DENOISE_DebugGainAvg = 1.0f;
     SUBBAND_DENOISE_DebugMinGain = 1.0f;
     SUBBAND_DENOISE_DebugMaxGain = 1.0f;
-    SUBBAND_DENOISE_DebugNoisePsdAvg = 0.0f;
     Update_Debug_State();
 }
 
@@ -171,12 +464,12 @@ static void Finalize_Learning(void)
 
     SubbandDenoise_State.learning = 0;
     SubbandDenoise_State.ready = 1;
+    Reset_Noise_Tracker_Internal();
 #if SUBBAND_DENOISE_AUTO_ENABLE_AFTER_LEARN
     SubbandDenoise_State.enabled = 1;
 #endif
     SubbandDenoise_State.fade_count = 0UL;
-    SUBBAND_DENOISE_DebugNoisePsdAvg =
-        psd_sum / (float)SUBBAND_POS_BINS;
+    (void)psd_sum;
     Update_Debug_State();
 }
 
@@ -192,6 +485,8 @@ void SubbandDenoise_Init(void)
     SubbandDenoise_State.gain_floor = SUBBAND_DENOISE_GAIN_FLOOR;
     SubbandDenoise_State.gain_smooth_up = SUBBAND_DENOISE_GAIN_SMOOTH_UP;
     SubbandDenoise_State.gain_smooth_down = SUBBAND_DENOISE_GAIN_SMOOTH_DOWN;
+    SubbandDenoise_State.noise_track_mode =
+        Normalize_Noise_Track_Mode(SUBBAND_DENOISE_TRACK_DEFAULT);
     SubbandDenoise_State.target_hops =
         Round_To_Hops(SUBBAND_DENOISE_DEFAULT_LEARN_SECONDS);
     SubbandDenoise_State.fade_total_hops =
@@ -269,6 +564,32 @@ void SubbandDenoise_SetParams(float alpha, float gain_floor,
         Clamp_Float(gain_smooth_up, 0.0f, 0.999f);
     SubbandDenoise_State.gain_smooth_down =
         Clamp_Float(gain_smooth_down, 0.0f, 0.999f);
+}
+
+void SubbandDenoise_SetNoiseTrackMode(int mode)
+{
+    SubbandDenoise_Init();
+
+    SubbandDenoise_State.noise_track_mode =
+        Normalize_Noise_Track_Mode(mode);
+    if (SubbandDenoise_State.ready != 0)
+    {
+        Reset_Noise_Tracker_Internal();
+    }
+    Update_Debug_State();
+}
+
+int SubbandDenoise_GetNoiseTrackMode(void)
+{
+    SubbandDenoise_Init();
+    return SubbandDenoise_State.noise_track_mode;
+}
+
+void SubbandDenoise_ResetNoiseTracker(void)
+{
+    SubbandDenoise_Init();
+    Reset_Noise_Tracker_Internal();
+    Update_Debug_State();
 }
 
 void SubbandDenoise_ProcessSpectrum(float *re, float *im)
@@ -400,6 +721,12 @@ void SubbandDenoise_ProcessSpectrum(float *re, float *im)
             SubbandDenoise_State.gain_smooth[k];
     }
 #endif
+
+    if (SubbandDenoise_State.noise_track_mode !=
+        SUBBAND_DENOISE_TRACK_FIXED)
+    {
+        Update_Minimum_Statistics(re, im);
+    }
 
     if (SubbandDenoise_State.fade_total_hops > 0UL)
     {

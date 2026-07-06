@@ -10,6 +10,7 @@
 #include "user_subband_eval.h"
 #include "user_subband_codec_eval.h"
 #include "user_subband_audio_compare.h"
+#include "user_subband_denoise_ms_eval.h"
 
 #ifdef SUBBAND_ALGO_ONLY
 #include <math.h>
@@ -811,6 +812,7 @@ void SubbandWOLA_OfflineTest_All(void)
     failures += Run_Denoise_SetEnabled_Does_Not_Stop_Learning_Test();
     failures += SubbandEval_OfflineTest_All();
     failures += SubbandCodecEval_OfflineTest_All();
+    failures += SubbandDenoiseMsEval_OfflineTest_All();
 
     SubbandWOLA_TestFailures = failures;
     printf("SubbandWOLA_OfflineTest_All failures=%d\n", failures);

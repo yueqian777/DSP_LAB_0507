@@ -53,6 +53,38 @@
 #define SUBBAND_DENOISE_FADE_SECONDS 0.5f
 #endif
 
+#define SUBBAND_DENOISE_TRACK_FIXED    0
+#define SUBBAND_DENOISE_TRACK_MINSTAT  1
+#define SUBBAND_DENOISE_TRACK_HYBRID   2
+
+#ifndef SUBBAND_DENOISE_TRACK_DEFAULT
+#define SUBBAND_DENOISE_TRACK_DEFAULT SUBBAND_DENOISE_TRACK_FIXED
+#endif
+
+#ifndef SUBBAND_DENOISE_MS_NUM_BLOCKS
+#define SUBBAND_DENOISE_MS_NUM_BLOCKS 8
+#endif
+
+#ifndef SUBBAND_DENOISE_MS_BLOCK_HOPS
+#define SUBBAND_DENOISE_MS_BLOCK_HOPS 49
+#endif
+
+#ifndef SUBBAND_DENOISE_MS_POWER_ALPHA
+#define SUBBAND_DENOISE_MS_POWER_ALPHA 0.92f
+#endif
+
+#ifndef SUBBAND_DENOISE_MS_BIAS
+#define SUBBAND_DENOISE_MS_BIAS 1.40f
+#endif
+
+#ifndef SUBBAND_DENOISE_MS_NOISE_UP_ALPHA
+#define SUBBAND_DENOISE_MS_NOISE_UP_ALPHA 0.90f
+#endif
+
+#ifndef SUBBAND_DENOISE_MS_NOISE_DOWN_ALPHA
+#define SUBBAND_DENOISE_MS_NOISE_DOWN_ALPHA 0.995f
+#endif
+
 extern volatile int SUBBAND_DENOISE_DebugEnabled;
 extern volatile int SUBBAND_DENOISE_DebugLearning;
 extern volatile int SUBBAND_DENOISE_DebugReady;
@@ -66,6 +98,12 @@ extern volatile float SUBBAND_DENOISE_DebugMinGain;
 extern volatile float SUBBAND_DENOISE_DebugMaxGain;
 extern volatile float SUBBAND_DENOISE_DebugNoisePsdAvg;
 extern volatile float SUBBAND_DENOISE_DebugFade;
+extern volatile int SUBBAND_DENOISE_DebugNoiseTrackMode;
+extern volatile unsigned long SUBBAND_DENOISE_DebugMsUpdateCount;
+extern volatile float SUBBAND_DENOISE_DebugMsNoisePsdAvg;
+extern volatile float SUBBAND_DENOISE_DebugMsMinPsdAvg;
+extern volatile float SUBBAND_DENOISE_DebugMsBias;
+extern volatile float SUBBAND_DENOISE_DebugMsWindowSeconds;
 
 void SubbandDenoise_Init(void);
 void SubbandDenoise_Reset(void);
@@ -78,6 +116,9 @@ int SubbandDenoise_IsReady(void);
 float SubbandDenoise_GetLearnProgress(void);
 void SubbandDenoise_SetParams(float alpha, float gain_floor,
                               float gain_smooth_up, float gain_smooth_down);
+void SubbandDenoise_SetNoiseTrackMode(int mode);
+int SubbandDenoise_GetNoiseTrackMode(void);
+void SubbandDenoise_ResetNoiseTracker(void);
 void SubbandDenoise_ProcessSpectrum(float *re, float *im);
 
 unsigned long SubbandDenoise_GetLearnCount(void);

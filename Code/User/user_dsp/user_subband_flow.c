@@ -106,6 +106,8 @@ static int Subband_Normalize_Demo_Mode(int mode)
     case SUBBAND_DEMO_MODE_WOLA_ONLY:
     case SUBBAND_DEMO_MODE_WOLA_DENOISE:
     case SUBBAND_DEMO_MODE_MILD_DENOISE:
+    case SUBBAND_DEMO_MODE_WOLA_MS_DENOISE:
+    case SUBBAND_DEMO_MODE_MILD_MS_DENOISE:
         return mode;
     default:
         return SUBBAND_DEMO_DEFAULT_MODE;
@@ -136,6 +138,25 @@ static void Subband_Apply_Demo_Mode(int mode)
         SubbandWOLA_ResetAllGains();
         SubbandDenoise_Reset();
         SubbandDenoise_SetParams(0.96f, 0.35f, 0.85f, 0.60f);
+        SubbandDenoise_StartNoiseLearning();
+        break;
+
+    case SUBBAND_DEMO_MODE_WOLA_MS_DENOISE:
+        SubbandWOLA_SetBypass(0);
+        SubbandWOLA_ResetStream();
+        SubbandWOLA_ResetAllGains();
+        SubbandDenoise_Reset();
+        SubbandDenoise_SetNoiseTrackMode(SUBBAND_DENOISE_TRACK_HYBRID);
+        SubbandDenoise_StartNoiseLearning();
+        break;
+
+    case SUBBAND_DEMO_MODE_MILD_MS_DENOISE:
+        SubbandWOLA_SetBypass(0);
+        SubbandWOLA_ResetStream();
+        SubbandWOLA_ResetAllGains();
+        SubbandDenoise_Reset();
+        SubbandDenoise_SetParams(0.96f, 0.35f, 0.85f, 0.60f);
+        SubbandDenoise_SetNoiseTrackMode(SUBBAND_DENOISE_TRACK_HYBRID);
         SubbandDenoise_StartNoiseLearning();
         break;
 
