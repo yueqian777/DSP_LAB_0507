@@ -8,6 +8,7 @@
 
 # Generated local audio diagnostics
 subband_eval_report.csv
+subband_codec_eval_report.csv
 *.wav
 *.mp3
 *.raw
