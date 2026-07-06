@@ -50,6 +50,15 @@
 
 #define SUBBAND_LEN      (SUBBAND_FRM_LEN / SUBBAND_D)
 
+#define SUBBAND_DEMO_MODE_RAW_BYPASS        0
+#define SUBBAND_DEMO_MODE_WOLA_ONLY         1
+#define SUBBAND_DEMO_MODE_WOLA_DENOISE      2
+#define SUBBAND_DEMO_MODE_MILD_DENOISE      3
+
+#ifndef SUBBAND_DEMO_DEFAULT_MODE
+#define SUBBAND_DEMO_DEFAULT_MODE SUBBAND_DEMO_MODE_WOLA_DENOISE
+#endif
+
 #if SUBBAND_USE_LEGACY_FIR && defined(SUBBAND_FLOW_ALGO_ONLY)
 typedef struct
 {
@@ -70,6 +79,10 @@ void Subband_FilterBank_Init(void);
 void Subband_Process_1024(short *in, short *out);
 
 #ifndef SUBBAND_FLOW_ALGO_ONLY
+extern volatile int SUBBAND_DebugDemoMode;
+extern volatile int SUBBAND_DebugAppliedDemoMode;
+extern volatile unsigned long SUBBAND_DebugDemoModeChanges;
+
 void Subband_Flow_Example(void);
 #endif
 

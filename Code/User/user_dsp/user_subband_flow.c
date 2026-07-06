@@ -7,6 +7,7 @@
 
 #include "user_subband_flow.h"
 #include "user_subband_wola.h"
+#include "user_subband_denoise.h"
 #include "user_subband_eval.h"
 #include "math.h"
 #include "string.h"
@@ -77,6 +78,9 @@ volatile unsigned char SUBBAND_DebugFrameReady = 0;
 volatile unsigned char SUBBAND_DebugLastAdPingPong = 0;
 volatile unsigned char SUBBAND_DebugLastDaPingPong = 0;
 volatile unsigned long SUBBAND_FilterbankFrames = 0;
+volatile int SUBBAND_DebugDemoMode = SUBBAND_DEMO_DEFAULT_MODE;
+volatile int SUBBAND_DebugAppliedDemoMode = -1;
+volatile unsigned long SUBBAND_DebugDemoModeChanges = 0;
 
 #endif
 
@@ -88,6 +92,79 @@ static void Clear_FilterBank_State(void)
     memset(&Syn_State, 0, sizeof(Syn_State));
     memset(Ana_Sub_Out, 0, sizeof(Ana_Sub_Out));
     memset(Syn_Sub_In, 0, sizeof(Syn_Sub_In));
+}
+
+#endif
+
+#ifndef SUBBAND_FLOW_ALGO_ONLY
+
+static int Subband_Normalize_Demo_Mode(int mode)
+{
+    switch (mode)
+    {
+    case SUBBAND_DEMO_MODE_RAW_BYPASS:
+    case SUBBAND_DEMO_MODE_WOLA_ONLY:
+    case SUBBAND_DEMO_MODE_WOLA_DENOISE:
+    case SUBBAND_DEMO_MODE_MILD_DENOISE:
+        return mode;
+    default:
+        return SUBBAND_DEMO_DEFAULT_MODE;
+    }
+}
+
+static void Subband_Apply_Demo_Mode(int mode)
+{
+    switch (mode)
+    {
+    case SUBBAND_DEMO_MODE_RAW_BYPASS:
+        SubbandWOLA_SetBypass(1);
+        SubbandDenoise_StopLearning();
+        SubbandDenoise_SetEnabled(0);
+        break;
+
+    case SUBBAND_DEMO_MODE_WOLA_ONLY:
+        SubbandWOLA_SetBypass(0);
+        SubbandWOLA_ResetStream();
+        SubbandWOLA_ResetAllGains();
+        SubbandDenoise_StopLearning();
+        SubbandDenoise_SetEnabled(0);
+        break;
+
+    case SUBBAND_DEMO_MODE_MILD_DENOISE:
+        SubbandWOLA_SetBypass(0);
+        SubbandWOLA_ResetStream();
+        SubbandWOLA_ResetAllGains();
+        SubbandDenoise_Reset();
+        SubbandDenoise_SetParams(0.96f, 0.35f, 0.85f, 0.60f);
+        SubbandDenoise_StartNoiseLearning();
+        break;
+
+    case SUBBAND_DEMO_MODE_WOLA_DENOISE:
+    default:
+        SubbandWOLA_SetBypass(0);
+        SubbandWOLA_ResetStream();
+        SubbandWOLA_ResetAllGains();
+        SubbandDenoise_Reset();
+        SubbandDenoise_StartNoiseLearning();
+        break;
+    }
+}
+
+static void Subband_Service_Demo_Mode(void)
+{
+    int mode;
+
+    mode = Subband_Normalize_Demo_Mode(SUBBAND_DebugDemoMode);
+    if (SUBBAND_DebugDemoMode != mode)
+    {
+        SUBBAND_DebugDemoMode = mode;
+    }
+    if (mode != SUBBAND_DebugAppliedDemoMode)
+    {
+        Subband_Apply_Demo_Mode(mode);
+        SUBBAND_DebugAppliedDemoMode = mode;
+        SUBBAND_DebugDemoModeChanges++;
+    }
 }
 
 #endif
@@ -583,12 +660,15 @@ void Subband_Flow_Example(void)
     Adc_Init(ADC_50KHZ, ADC_SAMPLE_1024);
     Dac_Init(DAC_50KHZ, DAC_SAMPLE_1024, DAC_CHANNEL_ALL);
     Subband_FilterBank_Init();
+    Subband_Service_Demo_Mode();
 
     Adc_Start();
     Dac_Start();
 
     while (1)
     {
+        Subband_Service_Demo_Mode();
+
         if (FLAG_AD == 1)
         {
             FLAG_AD = 0;
