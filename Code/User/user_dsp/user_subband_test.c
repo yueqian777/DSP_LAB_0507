@@ -12,6 +12,8 @@
 #include "user_subband_audio_compare.h"
 #include "user_subband_denoise_ms_eval.h"
 #include "user_subband_denoise_mcra_eval.h"
+#include "user_subband_codec_loopback_eval.h"
+#include "user_subband_codec_loopback.h"
 
 #ifdef SUBBAND_ALGO_ONLY
 #include <math.h>
@@ -47,6 +49,7 @@ static void Reset_WOLA_Test_State(void)
     SubbandWOLA_Init();
     SubbandWOLA_ResetStream();
     SubbandWOLA_ResetAllGains();
+    SubbandCodecLoopback_SetEnabled(0);
     SubbandDenoise_Reset();
     SubbandDenoise_StopLearning();
     SubbandDenoise_SetEnabled(0);
@@ -851,6 +854,7 @@ void SubbandWOLA_OfflineTest_All(void)
     failures += SubbandCodecEval_OfflineTest_All();
     failures += SubbandDenoiseMsEval_OfflineTest_All();
     failures += SubbandDenoiseMcraEval_OfflineTest_All();
+    failures += SubbandCodecLoopbackEval_OfflineTest_All();
 
     SubbandWOLA_TestFailures = failures;
     printf("SubbandWOLA_OfflineTest_All failures=%d\n", failures);

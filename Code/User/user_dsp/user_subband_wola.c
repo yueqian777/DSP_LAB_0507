@@ -7,6 +7,7 @@
 #include "user_subband_wola.h"
 #include "user_subband_denoise.h"
 #include "user_subband_eval.h"
+#include "user_subband_codec_loopback.h"
 #include "math.h"
 #include "string.h"
 
@@ -284,6 +285,8 @@ static void Process_Hop_Float(float *input_hop, float *output_hop)
     FFT_InPlace(SubbandWOLA_State.fft_re, SubbandWOLA_State.fft_im);
     SubbandDenoise_ProcessSpectrum(SubbandWOLA_State.fft_re,
                                    SubbandWOLA_State.fft_im);
+    SubbandCodecLoopback_ProcessSpectrum(SubbandWOLA_State.fft_re,
+                                         SubbandWOLA_State.fft_im);
     Apply_Band_Gain();
     IFFT_InPlace(SubbandWOLA_State.fft_re, SubbandWOLA_State.fft_im);
 
@@ -394,6 +397,7 @@ void SubbandWOLA_Init(void)
     SubbandWOLA_State.initialized = 1;
     SUBBAND_WOLA_DebugBypass = SubbandWOLA_State.bypass;
     SubbandDenoise_Init();
+    SubbandCodecLoopback_Init();
 #if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
     TSCL = 0;
     TSCH = 0;
@@ -425,6 +429,7 @@ void SubbandWOLA_ResetStream(void)
     SUBBAND_EVAL_DebugDenoiseLastMs = 0.0f;
     SUBBAND_EVAL_DebugDenoiseMaxMs = 0.0f;
     SUBBAND_EVAL_DebugCpuUsagePercent = 0.0f;
+    SubbandCodecLoopback_Reset();
 }
 
 void SubbandWOLA_ResetAllGains(void)

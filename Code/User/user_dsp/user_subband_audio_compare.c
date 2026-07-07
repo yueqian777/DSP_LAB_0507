@@ -10,6 +10,7 @@
 #include "user_subband_wola.h"
 #include "user_subband_denoise.h"
 #include "user_subband_codec.h"
+#include "user_subband_codec_loopback.h"
 
 #ifdef SUBBAND_ALGO_ONLY
 
@@ -346,6 +347,7 @@ static void AudioCompare_Reset_Wola_Only(void)
     SubbandWOLA_SetBypass(0);
     SubbandWOLA_ResetStream();
     SubbandWOLA_ResetAllGains();
+    SubbandCodecLoopback_SetEnabled(0);
     SubbandDenoise_StopLearning();
     SubbandDenoise_SetEnabled(0);
 }
@@ -356,6 +358,7 @@ static void AudioCompare_Reset_Denoise_Mode(int mode)
     SubbandWOLA_SetBypass(0);
     SubbandWOLA_ResetStream();
     SubbandWOLA_ResetAllGains();
+    SubbandCodecLoopback_SetEnabled(0);
     SubbandDenoise_Reset();
     if (mode == AUDIO_COMPARE_DENOISE_HYBRID_MS)
     {
@@ -434,6 +437,7 @@ static int AudioCompare_Export_Codec(FILE *csv, const char *path,
 {
     SubbandCodecStats stats;
 
+    SubbandCodecLoopback_SetEnabled(0);
     memset(output, 0, (size_t)padded_count * sizeof(short));
     if (SubbandCodec_ProcessPcm(input, output, padded_count,
                                 target_bitrate_kbps, &stats) != 0)
@@ -447,6 +451,67 @@ static int AudioCompare_Export_Codec(FILE *csv, const char *path,
     AudioCompare_Write_Metrics(csv, mode, target_bitrate_kbps, &stats,
                                output, sample_count, input_energy);
     return 0;
+}
+
+static void AudioCompare_Fill_Loopback_Stats(SubbandCodecStats *stats,
+                                             int target_bitrate_kbps,
+                                             const short *output,
+                                             int sample_count)
+{
+    float duration_sec;
+
+    SubbandCodec_ResetStats(stats);
+    stats->target_bitrate_kbps = target_bitrate_kbps;
+    stats->bitrate_kbps =
+        SUBBAND_CODEC_LOOP_DebugEstimatedBitrateKbps;
+    stats->compression_ratio =
+        SUBBAND_CODEC_LOOP_DebugCompressionRatio;
+    stats->avg_bits_per_scalar =
+        SUBBAND_CODEC_LOOP_DebugAvgBitsPerScalar;
+    stats->invalid_count = SUBBAND_CODEC_LOOP_DebugInvalidCount;
+    stats->clipping_count = SUBBAND_CODEC_LOOP_DebugClippingCount;
+    stats->nonzero_output_count =
+        AudioCompare_Nonzero_Count(output, sample_count);
+    duration_sec = (float)sample_count / (float)SUBBAND_SAMPLE_RATE;
+    if ((duration_sec > 0.0f) && (stats->bitrate_kbps > 0.0f))
+    {
+        stats->payload_bits =
+            (unsigned long)(stats->bitrate_kbps * 1000.0f *
+                            duration_sec + 0.5f);
+    }
+    stats->band_bits[0] = SUBBAND_CODEC_LOOP_DebugBandBits0;
+    stats->band_bits[1] = SUBBAND_CODEC_LOOP_DebugBandBits1;
+    stats->band_bits[2] = SUBBAND_CODEC_LOOP_DebugBandBits2;
+    stats->band_bits[3] = SUBBAND_CODEC_LOOP_DebugBandBits3;
+    stats->band_bits[4] = SUBBAND_CODEC_LOOP_DebugBandBits4;
+    stats->band_bits[5] = SUBBAND_CODEC_LOOP_DebugBandBits5;
+    stats->band_bits[6] = SUBBAND_CODEC_LOOP_DebugBandBits6;
+    stats->band_bits[7] = SUBBAND_CODEC_LOOP_DebugBandBits7;
+}
+
+static void AudioCompare_Process_Mcra_Codec_Loopback(const short *input,
+                                                     short *output,
+                                                     int padded_count,
+                                                     int target_bitrate_kbps,
+                                                     SubbandCodecStats *stats)
+{
+    int frame;
+    int frames;
+
+    memset(output, 0, (size_t)padded_count * sizeof(short));
+    AudioCompare_Reset_Denoise_Mode(AUDIO_COMPARE_DENOISE_MCRA_NORMAL);
+    SubbandCodecLoopback_Reset();
+    SubbandCodecLoopback_SetTargetKbps(target_bitrate_kbps);
+    SubbandCodecLoopback_SetEnabled(1);
+    frames = padded_count / SUBBAND_FRAME_LEN;
+    for (frame = 0; frame < frames; frame++)
+    {
+        SubbandWOLA_ProcessFrame((short *)&input[frame * SUBBAND_FRAME_LEN],
+                                 &output[frame * SUBBAND_FRAME_LEN]);
+    }
+    AudioCompare_Fill_Loopback_Stats(stats, target_bitrate_kbps, output,
+                                     padded_count);
+    SubbandCodecLoopback_SetEnabled(0);
 }
 
 int SubbandAudioCompare_ExportAll(const char *input_wav_path)
@@ -565,6 +630,27 @@ int SubbandAudioCompare_ExportAll(const char *input_wav_path)
                                        codec_out, sample_count);
     AudioCompare_Write_Metrics(csv, "strong_mcra_denoise", 0, 0,
                                codec_out, sample_count, input_energy);
+
+    for (i = 0; i < AUDIO_COMPARE_RATE_COUNT; i++)
+    {
+        char wav_name[80];
+        char mode_name[80];
+        SubbandCodecStats loop_stats;
+
+        sprintf(wav_name, "compare_%02d_mcra_codec_loopback_%dk.wav",
+                12 + i, AudioCompare_Rates[i]);
+        sprintf(mode_name, "mcra_codec_loopback_%dk",
+                AudioCompare_Rates[i]);
+        AudioCompare_Process_Mcra_Codec_Loopback(input_padded, codec_out,
+                                                 padded_count,
+                                                 AudioCompare_Rates[i],
+                                                 &loop_stats);
+        failures += AudioCompare_Write_Wav(wav_name, codec_out,
+                                           sample_count);
+        AudioCompare_Write_Metrics(csv, mode_name, AudioCompare_Rates[i],
+                                   &loop_stats, codec_out, sample_count,
+                                   input_energy);
+    }
 
 cleanup:
     if (csv != 0)

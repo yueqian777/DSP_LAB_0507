@@ -9,6 +9,7 @@
 #include "user_subband_wola.h"
 #include "user_subband_denoise.h"
 #include "user_subband_eval.h"
+#include "user_subband_codec_loopback.h"
 #include "math.h"
 #include "string.h"
 
@@ -110,6 +111,9 @@ static int Subband_Normalize_Demo_Mode(int mode)
     case SUBBAND_DEMO_MODE_MILD_MS_DENOISE:
     case SUBBAND_DEMO_MODE_MCRA_DENOISE:
     case SUBBAND_DEMO_MODE_STRONG_MCRA_DENOISE:
+    case SUBBAND_DEMO_MODE_MCRA_CODEC_LOOPBACK:
+    case SUBBAND_DEMO_MODE_STRONG_MCRA_CODEC_LOOPBACK:
+    case SUBBAND_DEMO_MODE_FIXED_CODEC_LOOPBACK:
         return mode;
     default:
         return SUBBAND_DEMO_DEFAULT_MODE;
@@ -118,6 +122,8 @@ static int Subband_Normalize_Demo_Mode(int mode)
 
 static void Subband_Apply_Demo_Mode(int mode)
 {
+    SubbandCodecLoopback_SetEnabled(0);
+
     switch (mode)
     {
     case SUBBAND_DEMO_MODE_RAW_BYPASS:
@@ -187,6 +193,51 @@ static void Subband_Apply_Demo_Mode(int mode)
                                      1.20f, 2.10f,
                                      1.60f,
                                      1);
+        SubbandDenoise_StartNoiseLearning();
+        break;
+
+    case SUBBAND_DEMO_MODE_MCRA_CODEC_LOOPBACK:
+        SubbandWOLA_SetBypass(0);
+        SubbandWOLA_ResetStream();
+        SubbandWOLA_ResetAllGains();
+        SubbandDenoise_Reset();
+        SubbandDenoise_SetNoiseTrackMode(SUBBAND_DENOISE_TRACK_MCRA);
+        SubbandDenoise_SetMcraParams(1.5f, 4.0f,
+                                     0.85f, 0.998f,
+                                     1.10f, 1.70f,
+                                     1.40f,
+                                     0);
+        SubbandCodecLoopback_Reset();
+        SubbandCodecLoopback_SetTargetKbps(240);
+        SubbandCodecLoopback_SetEnabled(1);
+        SubbandDenoise_StartNoiseLearning();
+        break;
+
+    case SUBBAND_DEMO_MODE_STRONG_MCRA_CODEC_LOOPBACK:
+        SubbandWOLA_SetBypass(0);
+        SubbandWOLA_ResetStream();
+        SubbandWOLA_ResetAllGains();
+        SubbandDenoise_Reset();
+        SubbandDenoise_SetNoiseTrackMode(SUBBAND_DENOISE_TRACK_MCRA);
+        SubbandDenoise_SetMcraParams(1.3f, 3.5f,
+                                     0.80f, 0.998f,
+                                     1.20f, 2.10f,
+                                     1.60f,
+                                     1);
+        SubbandCodecLoopback_Reset();
+        SubbandCodecLoopback_SetTargetKbps(240);
+        SubbandCodecLoopback_SetEnabled(1);
+        SubbandDenoise_StartNoiseLearning();
+        break;
+
+    case SUBBAND_DEMO_MODE_FIXED_CODEC_LOOPBACK:
+        SubbandWOLA_SetBypass(0);
+        SubbandWOLA_ResetStream();
+        SubbandWOLA_ResetAllGains();
+        SubbandDenoise_Reset();
+        SubbandCodecLoopback_Reset();
+        SubbandCodecLoopback_SetTargetKbps(240);
+        SubbandCodecLoopback_SetEnabled(1);
         SubbandDenoise_StartNoiseLearning();
         break;
 
