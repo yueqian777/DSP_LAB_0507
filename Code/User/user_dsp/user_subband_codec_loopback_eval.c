@@ -20,6 +20,7 @@
 #define LOOPBACK_EVAL_SKIP (2 * SUBBAND_NFFT)
 #define LOOPBACK_EVAL_DELAY SUBBAND_EXPECTED_DELAY
 #define LOOPBACK_EVAL_REPORT "subband_codec_loopback_eval_report.csv"
+#define LOOPBACK_EVAL_SPEECH_BAND_HZ 8000.0
 
 typedef struct
 {
@@ -34,13 +35,17 @@ typedef struct
     float avg_bits_per_scalar;
     float band_bits[SUBBAND_NUM_BANDS];
     int invalid_count;
-    int clipping_count;
+    unsigned long quantizer_clamp_count;
+    unsigned long total_scalar_count;
+    float quantizer_clamp_ratio;
     int nonzero_count;
     int pass;
 } LoopbackEvalResult;
 
 static short LoopbackEval_Clean[LOOPBACK_EVAL_SAMPLES];
 static short LoopbackEval_Out[LOOPBACK_EVAL_SAMPLES];
+static float LoopbackEval_ApiRe[SUBBAND_NFFT];
+static float LoopbackEval_ApiIm[SUBBAND_NFFT];
 
 static void LoopbackEval_Fill_Speechlike(short *dst, int count)
 {
@@ -104,6 +109,74 @@ static int LoopbackEval_Nonzero_Count(const short *x, int count)
     return nonzero;
 }
 
+static float LoopbackEval_Compute_Speechband_Snr(const short *clean,
+                                                 const short *out,
+                                                 int start,
+                                                 int end)
+{
+    int base;
+    int k;
+    int kmax;
+    double ref_energy;
+    double err_energy;
+
+    kmax = (int)((LOOPBACK_EVAL_SPEECH_BAND_HZ *
+                  (double)SUBBAND_NFFT) /
+                 (double)SUBBAND_SAMPLE_RATE);
+    if (kmax > (SUBBAND_NFFT / 2))
+    {
+        kmax = SUBBAND_NFFT / 2;
+    }
+    if (kmax < 0)
+    {
+        kmax = 0;
+    }
+
+    ref_energy = 0.0;
+    err_energy = 0.0;
+    for (base = start; base + SUBBAND_NFFT <= end; base += SUBBAND_NFFT)
+    {
+        for (k = 0; k <= kmax; k++)
+        {
+            int n;
+            double ref_re;
+            double ref_im;
+            double err_re;
+            double err_im;
+
+            ref_re = 0.0;
+            ref_im = 0.0;
+            err_re = 0.0;
+            err_im = 0.0;
+            for (n = 0; n < SUBBAND_NFFT; n++)
+            {
+                double angle;
+                double c;
+                double s;
+                double x;
+                double e;
+
+                angle = (-2.0 * 3.14159265358979323846 *
+                         (double)k * (double)n) /
+                        (double)SUBBAND_NFFT;
+                c = cos(angle);
+                s = sin(angle);
+                x = (double)clean[base + n];
+                e = (double)out[base + n + LOOPBACK_EVAL_DELAY] - x;
+                ref_re += x * c;
+                ref_im += x * s;
+                err_re += e * c;
+                err_im += e * s;
+            }
+            ref_energy += ref_re * ref_re + ref_im * ref_im;
+            err_energy += err_re * err_re + err_im * err_im;
+        }
+    }
+
+    return (float)(10.0 * log10((ref_energy + 1.0e-20) /
+                                (err_energy + 1.0e-20)));
+}
+
 static void LoopbackEval_Compute_Metrics(const short *clean,
                                          const short *out,
                                          int count,
@@ -142,7 +215,8 @@ static void LoopbackEval_Compute_Metrics(const short *clean,
     result->output_snr_db =
         (float)(10.0 * log10((ref_energy + 1.0e-20) /
                              (err_energy + 1.0e-20)));
-    result->speechband_snr_0_8k_db = result->output_snr_db;
+    result->speechband_snr_0_8k_db =
+        LoopbackEval_Compute_Speechband_Snr(clean, out, start, end);
     result->speech_preservation_ratio =
         (float)(dot / (ref_energy + 1.0e-20));
     result->clean_output_corr =
@@ -167,7 +241,12 @@ static void LoopbackEval_Capture_Debug(LoopbackEvalResult *result)
     result->band_bits[6] = SUBBAND_CODEC_LOOP_DebugBandBits6;
     result->band_bits[7] = SUBBAND_CODEC_LOOP_DebugBandBits7;
     result->invalid_count = SUBBAND_CODEC_LOOP_DebugInvalidCount;
-    result->clipping_count = SUBBAND_CODEC_LOOP_DebugClippingCount;
+    result->quantizer_clamp_count =
+        SUBBAND_CODEC_LOOP_DebugQuantizerClampCount;
+    result->total_scalar_count =
+        SUBBAND_CODEC_LOOP_DebugTotalScalarCount;
+    result->quantizer_clamp_ratio =
+        SUBBAND_CODEC_LOOP_DebugQuantizerClampRatio;
 }
 
 static void LoopbackEval_Reset_For_Codec(int target_bitrate_kbps)
@@ -248,12 +327,69 @@ static void LoopbackEval_Run_Case(const char *mode_name,
     {
         result->pass = 0;
     }
-    if ((LoopbackEval_Is_Invalid_Float(result->output_snr_db) != 0) ||
-        (LoopbackEval_Is_Invalid_Float(result->clean_output_corr) != 0) ||
-        (LoopbackEval_Is_Invalid_Float(result->speech_preservation_ratio) != 0))
+    if ((result->total_scalar_count == 0UL) ||
+        (result->quantizer_clamp_ratio >= 0.10f))
     {
         result->pass = 0;
     }
+    if ((LoopbackEval_Is_Invalid_Float(result->output_snr_db) != 0) ||
+        (LoopbackEval_Is_Invalid_Float(result->speechband_snr_0_8k_db) != 0) ||
+        (LoopbackEval_Is_Invalid_Float(result->clean_output_corr) != 0) ||
+        (LoopbackEval_Is_Invalid_Float(result->speech_preservation_ratio) != 0) ||
+        (LoopbackEval_Is_Invalid_Float(result->quantizer_clamp_ratio) != 0))
+    {
+        result->pass = 0;
+    }
+}
+
+static int LoopbackEval_Run_Api_Smoke(void)
+{
+    int fail;
+
+    fail = 0;
+    SubbandCodecLoopback_Init();
+    SubbandCodecLoopback_Reset();
+
+    SubbandCodecLoopback_SetEnabled(0);
+    if (SubbandCodecLoopback_IsEnabled() != 0)
+    {
+        fail = 1;
+    }
+
+    SubbandCodecLoopback_SetTargetKbps(160);
+    if (SubbandCodecLoopback_GetTargetKbps() != 160)
+    {
+        fail = 1;
+    }
+
+    memset(LoopbackEval_ApiRe, 0, sizeof(LoopbackEval_ApiRe));
+    memset(LoopbackEval_ApiIm, 0, sizeof(LoopbackEval_ApiIm));
+    LoopbackEval_ApiRe[0] = 1.0f;
+    SubbandCodecLoopback_Reset();
+    SubbandCodecLoopback_SetEnabled(1);
+    SUBBAND_CODEC_LOOP_DebugRequestedTargetKbps = 240;
+    SubbandCodecLoopback_ProcessSpectrum(LoopbackEval_ApiRe,
+                                         LoopbackEval_ApiIm);
+    if (SubbandCodecLoopback_GetTargetKbps() != 240)
+    {
+        fail = 1;
+    }
+    if (SUBBAND_CODEC_LOOP_DebugRequestedTargetKbps != 0)
+    {
+        fail = 1;
+    }
+    if (SUBBAND_CODEC_LOOP_DebugTotalScalarCount == 0UL)
+    {
+        fail = 1;
+    }
+
+    printf("codec_loopback_eval api_smoke target=%d requested=%d "
+           "total_scalars=%lu %s\n",
+           SubbandCodecLoopback_GetTargetKbps(),
+           SUBBAND_CODEC_LOOP_DebugRequestedTargetKbps,
+           SUBBAND_CODEC_LOOP_DebugTotalScalarCount,
+           fail ? "FAIL" : "PASS");
+    return fail;
 }
 
 static void LoopbackEval_Write_Header(FILE *fp)
@@ -263,7 +399,8 @@ static void LoopbackEval_Write_Header(FILE *fp)
                 "clean_output_corr,speech_preservation_ratio,"
                 "avg_bits_per_scalar,band_bits_0,band_bits_1,band_bits_2,"
                 "band_bits_3,band_bits_4,band_bits_5,band_bits_6,"
-                "band_bits_7,invalid_count,clipping_count,pass\n");
+                "band_bits_7,invalid_count,quantizer_clamp_count,"
+                "total_scalar_count,quantizer_clamp_ratio,pass\n");
 }
 
 static void LoopbackEval_Write_Row(FILE *fp,
@@ -271,7 +408,7 @@ static void LoopbackEval_Write_Row(FILE *fp,
 {
     fprintf(fp,
             "%s,%d,%.3f,%.3f,%.3f,%.3f,%.6f,%.6f,%.3f,"
-            "%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%d,%d,%d\n",
+            "%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%d,%lu,%lu,%.9f,%d\n",
             result->mode_name,
             result->target_bitrate_kbps,
             result->estimated_bitrate_kbps,
@@ -290,7 +427,9 @@ static void LoopbackEval_Write_Row(FILE *fp,
             result->band_bits[6],
             result->band_bits[7],
             result->invalid_count,
-            result->clipping_count,
+            result->quantizer_clamp_count,
+            result->total_scalar_count,
+            result->quantizer_clamp_ratio,
             result->pass);
 }
 
@@ -303,23 +442,7 @@ int SubbandCodecLoopbackEval_OfflineTest_All(void)
     FILE *fp;
 
     failures = 0;
-    SubbandCodecLoopback_Init();
-    SubbandCodecLoopback_Reset();
-
-    SubbandCodecLoopback_SetEnabled(0);
-    if (SubbandCodecLoopback_IsEnabled() != 0)
-    {
-        failures++;
-    }
-
-    SubbandCodecLoopback_SetTargetKbps(160);
-    if (SubbandCodecLoopback_GetTargetKbps() != 160)
-    {
-        failures++;
-    }
-
-    printf("codec_loopback_eval api_smoke %s\n",
-           failures ? "FAIL" : "PASS");
+    failures += LoopbackEval_Run_Api_Smoke();
 
     LoopbackEval_Fill_Speechlike(LoopbackEval_Clean,
                                  LOOPBACK_EVAL_SAMPLES);
@@ -357,31 +480,37 @@ int SubbandCodecLoopbackEval_OfflineTest_All(void)
     failures += (r320.pass == 0) ? 1 : 0;
 
     printf("codec_loopback_eval %s target=%d actual=%.3f snr=%.3f "
-           "corr=%.6f preserve=%.6f invalid=%d clips=%d bits=[%.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f] %s\n",
+           "corr=%.6f preserve=%.6f invalid=%d quant_clamps=%lu "
+           "clamp_ratio=%.9f bits=[%.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f] %s\n",
            r160.mode_name, r160.target_bitrate_kbps,
            r160.estimated_bitrate_kbps, r160.speechband_snr_0_8k_db,
            r160.clean_output_corr, r160.speech_preservation_ratio,
-           r160.invalid_count, r160.clipping_count,
+           r160.invalid_count, r160.quantizer_clamp_count,
+           r160.quantizer_clamp_ratio,
            r160.band_bits[0], r160.band_bits[1], r160.band_bits[2],
            r160.band_bits[3], r160.band_bits[4], r160.band_bits[5],
            r160.band_bits[6], r160.band_bits[7],
            r160.pass ? "PASS" : "FAIL");
     printf("codec_loopback_eval %s target=%d actual=%.3f snr=%.3f "
-           "corr=%.6f preserve=%.6f invalid=%d clips=%d bits=[%.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f] %s\n",
+           "corr=%.6f preserve=%.6f invalid=%d quant_clamps=%lu "
+           "clamp_ratio=%.9f bits=[%.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f] %s\n",
            r240.mode_name, r240.target_bitrate_kbps,
            r240.estimated_bitrate_kbps, r240.speechband_snr_0_8k_db,
            r240.clean_output_corr, r240.speech_preservation_ratio,
-           r240.invalid_count, r240.clipping_count,
+           r240.invalid_count, r240.quantizer_clamp_count,
+           r240.quantizer_clamp_ratio,
            r240.band_bits[0], r240.band_bits[1], r240.band_bits[2],
            r240.band_bits[3], r240.band_bits[4], r240.band_bits[5],
            r240.band_bits[6], r240.band_bits[7],
            r240.pass ? "PASS" : "FAIL");
     printf("codec_loopback_eval %s target=%d actual=%.3f snr=%.3f "
-           "corr=%.6f preserve=%.6f invalid=%d clips=%d bits=[%.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f] %s\n",
+           "corr=%.6f preserve=%.6f invalid=%d quant_clamps=%lu "
+           "clamp_ratio=%.9f bits=[%.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f] %s\n",
            r320.mode_name, r320.target_bitrate_kbps,
            r320.estimated_bitrate_kbps, r320.speechband_snr_0_8k_db,
            r320.clean_output_corr, r320.speech_preservation_ratio,
-           r320.invalid_count, r320.clipping_count,
+           r320.invalid_count, r320.quantizer_clamp_count,
+           r320.quantizer_clamp_ratio,
            r320.band_bits[0], r320.band_bits[1], r320.band_bits[2],
            r320.band_bits[3], r320.band_bits[4], r320.band_bits[5],
            r320.band_bits[6], r320.band_bits[7],

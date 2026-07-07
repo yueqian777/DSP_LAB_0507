@@ -33,8 +33,9 @@ typedef struct
     unsigned long payload_bits;
     unsigned long scalar_bits;
     unsigned long scalar_count;
+    unsigned long quantizer_clamp_count;
     int hops;
-    int clipping_count;
+    int output_clipping_count;
     int nonzero_output_count;
     int invalid_count;
     float bitrate_kbps;

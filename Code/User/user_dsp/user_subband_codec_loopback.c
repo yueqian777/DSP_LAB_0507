@@ -44,7 +44,9 @@ volatile float SUBBAND_CODEC_LOOP_DebugBandBits5 = 0.0f;
 volatile float SUBBAND_CODEC_LOOP_DebugBandBits6 = 0.0f;
 volatile float SUBBAND_CODEC_LOOP_DebugBandBits7 = 0.0f;
 volatile int SUBBAND_CODEC_LOOP_DebugInvalidCount = 0;
-volatile int SUBBAND_CODEC_LOOP_DebugClippingCount = 0;
+volatile unsigned long SUBBAND_CODEC_LOOP_DebugQuantizerClampCount = 0UL;
+volatile unsigned long SUBBAND_CODEC_LOOP_DebugTotalScalarCount = 0UL;
+volatile float SUBBAND_CODEC_LOOP_DebugQuantizerClampRatio = 0.0f;
 volatile unsigned long SUBBAND_CODEC_LOOP_DebugFrames = 0UL;
 
 static const float SubbandCodecLoopback_PerceptualWeight[SUBBAND_NUM_BANDS] =
@@ -448,12 +450,12 @@ static float Loop_Quantize_Value(float x, float scale, int bits)
     if (q > qmax)
     {
         q = qmax;
-        SUBBAND_CODEC_LOOP_DebugClippingCount++;
+        SUBBAND_CODEC_LOOP_DebugQuantizerClampCount++;
     }
     if (q < -qmax)
     {
         q = -qmax;
-        SUBBAND_CODEC_LOOP_DebugClippingCount++;
+        SUBBAND_CODEC_LOOP_DebugQuantizerClampCount++;
     }
     y = (float)q * step;
     if (Loop_Is_Invalid(y) != 0)
@@ -537,6 +539,7 @@ static void Loop_Update_Rate_Debug(void)
     scalar_bits = Loop_Current_Scalar_Bits();
     scalar_count = Loop_Current_Scalar_Count();
     hop_duration = (float)SUBBAND_HOP / (float)SUBBAND_SAMPLE_RATE;
+    SUBBAND_CODEC_LOOP_DebugTotalScalarCount += scalar_count;
 
     if (hop_duration > 1.0e-20f)
     {
@@ -566,6 +569,16 @@ static void Loop_Update_Rate_Debug(void)
     {
         SUBBAND_CODEC_LOOP_DebugAvgBitsPerScalar = 0.0f;
     }
+    if (SUBBAND_CODEC_LOOP_DebugTotalScalarCount > 0UL)
+    {
+        SUBBAND_CODEC_LOOP_DebugQuantizerClampRatio =
+            (float)SUBBAND_CODEC_LOOP_DebugQuantizerClampCount /
+            (float)SUBBAND_CODEC_LOOP_DebugTotalScalarCount;
+    }
+    else
+    {
+        SUBBAND_CODEC_LOOP_DebugQuantizerClampRatio = 0.0f;
+    }
     Loop_Update_Band_Debug();
 }
 
@@ -577,6 +590,7 @@ static void Loop_Service_Requested_Target(void)
     if ((requested == 160) || (requested == 240) || (requested == 320))
     {
         SubbandCodecLoopback_SetTargetKbps(requested);
+        SUBBAND_CODEC_LOOP_DebugRequestedTargetKbps = 0;
     }
 }
 
@@ -617,7 +631,9 @@ void SubbandCodecLoopback_Reset(void)
     SUBBAND_CODEC_LOOP_DebugCompressionRatio = 0.0f;
     SUBBAND_CODEC_LOOP_DebugAvgBitsPerScalar = 0.0f;
     SUBBAND_CODEC_LOOP_DebugInvalidCount = 0;
-    SUBBAND_CODEC_LOOP_DebugClippingCount = 0;
+    SUBBAND_CODEC_LOOP_DebugQuantizerClampCount = 0UL;
+    SUBBAND_CODEC_LOOP_DebugTotalScalarCount = 0UL;
+    SUBBAND_CODEC_LOOP_DebugQuantizerClampRatio = 0.0f;
     SUBBAND_CODEC_LOOP_DebugFrames = 0UL;
     Loop_Update_Band_Debug();
 }

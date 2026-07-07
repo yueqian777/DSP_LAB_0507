@@ -626,7 +626,7 @@ static unsigned long Codec_Process_Hop(const short *input,
         if (idx < sample_count)
         {
             y = Codec_Saturate_To_Short(SubbandCodec_State.ola_buf[i],
-                                        &stats->clipping_count);
+                                        &stats->output_clipping_count);
             output[idx] = y;
             if (y != 0)
             {

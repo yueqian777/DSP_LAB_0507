@@ -179,7 +179,7 @@ static float EQ_ProcessSample(EQ_STATE *st, float x)
     int band;
     float acc;
 
-    acc = 0.0f;
+    acc = x;
     for (band = 0; band < EQ_NUM_BANDS; band++)
     {
         const EQ_COEFF *c;
@@ -199,7 +199,7 @@ static float EQ_ProcessSample(EQ_STATE *st, float x)
         st->y1[band] = y;
 
         gain = EQ_NextGain(st, band);
-        acc += y * gain;
+        acc += (gain - 1.0f) * y;
     }
 
     return acc;

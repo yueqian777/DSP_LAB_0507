@@ -21,7 +21,8 @@ transport.
 
 - `SUBBAND_DebugDemoMode`: set to `8`, `9`, or `10` to select loopback mode.
 - `SUBBAND_CODEC_LOOP_DebugRequestedTargetKbps`: set to `160`, `240`, or `320`
-  to request a bitrate change while the mode is running.
+  to request a bitrate change while the mode is running. The request is
+  automatically cleared to `0` after a valid target is applied.
 - `SUBBAND_CODEC_LOOP_DebugTargetKbps`: active target bitrate.
 - `SUBBAND_CODEC_LOOP_DebugEstimatedBitrateKbps`: current estimated payload
   bitrate.
@@ -31,8 +32,17 @@ transport.
 - `SUBBAND_CODEC_LOOP_DebugBandBits0` through
   `SUBBAND_CODEC_LOOP_DebugBandBits7`: current per-band scalar bit allocation.
 - `SUBBAND_CODEC_LOOP_DebugInvalidCount`: NaN/Inf or invalid spectrum count.
-- `SUBBAND_CODEC_LOOP_DebugClippingCount`: quantizer clamp count.
+- `SUBBAND_CODEC_LOOP_DebugQuantizerClampCount`: frequency-domain scalar
+  quantizer clamp count. This is not output PCM waveform clipping.
+- `SUBBAND_CODEC_LOOP_DebugTotalScalarCount`: cumulative frequency-domain
+  scalar count used as the denominator for clamp ratio.
+- `SUBBAND_CODEC_LOOP_DebugQuantizerClampRatio`: cumulative
+  `quantizer_clamp_count / total_scalar_count`.
 - `SUBBAND_CODEC_LOOP_DebugFrames`: processed WOLA hops with loopback enabled.
 
 Modes `0` through `7` explicitly disable codec loopback and keep their previous
 behavior.
+
+`subband_codec_loopback_eval_report.csv` uses `quantizer_clamp_count` and
+`quantizer_clamp_ratio` for the codec loopback path. These fields describe
+frequency-domain quantizer saturation, not final speaker waveform clipping.

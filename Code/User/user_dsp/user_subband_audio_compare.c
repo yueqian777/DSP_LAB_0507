@@ -292,8 +292,8 @@ static void AudioCompare_Write_Metrics_Header(FILE *csv)
 {
     fprintf(csv, "mode,target_bitrate_kbps,actual_bitrate_kbps,"
                  "compression_ratio,payload_bits,avg_bits_per_scalar,"
-                 "output_energy_ratio,clipping_count,invalid_count,"
-                 "nonzero_output_count\n");
+                 "output_energy_ratio,output_clipping_count,"
+                 "quantizer_clamp_count,invalid_count,nonzero_output_count\n");
 }
 
 static void AudioCompare_Write_Metrics(FILE *csv, const char *mode,
@@ -309,7 +309,8 @@ static void AudioCompare_Write_Metrics(FILE *csv, const char *mode,
     float compression_ratio;
     float avg_bits;
     unsigned long payload_bits;
-    int clipping_count;
+    int output_clipping_count;
+    unsigned long quantizer_clamp_count;
     int invalid_count;
     int nonzero_count;
 
@@ -321,7 +322,8 @@ static void AudioCompare_Write_Metrics(FILE *csv, const char *mode,
         compression_ratio = stats->compression_ratio;
         avg_bits = stats->avg_bits_per_scalar;
         payload_bits = stats->payload_bits;
-        clipping_count = stats->clipping_count;
+        output_clipping_count = stats->output_clipping_count;
+        quantizer_clamp_count = stats->quantizer_clamp_count;
         invalid_count = stats->invalid_count;
         nonzero_count = stats->nonzero_output_count;
     }
@@ -331,14 +333,15 @@ static void AudioCompare_Write_Metrics(FILE *csv, const char *mode,
         compression_ratio = 0.0f;
         avg_bits = 0.0f;
         payload_bits = 0UL;
-        clipping_count = AudioCompare_Clip_Count(output, sample_count);
+        output_clipping_count = AudioCompare_Clip_Count(output, sample_count);
+        quantizer_clamp_count = 0UL;
         invalid_count = 0;
         nonzero_count = AudioCompare_Nonzero_Count(output, sample_count);
     }
-    fprintf(csv, "%s,%d,%.3f,%.3f,%lu,%.3f,%.9f,%d,%d,%d\n",
+    fprintf(csv, "%s,%d,%.3f,%.3f,%lu,%.3f,%.9f,%d,%lu,%d,%d\n",
             mode, target_bitrate_kbps, actual_bitrate, compression_ratio,
-            payload_bits, avg_bits, energy_ratio, clipping_count,
-            invalid_count, nonzero_count);
+            payload_bits, avg_bits, energy_ratio, output_clipping_count,
+            quantizer_clamp_count, invalid_count, nonzero_count);
 }
 
 static void AudioCompare_Reset_Wola_Only(void)
@@ -469,7 +472,10 @@ static void AudioCompare_Fill_Loopback_Stats(SubbandCodecStats *stats,
     stats->avg_bits_per_scalar =
         SUBBAND_CODEC_LOOP_DebugAvgBitsPerScalar;
     stats->invalid_count = SUBBAND_CODEC_LOOP_DebugInvalidCount;
-    stats->clipping_count = SUBBAND_CODEC_LOOP_DebugClippingCount;
+    stats->output_clipping_count =
+        AudioCompare_Clip_Count(output, sample_count);
+    stats->quantizer_clamp_count =
+        SUBBAND_CODEC_LOOP_DebugQuantizerClampCount;
     stats->nonzero_output_count =
         AudioCompare_Nonzero_Count(output, sample_count);
     duration_sec = (float)sample_count / (float)SUBBAND_SAMPLE_RATE;

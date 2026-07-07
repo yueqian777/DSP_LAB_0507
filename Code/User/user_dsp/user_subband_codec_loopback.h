@@ -32,7 +32,9 @@ extern volatile float SUBBAND_CODEC_LOOP_DebugBandBits5;
 extern volatile float SUBBAND_CODEC_LOOP_DebugBandBits6;
 extern volatile float SUBBAND_CODEC_LOOP_DebugBandBits7;
 extern volatile int SUBBAND_CODEC_LOOP_DebugInvalidCount;
-extern volatile int SUBBAND_CODEC_LOOP_DebugClippingCount;
+extern volatile unsigned long SUBBAND_CODEC_LOOP_DebugQuantizerClampCount;
+extern volatile unsigned long SUBBAND_CODEC_LOOP_DebugTotalScalarCount;
+extern volatile float SUBBAND_CODEC_LOOP_DebugQuantizerClampRatio;
 extern volatile unsigned long SUBBAND_CODEC_LOOP_DebugFrames;
 
 void SubbandCodecLoopback_Init(void);

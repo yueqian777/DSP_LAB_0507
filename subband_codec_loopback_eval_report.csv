@@ -1,4 +1,4 @@
-mode_name,target_bitrate_kbps,estimated_bitrate_kbps,compression_ratio,output_snr_db,speechband_snr_0_8k_db,clean_output_corr,speech_preservation_ratio,avg_bits_per_scalar,band_bits_0,band_bits_1,band_bits_2,band_bits_3,band_bits_4,band_bits_5,band_bits_6,band_bits_7,invalid_count,clipping_count,pass
-codec_loopback_160k,160,158.398,5.051,16.553,16.553,0.988954,0.966036,1.381,3.0,4.0,4.0,0.0,0.0,0.0,0.0,0.0,0,1324,1
-codec_loopback_240k,240,233.789,3.422,22.910,22.910,0.997848,0.967154,2.135,5.0,6.0,6.0,0.0,0.0,0.0,0.0,0.0,0,2001,1
-codec_loopback_320k,320,321.484,2.488,25.568,25.568,0.999105,0.966853,3.012,6.0,6.0,6.0,6.0,0.0,0.0,0.0,0.0,0,2282,1
+mode_name,target_bitrate_kbps,estimated_bitrate_kbps,compression_ratio,output_snr_db,speechband_snr_0_8k_db,clean_output_corr,speech_preservation_ratio,avg_bits_per_scalar,band_bits_0,band_bits_1,band_bits_2,band_bits_3,band_bits_4,band_bits_5,band_bits_6,band_bits_7,invalid_count,quantizer_clamp_count,total_scalar_count,quantizer_clamp_ratio,pass
+codec_loopback_160k,160,158.398,5.051,16.553,16.524,0.988954,0.966036,1.381,3.0,4.0,4.0,0.0,0.0,0.0,0.0,0.0,0,1324,327680,0.004040527,1
+codec_loopback_240k,240,233.789,3.422,22.910,22.854,0.997848,0.967154,2.135,5.0,6.0,6.0,0.0,0.0,0.0,0.0,0.0,0,2001,327680,0.006106568,1
+codec_loopback_320k,320,321.484,2.488,25.568,25.546,0.999105,0.966853,3.012,6.0,6.0,6.0,6.0,0.0,0.0,0.0,0.0,0,2282,327680,0.006964111,1
