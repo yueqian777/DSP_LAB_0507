@@ -1,15 +1,17 @@
 # DSP Subband Evaluation Visual Report
 
-Generated at: 2026-07-07 15:05:45
+Generated at: 2026-07-07 16:40:16
 
 ## 输入文件列表
 
 ### CSV found
-- compare_audio_metrics.csv: `compare_audio_metrics.csv`
-- subband_codec_eval_report.csv: `subband_codec_eval_report.csv`
-- subband_denoise_mcra_eval_report.csv: `subband_denoise_mcra_eval_report.csv`
-- subband_denoise_ms_eval_report.csv: `subband_denoise_ms_eval_report.csv`
-- subband_eval_report.csv: `subband_eval_report.csv`
+- aggregate_compare_audio_metrics.csv: `C:\Users\zhangyueqian\lab8\DSP_LAB_0507\board_audio_test_outputs\run_20260707_155620\report\aggregate_compare_audio_metrics.csv`
+- board_mode_runtime_summary.csv: `C:\Users\zhangyueqian\lab8\DSP_LAB_0507\board_audio_test_outputs\run_20260707_155620\report\board_mode_runtime_summary.csv`
+- compare_audio_metrics.csv: `C:\Users\zhangyueqian\lab8\DSP_LAB_0507\compare_audio_metrics.csv`
+- subband_codec_eval_report.csv: `C:\Users\zhangyueqian\lab8\DSP_LAB_0507\subband_codec_eval_report.csv`
+- subband_denoise_mcra_eval_report.csv: `C:\Users\zhangyueqian\lab8\DSP_LAB_0507\subband_denoise_mcra_eval_report.csv`
+- subband_denoise_ms_eval_report.csv: `C:\Users\zhangyueqian\lab8\DSP_LAB_0507\subband_denoise_ms_eval_report.csv`
+- subband_eval_report.csv: `C:\Users\zhangyueqian\lab8\DSP_LAB_0507\subband_eval_report.csv`
 
 ### WAV found
 - compare_00_input.wav: `compare_00_input.wav`
@@ -21,6 +23,9 @@ Generated at: 2026-07-07 15:05:45
 - compare_06_denoise_codec_160k.wav: `compare_06_denoise_codec_160k.wav`
 - compare_07_denoise_codec_240k.wav: `compare_07_denoise_codec_240k.wav`
 - compare_08_denoise_codec_320k.wav: `compare_08_denoise_codec_320k.wav`
+- compare_09_ms_denoise.wav: `compare_09_ms_denoise.wav`
+- compare_10_mcra_denoise.wav: `compare_10_mcra_denoise.wav`
+- compare_11_strong_mcra_denoise.wav: `compare_11_strong_mcra_denoise.wav`
 
 ## 缺失文件列表
 
@@ -28,9 +33,7 @@ Generated at: 2026-07-07 15:05:45
 - <none>
 
 ### WAV missing
-- compare_09_ms_denoise.wav
-- compare_10_mcra_denoise.wav
-- compare_11_strong_mcra_denoise.wav
+- <none>
 
 ## 成功生成的图像列表
 - plots/codec_actual_bitrate.png
@@ -42,13 +45,17 @@ Generated at: 2026-07-07 15:05:45
 - plots/denoise_spectrogram_compare.png
 - plots/denoise_spectrogram_fixed.png
 - plots/denoise_spectrogram_input.png
+- plots/denoise_spectrogram_mcra.png
+- plots/denoise_spectrogram_mcra_strong.png
+- plots/denoise_spectrogram_ms.png
 - plots/denoise_spectrum_before_after.png
 - plots/denoise_speech_preservation_corr.png
 - plots/denoise_waveform_before_after.png
 - plots/group_delay_impulse_or_correlation.png
 - plots/memory_usage_template.png
 - plots/noise_psd_gain_tracking.png
-- plots/realtime_budget_compare_template.png
+- plots/realtime_budget_compare.png
+- plots/thd_spectrum_example.png
 - plots/wola_frequency_response.png
 - plots/wola_reconstruction_error.png
 - plots/wola_rolloff_curve.png
@@ -56,7 +63,7 @@ Generated at: 2026-07-07 15:05:45
 - plots/wola_waveform_compare.png
 
 ## 未生成图像
-- thd_spectrum_example.png: missing single-tone test WAV
+- <none>
 
 ## 汇总表
 - summary_tables\wola_summary.csv
@@ -80,7 +87,7 @@ target bitrates=160, 240, 320 kbps; max compression ratio=5.17; best denoise+cod
 ## 实时性模板或结果摘要
 
 - frame_budget_ms = 20.48 ms
-- realtime_summary rows = 5
+- realtime_summary rows = 8
 - 若 max_ms 为空或为 0，说明该表仍是模板，需要根据 CCS Watch 手动填入。
 
 ## 指标定义
@@ -104,14 +111,29 @@ target bitrates=160, 240, 320 kbps; max compression ratio=5.17; best denoise+cod
 - denoise_delta_vs_fixed.png
 - codec_bitrate_compression_ratio.png
 - codec_quality_snr.png
-- realtime_budget_compare_template.png
+- realtime_budget_compare.png
+- realtime_budget_compare_template.png（未生成：缺少输入或数据）
 
 ## 当前数据支持的结论
 - WOLA passthrough SNR=72.86 dB, energy ratio=0.999732, delay=256 samples, pass=PASS.
 - rows=34; best delta=2.66 dB (noise_step_up_snr10 / mcra_normal); best output SNR=22.64 dB (stationary_snr20 / fixed).
 - target bitrates=160, 240, 320 kbps; max compression ratio=5.17; best denoise+codec SNR=19.20 dB.
-- 实时性结果当前以模板形式输出，需要把 CCS Watch 的 last/max frame time 手动填入后再作为最终验收数据。
+- 实时性结果已使用 CCS Watch 填入的 max_ms 生成正式 realtime_budget_compare.png。
 - 已从 map 文件解析内存区域占用：C:\Users\zhangyueqian\lab8\DSP_LAB_0507\Debug\DSP_LAB_0507.map。
 
+## Interactive HTML reports
+- interactive/index.html
+- interactive/denoise_output_snr_surface.html
+- interactive/denoise_delta_surface.html
+- interactive/denoise_output_snr_heatmap.html
+- interactive/denoise_delta_heatmap.html
+- interactive/denoise_stepup_waterfall.html
+- interactive/denoise_quality_tradeoff.html
+- interactive/board_runtime_by_mode.html
+- interactive/codec_rate_quality_tradeoff.html
+- interactive/audio_energy_ratio_heatmap.html
+
+这些 HTML 用于课堂演示和交互式检查；PNG 用于 PPT 静态插图。
+
 ## Warnings
-- No standalone realtime CSV was used; generated a CCS Watch fill-in template.
+- <none>

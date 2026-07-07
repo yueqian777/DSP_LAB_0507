@@ -18,6 +18,10 @@
 #include <string.h>
 
 #define AUDIO_COMPARE_RATE_COUNT 3
+#define AUDIO_COMPARE_DENOISE_FIXED 0
+#define AUDIO_COMPARE_DENOISE_HYBRID_MS 1
+#define AUDIO_COMPARE_DENOISE_MCRA_NORMAL 2
+#define AUDIO_COMPARE_DENOISE_MCRA_STRONG 3
 
 static const int AudioCompare_Rates[AUDIO_COMPARE_RATE_COUNT] =
 {
@@ -346,14 +350,54 @@ static void AudioCompare_Reset_Wola_Only(void)
     SubbandDenoise_SetEnabled(0);
 }
 
-static void AudioCompare_Reset_Denoise(void)
+static void AudioCompare_Reset_Denoise_Mode(int mode)
 {
     SubbandWOLA_Init();
     SubbandWOLA_SetBypass(0);
     SubbandWOLA_ResetStream();
     SubbandWOLA_ResetAllGains();
     SubbandDenoise_Reset();
+    if (mode == AUDIO_COMPARE_DENOISE_HYBRID_MS)
+    {
+        SubbandDenoise_SetNoiseTrackMode(SUBBAND_DENOISE_TRACK_HYBRID);
+    }
+    else if (mode == AUDIO_COMPARE_DENOISE_MCRA_NORMAL)
+    {
+        SubbandDenoise_SetNoiseTrackMode(SUBBAND_DENOISE_TRACK_MCRA);
+        SubbandDenoise_SetMcraParams(1.5f, 4.0f,
+                                     0.85f, 0.998f,
+                                     1.10f, 1.70f,
+                                     1.40f,
+                                     0);
+    }
+    else if (mode == AUDIO_COMPARE_DENOISE_MCRA_STRONG)
+    {
+        SubbandDenoise_SetNoiseTrackMode(SUBBAND_DENOISE_TRACK_MCRA);
+        SubbandDenoise_SetMcraParams(1.3f, 3.5f,
+                                     0.80f, 0.998f,
+                                     1.20f, 2.10f,
+                                     1.60f,
+                                     1);
+    }
     SubbandDenoise_StartNoiseLearning();
+}
+
+static void AudioCompare_Process_Denoise_Mode(const short *input,
+                                              short *output,
+                                              int padded_count,
+                                              int mode)
+{
+    int frame;
+    int frames;
+
+    memset(output, 0, (size_t)padded_count * sizeof(short));
+    AudioCompare_Reset_Denoise_Mode(mode);
+    frames = padded_count / SUBBAND_FRAME_LEN;
+    for (frame = 0; frame < frames; frame++)
+    {
+        SubbandWOLA_ProcessFrame((short *)&input[frame * SUBBAND_FRAME_LEN],
+                                 &output[frame * SUBBAND_FRAME_LEN]);
+    }
 }
 
 static void AudioCompare_Process_Wola(const short *input, short *output,
@@ -364,12 +408,13 @@ static void AudioCompare_Process_Wola(const short *input, short *output,
 
     if (denoise != 0)
     {
-        AudioCompare_Reset_Denoise();
+        AudioCompare_Process_Denoise_Mode(input, output, padded_count,
+                                          AUDIO_COMPARE_DENOISE_FIXED);
+        return;
     }
-    else
-    {
-        AudioCompare_Reset_Wola_Only();
-    }
+
+    memset(output, 0, (size_t)padded_count * sizeof(short));
+    AudioCompare_Reset_Wola_Only();
     frames = padded_count / SUBBAND_FRAME_LEN;
     for (frame = 0; frame < frames; frame++)
     {
@@ -499,6 +544,27 @@ int SubbandAudioCompare_ExportAll(const char *input_wav_path)
                                               AudioCompare_Rates[i],
                                               input_energy);
     }
+
+    AudioCompare_Process_Denoise_Mode(input_padded, codec_out, padded_count,
+                                      AUDIO_COMPARE_DENOISE_HYBRID_MS);
+    failures += AudioCompare_Write_Wav("compare_09_ms_denoise.wav",
+                                       codec_out, sample_count);
+    AudioCompare_Write_Metrics(csv, "ms_denoise", 0, 0, codec_out,
+                               sample_count, input_energy);
+
+    AudioCompare_Process_Denoise_Mode(input_padded, codec_out, padded_count,
+                                      AUDIO_COMPARE_DENOISE_MCRA_NORMAL);
+    failures += AudioCompare_Write_Wav("compare_10_mcra_denoise.wav",
+                                       codec_out, sample_count);
+    AudioCompare_Write_Metrics(csv, "mcra_denoise", 0, 0, codec_out,
+                               sample_count, input_energy);
+
+    AudioCompare_Process_Denoise_Mode(input_padded, codec_out, padded_count,
+                                      AUDIO_COMPARE_DENOISE_MCRA_STRONG);
+    failures += AudioCompare_Write_Wav("compare_11_strong_mcra_denoise.wav",
+                                       codec_out, sample_count);
+    AudioCompare_Write_Metrics(csv, "strong_mcra_denoise", 0, 0,
+                               codec_out, sample_count, input_energy);
 
 cleanup:
     if (csv != 0)

@@ -8,6 +8,7 @@ import sys
 import wave
 from dataclasses import dataclass, field
 from datetime import datetime
+from html import escape
 from pathlib import Path
 from typing import Iterable, Sequence
 
@@ -18,13 +19,29 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+try:
+    import plotly.graph_objects as go
+
+    PLOTLY_IMPORT_ERROR: Exception | None = None
+except Exception as exc:  # noqa: BLE001 - optional interactive layer.
+    go = None
+    PLOTLY_IMPORT_ERROR = exc
+
 
 CSV_FILES = [
     "subband_eval_report.csv",
     "subband_codec_eval_report.csv",
     "subband_denoise_ms_eval_report.csv",
     "subband_denoise_mcra_eval_report.csv",
+    "aggregate_compare_audio_metrics.csv",
     "compare_audio_metrics.csv",
+    "board_mode_runtime_summary.csv",
+]
+
+REALTIME_CSV_FILES = [
+    "board_mode_runtime_summary.csv",
+    "realtime_summary.csv",
+    "realtime_summary_template.csv",
 ]
 
 WAV_FILES = [
@@ -50,7 +67,21 @@ PPT_RECOMMENDATIONS = [
     "denoise_delta_vs_fixed.png",
     "codec_bitrate_compression_ratio.png",
     "codec_quality_snr.png",
+    "realtime_budget_compare.png",
     "realtime_budget_compare_template.png",
+]
+
+INTERACTIVE_REPORTS = [
+    "index.html",
+    "denoise_output_snr_surface.html",
+    "denoise_delta_surface.html",
+    "denoise_output_snr_heatmap.html",
+    "denoise_delta_heatmap.html",
+    "denoise_stepup_waterfall.html",
+    "denoise_quality_tradeoff.html",
+    "board_runtime_by_mode.html",
+    "codec_rate_quality_tradeoff.html",
+    "audio_energy_ratio_heatmap.html",
 ]
 
 FIGSIZE = (10.0, 5.625)
@@ -75,12 +106,15 @@ class ReportContext:
     warnings: list[str] = field(default_factory=list)
     generated_plots: list[str] = field(default_factory=list)
     skipped_plots: dict[str, str] = field(default_factory=dict)
+    generated_html: list[str] = field(default_factory=list)
+    skipped_html: dict[str, str] = field(default_factory=dict)
     summary_files: list[str] = field(default_factory=list)
     found_map: Path | None = None
 
     def __post_init__(self) -> None:
         self.plots_dir = self.out_dir / "plots"
         self.summary_dir = self.out_dir / "summary_tables"
+        self.interactive_dir = self.out_dir / "interactive"
         self.plots_dir.mkdir(parents=True, exist_ok=True)
         self.summary_dir.mkdir(parents=True, exist_ok=True)
 
@@ -117,8 +151,10 @@ def existing_dirs(paths: Iterable[Path]) -> list[Path]:
 def build_search_dirs(root: Path, cli_dirs: Sequence[str] | None) -> list[Path]:
     defaults = [
         root,
+        root / "test_vectors",
         root / "docs" / "eval_baseline",
         root / "docs" / "eval_outputs" / "input",
+        root / "docs" / "eval_outputs" / "summary_tables",
         root / "compare",
         root / "compare_unzip",
     ]
@@ -155,6 +191,34 @@ def find_csv_file(name: str, search_dirs: Sequence[Path], ctx: ReportContext) ->
     else:
         print(f"Found CSV for {name}: {selected}")
     return selected
+
+
+def find_optional_csv(names: Sequence[str], search_dirs: Sequence[Path]) -> Path | None:
+    candidates: list[Path] = []
+    lowered = {name.lower() for name in names}
+    stems = {Path(name).stem.lower() for name in names}
+    for directory in search_dirs:
+        for name in names:
+            exact = directory / name
+            if exact.exists() and exact.is_file():
+                candidates.append(exact)
+        for path in directory.glob("*.csv"):
+            if path.name.lower() in lowered or path.stem.lower() in stems:
+                candidates.append(path)
+
+    candidates = unique_paths(candidates)
+    if not candidates:
+        return None
+
+    preference = {name.lower(): index for index, name in enumerate(names)}
+    stem_preference = {Path(name).stem.lower(): index for index, name in enumerate(names)}
+
+    def score(path: Path) -> tuple[int, int, float]:
+        non_empty = path.stat().st_size > 0
+        rank = preference.get(path.name.lower(), stem_preference.get(path.stem.lower(), len(names)))
+        return (rank, 0 if non_empty else 1, -path.stat().st_mtime)
+
+    return sorted(candidates, key=score)[0]
 
 
 def find_wav_file(name: str, search_dirs: Sequence[Path]) -> Path | None:
@@ -199,7 +263,8 @@ def write_inputs_log(ctx: ReportContext) -> None:
     (ctx.out_dir / "copied_inputs_log.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def read_csv_safe(path: Path | None, ctx: ReportContext, logical_name: str) -> pd.DataFrame:
+def read_csv_safe(path: Path | None, ctx: ReportContext, logical_name: str,
+                  drop_empty_columns: bool = True) -> pd.DataFrame:
     if path is None:
         warn(ctx, f"Missing CSV: {logical_name}")
         return pd.DataFrame()
@@ -212,7 +277,8 @@ def read_csv_safe(path: Path | None, ctx: ReportContext, logical_name: str) -> p
         warn(ctx, f"Could not read CSV {path}: {exc}")
         return pd.DataFrame()
 
-    df = df.dropna(axis=1, how="all")
+    if drop_empty_columns:
+        df = df.dropna(axis=1, how="all")
     keep_cols = []
     for column in df.columns:
         normalized = normalize_column(column)
@@ -475,8 +541,32 @@ def build_codec_summary(df: pd.DataFrame, ctx: ReportContext) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=columns)
 
 
-def build_realtime_template(ctx: ReportContext) -> pd.DataFrame:
+def build_realtime_template(ctx: ReportContext, realtime_raw: pd.DataFrame | None = None) -> pd.DataFrame:
     modes = ["WOLA only", "fixed denoise", "HYBRID-MS", "MCRA normal", "MCRA strong"]
+    columns = ["mode", "last_ms", "max_ms", "frame_budget_ms", "cpu_usage_percent", "pass"]
+    template_warning = "No standalone realtime CSV was used; generated a CCS Watch fill-in template."
+    if realtime_raw is not None and not realtime_raw.empty:
+        realtime_raw = normalize_board_runtime_df(realtime_raw)
+        if "mode" not in realtime_raw.columns or "max_ms" not in realtime_raw.columns:
+            template_warning = "Realtime CSV is present but missing mode or max_ms; generated a CCS Watch fill-in template."
+        else:
+            df = realtime_raw.copy()
+            for column in columns:
+                if column not in df.columns:
+                    df[column] = np.nan if column != "pass" else ""
+            df = df[columns]
+            for column in ["last_ms", "max_ms", "frame_budget_ms", "cpu_usage_percent"]:
+                df[column] = pd.to_numeric(df[column], errors="coerce")
+            df["pass"] = df["pass"].astype(object)
+            df["frame_budget_ms"] = df["frame_budget_ms"].fillna(FRAME_BUDGET_MS)
+            measured = df["max_ms"].notna() & (df["max_ms"] > 0.0)
+            empty_pass = df["pass"].isna() | (df["pass"].astype(str).str.strip() == "")
+            df.loc[empty_pass & measured & (df["max_ms"] <= df["frame_budget_ms"]), "pass"] = "PASS"
+            df.loc[empty_pass & measured & (df["max_ms"] > df["frame_budget_ms"]), "pass"] = "FAIL"
+            if measured.any():
+                return df
+            template_warning = "Realtime CSV is present but max_ms is empty; generated a CCS Watch fill-in template."
+
     df = pd.DataFrame(
         {
             "mode": modes,
@@ -487,8 +577,34 @@ def build_realtime_template(ctx: ReportContext) -> pd.DataFrame:
             "pass": [""] * len(modes),
         }
     )
-    warn(ctx, "No standalone realtime CSV was used; generated a CCS Watch fill-in template.")
+    warn(ctx, template_warning)
     return df
+
+
+def normalize_board_runtime_df(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return df
+    result = df.copy()
+    if "mode" not in result.columns and "mode_name" in result.columns:
+        result["mode"] = result["mode_name"]
+    if "mode_name" not in result.columns and "mode" in result.columns:
+        result["mode_name"] = result["mode"].astype(str)
+    if "last_ms" not in result.columns and "last_us" in result.columns:
+        result["last_ms"] = pd.to_numeric(result["last_us"], errors="coerce") / 1000.0
+    if "max_ms" not in result.columns and "max_us" in result.columns:
+        result["max_ms"] = pd.to_numeric(result["max_us"], errors="coerce") / 1000.0
+    if "frame_budget_ms" not in result.columns:
+        if "budget_ms" in result.columns:
+            result["frame_budget_ms"] = pd.to_numeric(result["budget_ms"], errors="coerce")
+        elif "budget_us" in result.columns:
+            result["frame_budget_ms"] = pd.to_numeric(result["budget_us"], errors="coerce") / 1000.0
+        else:
+            result["frame_budget_ms"] = FRAME_BUDGET_MS
+    if "cpu_usage_percent" not in result.columns and "cpu_percent" in result.columns:
+        result["cpu_usage_percent"] = result["cpu_percent"]
+    if "pass" not in result.columns and "realtime_pass" in result.columns:
+        result["pass"] = result["realtime_pass"]
+    return result
 
 
 def find_latest_map(root: Path) -> Path | None:
@@ -1221,20 +1337,31 @@ def plot_codec_spectrogram_compare(ctx: ReportContext) -> None:
 
 
 def plot_realtime_template(ctx: ReportContext, realtime_df: pd.DataFrame) -> None:
-    filename = "realtime_budget_compare_template.png"
     df = realtime_df.copy()
-    df["max_ms"] = pd.to_numeric(df["max_ms"], errors="coerce").fillna(0.0)
+    df["max_ms"] = pd.to_numeric(df["max_ms"], errors="coerce")
+    df["frame_budget_ms"] = pd.to_numeric(df["frame_budget_ms"], errors="coerce").fillna(FRAME_BUDGET_MS)
+    measured = df["max_ms"].notna() & (df["max_ms"] > 0.0)
+    formal = bool(measured.any())
+    filename = "realtime_budget_compare.png" if formal else "realtime_budget_compare_template.png"
+    df["max_ms"] = df["max_ms"].fillna(0.0)
     fig, ax = plt.subplots(figsize=FIGSIZE)
     x = np.arange(len(df))
-    ax.bar(x, df["max_ms"], label="max_ms (fill from CCS Watch)")
-    ax.axhline(FRAME_BUDGET_MS, color="#b23a48", linestyle="--", label=f"frame budget {FRAME_BUDGET_MS:.2f} ms")
+    label = "max_ms from CCS Watch" if formal else "max_ms (fill from CCS Watch)"
+    ax.bar(x, df["max_ms"], label=label)
+    budget = float(df["frame_budget_ms"].dropna().iloc[0]) if df["frame_budget_ms"].notna().any() else FRAME_BUDGET_MS
+    ax.axhline(budget, color="#b23a48", linestyle="--", label=f"frame budget {budget:.2f} ms")
     ax.set_xticks(x)
     ax.set_xticklabels(df["mode"].astype(str), rotation=20, ha="right")
-    ax.set_title("Realtime frame budget compare template")
+    ax.set_title("Realtime frame budget compare" if formal else "Realtime frame budget compare template")
     ax.set_ylabel("Frame time (ms)")
     ax.grid(True, axis="y", alpha=0.3)
     ax.legend()
-    ax.text(0.01, 0.95, "Template: fill max_ms from CCS Watch before final reporting.", transform=ax.transAxes, va="top")
+    if formal:
+        worst = float(df["max_ms"].max())
+        margin = budget - worst
+        ax.text(0.01, 0.95, f"worst={worst:.3f} ms, margin={margin:.3f} ms", transform=ax.transAxes, va="top")
+    else:
+        ax.text(0.01, 0.95, "Template: fill max_ms from CCS Watch before final reporting.", transform=ax.transAxes, va="top")
     save_fig(ctx, fig, filename)
 
 
@@ -1304,6 +1431,665 @@ def maybe_plot_thd(ctx: ReportContext) -> None:
     save_fig(ctx, fig, filename)
 
 
+def skip_html(ctx: ReportContext, filename: str, reason: str) -> None:
+    ctx.skipped_html[filename] = reason
+    print(f"SKIP interactive/{filename}: {reason}")
+
+
+def save_plotly_html(ctx: ReportContext, fig: object, filename: str, width: int = 1100, height: int = 800) -> None:
+    ctx.interactive_dir.mkdir(parents=True, exist_ok=True)
+    path = ctx.interactive_dir / filename
+    fig.update_layout(width=width, height=height, margin=dict(l=70, r=40, t=90, b=80))
+    fig.write_html(
+        str(path),
+        include_plotlyjs=True,
+        full_html=True,
+        config={
+            "displaylogo": False,
+            "responsive": True,
+            "toImageButtonOptions": {"format": "png", "filename": Path(filename).stem},
+        },
+    )
+    ctx.generated_html.append(filename)
+
+
+def clean_label(value: object) -> str:
+    if value is None or pd.isna(value):
+        return "missing"
+    return str(value)
+
+
+def fmt_metric(value: object, suffix: str = "", digits: int = 2) -> str:
+    number = numeric(value)
+    if math.isnan(number):
+        return "missing"
+    if math.isinf(number):
+        return f"inf{suffix}"
+    return f"{number:.{digits}f}{suffix}"
+
+
+def ensure_numeric_columns(df: pd.DataFrame, columns: Sequence[str]) -> pd.DataFrame:
+    result = df.copy()
+    for column in columns:
+        if column in result.columns:
+            result[column] = pd.to_numeric(result[column], errors="coerce")
+        else:
+            result[column] = np.nan
+    return result
+
+
+def prepare_denoise_interactive_df(ms_df: pd.DataFrame, mcra_df: pd.DataFrame, denoise_summary: pd.DataFrame) -> pd.DataFrame:
+    df = preferred_denoise_plot_df(ms_df, mcra_df, denoise_summary)
+    if df.empty:
+        return df
+    df = df.copy()
+    if "mode_name" not in df.columns and "mode" in df.columns:
+        df["mode_name"] = df["mode"]
+    if "mode_name" not in df.columns:
+        df["mode_name"] = "mode"
+    if "eval_case" not in df.columns:
+        df["eval_case"] = "case"
+    numeric_columns = [
+        "input_snr_db",
+        "output_snr_db",
+        "delta_vs_fixed_db",
+        "delta_vs_hybrid_db",
+        "speech_preservation_ratio",
+        "clean_output_corr",
+        "gain_avg",
+        "noise_psd_avg",
+        "ms_min_psd_avg",
+    ]
+    df = ensure_numeric_columns(df, numeric_columns)
+    df["eval_case"] = df["eval_case"].astype(str)
+    df["mode_name"] = df["mode_name"].astype(str)
+    return df
+
+
+def denoise_matrix(df: pd.DataFrame, value_col: str) -> tuple[list[str], list[str], np.ndarray, list[list[list[object]]]]:
+    cases = sorted(df["eval_case"].dropna().astype(str).unique().tolist())
+    preferred_modes = ["fixed", "hybrid_ms", "mcra_normal", "mcra_strong"]
+    present_modes = df["mode_name"].dropna().astype(str).unique().tolist()
+    modes = [mode for mode in preferred_modes if mode in present_modes]
+    modes.extend(mode for mode in sorted(present_modes) if mode not in modes)
+    pivot = df.pivot_table(index="mode_name", columns="eval_case", values=value_col, aggfunc="mean")
+    z = pivot.reindex(index=modes, columns=cases).to_numpy(dtype=float)
+    custom: list[list[list[object]]] = []
+    for mode in modes:
+        row_items: list[list[object]] = []
+        for case in cases:
+            match = df[(df["eval_case"] == case) & (df["mode_name"] == mode)].head(1)
+            if match.empty:
+                row_items.append([case, mode, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan])
+            else:
+                item = match.iloc[0]
+                row_items.append(
+                    [
+                        case,
+                        mode,
+                        numeric(item.get("input_snr_db")),
+                        numeric(item.get("output_snr_db")),
+                        numeric(item.get("delta_vs_fixed_db")),
+                        numeric(item.get("delta_vs_hybrid_db")),
+                        numeric(item.get("speech_preservation_ratio")),
+                        numeric(item.get("clean_output_corr")),
+                    ]
+                )
+        custom.append(row_items)
+    return cases, modes, z, custom
+
+
+def plot_interactive_denoise_surface(ctx: ReportContext, df: pd.DataFrame, value_col: str, filename: str, title: str, z_title: str) -> None:
+    if go is None:
+        skip_html(ctx, filename, "plotly is not installed")
+        return
+    if df.empty or value_col not in df.columns:
+        skip_html(ctx, filename, f"missing denoise {value_col} data")
+        return
+    cases, modes, z, custom = denoise_matrix(df, value_col)
+    if not cases or not modes or np.all(np.isnan(z)):
+        skip_html(ctx, filename, f"no numeric {value_col} values")
+        return
+    fig = go.Figure(
+        data=[
+            go.Surface(
+                z=z,
+                x=list(range(len(cases))),
+                y=list(range(len(modes))),
+                customdata=custom,
+                colorscale="Viridis",
+                colorbar=dict(title=z_title),
+                hovertemplate=(
+                    "case=%{customdata[0]}<br>"
+                    "mode=%{customdata[1]}<br>"
+                    "input_snr_db=%{customdata[2]:.2f}<br>"
+                    "output_snr_db=%{customdata[3]:.2f}<br>"
+                    "delta_vs_fixed_db=%{customdata[4]:.2f}<br>"
+                    "delta_vs_hybrid_db=%{customdata[5]:.2f}<br>"
+                    "preservation=%{customdata[6]:.3f}<br>"
+                    "corr=%{customdata[7]:.3f}<extra></extra>"
+                ),
+            )
+        ]
+    )
+    fig.update_layout(
+        title=title,
+        scene=dict(
+            xaxis=dict(title="Scenario / eval_case", tickmode="array", tickvals=list(range(len(cases))), ticktext=cases),
+            yaxis=dict(title="Mode / mode_name", tickmode="array", tickvals=list(range(len(modes))), ticktext=modes),
+            zaxis=dict(title=z_title),
+        ),
+    )
+    save_plotly_html(ctx, fig, filename)
+
+
+def plot_interactive_denoise_heatmap(ctx: ReportContext, df: pd.DataFrame, value_col: str, filename: str, title: str, color_title: str) -> None:
+    if go is None:
+        skip_html(ctx, filename, "plotly is not installed")
+        return
+    if df.empty or value_col not in df.columns:
+        skip_html(ctx, filename, f"missing denoise {value_col} data")
+        return
+    cases = sorted(df["eval_case"].dropna().astype(str).unique().tolist())
+    modes = sorted_modes(df["mode_name"].dropna().astype(str).unique().tolist())
+    pivot = df.pivot_table(index="eval_case", columns="mode_name", values=value_col, aggfunc="mean").reindex(index=cases, columns=modes)
+    z = pivot.to_numpy(dtype=float)
+    if np.all(np.isnan(z)):
+        skip_html(ctx, filename, f"no numeric {value_col} values")
+        return
+    text = [[("" if pd.isna(value) else f"{value:.2f}") for value in row] for row in z]
+    custom: list[list[list[object]]] = []
+    for case in cases:
+        row_items: list[list[object]] = []
+        for mode in modes:
+            match = df[(df["eval_case"] == case) & (df["mode_name"] == mode)].head(1)
+            if match.empty:
+                row_items.append([np.nan, np.nan])
+            else:
+                item = match.iloc[0]
+                row_items.append([numeric(item.get("speech_preservation_ratio")), numeric(item.get("clean_output_corr"))])
+        custom.append(row_items)
+    fig = go.Figure(
+        data=[
+            go.Heatmap(
+                z=z,
+                x=modes,
+                y=cases,
+                text=text,
+                texttemplate="%{text}",
+                customdata=custom,
+                colorscale="Viridis",
+                colorbar=dict(title=color_title),
+                hovertemplate=(
+                    "case=%{y}<br>mode=%{x}<br>"
+                    f"{value_col}=%{{z:.2f}}<br>"
+                    "preservation=%{customdata[0]:.3f}<br>"
+                    "corr=%{customdata[1]:.3f}<extra></extra>"
+                ),
+            )
+        ]
+    )
+    fig.update_layout(title=title, xaxis_title="Mode / mode_name", yaxis_title="Scenario / eval_case")
+    save_plotly_html(ctx, fig, filename)
+
+
+def denoise_row_for(df: pd.DataFrame, case: str, mode_candidates: Sequence[str]) -> pd.Series | None:
+    if df.empty:
+        return None
+    target_case = case.lower()
+    mode_set = {mode.lower() for mode in mode_candidates}
+    tmp = df.copy()
+    tmp["_case"] = tmp["eval_case"].astype(str).str.lower()
+    tmp["_mode"] = tmp["mode_name"].astype(str).str.lower()
+    exact = tmp[(tmp["_case"] == target_case) & (tmp["_mode"].isin(mode_set))]
+    if not exact.empty:
+        return exact.iloc[0]
+    contains = tmp[tmp["_case"].str.contains(target_case, regex=False, na=False) & tmp["_mode"].isin(mode_set)]
+    if not contains.empty:
+        return contains.iloc[0]
+    return None
+
+
+def plot_interactive_denoise_waterfall(ctx: ReportContext, df: pd.DataFrame) -> None:
+    filename = "denoise_stepup_waterfall.html"
+    if go is None:
+        skip_html(ctx, filename, "plotly is not installed")
+        return
+    fixed = denoise_row_for(df, "noise_step_up_snr10", ["fixed"])
+    hybrid = denoise_row_for(df, "noise_step_up_snr10", ["hybrid_ms", "ms"])
+    mcra = denoise_row_for(df, "noise_step_up_snr10", ["mcra_normal"])
+    if fixed is None or hybrid is None or mcra is None:
+        skip_html(ctx, filename, "missing fixed, HYBRID-MS, or MCRA normal row for noise_step_up_snr10")
+        return
+    fixed_snr = numeric(fixed.get("output_snr_db"))
+    hybrid_delta = numeric(hybrid.get("output_snr_db")) - fixed_snr
+    mcra_delta = numeric(mcra.get("output_snr_db")) - numeric(hybrid.get("output_snr_db"))
+    if any(math.isnan(value) for value in [fixed_snr, hybrid_delta, mcra_delta]):
+        skip_html(ctx, filename, "noise_step_up_snr10 waterfall has non-numeric values")
+        return
+    fig = go.Figure(
+        go.Waterfall(
+            x=["fixed output SNR", "HYBRID-MS gain", "MCRA normal gain"],
+            y=[fixed_snr, hybrid_delta, mcra_delta],
+            measure=["absolute", "relative", "relative"],
+            text=[f"{fixed_snr:.2f} dB", f"+{hybrid_delta:.2f} dB", f"+{mcra_delta:.2f} dB"],
+            textposition="outside",
+            connector={"line": {"color": "rgb(80,80,80)"}},
+        )
+    )
+    fig.update_layout(
+        title="算法演进 Waterfall / fixed → HYBRID-MS → MCRA normal",
+        yaxis_title="Output SNR (dB)",
+        showlegend=False,
+    )
+    save_plotly_html(ctx, fig, filename)
+
+
+def plot_interactive_denoise_tradeoff(ctx: ReportContext, df: pd.DataFrame) -> None:
+    filename = "denoise_quality_tradeoff.html"
+    if go is None:
+        skip_html(ctx, filename, "plotly is not installed")
+        return
+    needed = {"speech_preservation_ratio", "clean_output_corr", "output_snr_db", "delta_vs_fixed_db"}
+    if df.empty or not needed.issubset(df.columns):
+        skip_html(ctx, filename, "missing denoise tradeoff columns")
+        return
+    fig = go.Figure()
+    for mode in sorted_modes(df["mode_name"].dropna().astype(str).unique().tolist()):
+        mode_df = df[df["mode_name"] == mode].copy()
+        size_source = pd.to_numeric(mode_df["output_snr_db"], errors="coerce").fillna(0.0)
+        sizes = np.clip((size_source - size_source.min() + 1.0) * 7.0, 8.0, 32.0)
+        fig.add_trace(
+            go.Scatter(
+                x=mode_df["speech_preservation_ratio"],
+                y=mode_df["clean_output_corr"],
+                mode="markers",
+                name=mode,
+                marker=dict(size=sizes, opacity=0.82),
+                customdata=np.stack(
+                    [
+                        mode_df["eval_case"].astype(str),
+                        mode_df["mode_name"].astype(str),
+                        pd.to_numeric(mode_df["output_snr_db"], errors="coerce"),
+                        pd.to_numeric(mode_df["delta_vs_fixed_db"], errors="coerce"),
+                    ],
+                    axis=-1,
+                ),
+                hovertemplate=(
+                    "case=%{customdata[0]}<br>mode=%{customdata[1]}<br>"
+                    "output_snr_db=%{customdata[2]:.2f}<br>"
+                    "delta_vs_fixed_db=%{customdata[3]:.2f}<br>"
+                    "preservation=%{x:.3f}<br>corr=%{y:.3f}<extra></extra>"
+                ),
+            )
+        )
+    fig.add_hline(y=0.95, line_dash="dash", line_color="red", annotation_text="corr >= 0.95")
+    fig.add_vline(x=0.80, line_dash="dash", line_color="red", annotation_text="preservation >= 0.80")
+    fig.update_layout(
+        title="语音保持-相关性折中 / Speech Preservation vs Correlation",
+        xaxis_title="Speech preservation ratio",
+        yaxis_title="Clean-output correlation",
+    )
+    save_plotly_html(ctx, fig, filename)
+
+
+def plot_interactive_board_runtime(ctx: ReportContext, board_df: pd.DataFrame) -> None:
+    filename = "board_runtime_by_mode.html"
+    if go is None:
+        skip_html(ctx, filename, "plotly is not installed")
+        return
+    board_df = normalize_board_runtime_df(board_df)
+    if board_df.empty or "max_ms" not in board_df.columns:
+        skip_html(ctx, filename, "missing board runtime csv")
+        return
+    df = board_df.copy()
+    df["max_ms"] = pd.to_numeric(df["max_ms"], errors="coerce")
+    df["last_ms"] = pd.to_numeric(df.get("last_ms", np.nan), errors="coerce")
+    df["frame_budget_ms"] = pd.to_numeric(df.get("frame_budget_ms", FRAME_BUDGET_MS), errors="coerce").fillna(FRAME_BUDGET_MS)
+    df = df.dropna(subset=["max_ms"])
+    if df.empty:
+        skip_html(ctx, filename, "board runtime csv has no max_ms/max_us values")
+        return
+    x = df["mode_name"].astype(str) if "mode_name" in df.columns else df["mode"].astype(str)
+    custom_cols = []
+    for column in ["mode", "track_mode", "strong", "last_us", "max_us", "cpu_percent", "runtime_margin_us", "realtime_pass"]:
+        custom_cols.append(df[column] if column in df.columns else pd.Series(["missing"] * len(df), index=df.index))
+    customdata = np.stack(custom_cols, axis=-1)
+    fig = go.Figure(
+        go.Bar(
+            x=x,
+            y=df["max_ms"],
+            customdata=customdata,
+            marker_color=np.where(df["max_ms"] <= df["frame_budget_ms"], "#2ca02c", "#d62728"),
+            hovertemplate=(
+                "mode=%{customdata[0]}<br>track_mode=%{customdata[1]}<br>strong=%{customdata[2]}<br>"
+                "last_us=%{customdata[3]}<br>max_us=%{customdata[4]}<br>cpu_percent=%{customdata[5]}<br>"
+                "runtime_margin_us=%{customdata[6]}<br>realtime_pass=%{customdata[7]}<extra></extra>"
+            ),
+        )
+    )
+    budget = float(df["frame_budget_ms"].dropna().iloc[0]) if df["frame_budget_ms"].notna().any() else FRAME_BUDGET_MS
+    fig.add_hline(y=budget, line_color="red", line_dash="dash", annotation_text=f"frame budget {budget:.2f} ms")
+    fig.update_layout(title="板端实时性 / Board Runtime", xaxis_title="Mode", yaxis_title="Max runtime (ms)")
+    save_plotly_html(ctx, fig, filename)
+
+
+def plot_interactive_codec_tradeoff(ctx: ReportContext, codec_df: pd.DataFrame) -> None:
+    filename = "codec_rate_quality_tradeoff.html"
+    if go is None:
+        skip_html(ctx, filename, "plotly is not installed")
+        return
+    if codec_df.empty:
+        skip_html(ctx, filename, "missing codec CSV")
+        return
+    rows = []
+    for _, row in codec_df.iterrows():
+        rows.append(
+            {
+                "path": "direct compress",
+                "actual_bitrate_kbps": numeric(get_value(row, "actual_bitrate_kbps", "direct_bitrate_kbps")),
+                "output_snr_db": numeric(get_value(row, "direct_output_snr_db", "direct_compress_snr_db", "direct_reconstruction_snr_db")),
+                "compression_ratio": numeric(get_value(row, "compression_ratio", "direct_compression_ratio")),
+                "target_bitrate_kbps": numeric(get_value(row, "target_bitrate_kbps")),
+            }
+        )
+        rows.append(
+            {
+                "path": "denoise then compress",
+                "actual_bitrate_kbps": numeric(get_value(row, "denoise_then_bitrate_kbps", "actual_bitrate_kbps", "direct_bitrate_kbps")),
+                "output_snr_db": numeric(get_value(row, "denoise_codec_output_snr_db", "denoise_then_compress_snr_db", "denoise_then_reconstruction_snr_db")),
+                "compression_ratio": numeric(get_value(row, "denoise_then_compression_ratio", "compression_ratio", "direct_compression_ratio")),
+                "target_bitrate_kbps": numeric(get_value(row, "target_bitrate_kbps")),
+            }
+        )
+    df = pd.DataFrame(rows).dropna(subset=["actual_bitrate_kbps", "output_snr_db"])
+    if df.empty:
+        skip_html(ctx, filename, "codec CSV has no numeric bitrate/SNR values")
+        return
+    fig = go.Figure()
+    for path_name in ["direct compress", "denoise then compress"]:
+        item = df[df["path"] == path_name].sort_values("actual_bitrate_kbps")
+        fig.add_trace(
+            go.Scatter(
+                x=item["actual_bitrate_kbps"],
+                y=item["output_snr_db"],
+                mode="lines+markers",
+                name=path_name,
+                marker=dict(size=np.clip(item["compression_ratio"].fillna(1.0) * 4.0, 8.0, 26.0)),
+                customdata=np.stack([item["target_bitrate_kbps"], item["compression_ratio"]], axis=-1),
+                hovertemplate=(
+                    "actual_bitrate=%{x:.2f} kbps<br>output_snr=%{y:.2f} dB<br>"
+                    "target_bitrate=%{customdata[0]:.0f} kbps<br>compression_ratio=%{customdata[1]:.2f}<extra></extra>"
+                ),
+            )
+        )
+    fig.update_layout(title="压缩码率-音质折中 / Codec Rate-Quality Tradeoff", xaxis_title="Actual bitrate (kbps)", yaxis_title="Output SNR (dB)")
+    save_plotly_html(ctx, fig, filename)
+
+
+def plot_interactive_audio_energy(ctx: ReportContext, audio_df: pd.DataFrame) -> None:
+    filename = "audio_energy_ratio_heatmap.html"
+    if go is None:
+        skip_html(ctx, filename, "plotly is not installed")
+        return
+    if audio_df.empty:
+        skip_html(ctx, filename, "missing aggregate_compare_audio_metrics.csv or compare_audio_metrics.csv")
+        return
+    df = audio_df.copy()
+    mode_col = first_col(df, "mode", "mode_name")
+    value_col = first_col(df, "output_input_energy_ratio", "output_energy_ratio")
+    case_col = first_col(df, "case", "audio_case", "eval_case")
+    if mode_col is None or value_col is None:
+        skip_html(ctx, filename, "audio metrics missing mode or energy ratio column")
+        return
+    if case_col is None:
+        df["audio_case"] = "current_audio"
+        case_col = "audio_case"
+    df[value_col] = pd.to_numeric(df[value_col], errors="coerce")
+    pivot = df.pivot_table(index=case_col, columns=mode_col, values=value_col, aggfunc="mean")
+    if pivot.empty:
+        skip_html(ctx, filename, "audio metrics has no numeric energy ratio values")
+        return
+    z = pivot.to_numpy(dtype=float)
+    text = [[("" if pd.isna(value) else f"{value:.3f}") for value in row] for row in z]
+    fig = go.Figure(
+        go.Heatmap(
+            z=z,
+            x=pivot.columns.astype(str).tolist(),
+            y=pivot.index.astype(str).tolist(),
+            text=text,
+            texttemplate="%{text}",
+            colorscale="Viridis",
+            colorbar=dict(title="energy ratio"),
+            hovertemplate="case=%{y}<br>mode=%{x}<br>energy_ratio=%{z:.4f}<extra></extra>",
+        )
+    )
+    fig.update_layout(title="PC 音频能量比热力图 / Audio Energy Ratio Heatmap", xaxis_title="Mode", yaxis_title="Audio case")
+    save_plotly_html(ctx, fig, filename)
+
+
+def compute_dashboard_cards(
+    wola_summary: pd.DataFrame,
+    denoise_df: pd.DataFrame,
+    codec_summary: pd.DataFrame,
+    board_df: pd.DataFrame,
+) -> list[tuple[str, str]]:
+    cards: list[tuple[str, str]] = []
+    wola_row = wola_summary.iloc[0] if not wola_summary.empty else None
+    delay_samples = numeric(get_value(wola_row, "wola_delay_samples") if wola_row is not None else np.nan)
+    delay_ms = delay_samples / 50000.0 * 1000.0 if not math.isnan(delay_samples) else math.nan
+    cards.append(("WOLA passthrough SNR", fmt_metric(get_value(wola_row, "wola_passthrough_snr_db") if wola_row is not None else np.nan, " dB")))
+    cards.append(("WOLA energy ratio", fmt_metric(get_value(wola_row, "wola_energy_ratio") if wola_row is not None else np.nan, "", 6)))
+    cards.append(("WOLA delay samples / ms", "missing" if math.isnan(delay_samples) else f"{delay_samples:.0f} / {delay_ms:.2f} ms"))
+
+    if denoise_df.empty or "delta_vs_fixed_db" not in denoise_df.columns:
+        cards.append(("best denoise delta", "missing"))
+        cards.append(("best denoise case / mode", "missing"))
+    else:
+        tmp = denoise_df.dropna(subset=["delta_vs_fixed_db"]).sort_values("delta_vs_fixed_db", ascending=False)
+        if tmp.empty:
+            cards.append(("best denoise delta", "missing"))
+            cards.append(("best denoise case / mode", "missing"))
+        else:
+            best = tmp.iloc[0]
+            cards.append(("best denoise delta", fmt_metric(best.get("delta_vs_fixed_db"), " dB")))
+            cards.append(("best denoise case / mode", f"{best.get('eval_case')} / {best.get('mode_name')}"))
+
+    if codec_summary.empty:
+        cards.append(("max compression ratio", "missing"))
+        cards.append(("best denoise+codec SNR", "missing"))
+    else:
+        cards.append(("max compression ratio", fmt_metric(pd.to_numeric(codec_summary["compression_ratio"], errors="coerce").max(), "", 2)))
+        cards.append(("best denoise+codec SNR", fmt_metric(pd.to_numeric(codec_summary["denoise_codec_output_snr_db"], errors="coerce").max(), " dB")))
+
+    board_df = normalize_board_runtime_df(board_df)
+    if board_df.empty or "max_ms" not in board_df.columns:
+        cards.append(("worst board runtime / frame budget", "missing"))
+        cards.append(("realtime pass count", "missing"))
+    else:
+        board_df = board_df.copy()
+        board_df["max_ms"] = pd.to_numeric(board_df["max_ms"], errors="coerce")
+        board_df["frame_budget_ms"] = pd.to_numeric(board_df.get("frame_budget_ms", FRAME_BUDGET_MS), errors="coerce").fillna(FRAME_BUDGET_MS)
+        max_ms = board_df["max_ms"].max()
+        budget = board_df["frame_budget_ms"].dropna().iloc[0] if board_df["frame_budget_ms"].notna().any() else FRAME_BUDGET_MS
+        cards.append(("worst board runtime / frame budget", "missing" if pd.isna(max_ms) else f"{max_ms:.2f} / {budget:.2f} ms"))
+        pass_col = first_col(board_df, "realtime_pass", "pass")
+        if pass_col:
+            pass_count = board_df[pass_col].astype(str).str.lower().isin(["true", "pass", "1", "yes"]).sum()
+            cards.append(("realtime pass count", f"{pass_count}/{len(board_df)}"))
+        else:
+            cards.append(("realtime pass count", "missing"))
+    return cards
+
+
+def dashboard_explanations() -> dict[str, tuple[str, str]]:
+    return {
+        "denoise_output_snr_surface.html": (
+            "降噪输出 SNR 曲面图 / Denoise Output SNR Surface",
+            "旋转查看不同噪声场景与算法模式下的输出 SNR。",
+        ),
+        "denoise_delta_surface.html": (
+            "降噪提升曲面图 / Denoise Delta Surface",
+            "突出 HYBRID-MS 和 MCRA normal 在 noise_step_up 场景中的提升。",
+        ),
+        "denoise_output_snr_heatmap.html": (
+            "降噪输出 SNR 热力图 / Output SNR Heatmap",
+            "适合截图放 PPT，用颜色快速比较场景和模式。",
+        ),
+        "denoise_delta_heatmap.html": (
+            "降噪增益热力图 / Delta vs Fixed Heatmap",
+            "单元格显示相对 fixed 的 SNR 提升。",
+        ),
+        "denoise_stepup_waterfall.html": (
+            "算法演进 Waterfall / Algorithm Evolution",
+            "fixed → HYBRID-MS → MCRA normal 的提升过程一眼可见。",
+        ),
+        "denoise_quality_tradeoff.html": (
+            "语音保持折中 / Quality Tradeoff",
+            "展示提升 SNR 的同时 speech preservation 和 corr 的变化。",
+        ),
+        "board_runtime_by_mode.html": (
+            "板端实时性 / Board Runtime",
+            "红线是帧预算，低于红线表示满足实时性。",
+        ),
+        "codec_rate_quality_tradeoff.html": (
+            "压缩码率-音质折中 / Codec Rate-Quality Tradeoff",
+            "比较 direct compress 与 denoise then compress 的码率和音质。",
+        ),
+        "audio_energy_ratio_heatmap.html": (
+            "PC 音频能量比 / Audio Energy Ratio",
+            "检查不同输出文件的能量变化是否符合预期。",
+        ),
+    }
+
+
+def write_interactive_index(ctx: ReportContext, cards: list[tuple[str, str]]) -> None:
+    ctx.interactive_dir.mkdir(parents=True, exist_ok=True)
+    explanations = dashboard_explanations()
+    generated = [name for name in INTERACTIVE_REPORTS if name in ctx.generated_html and name != "index.html"]
+    links = "\n".join(
+        f'<li><a href="{escape(name)}">{escape(explanations.get(name, (name, ""))[0])}</a></li>'
+        for name in generated
+    )
+    cards_html = "\n".join(
+        f'<div class="card"><div class="label">{escape(label)}</div><div class="value">{escape(value)}</div></div>'
+        for label, value in cards
+    )
+    frames = []
+    for name in generated:
+        title, explanation = explanations.get(name, (name, ""))
+        frames.append(
+            f"""
+            <section class="figure-block">
+              <h2>{escape(title)}</h2>
+              <p>{escape(explanation)}</p>
+              <iframe src="{escape(name)}" loading="lazy"></iframe>
+            </section>
+            """
+        )
+    skipped = "\n".join(f"<li>{escape(name)}: {escape(reason)}</li>" for name, reason in sorted(ctx.skipped_html.items()))
+    html = f"""<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DSP Evaluation Interactive Dashboard</title>
+  <style>
+    body {{ margin: 0; font-family: Arial, "Microsoft YaHei", sans-serif; background: #f6f7f9; color: #1f2933; }}
+    header {{ padding: 28px 32px 18px; background: #101820; color: white; }}
+    header h1 {{ margin: 0 0 8px; font-size: 28px; }}
+    header p {{ margin: 0; color: #d7dde5; }}
+    main {{ padding: 24px 32px 40px; }}
+    .cards {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin-bottom: 24px; }}
+    .card {{ background: white; border: 1px solid #d9dee7; border-radius: 8px; padding: 14px 16px; }}
+    .label {{ color: #5b6778; font-size: 13px; margin-bottom: 8px; }}
+    .value {{ font-size: 22px; font-weight: 700; }}
+    .links, .missing {{ background: white; border: 1px solid #d9dee7; border-radius: 8px; padding: 14px 18px; margin-bottom: 22px; }}
+    .links ul, .missing ul {{ margin: 8px 0 0 20px; padding: 0; }}
+    .figure-block {{ background: white; border: 1px solid #d9dee7; border-radius: 8px; padding: 16px; margin: 18px 0; }}
+    .figure-block h2 {{ margin: 0 0 6px; font-size: 20px; }}
+    .figure-block p {{ margin: 0 0 12px; color: #526070; }}
+    iframe {{ width: 100%; min-height: 860px; border: 1px solid #d9dee7; border-radius: 6px; background: white; }}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>DSP 评测交互式 Dashboard / Interactive Dashboard</h1>
+    <p>HTML 文件内嵌 Plotly，可离线打开；PNG 仍用于 PPT 静态插图。</p>
+  </header>
+  <main>
+    <div class="cards">{cards_html}</div>
+    <div class="links"><strong>Interactive figures</strong><ul>{links}</ul></div>
+    {''.join(frames)}
+    <div class="missing"><strong>Skipped interactive figures</strong><ul>{skipped or '<li>&lt;none&gt;</li>'}</ul></div>
+  </main>
+</body>
+</html>
+"""
+    (ctx.interactive_dir / "index.html").write_text(html, encoding="utf-8")
+    if "index.html" not in ctx.generated_html:
+        ctx.generated_html.insert(0, "index.html")
+
+
+def generate_interactive_reports(
+    ctx: ReportContext,
+    wola_summary: pd.DataFrame,
+    denoise_summary: pd.DataFrame,
+    codec_summary: pd.DataFrame,
+    ms_raw: pd.DataFrame,
+    mcra_raw: pd.DataFrame,
+    codec_raw: pd.DataFrame,
+    board_runtime_raw: pd.DataFrame,
+    audio_metrics_raw: pd.DataFrame,
+) -> None:
+    if PLOTLY_IMPORT_ERROR is not None:
+        warn(ctx, f"Plotly is not installed; interactive HTML reports were skipped. Install with: pip install plotly. Error: {PLOTLY_IMPORT_ERROR}")
+        for name in INTERACTIVE_REPORTS:
+            skip_html(ctx, name, "plotly is not installed")
+        return
+
+    denoise_df = prepare_denoise_interactive_df(ms_raw, mcra_raw, denoise_summary)
+    plot_interactive_denoise_surface(
+        ctx,
+        denoise_df,
+        "output_snr_db",
+        "denoise_output_snr_surface.html",
+        "降噪输出 SNR 曲面图 / Denoise Output SNR Surface: Scenario × Mode",
+        "Output SNR (dB)",
+    )
+    plot_interactive_denoise_surface(
+        ctx,
+        denoise_df,
+        "delta_vs_fixed_db",
+        "denoise_delta_surface.html",
+        "降噪 Delta 曲面图 / Denoise Delta Surface: Scenario × Mode",
+        "Delta vs fixed (dB)",
+    )
+    plot_interactive_denoise_heatmap(
+        ctx,
+        denoise_df,
+        "output_snr_db",
+        "denoise_output_snr_heatmap.html",
+        "降噪输出 SNR 热力图 / Denoise Output SNR Heatmap",
+        "Output SNR",
+    )
+    plot_interactive_denoise_heatmap(
+        ctx,
+        denoise_df,
+        "delta_vs_fixed_db",
+        "denoise_delta_heatmap.html",
+        "降噪 Delta 热力图 / Denoise Delta vs Fixed Heatmap",
+        "Delta vs fixed",
+    )
+    plot_interactive_denoise_waterfall(ctx, denoise_df)
+    plot_interactive_denoise_tradeoff(ctx, denoise_df)
+    plot_interactive_board_runtime(ctx, board_runtime_raw)
+    plot_interactive_codec_tradeoff(ctx, codec_raw if not codec_raw.empty else codec_summary)
+    plot_interactive_audio_energy(ctx, audio_metrics_raw)
+    cards = compute_dashboard_cards(wola_summary, denoise_df, codec_summary, board_runtime_raw)
+    write_interactive_index(ctx, cards)
+
+
 def summarize_wola_text(wola_summary: pd.DataFrame) -> str:
     if wola_summary.empty:
         return "未找到可用 WOLA 汇总数据。"
@@ -1363,11 +2149,31 @@ def write_report(
         else:
             ppt_lines.append(f"- {name}（未生成：{ctx.skipped_plots.get(name, '缺少输入或数据')}）")
 
+    interactive_lines = []
+    for name in INTERACTIVE_REPORTS:
+        rel_name = f"interactive/{name}"
+        if name in ctx.generated_html:
+            interactive_lines.append(f"- {rel_name}")
+        else:
+            interactive_lines.append(f"- {rel_name}（未生成：{ctx.skipped_html.get(name, '缺少输入或 plotly')}）")
+    interactive_lines.append("")
+    interactive_lines.append("这些 HTML 用于课堂演示和交互式检查；PNG 用于 PPT 静态插图。")
+
+    realtime_has_measurement = (
+        "max_ms" in realtime_summary.columns
+        and pd.to_numeric(realtime_summary["max_ms"], errors="coerce").fillna(0.0).gt(0.0).any()
+    )
+    realtime_line = (
+        "- 实时性结果已使用 CCS Watch 填入的 max_ms 生成正式 realtime_budget_compare.png。"
+        if realtime_has_measurement
+        else "- 实时性结果当前以模板形式输出，需要把 CCS Watch 的 last/max frame time 手动填入后再作为最终验收数据。"
+    )
+
     conclusion_lines = [
         f"- {summarize_wola_text(wola_summary)}",
         f"- {summarize_denoise_text(denoise_summary)}",
         f"- {summarize_codec_text(codec_summary)}",
-        "- 实时性结果当前以模板形式输出，需要把 CCS Watch 的 last/max frame time 手动填入后再作为最终验收数据。",
+        realtime_line,
     ]
     if not memory_summary.empty and ctx.found_map is not None:
         conclusion_lines.append(f"- 已从 map 文件解析内存区域占用：{ctx.found_map}。")
@@ -1441,6 +2247,9 @@ def write_report(
         "## 当前数据支持的结论",
         *conclusion_lines,
         "",
+        "## Interactive HTML reports",
+        *interactive_lines,
+        "",
         "## Warnings",
         *(f"- {item}" for item in (ctx.warnings or ["<none>"])),
         "",
@@ -1458,6 +2267,9 @@ def run(args: argparse.Namespace) -> tuple[ReportContext, Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     csv_dirs = build_search_dirs(root, args.csv_dir)
+    board_report_root = root / "board_audio_test_outputs"
+    if board_report_root.exists():
+        csv_dirs = existing_dirs(csv_dirs + list(board_report_root.glob("*/report")))
     audio_dirs = build_search_dirs(root, args.audio_dir)
     ctx = ReportContext(root=root, out_dir=out_dir, csv_dirs=csv_dirs, audio_dirs=audio_dirs)
 
@@ -1475,11 +2287,29 @@ def run(args: argparse.Namespace) -> tuple[ReportContext, Path]:
     codec_raw = read_csv_safe(ctx.found_csv.get("subband_codec_eval_report.csv"), ctx, "subband_codec_eval_report.csv")
     ms_raw = read_csv_safe(ctx.found_csv.get("subband_denoise_ms_eval_report.csv"), ctx, "subband_denoise_ms_eval_report.csv")
     mcra_raw = read_csv_safe(ctx.found_csv.get("subband_denoise_mcra_eval_report.csv"), ctx, "subband_denoise_mcra_eval_report.csv")
+    audio_metrics_path = ctx.found_csv.get("aggregate_compare_audio_metrics.csv") or ctx.found_csv.get("compare_audio_metrics.csv")
+    audio_metrics_raw = (
+        read_csv_safe(audio_metrics_path, ctx, "aggregate_compare_audio_metrics.csv")
+        if audio_metrics_path is not None else pd.DataFrame()
+    )
+    board_runtime_path = ctx.found_csv.get("board_mode_runtime_summary.csv")
+    board_runtime_raw = (
+        read_csv_safe(board_runtime_path, ctx, "board_mode_runtime_summary.csv", drop_empty_columns=False)
+        if board_runtime_path is not None else pd.DataFrame()
+    )
+    realtime_path = find_optional_csv(REALTIME_CSV_FILES, ctx.csv_dirs)
+    if realtime_path is not None:
+        print(f"Found realtime CSV: {realtime_path}")
+    realtime_raw = (
+        read_csv_safe(realtime_path, ctx, "realtime_summary_template.csv",
+                      drop_empty_columns=False)
+        if realtime_path is not None else pd.DataFrame()
+    )
 
     wola_summary = build_wola_summary(wola_raw, ctx)
     denoise_summary = build_denoise_summary(ms_raw, mcra_raw, ctx)
     codec_summary = build_codec_summary(codec_raw, ctx)
-    realtime_summary = build_realtime_template(ctx)
+    realtime_summary = build_realtime_template(ctx, realtime_raw)
 
     save_summary(ctx, wola_summary, "wola_summary.csv")
     save_summary(ctx, denoise_summary, "denoise_summary.csv")
@@ -1520,6 +2350,19 @@ def run(args: argparse.Namespace) -> tuple[ReportContext, Path]:
     plot_realtime_template(ctx, realtime_summary)
     plot_memory_usage(ctx, memory_summary)
 
+    if args.interactive:
+        generate_interactive_reports(
+            ctx,
+            wola_summary,
+            denoise_summary,
+            codec_summary,
+            ms_raw,
+            mcra_raw,
+            codec_raw,
+            board_runtime_raw,
+            audio_metrics_raw,
+        )
+
     report_path = write_report(ctx, wola_summary, denoise_summary, codec_summary, realtime_summary, memory_summary)
     return ctx, report_path
 
@@ -1529,6 +2372,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--csv-dir", action="append", default=[], help="Additional directory to search for CSV inputs.")
     parser.add_argument("--audio-dir", action="append", default=[], help="Additional directory to search for WAV inputs.")
     parser.add_argument("--out-dir", default="docs/eval_outputs", help="Output directory for plots, summaries, and report.")
+    interactive = parser.add_mutually_exclusive_group()
+    interactive.add_argument("--interactive", dest="interactive", action="store_true", help="Generate Plotly interactive HTML reports (default).")
+    interactive.add_argument("--no-interactive", dest="interactive", action="store_false", help="Skip Plotly interactive HTML reports.")
+    parser.set_defaults(interactive=True)
     return parser
 
 
@@ -1541,6 +2388,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     print("Generated summary CSV:")
     for item in ctx.summary_files:
         print(f"  {ctx.out_dir / item}")
+    if args.interactive:
+        print("Generated interactive HTML:")
+        for item in ctx.generated_html:
+            print(f"  {ctx.interactive_dir / item}")
     print(f"Report overview: {report_path}")
     return 0
 
