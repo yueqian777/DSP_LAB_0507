@@ -11,6 +11,7 @@
 #include "user_subband_codec_eval.h"
 #include "user_subband_audio_compare.h"
 #include "user_subband_denoise_ms_eval.h"
+#include "user_subband_denoise_mcra_eval.h"
 
 #ifdef SUBBAND_ALGO_ONLY
 #include <math.h>
@@ -73,6 +74,41 @@ static int Run_Denoise_SetEnabled_Does_Not_Stop_Learning_Test(void)
     }
 
     printf("denoise_setenabled_learning_semantics %s\n",
+           fail ? "FAIL" : "PASS");
+    return fail;
+}
+
+static int Run_Denoise_Mcra_Mode_Api_Test(void)
+{
+    int mode;
+    int fail;
+
+    fail = 0;
+    SubbandDenoise_Reset();
+    SubbandDenoise_SetNoiseTrackMode(SUBBAND_DENOISE_TRACK_MCRA);
+    SubbandDenoise_SetMcraParams(1.5f, 4.0f, 0.85f, 0.998f,
+                                 1.10f, 1.70f, 1.40f, 0);
+    mode = SubbandDenoise_GetNoiseTrackMode();
+    if (mode != SUBBAND_DENOISE_TRACK_MCRA)
+    {
+        fail = 1;
+    }
+    if ((fabsf(SUBBAND_DENOISE_DebugMcraDeltaLow - 1.5f) > 0.0001f) ||
+        (fabsf(SUBBAND_DENOISE_DebugMcraDeltaHigh - 4.0f) > 0.0001f) ||
+        (fabsf(SUBBAND_DENOISE_DebugMcraAlphaNoise - 0.85f) > 0.0001f) ||
+        (fabsf(SUBBAND_DENOISE_DebugMcraAlphaSpeech - 0.998f) > 0.0001f) ||
+        (SUBBAND_DENOISE_DebugMcraStrongMode != 0))
+    {
+        fail = 1;
+    }
+
+    printf("denoise_mcra_mode_api mode=%d expected=%d speech_prob=%.3f "
+           "overdrive=%.3f floor=%.3f %s\n",
+           mode,
+           SUBBAND_DENOISE_TRACK_MCRA,
+           SUBBAND_DENOISE_DebugMcraSpeechProbAvg,
+           SUBBAND_DENOISE_DebugMcraOverdriveAvg,
+           SUBBAND_DENOISE_DebugMcraFloorAvg,
            fail ? "FAIL" : "PASS");
     return fail;
 }
@@ -810,9 +846,11 @@ void SubbandWOLA_OfflineTest_All(void)
     failures += Run_Single_Band_Retention_Test();
     failures += Run_Gain_Perturbation_Test();
     failures += Run_Denoise_SetEnabled_Does_Not_Stop_Learning_Test();
+    failures += Run_Denoise_Mcra_Mode_Api_Test();
     failures += SubbandEval_OfflineTest_All();
     failures += SubbandCodecEval_OfflineTest_All();
     failures += SubbandDenoiseMsEval_OfflineTest_All();
+    failures += SubbandDenoiseMcraEval_OfflineTest_All();
 
     SubbandWOLA_TestFailures = failures;
     printf("SubbandWOLA_OfflineTest_All failures=%d\n", failures);

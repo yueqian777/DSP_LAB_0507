@@ -56,6 +56,7 @@
 #define SUBBAND_DENOISE_TRACK_FIXED    0
 #define SUBBAND_DENOISE_TRACK_MINSTAT  1
 #define SUBBAND_DENOISE_TRACK_HYBRID   2
+#define SUBBAND_DENOISE_TRACK_MCRA     3
 
 #ifndef SUBBAND_DENOISE_TRACK_DEFAULT
 #define SUBBAND_DENOISE_TRACK_DEFAULT SUBBAND_DENOISE_TRACK_FIXED
@@ -104,6 +105,14 @@ extern volatile float SUBBAND_DENOISE_DebugMsNoisePsdAvg;
 extern volatile float SUBBAND_DENOISE_DebugMsMinPsdAvg;
 extern volatile float SUBBAND_DENOISE_DebugMsBias;
 extern volatile float SUBBAND_DENOISE_DebugMsWindowSeconds;
+extern volatile float SUBBAND_DENOISE_DebugMcraSpeechProbAvg;
+extern volatile float SUBBAND_DENOISE_DebugMcraOverdriveAvg;
+extern volatile float SUBBAND_DENOISE_DebugMcraDeltaLow;
+extern volatile float SUBBAND_DENOISE_DebugMcraDeltaHigh;
+extern volatile float SUBBAND_DENOISE_DebugMcraAlphaNoise;
+extern volatile float SUBBAND_DENOISE_DebugMcraAlphaSpeech;
+extern volatile float SUBBAND_DENOISE_DebugMcraFloorAvg;
+extern volatile int SUBBAND_DENOISE_DebugMcraStrongMode;
 
 void SubbandDenoise_Init(void);
 void SubbandDenoise_Reset(void);
@@ -119,6 +128,15 @@ void SubbandDenoise_SetParams(float alpha, float gain_floor,
 void SubbandDenoise_SetNoiseTrackMode(int mode);
 int SubbandDenoise_GetNoiseTrackMode(void);
 void SubbandDenoise_ResetNoiseTracker(void);
+void SubbandDenoise_SetMcraParams(float delta_low,
+                                  float delta_high,
+                                  float alpha_noise,
+                                  float alpha_speech,
+                                  float overdrive_speech,
+                                  float overdrive_noise,
+                                  float bias,
+                                  int strong_mode);
+void SubbandDenoise_ResetMcraState(void);
 void SubbandDenoise_ProcessSpectrum(float *re, float *im);
 
 unsigned long SubbandDenoise_GetLearnCount(void);

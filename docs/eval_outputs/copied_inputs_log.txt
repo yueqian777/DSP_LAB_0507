@@ -1,0 +1,27 @@
+No input files were copied. Large WAV files are referenced in place by design.
+
+[CSV found]
+compare_audio_metrics.csv: compare_audio_metrics.csv
+subband_codec_eval_report.csv: subband_codec_eval_report.csv
+subband_denoise_mcra_eval_report.csv: subband_denoise_mcra_eval_report.csv
+subband_denoise_ms_eval_report.csv: subband_denoise_ms_eval_report.csv
+subband_eval_report.csv: subband_eval_report.csv
+
+[CSV missing]
+<none>
+
+[WAV found]
+compare_00_input.wav: compare_00_input.wav
+compare_01_wola_only.wav: compare_01_wola_only.wav
+compare_02_wola_denoise.wav: compare_02_wola_denoise.wav
+compare_03_codec_direct_160k.wav: compare_03_codec_direct_160k.wav
+compare_04_codec_direct_240k.wav: compare_04_codec_direct_240k.wav
+compare_05_codec_direct_320k.wav: compare_05_codec_direct_320k.wav
+compare_06_denoise_codec_160k.wav: compare_06_denoise_codec_160k.wav
+compare_07_denoise_codec_240k.wav: compare_07_denoise_codec_240k.wav
+compare_08_denoise_codec_320k.wav: compare_08_denoise_codec_320k.wav
+
+[WAV missing]
+compare_09_ms_denoise.wav
+compare_10_mcra_denoise.wav
+compare_11_strong_mcra_denoise.wav

@@ -22,6 +22,16 @@ typedef struct
     float ms_learned_psd[SUBBAND_POS_BINS];
     float ms_block_min[SUBBAND_DENOISE_MS_NUM_BLOCKS][SUBBAND_POS_BINS];
     float ms_min[SUBBAND_POS_BINS];
+    float mcra_speech_prob[SUBBAND_POS_BINS];
+    float mcra_overdrive[SUBBAND_POS_BINS];
+    float mcra_floor[SUBBAND_POS_BINS];
+    float mcra_delta_low;
+    float mcra_delta_high;
+    float mcra_alpha_noise;
+    float mcra_alpha_speech;
+    float mcra_overdrive_speech;
+    float mcra_overdrive_noise;
+    float mcra_bias;
     unsigned long learn_count;
     unsigned long target_hops;
     unsigned long fade_count;
@@ -30,6 +40,7 @@ typedef struct
     int noise_track_mode;
     int ms_block_index;
     int ms_hop_in_block;
+    int mcra_strong_mode;
     int initialized;
     int enabled;
     int learning;
@@ -61,6 +72,14 @@ volatile float SUBBAND_DENOISE_DebugMsNoisePsdAvg = 0.0f;
 volatile float SUBBAND_DENOISE_DebugMsMinPsdAvg = 0.0f;
 volatile float SUBBAND_DENOISE_DebugMsBias = SUBBAND_DENOISE_MS_BIAS;
 volatile float SUBBAND_DENOISE_DebugMsWindowSeconds = 0.0f;
+volatile float SUBBAND_DENOISE_DebugMcraSpeechProbAvg = 0.0f;
+volatile float SUBBAND_DENOISE_DebugMcraOverdriveAvg = 1.0f;
+volatile float SUBBAND_DENOISE_DebugMcraDeltaLow = 1.5f;
+volatile float SUBBAND_DENOISE_DebugMcraDeltaHigh = 4.0f;
+volatile float SUBBAND_DENOISE_DebugMcraAlphaNoise = 0.85f;
+volatile float SUBBAND_DENOISE_DebugMcraAlphaSpeech = 0.998f;
+volatile float SUBBAND_DENOISE_DebugMcraFloorAvg = SUBBAND_DENOISE_GAIN_FLOOR;
+volatile int SUBBAND_DENOISE_DebugMcraStrongMode = 0;
 
 #define SUBBAND_DENOISE_MS_LARGE 1.0e30f
 #define SUBBAND_DENOISE_MS_HYBRID_SPEECH_GUARD 16.0f
@@ -109,6 +128,7 @@ static int Normalize_Noise_Track_Mode(int mode)
     case SUBBAND_DENOISE_TRACK_FIXED:
     case SUBBAND_DENOISE_TRACK_MINSTAT:
     case SUBBAND_DENOISE_TRACK_HYBRID:
+    case SUBBAND_DENOISE_TRACK_MCRA:
         return mode;
     default:
         return SUBBAND_DENOISE_TRACK_FIXED;
@@ -139,6 +159,89 @@ static void Clear_MinStat_Block(int block_index, float value)
     }
 }
 
+static void Set_Mcra_Default_Params_Internal(void)
+{
+    SubbandDenoise_State.mcra_delta_low = 1.5f;
+    SubbandDenoise_State.mcra_delta_high = 4.0f;
+    SubbandDenoise_State.mcra_alpha_noise = 0.85f;
+    SubbandDenoise_State.mcra_alpha_speech = 0.998f;
+    SubbandDenoise_State.mcra_overdrive_speech = 1.10f;
+    SubbandDenoise_State.mcra_overdrive_noise = 1.70f;
+    SubbandDenoise_State.mcra_bias = 1.40f;
+    SubbandDenoise_State.mcra_strong_mode = 0;
+}
+
+static float Mcra_Floor_For_Bin(int k)
+{
+    float freq;
+
+    freq = ((float)k * SUBBAND_SAMPLE_RATE) / (float)SUBBAND_NFFT;
+    if (SubbandDenoise_State.mcra_strong_mode != 0)
+    {
+        if (freq < 150.0f)
+        {
+            return 0.05f;
+        }
+        if (freq < 4000.0f)
+        {
+            return 0.12f;
+        }
+        if (freq < 8000.0f)
+        {
+            return 0.08f;
+        }
+        return 0.05f;
+    }
+
+    if (freq < 150.0f)
+    {
+        return 0.08f;
+    }
+    if (freq < 4000.0f)
+    {
+        return 0.15f;
+    }
+    if (freq < 8000.0f)
+    {
+        return 0.10f;
+    }
+    return 0.06f;
+}
+
+static int Mcra_Is_Speech_Band(int k)
+{
+    float freq;
+
+    freq = ((float)k * SUBBAND_SAMPLE_RATE) / (float)SUBBAND_NFFT;
+    return ((freq >= 150.0f) && (freq < 4000.0f)) ? 1 : 0;
+}
+
+static float Mcra_Effective_Floor_For_Bin(int k)
+{
+    float floor_value;
+
+    floor_value = SubbandDenoise_State.mcra_floor[k];
+    if ((SubbandDenoise_State.mcra_speech_prob[k] > 0.80f) &&
+        (floor_value < SubbandDenoise_State.gain_floor))
+    {
+        floor_value = SubbandDenoise_State.gain_floor;
+    }
+    return floor_value;
+}
+
+static void Reset_Mcra_State_Internal(void)
+{
+    int k;
+
+    for (k = 0; k < SUBBAND_POS_BINS; k++)
+    {
+        SubbandDenoise_State.mcra_speech_prob[k] = 0.0f;
+        SubbandDenoise_State.mcra_overdrive[k] =
+            SubbandDenoise_State.mcra_overdrive_noise;
+        SubbandDenoise_State.mcra_floor[k] = Mcra_Floor_For_Bin(k);
+    }
+}
+
 static void Reset_Noise_Tracker_Internal(void)
 {
     int b;
@@ -166,6 +269,7 @@ static void Reset_Noise_Tracker_Internal(void)
     SubbandDenoise_State.ms_block_index = 0;
     SubbandDenoise_State.ms_hop_in_block = 0;
     SubbandDenoise_State.ms_update_count = 0UL;
+    Reset_Mcra_State_Internal();
 }
 
 static void Update_Minimum_Statistics(const float *re, const float *im)
@@ -263,6 +367,16 @@ static void Update_Minimum_Statistics(const float *re, const float *im)
         float learned_noise;
         float noise_alpha;
         float candidate_hi;
+        float ratio;
+        float speech_prob;
+        float denom;
+        float alpha_update;
+        float overdrive;
+        float snr_ratio;
+        float snr_speech_prob;
+        int mcra_speech_guard;
+        int mcra_tonal_guard;
+        int mcra_active_noise_update;
 
         power = re[k] * re[k] + im[k] * im[k];
         min_power = SubbandDenoise_State.ms_min[k];
@@ -286,6 +400,164 @@ static void Update_Minimum_Statistics(const float *re, const float *im)
         if (old_noise < SUBBAND_DENOISE_EPS)
         {
             old_noise = SUBBAND_DENOISE_EPS;
+        }
+
+        if (SubbandDenoise_State.noise_track_mode ==
+            SUBBAND_DENOISE_TRACK_MCRA)
+        {
+            int mcra_allow_up;
+            float tonal_noise_cap;
+
+            mcra_allow_up =
+                (hybrid_trigger_bins >=
+                 SUBBAND_DENOISE_MS_HYBRID_TRIGGER_BINS) ? 1 : 0;
+
+            learned_noise = SubbandDenoise_State.ms_learned_psd[k];
+            if (learned_noise < SUBBAND_DENOISE_EPS)
+            {
+                learned_noise = SUBBAND_DENOISE_EPS;
+            }
+
+            denom = SubbandDenoise_State.mcra_delta_high -
+                    SubbandDenoise_State.mcra_delta_low;
+            if (denom < 0.01f)
+            {
+                denom = 0.01f;
+            }
+
+            ratio = SubbandDenoise_State.ms_smooth_power[k] /
+                    (min_power + SUBBAND_DENOISE_EPS);
+            speech_prob =
+                (ratio - SubbandDenoise_State.mcra_delta_low) / denom;
+            speech_prob = Clamp_Float(speech_prob, 0.0f, 1.0f);
+
+            snr_ratio = power / (old_noise + SUBBAND_DENOISE_EPS);
+            snr_speech_prob = (snr_ratio - 2.0f) / 10.0f;
+            snr_speech_prob =
+                Clamp_Float(snr_speech_prob, 0.0f, 1.0f);
+            if (snr_speech_prob > speech_prob)
+            {
+                speech_prob = snr_speech_prob;
+            }
+            mcra_tonal_guard = 0;
+            if ((k > 0) && (k < (SUBBAND_NFFT / 2)) &&
+                (Mcra_Is_Speech_Band(k) != 0) &&
+                (snr_ratio > 3.0f))
+            {
+                float left_power;
+                float right_power;
+                float neighbor_power;
+
+                left_power = re[k - 1] * re[k - 1] +
+                             im[k - 1] * im[k - 1];
+                right_power = re[k + 1] * re[k + 1] +
+                              im[k + 1] * im[k + 1];
+                neighbor_power = 0.5f * (left_power + right_power) +
+                                 SUBBAND_DENOISE_EPS;
+                if (power > (1.35f * neighbor_power))
+                {
+                    mcra_tonal_guard = 1;
+                    if (speech_prob < 0.95f)
+                    {
+                        speech_prob = 0.95f;
+                    }
+                }
+            }
+
+            candidate = SubbandDenoise_State.mcra_bias * min_power;
+            if (candidate < SUBBAND_DENOISE_EPS)
+            {
+                candidate = SUBBAND_DENOISE_EPS;
+            }
+            candidate_hi = power + (4.0f * SUBBAND_DENOISE_EPS);
+            if (candidate > candidate_hi)
+            {
+                candidate = candidate_hi;
+            }
+            candidate_hi = old_noise * 8.0f;
+            if (candidate > candidate_hi)
+            {
+                candidate = candidate_hi;
+            }
+            if ((mcra_allow_up == 0) && (candidate > old_noise))
+            {
+                candidate = old_noise;
+            }
+
+            mcra_speech_guard = 0;
+            mcra_active_noise_update = 0;
+            if ((power >
+                 old_noise * SUBBAND_DENOISE_MS_HYBRID_POWER_GUARD) ||
+                (candidate >
+                 old_noise * SUBBAND_DENOISE_MS_HYBRID_SPEECH_GUARD))
+            {
+                mcra_speech_guard = 1;
+            }
+            if (((mcra_speech_guard != 0) ||
+                 (mcra_tonal_guard != 0)) &&
+                (candidate > old_noise))
+            {
+                candidate = old_noise;
+            }
+            else if (candidate > old_noise)
+            {
+                mcra_active_noise_update = 1;
+            }
+            if (mcra_active_noise_update == 0)
+            {
+                candidate = old_noise;
+            }
+            SubbandDenoise_State.mcra_speech_prob[k] = speech_prob;
+
+            alpha_update =
+                speech_prob * SubbandDenoise_State.mcra_alpha_speech +
+                (1.0f - speech_prob) *
+                    SubbandDenoise_State.mcra_alpha_noise;
+            alpha_update = Clamp_Float(alpha_update, 0.0f, 0.9999f);
+            if ((SubbandDenoise_State.mcra_strong_mode == 0) &&
+                (alpha_update < 0.97f))
+            {
+                alpha_update = 0.97f;
+            }
+
+            SubbandDenoise_State.noise_psd[k] =
+                alpha_update * old_noise +
+                (1.0f - alpha_update) * candidate;
+            if (mcra_tonal_guard != 0)
+            {
+                tonal_noise_cap = learned_noise * 1.75f;
+                if (tonal_noise_cap < SUBBAND_DENOISE_EPS)
+                {
+                    tonal_noise_cap = SUBBAND_DENOISE_EPS;
+                }
+                if (SubbandDenoise_State.noise_psd[k] >
+                    tonal_noise_cap)
+                {
+                    SubbandDenoise_State.noise_psd[k] =
+                        tonal_noise_cap;
+                }
+            }
+            if (SubbandDenoise_State.noise_psd[k] <
+                SUBBAND_DENOISE_EPS)
+            {
+                SubbandDenoise_State.noise_psd[k] =
+                    SUBBAND_DENOISE_EPS;
+            }
+
+            overdrive =
+                SubbandDenoise_State.mcra_overdrive_speech * speech_prob +
+                SubbandDenoise_State.mcra_overdrive_noise *
+                    (1.0f - speech_prob);
+            SubbandDenoise_State.mcra_overdrive[k] =
+                Clamp_Float(overdrive, 1.0f, 4.0f);
+            SubbandDenoise_State.mcra_floor[k] = Mcra_Floor_For_Bin(k);
+            if ((mcra_tonal_guard != 0) &&
+                (SubbandDenoise_State.mcra_strong_mode == 0) &&
+                (SubbandDenoise_State.mcra_floor[k] < 0.45f))
+            {
+                SubbandDenoise_State.mcra_floor[k] = 0.45f;
+            }
+            continue;
         }
 
         if (SubbandDenoise_State.noise_track_mode ==
@@ -353,6 +625,9 @@ static void Update_Debug_State(void)
     float progress;
     float noise_sum;
     float ms_min_sum;
+    float mcra_speech_sum;
+    float mcra_overdrive_sum;
+    float mcra_floor_sum;
 
     if (SubbandDenoise_State.target_hops > 0UL)
     {
@@ -384,10 +659,16 @@ static void Update_Debug_State(void)
 
     noise_sum = 0.0f;
     ms_min_sum = 0.0f;
+    mcra_speech_sum = 0.0f;
+    mcra_overdrive_sum = 0.0f;
+    mcra_floor_sum = 0.0f;
     for (k = 0; k < SUBBAND_POS_BINS; k++)
     {
         noise_sum += SubbandDenoise_State.noise_psd[k];
         ms_min_sum += SubbandDenoise_State.ms_min[k];
+        mcra_speech_sum += SubbandDenoise_State.mcra_speech_prob[k];
+        mcra_overdrive_sum += SubbandDenoise_State.mcra_overdrive[k];
+        mcra_floor_sum += SubbandDenoise_State.mcra_floor[k];
     }
     SUBBAND_DENOISE_DebugNoisePsdAvg =
         noise_sum / (float)SUBBAND_POS_BINS;
@@ -395,6 +676,22 @@ static void Update_Debug_State(void)
         SUBBAND_DENOISE_DebugNoisePsdAvg;
     SUBBAND_DENOISE_DebugMsMinPsdAvg =
         ms_min_sum / (float)SUBBAND_POS_BINS;
+    SUBBAND_DENOISE_DebugMcraSpeechProbAvg =
+        mcra_speech_sum / (float)SUBBAND_POS_BINS;
+    SUBBAND_DENOISE_DebugMcraOverdriveAvg =
+        mcra_overdrive_sum / (float)SUBBAND_POS_BINS;
+    SUBBAND_DENOISE_DebugMcraDeltaLow =
+        SubbandDenoise_State.mcra_delta_low;
+    SUBBAND_DENOISE_DebugMcraDeltaHigh =
+        SubbandDenoise_State.mcra_delta_high;
+    SUBBAND_DENOISE_DebugMcraAlphaNoise =
+        SubbandDenoise_State.mcra_alpha_noise;
+    SUBBAND_DENOISE_DebugMcraAlphaSpeech =
+        SubbandDenoise_State.mcra_alpha_speech;
+    SUBBAND_DENOISE_DebugMcraFloorAvg =
+        mcra_floor_sum / (float)SUBBAND_POS_BINS;
+    SUBBAND_DENOISE_DebugMcraStrongMode =
+        SubbandDenoise_State.mcra_strong_mode;
 }
 
 static void Start_Learning_Internal(void)
@@ -485,6 +782,8 @@ void SubbandDenoise_Init(void)
     SubbandDenoise_State.gain_floor = SUBBAND_DENOISE_GAIN_FLOOR;
     SubbandDenoise_State.gain_smooth_up = SUBBAND_DENOISE_GAIN_SMOOTH_UP;
     SubbandDenoise_State.gain_smooth_down = SUBBAND_DENOISE_GAIN_SMOOTH_DOWN;
+    Set_Mcra_Default_Params_Internal();
+    Reset_Mcra_State_Internal();
     SubbandDenoise_State.noise_track_mode =
         Normalize_Noise_Track_Mode(SUBBAND_DENOISE_TRACK_DEFAULT);
     SubbandDenoise_State.target_hops =
@@ -592,6 +891,51 @@ void SubbandDenoise_ResetNoiseTracker(void)
     Update_Debug_State();
 }
 
+void SubbandDenoise_SetMcraParams(float delta_low,
+                                  float delta_high,
+                                  float alpha_noise,
+                                  float alpha_speech,
+                                  float overdrive_speech,
+                                  float overdrive_noise,
+                                  float bias,
+                                  int strong_mode)
+{
+    SubbandDenoise_Init();
+
+    SubbandDenoise_State.mcra_delta_low =
+        Clamp_Float(delta_low, 1.0f, 8.0f);
+    SubbandDenoise_State.mcra_delta_high =
+        Clamp_Float(delta_high, 1.01f, 16.0f);
+    if (SubbandDenoise_State.mcra_delta_high <=
+        SubbandDenoise_State.mcra_delta_low + 0.01f)
+    {
+        SubbandDenoise_State.mcra_delta_high =
+            SubbandDenoise_State.mcra_delta_low + 0.01f;
+    }
+
+    SubbandDenoise_State.mcra_alpha_noise =
+        Clamp_Float(alpha_noise, 0.0f, 0.9999f);
+    SubbandDenoise_State.mcra_alpha_speech =
+        Clamp_Float(alpha_speech, 0.0f, 0.9999f);
+    SubbandDenoise_State.mcra_overdrive_speech =
+        Clamp_Float(overdrive_speech, 1.0f, 4.0f);
+    SubbandDenoise_State.mcra_overdrive_noise =
+        Clamp_Float(overdrive_noise, 1.0f, 4.0f);
+    SubbandDenoise_State.mcra_bias = Clamp_Float(bias, 0.50f, 5.0f);
+    SubbandDenoise_State.mcra_strong_mode =
+        (strong_mode != 0) ? 1 : 0;
+
+    Reset_Mcra_State_Internal();
+    Update_Debug_State();
+}
+
+void SubbandDenoise_ResetMcraState(void)
+{
+    SubbandDenoise_Init();
+    Reset_Mcra_State_Internal();
+    Update_Debug_State();
+}
+
 void SubbandDenoise_ProcessSpectrum(float *re, float *im)
 {
     int k;
@@ -660,6 +1004,12 @@ void SubbandDenoise_ProcessSpectrum(float *re, float *im)
         return;
     }
 
+    if (SubbandDenoise_State.noise_track_mode ==
+        SUBBAND_DENOISE_TRACK_MCRA)
+    {
+        Update_Minimum_Statistics(re, im);
+    }
+
     for (k = 0; k < SUBBAND_POS_BINS; k++)
     {
         float power;
@@ -671,7 +1021,27 @@ void SubbandDenoise_ProcessSpectrum(float *re, float *im)
         float smooth;
 
         power = re[k] * re[k] + im[k] * im[k];
-        noise = SubbandDenoise_State.noise_psd[k] + SUBBAND_DENOISE_EPS;
+        noise = SubbandDenoise_State.noise_psd[k];
+        if (SubbandDenoise_State.noise_track_mode ==
+            SUBBAND_DENOISE_TRACK_MCRA)
+        {
+            float effective_overdrive;
+            float learned_noise;
+
+            effective_overdrive = 1.0f;
+            learned_noise = SubbandDenoise_State.ms_learned_psd[k];
+            if (learned_noise < SUBBAND_DENOISE_EPS)
+            {
+                learned_noise = SUBBAND_DENOISE_EPS;
+            }
+            if (SubbandDenoise_State.mcra_speech_prob[k] < 0.80f)
+            {
+                effective_overdrive =
+                    SubbandDenoise_State.mcra_overdrive[k];
+            }
+            noise *= effective_overdrive;
+        }
+        noise += SUBBAND_DENOISE_EPS;
         post_snr = power / noise;
         inst_prior = post_snr - 1.0f;
         if (inst_prior < 0.0f)
@@ -688,7 +1058,19 @@ void SubbandDenoise_ProcessSpectrum(float *re, float *im)
         }
 
         gain = prior_snr / (1.0f + prior_snr);
-        gain = Clamp_Float(gain, SubbandDenoise_State.gain_floor, 1.0f);
+        if (SubbandDenoise_State.noise_track_mode ==
+            SUBBAND_DENOISE_TRACK_MCRA)
+        {
+            gain = Clamp_Float(gain,
+                               Mcra_Effective_Floor_For_Bin(k),
+                               1.0f);
+        }
+        else
+        {
+            gain = Clamp_Float(gain,
+                               SubbandDenoise_State.gain_floor,
+                               1.0f);
+        }
         if (gain > SubbandDenoise_State.gain_smooth[k])
         {
             smooth = SubbandDenoise_State.gain_smooth_up;
@@ -722,8 +1104,10 @@ void SubbandDenoise_ProcessSpectrum(float *re, float *im)
     }
 #endif
 
-    if (SubbandDenoise_State.noise_track_mode !=
-        SUBBAND_DENOISE_TRACK_FIXED)
+    if ((SubbandDenoise_State.noise_track_mode !=
+         SUBBAND_DENOISE_TRACK_FIXED) &&
+        (SubbandDenoise_State.noise_track_mode !=
+         SUBBAND_DENOISE_TRACK_MCRA))
     {
         Update_Minimum_Statistics(re, im);
     }
@@ -761,9 +1145,27 @@ void SubbandDenoise_ProcessSpectrum(float *re, float *im)
         power = re[k] * re[k] + im[k] * im[k];
         final_gain = Clamp_Float(SubbandDenoise_State.gain_tmp[k],
                                  SubbandDenoise_State.gain_floor, 1.0f);
+        if (SubbandDenoise_State.noise_track_mode ==
+            SUBBAND_DENOISE_TRACK_MCRA)
+        {
+            final_gain = Clamp_Float(SubbandDenoise_State.gain_tmp[k],
+                                     Mcra_Effective_Floor_For_Bin(k),
+                                     1.0f);
+        }
         applied_gain = 1.0f - fade + fade * final_gain;
-        applied_gain = Clamp_Float(applied_gain,
-                                   SubbandDenoise_State.gain_floor, 1.0f);
+        if (SubbandDenoise_State.noise_track_mode ==
+            SUBBAND_DENOISE_TRACK_MCRA)
+        {
+            applied_gain = Clamp_Float(applied_gain,
+                                       Mcra_Effective_Floor_For_Bin(k),
+                                       1.0f);
+        }
+        else
+        {
+            applied_gain = Clamp_Float(applied_gain,
+                                       SubbandDenoise_State.gain_floor,
+                                       1.0f);
+        }
         re[k] *= applied_gain;
         im[k] *= applied_gain;
         SubbandDenoise_State.prev_clean_psd[k] =

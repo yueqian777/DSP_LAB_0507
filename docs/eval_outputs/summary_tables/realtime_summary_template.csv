@@ -1,0 +1,6 @@
+﻿mode,last_ms,max_ms,frame_budget_ms,cpu_usage_percent,pass
+WOLA only,,,20.48,,
+fixed denoise,,,20.48,,
+HYBRID-MS,,,20.48,,
+MCRA normal,,,20.48,,
+MCRA strong,,,20.48,,

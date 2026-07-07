@@ -108,6 +108,8 @@ static int Subband_Normalize_Demo_Mode(int mode)
     case SUBBAND_DEMO_MODE_MILD_DENOISE:
     case SUBBAND_DEMO_MODE_WOLA_MS_DENOISE:
     case SUBBAND_DEMO_MODE_MILD_MS_DENOISE:
+    case SUBBAND_DEMO_MODE_MCRA_DENOISE:
+    case SUBBAND_DEMO_MODE_STRONG_MCRA_DENOISE:
         return mode;
     default:
         return SUBBAND_DEMO_DEFAULT_MODE;
@@ -157,6 +159,34 @@ static void Subband_Apply_Demo_Mode(int mode)
         SubbandDenoise_Reset();
         SubbandDenoise_SetParams(0.96f, 0.35f, 0.85f, 0.60f);
         SubbandDenoise_SetNoiseTrackMode(SUBBAND_DENOISE_TRACK_HYBRID);
+        SubbandDenoise_StartNoiseLearning();
+        break;
+
+    case SUBBAND_DEMO_MODE_MCRA_DENOISE:
+        SubbandWOLA_SetBypass(0);
+        SubbandWOLA_ResetStream();
+        SubbandWOLA_ResetAllGains();
+        SubbandDenoise_Reset();
+        SubbandDenoise_SetNoiseTrackMode(SUBBAND_DENOISE_TRACK_MCRA);
+        SubbandDenoise_SetMcraParams(1.5f, 4.0f,
+                                     0.85f, 0.998f,
+                                     1.10f, 1.70f,
+                                     1.40f,
+                                     0);
+        SubbandDenoise_StartNoiseLearning();
+        break;
+
+    case SUBBAND_DEMO_MODE_STRONG_MCRA_DENOISE:
+        SubbandWOLA_SetBypass(0);
+        SubbandWOLA_ResetStream();
+        SubbandWOLA_ResetAllGains();
+        SubbandDenoise_Reset();
+        SubbandDenoise_SetNoiseTrackMode(SUBBAND_DENOISE_TRACK_MCRA);
+        SubbandDenoise_SetMcraParams(1.3f, 3.5f,
+                                     0.80f, 0.998f,
+                                     1.20f, 2.10f,
+                                     1.60f,
+                                     1);
         SubbandDenoise_StartNoiseLearning();
         break;
 
