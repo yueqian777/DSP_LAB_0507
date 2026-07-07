@@ -1,6 +1,6 @@
 # DSP Subband Evaluation Visual Report
 
-Generated at: 2026-07-07 16:40:16
+Generated at: 2026-07-07 17:04:30
 
 ## 输入文件列表
 
@@ -40,14 +40,26 @@ Generated at: 2026-07-07 16:40:16
 - plots/codec_bitrate_compression_ratio.png
 - plots/codec_quality_snr.png
 - plots/codec_spectrogram_compare.png
+- plots/denoise_algorithm_evolution_stepup.png
 - plots/denoise_delta_vs_fixed.png
+- plots/denoise_reduction_fixed_speechband.png
+- plots/denoise_reduction_hybrid_ms_speechband.png
+- plots/denoise_reduction_mcra_speechband.png
+- plots/denoise_reduction_mcra_strong_speechband.png
+- plots/denoise_reduction_panel_speechband.png
 - plots/denoise_snr_bar.png
 - plots/denoise_spectrogram_compare.png
 - plots/denoise_spectrogram_fixed.png
+- plots/denoise_spectrogram_fixed_speechband.png
+- plots/denoise_spectrogram_hybrid_ms_speechband.png
 - plots/denoise_spectrogram_input.png
+- plots/denoise_spectrogram_input_speechband.png
 - plots/denoise_spectrogram_mcra.png
+- plots/denoise_spectrogram_mcra_speechband.png
 - plots/denoise_spectrogram_mcra_strong.png
+- plots/denoise_spectrogram_mcra_strong_speechband.png
 - plots/denoise_spectrogram_ms.png
+- plots/denoise_spectrogram_panel_speechband.png
 - plots/denoise_spectrum_before_after.png
 - plots/denoise_speech_preservation_corr.png
 - plots/denoise_waveform_before_after.png
@@ -55,6 +67,8 @@ Generated at: 2026-07-07 16:40:16
 - plots/memory_usage_template.png
 - plots/noise_psd_gain_tracking.png
 - plots/realtime_budget_compare.png
+- plots/realtime_budget_compare_annotated.png
+- plots/thd_spectrum_annotated.png
 - plots/thd_spectrum_example.png
 - plots/wola_frequency_response.png
 - plots/wola_reconstruction_error.png
@@ -71,6 +85,7 @@ Generated at: 2026-07-07 16:40:16
 - summary_tables\codec_summary.csv
 - summary_tables\realtime_summary_template.csv
 - summary_tables\memory_usage_summary.csv
+- summary_tables\thd_summary.csv
 
 ## WOLA 基础结果摘要
 
@@ -104,15 +119,16 @@ target bitrates=160, 240, 320 kbps; max compression ratio=5.17; best denoise+cod
 - CPU Usage: max_frame_time_ms / frame_budget_ms * 100%；frame_budget_ms = 20.48 ms。
 
 ## 推荐放入 PPT 的图像清单
-- wola_spectrum_compare.png
-- wola_frequency_response.png
-- denoise_spectrogram_compare.png
-- denoise_snr_bar.png
-- denoise_delta_vs_fixed.png
-- codec_bitrate_compression_ratio.png
+- denoise_algorithm_evolution_stepup.png
+- denoise_spectrogram_panel_speechband.png
+- denoise_reduction_panel_speechband.png
+- realtime_budget_compare_annotated.png
 - codec_quality_snr.png
-- realtime_budget_compare.png
-- realtime_budget_compare_template.png（未生成：缺少输入或数据）
+- codec_bitrate_compression_ratio.png
+- wola_spectrum_compare.png
+- thd_spectrum_annotated.png
+- wola_frequency_response.png
+- denoise_snr_bar.png
 
 ## 当前数据支持的结论
 - WOLA passthrough SNR=72.86 dB, energy ratio=0.999732, delay=256 samples, pass=PASS.

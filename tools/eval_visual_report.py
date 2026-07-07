@@ -5,6 +5,7 @@ import argparse
 import math
 import re
 import sys
+import warnings
 import wave
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -60,15 +61,16 @@ WAV_FILES = [
 ]
 
 PPT_RECOMMENDATIONS = [
-    "wola_spectrum_compare.png",
-    "wola_frequency_response.png",
-    "denoise_spectrogram_compare.png",
-    "denoise_snr_bar.png",
-    "denoise_delta_vs_fixed.png",
-    "codec_bitrate_compression_ratio.png",
+    "denoise_algorithm_evolution_stepup.png",
+    "denoise_spectrogram_panel_speechband.png",
+    "denoise_reduction_panel_speechband.png",
+    "realtime_budget_compare_annotated.png",
     "codec_quality_snr.png",
-    "realtime_budget_compare.png",
-    "realtime_budget_compare_template.png",
+    "codec_bitrate_compression_ratio.png",
+    "wola_spectrum_compare.png",
+    "thd_spectrum_annotated.png",
+    "wola_frequency_response.png",
+    "denoise_snr_bar.png",
 ]
 
 INTERACTIVE_REPORTS = [
@@ -88,6 +90,11 @@ FIGSIZE = (10.0, 5.625)
 DPI = 160
 PCM_BITRATE_KBPS = 800.0
 FRAME_BUDGET_MS = 20.48
+SPEECH_BAND_HZ = 8000.0
+SPECTROGRAM_VMIN_DB = -90.0
+SPECTROGRAM_VMAX_DB = -20.0
+REDUCTION_VMIN_DB = 0.0
+REDUCTION_VMAX_DB = 40.0
 EPS = 1e-12
 
 
@@ -652,9 +659,12 @@ def parse_map_memory(path: Path, ctx: ReportContext) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def save_fig(ctx: ReportContext, fig: plt.Figure, filename: str) -> None:
+def save_fig(ctx: ReportContext, fig: plt.Figure, filename: str, *, tight: bool = True) -> None:
     path = ctx.plots_dir / filename
-    fig.tight_layout()
+    if tight:
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message="This figure includes Axes that are not compatible with tight_layout")
+            fig.tight_layout()
     fig.savefig(path, dpi=DPI)
     plt.close(fig)
     ctx.generated_plots.append(filename)
@@ -1066,16 +1076,296 @@ def plot_denoise_spectrum(ctx: ReportContext, wola_summary: pd.DataFrame) -> Non
     save_fig(ctx, fig, filename)
 
 
-def save_spectrogram(ctx: ReportContext, label: str, sample_rate: int, samples: np.ndarray, filename: str) -> None:
+def display_label(label: str) -> str:
+    return {
+        "input": "input noisy",
+        "fixed": "fixed denoise",
+        "hybrid_ms": "HYBRID-MS",
+        "mcra": "MCRA normal",
+        "mcra_strong": "MCRA strong",
+    }.get(label, label)
+
+
+def add_spectrogram_time_markers(ax: plt.Axes) -> None:
+    markers = [(2.0, "noise learning end"), (5.0, "noise step-up")]
+    for x_value, label in markers:
+        ax.axvline(x_value, color="white", linestyle="--", linewidth=1.0, alpha=0.92)
+        ax.text(
+            x_value + 0.04,
+            0.97,
+            label,
+            color="white",
+            fontsize=8,
+            ha="left",
+            va="top",
+            transform=ax.get_xaxis_transform(),
+            bbox=dict(boxstyle="round,pad=0.18", facecolor="black", alpha=0.45, edgecolor="none"),
+        )
+
+
+def spectrogram_db(
+    samples: np.ndarray,
+    sample_rate: int,
+    n_fft: int = 1024,
+    noverlap: int = 768,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    samples = np.asarray(samples, dtype=np.float64)
+    hop = max(1, n_fft - noverlap)
+    if len(samples) < n_fft:
+        samples = np.pad(samples, (0, n_fft - len(samples)))
+    starts = np.arange(0, len(samples) - n_fft + 1, hop, dtype=int)
+    if len(starts) == 0:
+        starts = np.array([0], dtype=int)
+    if starts[-1] + n_fft < len(samples):
+        starts = np.append(starts, len(samples) - n_fft)
+    window = np.hanning(n_fft)
+    denom = np.sum(window * window) + EPS
+    frames = []
+    for start in starts:
+        segment = samples[start : start + n_fft]
+        if len(segment) < n_fft:
+            segment = np.pad(segment, (0, n_fft - len(segment)))
+        spec = np.fft.rfft(segment * window)
+        power = (np.abs(spec) ** 2) / denom
+        frames.append(10.0 * np.log10(power + EPS))
+    db = np.asarray(frames).T
+    freqs = np.fft.rfftfreq(n_fft, 1.0 / sample_rate)
+    times = (starts + n_fft / 2.0) / sample_rate
+    return freqs, times, db
+
+
+def save_spectrogram_db(
+    ctx: ReportContext,
+    label: str,
+    sample_rate: int,
+    samples: np.ndarray,
+    filename: str,
+    *,
+    fmax: float | None = None,
+    vmin: float | None = None,
+    vmax: float | None = None,
+    title: str | None = None,
+) -> None:
+    freqs, times, db = spectrogram_db(samples, sample_rate)
+    mask = freqs <= (fmax if fmax is not None else sample_rate / 2.0)
     fig, ax = plt.subplots(figsize=FIGSIZE)
-    ax.specgram(samples, NFFT=1024, Fs=sample_rate, noverlap=768, cmap="magma")
-    ax.set_title(f"Spectrogram: {label}")
+    mesh = ax.pcolormesh(times, freqs[mask], db[mask, :], shading="auto", cmap="magma", vmin=vmin, vmax=vmax)
+    add_spectrogram_time_markers(ax)
+    ax.set_ylim(0, fmax if fmax is not None else sample_rate / 2.0)
+    ax.set_title(title or f"Spectrogram: {display_label(label)}")
     ax.set_xlabel("Time (s)")
     ax.set_ylabel("Frequency (Hz)")
+    fig.colorbar(mesh, ax=ax, label="Magnitude (dB)")
     save_fig(ctx, fig, filename)
 
 
-def plot_denoise_spectrograms(ctx: ReportContext) -> None:
+def save_spectrogram(ctx: ReportContext, label: str, sample_rate: int, samples: np.ndarray, filename: str) -> None:
+    save_spectrogram_db(ctx, label, sample_rate, samples, filename)
+
+
+def denoise_stepup_conclusion(denoise_summary: pd.DataFrame) -> str:
+    if denoise_summary.empty:
+        return "HYBRID-MS improves step-up SNR vs fixed; MCRA normal gives best delta when available."
+    df = denoise_summary.copy()
+    if "eval_case" not in df.columns or "mode_name" not in df.columns:
+        return "HYBRID-MS improves step-up SNR vs fixed; MCRA normal gives best delta when available."
+    df["delta_vs_fixed_db"] = pd.to_numeric(df.get("delta_vs_fixed_db", np.nan), errors="coerce")
+    case_df = df[df["eval_case"].astype(str).str.lower() == "noise_step_up_snr10"]
+    mcra = case_df[case_df["mode_name"].astype(str).str.lower() == "mcra_normal"]
+    if not mcra.empty and not pd.isna(mcra.iloc[0]["delta_vs_fixed_db"]):
+        return f"HYBRID-MS improves step-up SNR vs fixed; MCRA normal gives best delta: +{mcra.iloc[0]['delta_vs_fixed_db']:.2f} dB in noise_step_up_snr10."
+    return "HYBRID-MS improves step-up SNR vs fixed; MCRA normal gives best delta when available."
+
+
+def plot_speechband_spectrograms(
+    ctx: ReportContext,
+    items: list[tuple[str, int, np.ndarray]],
+    denoise_summary: pd.DataFrame,
+) -> None:
+    filename_map = {
+        "input": "denoise_spectrogram_input_speechband.png",
+        "fixed": "denoise_spectrogram_fixed_speechband.png",
+        "hybrid_ms": "denoise_spectrogram_hybrid_ms_speechband.png",
+        "mcra": "denoise_spectrogram_mcra_speechband.png",
+        "mcra_strong": "denoise_spectrogram_mcra_strong_speechband.png",
+    }
+    for label, sample_rate, samples in items:
+        save_spectrogram_db(
+            ctx,
+            label,
+            sample_rate,
+            samples,
+            filename_map.get(label, f"denoise_spectrogram_{label}_speechband.png"),
+            fmax=SPEECH_BAND_HZ,
+            vmin=SPECTROGRAM_VMIN_DB,
+            vmax=SPECTROGRAM_VMAX_DB,
+            title=f"Speech-band spectrogram: {display_label(label)} (0-8 kHz)",
+        )
+
+    ordered = [item for target in ["input", "fixed", "hybrid_ms", "mcra", "mcra_strong"] for item in items if item[0] == target]
+    if len(ordered) < 2:
+        skip_plot(ctx, "denoise_spectrogram_panel_speechband.png", "missing denoise speech-band panel inputs")
+        return
+    fig = plt.figure(figsize=(15.5, 8.8))
+    gs = fig.add_gridspec(
+        2,
+        7,
+        width_ratios=[1, 1, 1, 1, 1, 1, 0.16],
+        left=0.055,
+        right=0.965,
+        bottom=0.14,
+        top=0.89,
+        wspace=0.55,
+        hspace=0.24,
+    )
+    positions = [(0, slice(0, 2)), (0, slice(2, 4)), (0, slice(4, 6)), (1, slice(1, 3)), (1, slice(3, 5))]
+    axes = []
+    shared_ax = None
+    for row, col_slice in positions[: len(ordered)]:
+        ax = fig.add_subplot(gs[row, col_slice], sharex=shared_ax, sharey=shared_ax)
+        if shared_ax is None:
+            shared_ax = ax
+        axes.append(ax)
+    mesh = None
+    for idx, (ax, (label, sample_rate, samples)) in enumerate(zip(axes, ordered)):
+        freqs, times, db = spectrogram_db(samples, sample_rate)
+        mask = freqs <= SPEECH_BAND_HZ
+        mesh = ax.pcolormesh(
+            times,
+            freqs[mask],
+            db[mask, :],
+            shading="auto",
+            cmap="magma",
+            vmin=SPECTROGRAM_VMIN_DB,
+            vmax=SPECTROGRAM_VMAX_DB,
+        )
+        add_spectrogram_time_markers(ax)
+        ax.set_ylim(0, SPEECH_BAND_HZ)
+        ax.set_title(display_label(label))
+        if idx in [0, 3]:
+            ax.set_ylabel("Frequency (Hz)")
+        else:
+            ax.tick_params(labelleft=False)
+        ax.grid(False)
+    for ax in axes[-2:]:
+        ax.set_xlabel("Time (s)")
+    fig.suptitle("Speech-band denoise spectrogram panel (0-8 kHz)", fontsize=15)
+    if mesh is not None:
+        cax = fig.add_subplot(gs[:, 6])
+        fig.colorbar(mesh, cax=cax, label="Magnitude (dB)")
+    fig.text(
+        0.5,
+        0.045,
+        denoise_stepup_conclusion(denoise_summary),
+        ha="center",
+        va="center",
+        fontsize=12,
+        bbox=dict(facecolor="white", edgecolor="#d0d4da", alpha=0.9),
+    )
+    save_fig(ctx, fig, "denoise_spectrogram_panel_speechband.png", tight=False)
+
+
+def plot_reduction_spectrograms(ctx: ReportContext, items: list[tuple[str, int, np.ndarray]]) -> None:
+    item_map = {label: (sample_rate, samples) for label, sample_rate, samples in items}
+    if "input" not in item_map:
+        skip_plot(ctx, "denoise_reduction_panel_speechband.png", "missing noisy input WAV")
+        return
+    base_rate, base_samples = item_map["input"]
+    base_freqs, base_times, base_db = spectrogram_db(base_samples, base_rate)
+    base_mask = base_freqs <= SPEECH_BAND_HZ
+    output_labels = ["fixed", "hybrid_ms", "mcra", "mcra_strong"]
+    filename_map = {
+        "fixed": "denoise_reduction_fixed_speechband.png",
+        "hybrid_ms": "denoise_reduction_hybrid_ms_speechband.png",
+        "mcra": "denoise_reduction_mcra_speechband.png",
+        "mcra_strong": "denoise_reduction_mcra_strong_speechband.png",
+    }
+    reductions: list[tuple[str, np.ndarray, np.ndarray, np.ndarray]] = []
+    for label in output_labels:
+        if label not in item_map:
+            skip_plot(ctx, filename_map[label], f"missing {label} denoise WAV")
+            continue
+        sample_rate, samples = item_map[label]
+        freqs, times, out_db = spectrogram_db(samples, sample_rate)
+        mask = freqs <= SPEECH_BAND_HZ
+        rows = min(int(base_mask.sum()), int(mask.sum()))
+        cols = min(base_db.shape[1], out_db.shape[1])
+        reduction = np.clip(base_db[base_mask, :][:rows, :cols] - out_db[mask, :][:rows, :cols], REDUCTION_VMIN_DB, REDUCTION_VMAX_DB)
+        plot_times = base_times[:cols]
+        plot_freqs = base_freqs[base_mask][:rows]
+        reductions.append((label, plot_freqs, plot_times, reduction))
+        fig, ax = plt.subplots(figsize=FIGSIZE)
+        mesh = ax.pcolormesh(
+            plot_times,
+            plot_freqs,
+            reduction,
+            shading="auto",
+            cmap="viridis",
+            vmin=REDUCTION_VMIN_DB,
+            vmax=REDUCTION_VMAX_DB,
+        )
+        add_spectrogram_time_markers(ax)
+        ax.set_ylim(0, SPEECH_BAND_HZ)
+        ax.set_title(f"Speech-band reduction: input - {display_label(label)}")
+        ax.set_xlabel("Time (s)")
+        ax.set_ylabel("Frequency (Hz)")
+        fig.colorbar(mesh, ax=ax, label="Reduction (dB), clipped 0-40")
+        save_fig(ctx, fig, filename_map[label])
+
+    if not reductions:
+        skip_plot(ctx, "denoise_reduction_panel_speechband.png", "no denoise output WAVs for reduction panel")
+        return
+    fig = plt.figure(figsize=(13.8, 8.2))
+    gs = fig.add_gridspec(
+        2,
+        3,
+        width_ratios=[1, 1, 0.055],
+        left=0.065,
+        right=0.94,
+        bottom=0.09,
+        top=0.9,
+        wspace=0.15,
+        hspace=0.26,
+    )
+    axes = [
+        fig.add_subplot(gs[0, 0]),
+        fig.add_subplot(gs[0, 1]),
+        fig.add_subplot(gs[1, 0]),
+        fig.add_subplot(gs[1, 1]),
+    ]
+    for ax in axes[1:]:
+        ax.sharex(axes[0])
+        ax.sharey(axes[0])
+    mesh = None
+    for idx, (ax, (label, freqs, times, reduction)) in enumerate(zip(axes, reductions)):
+        mesh = ax.pcolormesh(
+            times,
+            freqs,
+            reduction,
+            shading="auto",
+            cmap="viridis",
+            vmin=REDUCTION_VMIN_DB,
+            vmax=REDUCTION_VMAX_DB,
+        )
+        add_spectrogram_time_markers(ax)
+        ax.set_ylim(0, SPEECH_BAND_HZ)
+        ax.set_title(display_label(label))
+        if idx in [0, 2]:
+            ax.set_ylabel("Frequency (Hz)")
+        else:
+            ax.tick_params(labelleft=False)
+    for ax in axes[len(reductions) :]:
+        ax.axis("off")
+    for ax in axes[-2:]:
+        ax.set_xlabel("Time (s)")
+    fig.suptitle("Speech-band noise reduction panel: input spectrogram - output spectrogram", fontsize=14)
+    if mesh is not None:
+        cax = fig.add_subplot(gs[:, 2])
+        fig.colorbar(mesh, cax=cax, label="Reduction (dB), clipped 0-40")
+    save_fig(ctx, fig, "denoise_reduction_panel_speechband.png", tight=False)
+
+
+def plot_denoise_spectrograms(ctx: ReportContext, denoise_summary: pd.DataFrame) -> None:
     items = denoise_audio_items(ctx)
     if len(items) < 2:
         skip_plot(ctx, "denoise_spectrogram_compare.png", "missing input or denoise output WAV")
@@ -1096,10 +1386,13 @@ def plot_denoise_spectrograms(ctx: ReportContext) -> None:
         axes = [axes]
     for ax, (label, sample_rate, samples) in zip(axes, compare_items):
         ax.specgram(samples, NFFT=1024, Fs=sample_rate, noverlap=768, cmap="magma")
+        add_spectrogram_time_markers(ax)
         ax.set_ylabel(f"{label}\nHz")
     axes[-1].set_xlabel("Time (s)")
     fig.suptitle("Denoise spectrogram compare")
     save_fig(ctx, fig, "denoise_spectrogram_compare.png")
+    plot_speechband_spectrograms(ctx, items, denoise_summary)
+    plot_reduction_spectrograms(ctx, items)
 
 
 def preferred_denoise_plot_df(ms_df: pd.DataFrame, mcra_df: pd.DataFrame, denoise_summary: pd.DataFrame) -> pd.DataFrame:
@@ -1236,6 +1529,64 @@ def plot_noise_tracking(ctx: ReportContext, plot_df: pd.DataFrame) -> None:
     save_fig(ctx, fig, filename)
 
 
+def plot_denoise_algorithm_evolution_stepup(ctx: ReportContext, plot_df: pd.DataFrame) -> None:
+    filename = "denoise_algorithm_evolution_stepup.png"
+    if plot_df.empty or "output_snr_db" not in plot_df.columns:
+        skip_plot(ctx, filename, "missing denoise step-up data")
+        return
+    df = plot_df.copy()
+    df["output_snr_db"] = pd.to_numeric(df["output_snr_db"], errors="coerce")
+    df["delta_vs_fixed_db"] = pd.to_numeric(df.get("delta_vs_fixed_db", np.nan), errors="coerce")
+    step = df[df["eval_case"].astype(str).str.lower() == "noise_step_up_snr10"]
+    if step.empty:
+        skip_plot(ctx, filename, "missing noise_step_up_snr10 rows")
+        return
+    modes = ["fixed", "hybrid_ms", "mcra_normal", "mcra_strong"]
+    rows = []
+    for mode in modes:
+        match = step[step["mode_name"].astype(str).str.lower() == mode]
+        if not match.empty:
+            rows.append(match.iloc[0])
+    if len(rows) < 2:
+        skip_plot(ctx, filename, "not enough noise_step_up_snr10 modes")
+        return
+    labels = [str(row["mode_name"]) for row in rows]
+    display_labels = {
+        "fixed": "fixed",
+        "hybrid_ms": "HYBRID-MS",
+        "mcra_normal": "MCRA normal",
+        "mcra_strong": "MCRA strong",
+    }
+    x_labels = [display_labels.get(label, label) for label in labels]
+    values = [numeric(row["output_snr_db"]) for row in rows]
+    fixed = values[0]
+    hybrid_value = next((values[idx] for idx, label in enumerate(labels) if label == "hybrid_ms"), math.nan)
+    fig, ax = plt.subplots(figsize=FIGSIZE)
+    colors = ["#4c78a8", "#f58518", "#54a24b", "#e45756"][: len(values)]
+    bars = ax.bar(x_labels, values, color=colors, width=0.62)
+    ax.set_title("Noise step-up denoise evolution - output SNR")
+    ax.set_ylabel("Output SNR (dB)")
+    ax.grid(True, axis="y", alpha=0.3)
+    ax.set_ylim(0, max(values) * 1.22)
+    for bar, label, value in zip(bars, labels, values):
+        if label == "fixed":
+            text = f"{value:.2f} dB"
+        elif label == "mcra_normal" and not math.isnan(hybrid_value):
+            text = f"+{value - fixed:.2f} dB vs fixed\n+{value - hybrid_value:.2f} dB vs HYBRID-MS"
+        else:
+            text = f"+{value - fixed:.2f} dB vs fixed"
+        ax.text(bar.get_x() + bar.get_width() / 2.0, value + 0.25, text, ha="center", va="bottom", fontsize=9)
+    ax.text(
+        0.01,
+        0.95,
+        "Scenario: noise_step_up_snr10\nPurpose: compact PPT conclusion figure",
+        transform=ax.transAxes,
+        va="top",
+        bbox=dict(facecolor="white", alpha=0.86, edgecolor="#d0d4da"),
+    )
+    save_fig(ctx, fig, filename)
+
+
 def codec_plot_frame(codec_df: pd.DataFrame) -> pd.DataFrame:
     if codec_df.empty:
         return codec_df
@@ -1365,6 +1716,52 @@ def plot_realtime_template(ctx: ReportContext, realtime_df: pd.DataFrame) -> Non
     save_fig(ctx, fig, filename)
 
 
+def plot_realtime_annotated(ctx: ReportContext, realtime_df: pd.DataFrame) -> None:
+    filename = "realtime_budget_compare_annotated.png"
+    if realtime_df.empty or "max_ms" not in realtime_df.columns:
+        skip_plot(ctx, filename, "missing realtime max_ms data")
+        return
+    df = realtime_df.copy()
+    df["max_ms"] = pd.to_numeric(df["max_ms"], errors="coerce")
+    measured = df["max_ms"].notna() & (df["max_ms"] > 0.0)
+    if not measured.any():
+        skip_plot(ctx, filename, "realtime CSV has no measured max_ms")
+        return
+    df = df[measured].copy()
+    df["mode"] = df["mode"].astype(str)
+    x = np.arange(len(df))
+    fig, ax = plt.subplots(figsize=FIGSIZE)
+    bars = ax.bar(x, df["max_ms"], color="#4c78a8", width=0.65)
+    ax.axhline(FRAME_BUDGET_MS, color="#b23a48", linestyle="--", linewidth=1.5, label=f"20.48 ms frame budget")
+    mode7 = df[df["mode"].astype(str) == "7"]
+    if not mode7.empty:
+        highlight_idx = int(mode7.index[0])
+    else:
+        highlight_idx = int(df["max_ms"].idxmax())
+    positional_idx = list(df.index).index(highlight_idx)
+    highlight = df.loc[highlight_idx]
+    max_ms = float(highlight["max_ms"])
+    margin = FRAME_BUDGET_MS - max_ms
+    bars[positional_idx].set_color("#f58518")
+    ax.annotate(
+        f"mode {highlight['mode']} max={max_ms:.3f} ms\nmargin={margin:.3f} ms",
+        xy=(positional_idx, max_ms),
+        xytext=(positional_idx, max_ms + 3.0),
+        ha="center",
+        arrowprops=dict(arrowstyle="->", color="#333333"),
+        bbox=dict(facecolor="white", edgecolor="#d0d4da", alpha=0.9),
+    )
+    ax.set_xticks(x)
+    ax.set_xticklabels(df["mode"].astype(str), rotation=0)
+    ax.set_ylabel("Max frame time (ms)")
+    ax.set_xlabel("Board mode")
+    ax.set_title("Board Runtime vs 20.48 ms Frame Budget")
+    ax.set_ylim(0, max(FRAME_BUDGET_MS * 1.16, df["max_ms"].max() * 1.35))
+    ax.grid(True, axis="y", alpha=0.3)
+    ax.legend()
+    save_fig(ctx, fig, filename)
+
+
 def plot_memory_usage(ctx: ReportContext, memory_df: pd.DataFrame) -> None:
     filename = "memory_usage_template.png"
     if memory_df.empty:
@@ -1388,15 +1785,29 @@ def plot_memory_usage(ctx: ReportContext, memory_df: pd.DataFrame) -> None:
 
 
 def maybe_plot_thd(ctx: ReportContext) -> None:
-    single_tone_candidates = [
+    single_tone_candidates = unique_paths([
         path
         for directory in ctx.audio_dirs
         for path in directory.glob("*.wav")
         if any(term in path.name.lower() for term in ["tone", "sine", "thd"])
-    ]
+    ])
     filename = "thd_spectrum_example.png"
     if not single_tone_candidates:
         skip_plot(ctx, filename, "missing single-tone test WAV")
+        save_summary(
+            ctx,
+            pd.DataFrame(
+                columns=[
+                    "source_wav",
+                    "sample_rate",
+                    "fundamental_hz",
+                    "thd_db",
+                    "thd_percent",
+                    "algorithm_only_note",
+                ]
+            ),
+            "thd_summary.csv",
+        )
         return
     audio = read_wav(single_tone_candidates[0], ctx)
     if audio is None:
@@ -1410,14 +1821,21 @@ def maybe_plot_thd(ctx: ReportContext) -> None:
     fundamental_idx = int(np.nanargmax(mag[1:]) + 1)
     fundamental_freq = freq[fundamental_idx]
     harmonic_power = 0.0
+    harmonic_rows: dict[str, float] = {}
+    harmonic_indices: dict[int, int] = {}
     for n in range(2, 8):
         harmonic = fundamental_freq * n
         if harmonic >= sample_rate / 2:
             break
         idx = int(np.argmin(np.abs(freq - harmonic)))
+        harmonic_indices[n] = idx
+        harmonic_rows[f"harmonic_{n}_hz"] = float(freq[idx])
+        harmonic_rows[f"harmonic_{n}_db"] = float(mag[idx])
         harmonic_power += float(10 ** (mag[idx] / 10.0))
     fundamental_power = float(10 ** (mag[fundamental_idx] / 10.0))
     thd = math.sqrt(harmonic_power / max(fundamental_power, EPS))
+    thd_db = 20 * math.log10(thd + EPS)
+    thd_percent = thd * 100.0
     fig, ax = plt.subplots(figsize=FIGSIZE)
     mask = freq <= min(10000, sample_rate / 2)
     ax.plot(freq[mask], mag[mask], linewidth=1.0)
@@ -1425,10 +1843,72 @@ def maybe_plot_thd(ctx: ReportContext) -> None:
     ax.set_title("THD spectrum example")
     ax.set_xlabel("Frequency (Hz)")
     ax.set_ylabel("Magnitude (dB)")
-    ax.text(0.01, 0.95, f"THD={20 * math.log10(thd + EPS):.2f} dB ({thd * 100:.3f}%)", transform=ax.transAxes, va="top")
+    ax.text(0.01, 0.95, f"THD={thd_db:.2f} dB ({thd_percent:.6f}%)", transform=ax.transAxes, va="top")
     ax.grid(True, alpha=0.3)
     ax.legend()
     save_fig(ctx, fig, filename)
+
+    fig, ax = plt.subplots(figsize=FIGSIZE)
+    ax.plot(freq[mask], mag[mask], linewidth=1.0, color="#4c78a8")
+    ax.axvline(fundamental_freq, color="#b23a48", linewidth=1.3)
+    ax.annotate(
+        f"Fundamental\n{fundamental_freq:.1f} Hz",
+        xy=(fundamental_freq, mag[fundamental_idx]),
+        xytext=(fundamental_freq + 500, mag[fundamental_idx] + 5),
+        arrowprops=dict(arrowstyle="->", color="#b23a48"),
+        color="#b23a48",
+    )
+    harmonic_suffix = {2: "2nd", 3: "3rd", 4: "4th", 5: "5th"}
+    for n in range(2, 6):
+        idx = harmonic_indices.get(n)
+        if idx is None:
+            continue
+        harmonic_freq = freq[idx]
+        if harmonic_freq > freq[mask][-1]:
+            continue
+        ax.axvline(harmonic_freq, color="#f58518", linestyle="--", linewidth=1.0, alpha=0.9)
+        ax.text(
+            harmonic_freq,
+            mag[idx] + 3,
+            f"{harmonic_suffix.get(n, str(n) + 'th')}\n{harmonic_freq:.0f} Hz",
+            ha="center",
+            va="bottom",
+            fontsize=8,
+            color="#7a3e00",
+        )
+    ax.set_title("THD Spectrum Example (PC Algorithm-only)")
+    ax.set_xlabel("Frequency (Hz)")
+    ax.set_ylabel("Magnitude (dB)")
+    ax.grid(True, alpha=0.3)
+    ax.text(
+        0.01,
+        0.95,
+        f"THD={thd_db:.2f} dB ({thd_percent:.6f}%)\nThis evaluates digital WOLA processing, not analog AD/DA hardware.",
+        transform=ax.transAxes,
+        va="top",
+        bbox=dict(facecolor="white", alpha=0.88, edgecolor="#d0d4da"),
+    )
+    ax.text(
+        0.5,
+        0.02,
+        "This THD result evaluates the digital WOLA processing path, not the full analog AD/DA hardware path.",
+        transform=ax.transAxes,
+        ha="center",
+        va="bottom",
+        fontsize=9,
+        bbox=dict(facecolor="white", alpha=0.82, edgecolor="none"),
+    )
+    save_fig(ctx, fig, "thd_spectrum_annotated.png")
+    summary_row = {
+        "source_wav": str(single_tone_candidates[0]),
+        "sample_rate": sample_rate,
+        "fundamental_hz": fundamental_freq,
+        "thd_db": thd_db,
+        "thd_percent": thd_percent,
+        "algorithm_only_note": "This THD result evaluates the digital WOLA processing path, not the full analog AD/DA hardware path.",
+    }
+    summary_row.update(harmonic_rows)
+    save_summary(ctx, pd.DataFrame([summary_row]), "thd_summary.csv")
 
 
 def skip_html(ctx: ReportContext, filename: str, reason: str) -> None:
@@ -2335,12 +2815,13 @@ def run(args: argparse.Namespace) -> tuple[ReportContext, Path]:
 
     plot_denoise_waveform(ctx, wola_summary)
     plot_denoise_spectrum(ctx, wola_summary)
-    plot_denoise_spectrograms(ctx)
+    plot_denoise_spectrograms(ctx, denoise_summary)
     denoise_plot_df = preferred_denoise_plot_df(ms_raw, mcra_raw, denoise_summary)
     plot_denoise_snr_bar(ctx, denoise_plot_df)
     plot_denoise_delta(ctx, denoise_plot_df)
     plot_denoise_preservation(ctx, denoise_plot_df)
     plot_noise_tracking(ctx, denoise_plot_df)
+    plot_denoise_algorithm_evolution_stepup(ctx, denoise_plot_df)
 
     plot_codec_bitrate_compression(ctx, codec_raw if not codec_raw.empty else codec_summary)
     plot_codec_actual_bitrate(ctx, codec_raw if not codec_raw.empty else codec_summary)
@@ -2348,6 +2829,7 @@ def run(args: argparse.Namespace) -> tuple[ReportContext, Path]:
     plot_codec_spectrogram_compare(ctx)
 
     plot_realtime_template(ctx, realtime_summary)
+    plot_realtime_annotated(ctx, realtime_summary)
     plot_memory_usage(ctx, memory_summary)
 
     if args.interactive:
