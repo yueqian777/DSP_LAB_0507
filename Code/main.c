@@ -10,6 +10,10 @@
 
 #define SW_BREAKPOINT     asm(" SWBP 0 ")
 
+#ifndef DSP_LAB_PROJECT_SELECT
+#define DSP_LAB_PROJECT_SELECT 32
+#endif
+
 /**
  * @brief 主函数
  * @return 无
@@ -26,7 +30,15 @@ int main(void)
 //    Rs485_Example_Interrupt();
 //    Flash_Example();
 //    EEPROM_Example();
+#if DSP_LAB_PROJECT_SELECT == 32
     Subband_Flow_Example();
+#elif DSP_LAB_PROJECT_SELECT == 33
+    Equalizer_Flow_Example();
+#else
+    while (1)
+    {
+    }
+#endif
 
 
     while (1)

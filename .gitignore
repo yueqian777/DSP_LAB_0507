@@ -10,6 +10,10 @@
 subband_eval_report.csv
 subband_codec_eval_report.csv
 subband_denoise_ms_eval_report.csv
+equalizer_band_response.csv
+equalizer_system_response.csv
+equalizer_thd_report.csv
+equalizer_group_delay_report.csv
 compare_audio_metrics.csv
 compare_*.wav
 *.wav
