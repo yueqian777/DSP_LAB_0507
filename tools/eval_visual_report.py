@@ -1784,6 +1784,181 @@ def plot_memory_usage(ctx: ReportContext, memory_df: pd.DataFrame) -> None:
     save_fig(ctx, fig, filename)
 
 
+def normalize_board_codec_loopback_df(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return df
+    result = df.copy()
+    for col in [
+        "mode", "target_kbps", "duration_s", "applied_mode", "ad_frames",
+        "da_frames", "wola_frames", "last_ms", "max_ms", "frame_budget_ms",
+        "cpu_percent", "denoise_enabled", "denoise_ready",
+        "learning_frames", "target_learning_frames", "gain_avg",
+        "noise_psd_avg", "codec_enabled", "codec_target_kbps",
+        "estimated_bitrate_kbps", "compression_ratio",
+        "avg_bits_per_scalar", "invalid_count", "quantizer_clamp_count",
+        "total_scalar_count", "quantizer_clamp_ratio", "codec_frames",
+        "realtime_pass", "codec_pass",
+    ]:
+        if col in result.columns:
+            result[col] = pd.to_numeric(result[col], errors="coerce")
+    if {"quantizer_clamp_count", "total_scalar_count"}.issubset(result.columns):
+        denom = result["total_scalar_count"].replace(0, np.nan)
+        computed = result["quantizer_clamp_count"] / denom
+        if "quantizer_clamp_ratio" not in result.columns:
+            result["quantizer_clamp_ratio"] = computed
+        else:
+            result["quantizer_clamp_ratio"] = result["quantizer_clamp_ratio"].fillna(computed)
+            zero_with_counts = (
+                (result["quantizer_clamp_ratio"] == 0)
+                & result["quantizer_clamp_count"].fillna(0).gt(0)
+                & result["total_scalar_count"].fillna(0).gt(0)
+            )
+            result.loc[zero_with_counts, "quantizer_clamp_ratio"] = computed[zero_with_counts]
+    return result
+
+
+def board_codec_labels(df: pd.DataFrame) -> pd.Series:
+    target = df.get("target_kbps", pd.Series([0] * len(df), index=df.index)).fillna(0).astype(int).astype(str)
+    label = df.get("mode_name", pd.Series(["mode"] * len(df), index=df.index)).astype(str)
+    return label + "\n" + target + "k"
+
+
+def plot_board_codec_loopback_runtime(ctx: ReportContext, df: pd.DataFrame) -> None:
+    filename = "board_codec_loopback_runtime_by_mode.png"
+    if df.empty or "max_ms" not in df.columns:
+        skip_plot(ctx, filename, "missing board codec loopback runtime data")
+        return
+    plot_df = df.copy()
+    plot_df["max_ms"] = pd.to_numeric(plot_df["max_ms"], errors="coerce")
+    plot_df["frame_budget_ms"] = pd.to_numeric(
+        plot_df.get("frame_budget_ms", FRAME_BUDGET_MS), errors="coerce"
+    ).fillna(FRAME_BUDGET_MS)
+    fig, ax = plt.subplots(figsize=(11.0, 5.8))
+    x = np.arange(len(plot_df))
+    ax.bar(x, plot_df["max_ms"], color="#4c78a8", width=0.68)
+    budget = float(plot_df["frame_budget_ms"].dropna().iloc[0]) if plot_df["frame_budget_ms"].notna().any() else FRAME_BUDGET_MS
+    ax.axhline(budget, color="#b23a48", linestyle="--", linewidth=1.5, label=f"{budget:.2f} ms frame budget")
+    ax.set_xticks(x)
+    ax.set_xticklabels(board_codec_labels(plot_df), rotation=20, ha="right")
+    ax.set_ylabel("Max frame time (ms)")
+    ax.set_title("Board Codec Loopback Runtime by Mode")
+    ax.grid(True, axis="y", alpha=0.3)
+    ax.legend()
+    save_fig(ctx, fig, filename)
+
+
+def plot_board_codec_loopback_bitrate(ctx: ReportContext, df: pd.DataFrame) -> None:
+    filename = "board_codec_loopback_bitrate_by_target.png"
+    needed = {"target_kbps", "estimated_bitrate_kbps", "codec_enabled"}
+    if df.empty or not needed.issubset(df.columns):
+        skip_plot(ctx, filename, "missing board codec bitrate data")
+        return
+    plot_df = df[(df["target_kbps"] > 0) & (df["codec_enabled"] == 1)].copy()
+    if plot_df.empty:
+        skip_plot(ctx, filename, "no codec-enabled rows")
+        return
+    fig, ax = plt.subplots(figsize=FIGSIZE)
+    ax.plot(plot_df["target_kbps"], plot_df["target_kbps"], "--", color="gray", label="target y=x")
+    for mode_name, group in plot_df.groupby("mode_name"):
+        ax.scatter(group["target_kbps"], group["estimated_bitrate_kbps"], s=70, label=str(mode_name))
+        ax.plot(group["target_kbps"], group["estimated_bitrate_kbps"], linewidth=1.0, alpha=0.7)
+    ax.set_xlabel("Target bitrate (kbps)")
+    ax.set_ylabel("Estimated bitrate (kbps)")
+    ax.set_title("Board Codec Loopback Bitrate by Target")
+    ax.grid(True, alpha=0.3)
+    ax.legend(fontsize=8)
+    save_fig(ctx, fig, filename)
+
+
+def plot_board_codec_loopback_clamp_ratio(ctx: ReportContext, df: pd.DataFrame) -> None:
+    filename = "board_codec_loopback_clamp_ratio.png"
+    if df.empty or "quantizer_clamp_ratio" not in df.columns:
+        skip_plot(ctx, filename, "missing quantizer clamp ratio data")
+        return
+    plot_df = df.copy()
+    fig, ax = plt.subplots(figsize=(11.0, 5.8))
+    x = np.arange(len(plot_df))
+    ax.bar(x, plot_df["quantizer_clamp_ratio"], color="#59a14f", width=0.68)
+    ax.axhline(0.10, color="#b23a48", linestyle="--", linewidth=1.5, label="0.10 threshold")
+    ax.set_xticks(x)
+    ax.set_xticklabels(board_codec_labels(plot_df), rotation=20, ha="right")
+    ax.set_ylabel("Quantizer clamp ratio")
+    ax.set_title("Board Codec Loopback Quantizer Clamp Ratio")
+    ax.grid(True, axis="y", alpha=0.3)
+    ax.legend()
+    save_fig(ctx, fig, filename)
+
+
+def write_board_codec_loopback_summary(ctx: ReportContext, df: pd.DataFrame) -> Path:
+    path = ctx.out_dir / "board_codec_loopback_summary.md"
+    if df.empty:
+        lines = ["# Board Codec Loopback Summary", "", "No board codec loopback rows found."]
+        path.write_text("\n".join(lines), encoding="utf-8")
+        return path
+    codec_rows = df[df.get("codec_enabled", 0) == 1].copy()
+    realtime_pass = int(df.get("realtime_pass", pd.Series(dtype=float)).fillna(0).astype(int).sum())
+    codec_pass = int(codec_rows.get("codec_pass", pd.Series(dtype=float)).fillna(0).astype(int).sum()) if not codec_rows.empty else 0
+    max_ms = float(pd.to_numeric(df.get("max_ms"), errors="coerce").max())
+    max_ratio = float(pd.to_numeric(df.get("quantizer_clamp_ratio"), errors="coerce").fillna(0).max())
+    invalid_all_zero = bool(pd.to_numeric(df.get("invalid_count"), errors="coerce").fillna(0).eq(0).all())
+    recommended = df[(df.get("mode", pd.Series(dtype=float)) == 8) & (df.get("target_kbps", pd.Series(dtype=float)) == 240)]
+    recommended_pass = (
+        not recommended.empty
+        and int(recommended.iloc[0].get("realtime_pass", 0)) == 1
+        and int(recommended.iloc[0].get("codec_pass", 0)) == 1
+    )
+    lines = [
+        "# Board Codec Loopback Summary",
+        "",
+        f"- rows: {len(df)}",
+        f"- realtime_pass: {realtime_pass}/{len(df)}",
+        f"- codec_pass: {codec_pass}/{len(codec_rows)}",
+        f"- max max_ms: {max_ms:.3f} ms",
+        f"- max quantizer_clamp_ratio: {max_ratio:.9f}",
+        f"- invalid_count all zero: {'yes' if invalid_all_zero else 'no'}",
+        f"- recommended mode: mode 8 / 240 kbps ({'PASS' if recommended_pass else 'CHECK'})",
+        "",
+        "## Rows",
+        "",
+    ]
+    for _, row in df.iterrows():
+        lines.append(
+            "- {test_id} {mode_name} target={target_kbps} kbps "
+            "max_ms={max_ms:.3f} realtime_pass={realtime_pass} "
+            "codec_pass={codec_pass} clamp_ratio={clamp:.9f}".format(
+                test_id=row.get("test_id", ""),
+                mode_name=row.get("mode_name", ""),
+                target_kbps=int(row.get("target_kbps", 0)),
+                max_ms=float(row.get("max_ms", 0.0)),
+                realtime_pass=int(row.get("realtime_pass", 0)),
+                codec_pass=int(row.get("codec_pass", 0)),
+                clamp=float(row.get("quantizer_clamp_ratio", 0.0)),
+            )
+        )
+    path.write_text("\n".join(lines), encoding="utf-8")
+    ctx.summary_files.append(path.name)
+    return path
+
+
+def run_board_codec_loopback_only(args: argparse.Namespace) -> tuple[ReportContext, Path]:
+    root = Path.cwd()
+    out_dir = Path(args.out_dir).expanduser()
+    if not out_dir.is_absolute():
+        out_dir = root / out_dir
+    out_dir.mkdir(parents=True, exist_ok=True)
+    ctx = ReportContext(root=root, out_dir=out_dir, csv_dirs=[], audio_dirs=[])
+    csv_path = Path(args.board_codec_csv).expanduser()
+    if not csv_path.is_absolute():
+        csv_path = root / csv_path
+    df = read_csv_safe(csv_path, ctx, "board_codec_loopback_runtime.csv", drop_empty_columns=False)
+    df = normalize_board_codec_loopback_df(df)
+    plot_board_codec_loopback_runtime(ctx, df)
+    plot_board_codec_loopback_bitrate(ctx, df)
+    plot_board_codec_loopback_clamp_ratio(ctx, df)
+    report_path = write_board_codec_loopback_summary(ctx, df)
+    return ctx, report_path
+
+
 def maybe_plot_thd(ctx: ReportContext) -> None:
     single_tone_candidates = unique_paths([
         path
@@ -2740,6 +2915,9 @@ def write_report(
 
 
 def run(args: argparse.Namespace) -> tuple[ReportContext, Path]:
+    if getattr(args, "board_codec_only", False):
+        return run_board_codec_loopback_only(args)
+
     root = Path.cwd()
     out_dir = Path(args.out_dir).expanduser()
     if not out_dir.is_absolute():
@@ -2854,6 +3032,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--csv-dir", action="append", default=[], help="Additional directory to search for CSV inputs.")
     parser.add_argument("--audio-dir", action="append", default=[], help="Additional directory to search for WAV inputs.")
     parser.add_argument("--out-dir", default="docs/eval_outputs", help="Output directory for plots, summaries, and report.")
+    parser.add_argument("--board-codec-only", action="store_true", help="Only generate board codec loopback runtime plots and summary.")
+    parser.add_argument("--board-codec-csv", default="docs/eval_outputs/board_codec_loopback_runtime.csv", help="CSV input for --board-codec-only.")
     interactive = parser.add_mutually_exclusive_group()
     interactive.add_argument("--interactive", dest="interactive", action="store_true", help="Generate Plotly interactive HTML reports (default).")
     interactive.add_argument("--no-interactive", dest="interactive", action="store_false", help="Skip Plotly interactive HTML reports.")
