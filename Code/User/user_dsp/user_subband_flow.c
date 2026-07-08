@@ -82,6 +82,10 @@ volatile unsigned long SUBBAND_FilterbankFrames = 0;
 volatile int SUBBAND_DebugDemoMode = SUBBAND_DEMO_DEFAULT_MODE;
 volatile int SUBBAND_DebugAppliedDemoMode = -1;
 volatile unsigned long SUBBAND_DebugDemoModeChanges = 0;
+volatile short SUBBAND_DebugAdFirstSample = 0;
+volatile short SUBBAND_DebugDaFirstSample = 0;
+volatile int SUBBAND_DebugAdPeak = 0;
+volatile int SUBBAND_DebugDaPeak = 0;
 
 #endif
 
@@ -98,6 +102,34 @@ static void Clear_FilterBank_State(void)
 #endif
 
 #ifndef SUBBAND_FLOW_ALGO_ONLY
+
+static int Subband_Frame_Peak(const short *x)
+{
+    int i;
+    int peak;
+
+    peak = 0;
+    if (x == 0)
+    {
+        return 0;
+    }
+
+    for (i = 0; i < SUBBAND_FRM_LEN; i++)
+    {
+        int v;
+
+        v = (int)x[i];
+        if (v < 0)
+        {
+            v = -v;
+        }
+        if (v > peak)
+        {
+            peak = v;
+        }
+    }
+    return peak;
+}
 
 static int Subband_Normalize_Demo_Mode(int mode)
 {
@@ -712,6 +744,10 @@ static void Capture_Adc_Frame(void)
     }
 
     Subband_Process_1024(AD_Buffer1, DA_Buffer1);
+    SUBBAND_DebugAdFirstSample = AD_Buffer1[0];
+    SUBBAND_DebugDaFirstSample = DA_Buffer1[0];
+    SUBBAND_DebugAdPeak = Subband_Frame_Peak(AD_Buffer1);
+    SUBBAND_DebugDaPeak = Subband_Frame_Peak(DA_Buffer1);
 }
 
 static void Fill_Dac_Ping_Buffer(void)
