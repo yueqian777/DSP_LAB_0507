@@ -383,10 +383,51 @@ static int LoopbackEval_Run_Api_Smoke(void)
         fail = 1;
     }
 
+    SUBBAND_CODEC_LOOP_DebugCompressionLevel =
+        SUBBAND_CODEC_LOOP_LEVEL_HIGH_QUALITY;
+    SubbandCodecLoopback_ProcessSpectrum(LoopbackEval_ApiRe,
+                                         LoopbackEval_ApiIm);
+    if ((SubbandCodecLoopback_GetTargetKbps() != 320) ||
+        (SUBBAND_CODEC_LOOP_DebugTargetKbps != 320))
+    {
+        fail = 1;
+    }
+
+    SUBBAND_CODEC_LOOP_DebugCompressionLevel =
+        SUBBAND_CODEC_LOOP_LEVEL_BALANCED;
+    SubbandCodecLoopback_ProcessSpectrum(LoopbackEval_ApiRe,
+                                         LoopbackEval_ApiIm);
+    if ((SubbandCodecLoopback_GetTargetKbps() != 240) ||
+        (SUBBAND_CODEC_LOOP_DebugTargetKbps != 240))
+    {
+        fail = 1;
+    }
+
+    SUBBAND_CODEC_LOOP_DebugCompressionLevel =
+        SUBBAND_CODEC_LOOP_LEVEL_STRONG;
+    SubbandCodecLoopback_ProcessSpectrum(LoopbackEval_ApiRe,
+                                         LoopbackEval_ApiIm);
+    if ((SubbandCodecLoopback_GetTargetKbps() != 160) ||
+        (SUBBAND_CODEC_LOOP_DebugTargetKbps != 160))
+    {
+        fail = 1;
+    }
+
+    SUBBAND_CODEC_LOOP_DebugCompressionLevel = 99;
+    SubbandCodecLoopback_ProcessSpectrum(LoopbackEval_ApiRe,
+                                         LoopbackEval_ApiIm);
+    if ((SubbandCodecLoopback_GetTargetKbps() != 160) ||
+        (SUBBAND_CODEC_LOOP_DebugCompressionLevel !=
+         SUBBAND_CODEC_LOOP_LEVEL_STRONG))
+    {
+        fail = 1;
+    }
+
     printf("codec_loopback_eval api_smoke target=%d requested=%d "
-           "total_scalars=%lu %s\n",
+           "level=%d total_scalars=%lu %s\n",
            SubbandCodecLoopback_GetTargetKbps(),
            SUBBAND_CODEC_LOOP_DebugRequestedTargetKbps,
+           SUBBAND_CODEC_LOOP_DebugCompressionLevel,
            SUBBAND_CODEC_LOOP_DebugTotalScalarCount,
            fail ? "FAIL" : "PASS");
     return fail;

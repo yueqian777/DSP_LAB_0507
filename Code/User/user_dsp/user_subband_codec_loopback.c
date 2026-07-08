@@ -20,6 +20,7 @@ typedef struct
     int scalar_count[SUBBAND_NUM_BANDS];
     int enabled;
     int target_kbps;
+    int compression_level;
     int initialized;
 } SubbandCodecLoopbackState;
 
@@ -29,6 +30,8 @@ typedef struct
 static SubbandCodecLoopbackState SubbandCodecLoopback_State;
 
 volatile int SUBBAND_CODEC_LOOP_DebugEnabled = 0;
+volatile int SUBBAND_CODEC_LOOP_DebugCompressionLevel =
+    SUBBAND_CODEC_LOOP_DEFAULT_LEVEL;
 volatile int SUBBAND_CODEC_LOOP_DebugTargetKbps =
     SUBBAND_CODEC_LOOP_DEFAULT_KBPS;
 volatile int SUBBAND_CODEC_LOOP_DebugRequestedTargetKbps = 0;
@@ -140,6 +143,49 @@ static int Loop_Normalize_Target_Kbps(int kbps)
         return 240;
     }
     return 320;
+}
+
+static int Loop_Level_To_Target_Kbps(int level)
+{
+    if (level == SUBBAND_CODEC_LOOP_LEVEL_HIGH_QUALITY)
+    {
+        return 320;
+    }
+    if (level == SUBBAND_CODEC_LOOP_LEVEL_BALANCED)
+    {
+        return 240;
+    }
+    if (level == SUBBAND_CODEC_LOOP_LEVEL_STRONG)
+    {
+        return 160;
+    }
+    return 0;
+}
+
+static int Loop_Target_To_Level(int kbps)
+{
+    kbps = Loop_Normalize_Target_Kbps(kbps);
+    if (kbps == 320)
+    {
+        return SUBBAND_CODEC_LOOP_LEVEL_HIGH_QUALITY;
+    }
+    if (kbps == 160)
+    {
+        return SUBBAND_CODEC_LOOP_LEVEL_STRONG;
+    }
+    return SUBBAND_CODEC_LOOP_LEVEL_BALANCED;
+}
+
+static void Loop_Apply_Target_Kbps(int kbps)
+{
+    SubbandCodecLoopback_State.target_kbps =
+        Loop_Normalize_Target_Kbps(kbps);
+    SubbandCodecLoopback_State.compression_level =
+        Loop_Target_To_Level(SubbandCodecLoopback_State.target_kbps);
+    SUBBAND_CODEC_LOOP_DebugTargetKbps =
+        SubbandCodecLoopback_State.target_kbps;
+    SUBBAND_CODEC_LOOP_DebugCompressionLevel =
+        SubbandCodecLoopback_State.compression_level;
 }
 
 static void Loop_Clear_Band_Work(void)
@@ -585,12 +631,29 @@ static void Loop_Update_Rate_Debug(void)
 static void Loop_Service_Requested_Target(void)
 {
     int requested;
+    int level;
+    int level_target;
 
     requested = SUBBAND_CODEC_LOOP_DebugRequestedTargetKbps;
     if ((requested == 160) || (requested == 240) || (requested == 320))
     {
         SubbandCodecLoopback_SetTargetKbps(requested);
         SUBBAND_CODEC_LOOP_DebugRequestedTargetKbps = 0;
+        return;
+    }
+
+    level = SUBBAND_CODEC_LOOP_DebugCompressionLevel;
+    level_target = Loop_Level_To_Target_Kbps(level);
+    if (level_target == 0)
+    {
+        SUBBAND_CODEC_LOOP_DebugCompressionLevel =
+            SubbandCodecLoopback_State.compression_level;
+        return;
+    }
+    if ((level != SubbandCodecLoopback_State.compression_level) ||
+        (level_target != SubbandCodecLoopback_State.target_kbps))
+    {
+        Loop_Apply_Target_Kbps(level_target);
     }
 }
 
@@ -602,30 +665,35 @@ void SubbandCodecLoopback_Init(void)
     }
     memset(&SubbandCodecLoopback_State, 0,
            sizeof(SubbandCodecLoopback_State));
-    SubbandCodecLoopback_State.target_kbps =
-        SUBBAND_CODEC_LOOP_DEFAULT_KBPS;
+    Loop_Apply_Target_Kbps(SUBBAND_CODEC_LOOP_DEFAULT_KBPS);
     SubbandCodecLoopback_State.initialized = 1;
     SUBBAND_CODEC_LOOP_DebugEnabled = 0;
-    SUBBAND_CODEC_LOOP_DebugTargetKbps =
-        SUBBAND_CODEC_LOOP_DEFAULT_KBPS;
 }
 
 void SubbandCodecLoopback_Reset(void)
 {
     int enabled;
     int target_kbps;
+    int compression_level;
     int initialized;
 
     SubbandCodecLoopback_Init();
     enabled = SubbandCodecLoopback_State.enabled;
     target_kbps = SubbandCodecLoopback_State.target_kbps;
+    compression_level = SubbandCodecLoopback_State.compression_level;
+    if (Loop_Level_To_Target_Kbps(compression_level) == 0)
+    {
+        compression_level = Loop_Target_To_Level(target_kbps);
+    }
     initialized = SubbandCodecLoopback_State.initialized;
     memset(&SubbandCodecLoopback_State, 0,
            sizeof(SubbandCodecLoopback_State));
     SubbandCodecLoopback_State.enabled = enabled;
     SubbandCodecLoopback_State.target_kbps = target_kbps;
+    SubbandCodecLoopback_State.compression_level = compression_level;
     SubbandCodecLoopback_State.initialized = initialized;
     SUBBAND_CODEC_LOOP_DebugEnabled = enabled;
+    SUBBAND_CODEC_LOOP_DebugCompressionLevel = compression_level;
     SUBBAND_CODEC_LOOP_DebugTargetKbps = target_kbps;
     SUBBAND_CODEC_LOOP_DebugEstimatedBitrateKbps = 0.0f;
     SUBBAND_CODEC_LOOP_DebugCompressionRatio = 0.0f;
@@ -654,10 +722,7 @@ int SubbandCodecLoopback_IsEnabled(void)
 void SubbandCodecLoopback_SetTargetKbps(int kbps)
 {
     SubbandCodecLoopback_Init();
-    SubbandCodecLoopback_State.target_kbps =
-        Loop_Normalize_Target_Kbps(kbps);
-    SUBBAND_CODEC_LOOP_DebugTargetKbps =
-        SubbandCodecLoopback_State.target_kbps;
+    Loop_Apply_Target_Kbps(kbps);
 }
 
 int SubbandCodecLoopback_GetTargetKbps(void)

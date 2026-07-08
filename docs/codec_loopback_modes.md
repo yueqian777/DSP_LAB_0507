@@ -20,9 +20,16 @@ transport.
 ## CCS Watch Variables
 
 - `SUBBAND_DebugDemoMode`: set to `8`, `9`, or `10` to select loopback mode.
+- `SUBBAND_CODEC_LOOP_DebugCompressionLevel`: running-time compression level
+  knob. Set to `1` for high quality/light compression (`320 kbps`), `2` for
+  balanced/default compression (`240 kbps`), or `3` for strong compression
+  (`160 kbps`). Invalid values are ignored and snapped back to the active
+  level.
 - `SUBBAND_CODEC_LOOP_DebugRequestedTargetKbps`: set to `160`, `240`, or `320`
   to request a bitrate change while the mode is running. The request is
-  automatically cleared to `0` after a valid target is applied.
+  automatically cleared to `0` after a valid target is applied. This one-shot
+  kbps request takes priority over `SUBBAND_CODEC_LOOP_DebugCompressionLevel`
+  for that WOLA hop.
 - `SUBBAND_CODEC_LOOP_DebugTargetKbps`: active target bitrate.
 - `SUBBAND_CODEC_LOOP_DebugEstimatedBitrateKbps`: current estimated payload
   bitrate.
