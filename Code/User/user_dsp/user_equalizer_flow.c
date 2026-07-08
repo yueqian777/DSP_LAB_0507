@@ -6,6 +6,7 @@
  */
 
 #include "user_equalizer_flow.h"
+#include "user_equalizer_display.h"
 #include "string.h"
 
 #ifndef EQ_ALGO_ONLY
@@ -184,8 +185,12 @@ static void EQ_FillDacInactiveBuffer(void)
 void Equalizer_Flow_Example(void)
 {
     unsigned char flag_ad_done;
+    unsigned long lcd_status_frame;
+    int lcd_mode;
 
     flag_ad_done = 0;
+    lcd_status_frame = 0UL;
+    lcd_mode = -1;
     Sys_Init();
     Key_Init();
 
@@ -193,6 +198,14 @@ void Equalizer_Flow_Example(void)
     Dac_Init(DAC_50KHZ, DAC_SAMPLE_1024, DAC_CHANNEL_ALL);
     Equalizer_Init(&EQ_BoardState);
     EQ_ServiceMode();
+    EqualizerDisplay_Init();
+    EqualizerDisplay_UpdateAll(&EQ_BoardState);
+    EqualizerDisplay_UpdateStatus(EQ_DebugProcessFrames,
+                                  EQ_DebugLastMs,
+                                  EQ_DebugMaxMs,
+                                  EQ_DebugClipCount,
+                                  EQ_DebugMode);
+    lcd_mode = EQ_AppliedMode;
 
 #if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
     TSCL = 0;
@@ -241,6 +254,27 @@ void Equalizer_Flow_Example(void)
         {
             FLAG_KEY4 = 0;
             Dac_Stop();
+        }
+
+        if (EQ_AppliedMode != lcd_mode)
+        {
+            lcd_mode = EQ_AppliedMode;
+            EqualizerDisplay_UpdateGains(&EQ_BoardState);
+            EqualizerDisplay_UpdateStatus(EQ_DebugProcessFrames,
+                                          EQ_DebugLastMs,
+                                          EQ_DebugMaxMs,
+                                          EQ_DebugClipCount,
+                                          EQ_DebugMode);
+        }
+        if ((EQ_DebugProcessFrames != lcd_status_frame) &&
+            ((EQ_DebugProcessFrames % EQ_LCD_REFRESH_FRAMES) == 0UL))
+        {
+            lcd_status_frame = EQ_DebugProcessFrames;
+            EqualizerDisplay_UpdateStatus(EQ_DebugProcessFrames,
+                                          EQ_DebugLastMs,
+                                          EQ_DebugMaxMs,
+                                          EQ_DebugClipCount,
+                                          EQ_DebugMode);
         }
     }
 }
