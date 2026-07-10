@@ -1,0 +1,11 @@
+case_name,verification_type,status,baseline_head,current_head_or_state,notes
+git_status_precheck,repo,PASS,44e40c462a077ce331211e77d6fb667c3c7988ce,working_tree,"Precheck commands run: git status, rev-parse HEAD, log -6."
+contract_touch_raw,automated,PASS,44e40c462a077ce331211e77d6fb667c3c7988ce,working_tree,"Touch_ScanRaw exists; Touch_Scan keeps Widget compatibility; subband UI calls raw scan."
+contract_no_subband_widget_autodraw,automated,PASS,44e40c462a077ce331211e77d6fb667c3c7988ce,working_tree,"Subband page no longer contains RectangularButton, WidgetAdd, WidgetPaint, or UI_DrawModePhrasesOnly."
+contract_press_release_fsm,automated,PASS,44e40c462a077ce331211e77d6fb667c3c7988ce,working_tree,"Subband UI has IDLE/PRESSED state and accepts release on same fixed button."
+contract_incremental_refresh,automated,PASS,44e40c462a077ce331211e77d6fb667c3c7988ce,working_tree,"Progress uses UI_DIRTY_PROGRESS and no repeated large countdown/progress fill rectangles."
+contract_rolling_load,automated,PASS,44e40c462a077ce331211e77d6fb667c3c7988ce,working_tree,"UI load uses rolling cycles; Subband_Process_1024 records measured cycle_delta."
+ccs_debug_build,build,PASS,44e40c462a077ce331211e77d6fb667c3c7988ce,working_tree,"MSYS2 gmake -C Debug all completed with 0 errors and 0 warnings after cleanup."
+mode_8_320_60s_audio,physical_board,NOT_RUN,44e40c462a077ce331211e77d6fb667c3c7988ce,working_tree,"Requires operator board test; record AD/DA/algo/codec frames, rolling load, UI draw cycles, and audio artifacts."
+button_30_rounds_visual,physical_board,NOT_RUN,44e40c462a077ce331211e77d6fb667c3c7988ce,working_tree,"Requires operator inspection that only Applied Mode is highlighted."
+chinese_label_stress,physical_board,NOT_RUN,44e40c462a077ce331211e77d6fb667c3c7988ce,working_tree,"Requires repeated real touch and visual confirmation that labels do not disappear."

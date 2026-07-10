@@ -17,7 +17,10 @@
 #define UI_DIRTY_COUNTDOWN  0x04UL
 #define UI_DIRTY_RATE       0x08UL
 #define UI_DIRTY_LOAD       0x10UL
-#define UI_DIRTY_ALL        0x1FUL
+#define UI_DIRTY_PROGRESS   0x20UL
+#define UI_DIRTY_ALL        0x3FUL
+
+#define SUBBAND_UI_RUNTIME_DRAW_BUDGET_CYCLES 912000UL
 
 extern volatile unsigned long SUBBAND_UI_DebugTouchCount;
 extern volatile unsigned long SUBBAND_UI_DebugAcceptedTouchCount;
@@ -36,10 +39,20 @@ extern volatile int SUBBAND_UI_DebugAlgoLoadPercent;
 extern volatile unsigned long SUBBAND_UI_DebugSkippedRefreshes;
 extern volatile unsigned long SUBBAND_UI_DebugDirtyFlags;
 extern volatile unsigned long SUBBAND_UI_DebugFontBytes;
+extern volatile unsigned long SUBBAND_UI_DebugDrawOverBudgetCount;
+extern volatile unsigned long SUBBAND_UI_DebugLastDrawJob;
+extern volatile unsigned long SUBBAND_UI_DebugMaxProgressDrawCycles;
+extern volatile unsigned long SUBBAND_UI_DebugMaxButtonDrawCycles;
+extern volatile unsigned long SUBBAND_UI_DebugMaxTextDrawCycles;
+extern volatile unsigned long SUBBAND_UI_DebugRollingCycles;
+extern volatile unsigned long SUBBAND_UI_DebugRollingLoadPercent;
+extern volatile unsigned long SUBBAND_UI_DebugLoadSampleCount;
 
 void SubbandUI_Init(void);
 void SubbandUI_ServiceTouch(unsigned char force_scan);
 void SubbandUI_ServiceDisplay(void);
 void SubbandUI_NotifyModeChanged(void);
+void SubbandUI_RecordAlgoCycles(unsigned long cycles);
+void SubbandUI_ResetLoadWindow(void);
 
 #endif

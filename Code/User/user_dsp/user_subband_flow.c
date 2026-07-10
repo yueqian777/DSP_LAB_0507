@@ -398,6 +398,7 @@ static void Subband_Service_Demo_Mode(void)
         Subband_Apply_Demo_Mode(mode);
         SUBBAND_DebugAppliedDemoMode = mode;
         SUBBAND_DebugDemoModeChanges++;
+        SubbandUI_ResetLoadWindow();
         SubbandUI_NotifyModeChanged();
     }
 }
@@ -819,6 +820,7 @@ void Subband_Process_1024(short *in, short *out)
     cycle_end = TSCL;
     cycle_delta = (unsigned long)(cycle_end - cycle_start);
     Subband_Update_Benchmark_Debug(in, out, cycle_delta);
+    SubbandUI_RecordAlgoCycles(cycle_delta);
 #else
     Subband_Update_Benchmark_Debug(in, out, 0UL);
 #endif

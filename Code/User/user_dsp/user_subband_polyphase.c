@@ -12,6 +12,21 @@
 
 #define SUBBAND_POLYPHASE_PI 3.14159265358979323846f
 
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+#pragma DATA_SECTION(SubbandPolyphase_Prototype, ".subband_l2")
+#pragma DATA_ALIGN(SubbandPolyphase_Prototype, 8)
+#pragma DATA_SECTION(SubbandPolyphase_AnaLine, ".subband_l2")
+#pragma DATA_ALIGN(SubbandPolyphase_AnaLine, 8)
+#pragma DATA_SECTION(SubbandPolyphase_SynLine, ".subband_l2")
+#pragma DATA_ALIGN(SubbandPolyphase_SynLine, 8)
+#pragma DATA_SECTION(SubbandPolyphase_H, ".subband_l2")
+#pragma DATA_ALIGN(SubbandPolyphase_H, 8)
+#pragma DATA_SECTION(SubbandPolyphase_Cos, ".subband_l2")
+#pragma DATA_ALIGN(SubbandPolyphase_Cos, 8)
+#pragma DATA_SECTION(SubbandPolyphase_Sin, ".subband_l2")
+#pragma DATA_ALIGN(SubbandPolyphase_Sin, 8)
+#endif
+
 static const float SubbandPolyphase_Prototype[SUBBAND_POLYPHASE_PROTOTYPE_TAPS] =
 {
     -6.315349e-04f, -5.510414e-04f, -3.259621e-04f,  2.340440e-06f,
@@ -86,6 +101,9 @@ void SubbandPolyphase_Init(void)
 
     for (l = 0; l < SUBBAND_POLYPHASE_CHANNELS; l++)
     {
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+#pragma MUST_ITERATE(17, 17, 1)
+#endif
         for (m = 0; m < SUBBAND_POLYPHASE_PHASE_TAPS; m++)
         {
             int original_idx;
@@ -105,6 +123,9 @@ void SubbandPolyphase_Init(void)
 
     for (k = 0; k < SUBBAND_POLYPHASE_CHANNELS; k++)
     {
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+#pragma MUST_ITERATE(8, 8, 8)
+#endif
         for (l = 0; l < SUBBAND_POLYPHASE_CHANNELS; l++)
         {
             float phase;
@@ -126,7 +147,9 @@ void SubbandPolyphase_Reset(void)
     memset(SubbandPolyphase_SynLine, 0, sizeof(SubbandPolyphase_SynLine));
 }
 
-static void SubbandPolyphase_ProcessBlock(const short *input, short *output)
+static void SubbandPolyphase_ProcessBlock(
+    const short * SUBBAND_POLYPHASE_RESTRICT input,
+    short * SUBBAND_POLYPHASE_RESTRICT output)
 {
     float v[SUBBAND_POLYPHASE_CHANNELS];
     float subband[SUBBAND_POLYPHASE_CHANNELS][2];
@@ -136,6 +159,9 @@ static void SubbandPolyphase_ProcessBlock(const short *input, short *output)
     int l;
     int m;
 
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+#pragma MUST_ITERATE(128, 128, 8)
+#endif
     for (m = SUBBAND_POLYPHASE_PADDED_TAPS - 1;
          m >= SUBBAND_POLYPHASE_CHANNELS;
          m--)
@@ -144,17 +170,26 @@ static void SubbandPolyphase_ProcessBlock(const short *input, short *output)
             SubbandPolyphase_AnaLine[m - SUBBAND_POLYPHASE_CHANNELS];
     }
 
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+#pragma MUST_ITERATE(8, 8, 8)
+#endif
     for (l = 0; l < SUBBAND_POLYPHASE_CHANNELS; l++)
     {
         SubbandPolyphase_AnaLine[SUBBAND_POLYPHASE_CHANNELS - 1 - l] =
             (float)input[l];
     }
 
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+#pragma MUST_ITERATE(8, 8, 8)
+#endif
     for (l = 0; l < SUBBAND_POLYPHASE_CHANNELS; l++)
     {
         float sum;
 
         sum = 0.0f;
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+#pragma MUST_ITERATE(17, 17, 1)
+#endif
         for (m = 0; m < SUBBAND_POLYPHASE_PHASE_TAPS; m++)
         {
             sum += SubbandPolyphase_H[l][m] *
@@ -163,6 +198,9 @@ static void SubbandPolyphase_ProcessBlock(const short *input, short *output)
         v[l] = sum;
     }
 
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+#pragma MUST_ITERATE(8, 8, 8)
+#endif
     for (k = 0; k < SUBBAND_POLYPHASE_CHANNELS; k++)
     {
         float re;
@@ -170,6 +208,9 @@ static void SubbandPolyphase_ProcessBlock(const short *input, short *output)
 
         re = 0.0f;
         im = 0.0f;
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+#pragma MUST_ITERATE(8, 8, 8)
+#endif
         for (l = 0; l < SUBBAND_POLYPHASE_CHANNELS; l++)
         {
             re += v[l] * SubbandPolyphase_Cos[k][l];
@@ -179,11 +220,17 @@ static void SubbandPolyphase_ProcessBlock(const short *input, short *output)
         subband[k][1] = im;
     }
 
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+#pragma MUST_ITERATE(8, 8, 8)
+#endif
     for (l = 0; l < SUBBAND_POLYPHASE_CHANNELS; l++)
     {
         float re;
 
         re = 0.0f;
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+#pragma MUST_ITERATE(8, 8, 8)
+#endif
         for (k = 0; k < SUBBAND_POLYPHASE_CHANNELS; k++)
         {
             re += subband[k][0] * SubbandPolyphase_Cos[k][l] +
@@ -192,15 +239,24 @@ static void SubbandPolyphase_ProcessBlock(const short *input, short *output)
         phase_in[l] = re / (float)SUBBAND_POLYPHASE_CHANNELS;
     }
 
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+#pragma MUST_ITERATE(8, 8, 8)
+#endif
     for (l = 0; l < SUBBAND_POLYPHASE_CHANNELS; l++)
     {
         phase_out[l] = 0.0f;
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+#pragma MUST_ITERATE(16, 16, 1)
+#endif
         for (m = SUBBAND_POLYPHASE_PHASE_TAPS - 1; m >= 1; m--)
         {
             SubbandPolyphase_SynLine[l][m] = SubbandPolyphase_SynLine[l][m - 1];
         }
         SubbandPolyphase_SynLine[l][0] = phase_in[l];
 
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+#pragma MUST_ITERATE(17, 17, 1)
+#endif
         for (m = 0; m < SUBBAND_POLYPHASE_PHASE_TAPS; m++)
         {
             phase_out[l] += SubbandPolyphase_H[l][m] *
@@ -208,6 +264,9 @@ static void SubbandPolyphase_ProcessBlock(const short *input, short *output)
         }
     }
 
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+#pragma MUST_ITERATE(8, 8, 8)
+#endif
     for (l = 0; l < SUBBAND_POLYPHASE_CHANNELS; l++)
     {
         float value;
@@ -226,8 +285,10 @@ static void SubbandPolyphase_ProcessBlock(const short *input, short *output)
     }
 }
 
-void SubbandPolyphase_ProcessFrame(const short *input, short *output,
-                                   int sample_count)
+void SubbandPolyphase_ProcessFrame(
+    const short * SUBBAND_POLYPHASE_RESTRICT input,
+    short * SUBBAND_POLYPHASE_RESTRICT output,
+    int sample_count)
 {
     int offset;
 

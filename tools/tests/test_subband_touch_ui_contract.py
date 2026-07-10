@@ -114,20 +114,143 @@ class SubbandTouchUIContractTest(unittest.TestCase):
         self.assertNotIn("Adc_Init", source)
         self.assertNotIn("Dac_Init", source)
 
-    def test_ui_refresh_is_throttled_and_touch_redraws_mode_text(self) -> None:
+    def test_touch_scan_raw_keeps_widget_compatibility(self) -> None:
+        scan_header = (ROOT / "Code/Driver/12_touch/touch_scan.h").read_text(encoding="utf-8")
+        api_header = (ROOT / "Code/Driver/12_touch/touch_api.h").read_text(encoding="utf-8")
+        scan_source = (ROOT / "Code/Driver/12_touch/touch_scan.c").read_text(encoding="utf-8")
+
+        self.assertIn("TouchScanResult Touch_ScanRaw(void);", scan_header)
+        self.assertIn("TouchScanResult Touch_ScanRaw(void);", api_header)
+        self.assertIn("TouchScanResult Touch_ScanRaw(void)", scan_source)
+        raw_start = scan_source.index("TouchScanResult Touch_ScanRaw(void)")
+        scan_start = scan_source.index("TouchScanResult Touch_Scan(void)")
+        raw_body = scan_source[raw_start:scan_start]
+        self.assertIn("GT1151_Scan()", raw_body)
+        self.assertNotIn("Widget_Btn_App", raw_body)
+        scan_body = scan_source[scan_start:scan_source.index("TouchScanResult GT1151_Scan(void)")]
+        self.assertIn("result = Touch_ScanRaw();", scan_body)
+        self.assertIn("Widget_Btn_App(Touch_Sta, Touch_X, Touch_Y);", scan_body)
+
+    def test_subband_page_owns_buttons_without_widget_autodraw(self) -> None:
+        source = (ROOT / "Code/User/user_dsp/user_subband_ui.c").read_text(encoding="utf-8")
+
+        for token in (
+            "RectangularButton(",
+            "UI_ModeButton0",
+            "WidgetAdd(",
+            "WidgetPaint(",
+            "UI_DrawModePhrasesOnly",
+            "PushButtonFillColorSet",
+            "SubbandUI_OnModeButton",
+        ):
+            self.assertNotIn(token, source)
+        for token in (
+            "SubbandUIButtonDef",
+            "static int UI_HitModeButton(unsigned int x, unsigned int y)",
+            "static int UI_HitRateButton(unsigned int x, unsigned int y)",
+            "static void UI_DrawModeButton(unsigned int index, int selected)",
+            "static void UI_DrawRateButton(unsigned int index, int selected",
+        ):
+            self.assertIn(token, source)
+
+    def test_subband_touch_uses_raw_press_release_fsm(self) -> None:
+        source = (ROOT / "Code/User/user_dsp/user_subband_ui.c").read_text(encoding="utf-8")
+        touch_start = source.index("void SubbandUI_ServiceTouch(unsigned char force_scan)")
+        touch_end = source.index("void SubbandUI_ServiceDisplay(void)", touch_start)
+        touch_body = source[touch_start:touch_end]
+
+        for token in (
+            "SubbandUITouchState",
+            "UI_TOUCH_IDLE",
+            "UI_TOUCH_PRESSED",
+            "UI_PressedButtonType",
+            "UI_PressedButtonIndex",
+            "TOUCH_SCAN_DOWN",
+            "TOUCH_SCAN_RELEASE",
+        ):
+            self.assertIn(token, source)
+        self.assertIn("Touch_ScanRaw()", touch_body)
+        self.assertNotIn("Touch_Scan()", touch_body)
+        self.assertIn("release_button", touch_body)
+        self.assertIn("UI_TOUCH_PRESSED", touch_body)
+
+    def test_ui_refresh_is_incremental_and_budgeted(self) -> None:
+        ui_header = (ROOT / "Code/User/user_dsp/user_subband_ui.h").read_text(encoding="utf-8")
+        ui_source = (ROOT / "Code/User/user_dsp/user_subband_ui.c").read_text(encoding="utf-8")
+
+        self.assertIn("#define SUBBAND_UI_SHOW_ALGO_LOAD 1", ui_header)
+        self.assertIn("#define UI_COUNTDOWN_FRAME_INTERVAL 10UL", ui_source)
+        self.assertIn("#define UI_LOAD_FRAME_INTERVAL 50UL", ui_source)
+        self.assertIn("#define SUBBAND_UI_RUNTIME_DRAW_BUDGET_CYCLES 912000UL", ui_header + ui_source)
+        self.assertIn("UI_DIRTY_PROGRESS", ui_header)
+        for token in (
+            "SUBBAND_UI_DebugDrawOverBudgetCount",
+            "SUBBAND_UI_DebugLastDrawJob",
+            "SUBBAND_UI_DebugMaxProgressDrawCycles",
+            "SUBBAND_UI_DebugMaxButtonDrawCycles",
+            "SUBBAND_UI_DebugMaxTextDrawCycles",
+            "UI_DisplayedProgressStep",
+            "UI_TargetProgressStep",
+            "UI_DrawProgressBlock",
+        ):
+            self.assertIn(token, ui_header + ui_source)
+        update_start = ui_source.index("static void UI_UpdateDirtyState(void)")
+        update_end = ui_source.index("#if SUBBAND_UI_SHOW_ALGO_LOAD", update_start)
+        learning_block = ui_source[update_start:update_end]
+        self.assertIn("UI_DIRTY_PROGRESS", learning_block)
+        self.assertNotIn("UI_DIRTY_COUNTDOWN | UI_DIRTY_STATUS", learning_block)
+        self.assertNotIn("UI_FillRect(17, 317, 782, 382", ui_source)
+        self.assertNotIn("UI_FillRect(24, 390, 775, 409", ui_source)
+        self.assertNotIn("UI_FillRect(242, 296, 640, 314", ui_source)
+        self.assertIn("UI_FillRect(690, 252, 783, 312", ui_source)
+
+        update_start = ui_source.index("static void UI_UpdateDirtyState(void)")
+        update_end = ui_source.index("static void UI_UpdateLoadDirtyState(void)", update_start)
+        update_body = ui_source[update_start:update_end]
+        self.assertNotIn("UI_ComputeAlgoLoad", update_body)
+        self.assertIn("static void UI_UpdateLoadDirtyState(void)", ui_source)
+        load_update_start = ui_source.index("static void UI_UpdateLoadDirtyState(void)")
+        load_update_end = ui_source.index("static unsigned long UI_DrawNextModeButton", load_update_start)
+        load_update_body = ui_source[load_update_start:load_update_end]
+        self.assertIn("UI_ComputeAlgoLoad", load_update_body)
+        service_start = ui_source.index("void SubbandUI_ServiceDisplay(void)")
+        service_body = ui_source[service_start:]
+        countdown_block = service_body[
+            service_body.index("UI_LastCountdownFrame = frame;"):
+            service_body.index("#if SUBBAND_UI_SHOW_ALGO_LOAD")
+        ]
+        self.assertNotIn("UI_UpdateLoadDirtyState", countdown_block)
+        self.assertIn("UI_UpdateLoadDirtyState();", service_body)
+
+    def test_ui_load_uses_rolling_current_cycles_not_historical_max(self) -> None:
         ui_header = (ROOT / "Code/User/user_dsp/user_subband_ui.h").read_text(encoding="utf-8")
         ui_source = (ROOT / "Code/User/user_dsp/user_subband_ui.c").read_text(encoding="utf-8")
         flow_source = (ROOT / "Code/User/user_dsp/user_subband_flow.c").read_text(encoding="utf-8")
+        combined = ui_header + ui_source
 
-        self.assertIn("#define SUBBAND_UI_SHOW_ALGO_LOAD 1", ui_header)
-        self.assertIn("#define UI_COUNTDOWN_FRAME_INTERVAL 25UL", ui_source)
-        self.assertIn("#define UI_LOAD_FRAME_INTERVAL 50UL", ui_source)
-        self.assertIn("#define UI_MIN_DRAW_FRAME_INTERVAL 10UL", ui_source)
-        self.assertIn("UI_LastDrawFrame", ui_source)
-        self.assertIn("UI_LastDrawFrame = frame", ui_source)
-        self.assertIn("UI_DrawModePhrasesOnly", ui_source)
-        self.assertIn("UI_DrawModePhrasesOnly();", ui_source)
+        for token in (
+            "SUBBAND_UI_DebugRollingCycles",
+            "SUBBAND_UI_DebugRollingLoadPercent",
+            "SUBBAND_UI_DebugLoadSampleCount",
+            "void SubbandUI_RecordAlgoCycles(unsigned long cycles);",
+            "void SubbandUI_ResetLoadWindow(void);",
+            "rolling = (rolling * 7UL + cycles + 4UL) / 8UL;",
+        ):
+            self.assertIn(token, combined)
+        compute_start = ui_source.index("static int UI_ComputeAlgoLoad(void)")
+        compute_end = ui_source.index("static void UI_DrawLoad", compute_start)
+        compute_body = ui_source[compute_start:compute_end]
+        self.assertNotIn("SUBBAND_DebugMaxCycles", compute_body)
+        process_start = flow_source.index("void Subband_Process_1024")
+        process_end = flow_source.index("#if SUBBAND_USE_LEGACY_FIR", process_start)
+        process_body = flow_source[process_start:process_end]
+        self.assertIn("SubbandUI_RecordAlgoCycles(cycle_delta);", process_body)
+        apply_start = flow_source.index("if (mode != SUBBAND_DebugAppliedDemoMode)")
+        apply_body = flow_source[apply_start:flow_source.index("}", apply_start) + 1]
+        self.assertIn("SubbandUI_ResetLoadWindow();", apply_body)
 
+    def test_flow_services_ui_without_touch_display_back_to_back(self) -> None:
+        flow_source = (ROOT / "Code/User/user_dsp/user_subband_flow.c").read_text(encoding="utf-8")
         self.assertIn("touch_serviced = 0U;", flow_source)
         self.assertIn("touch_serviced = 1U;", flow_source)
         self.assertIn("(touch_serviced == 0U)", flow_source)

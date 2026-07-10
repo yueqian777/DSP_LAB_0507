@@ -45,11 +45,16 @@ static unsigned char Touch_ClearReady(void)
     return (AckRolling == 0U) ? 1U : 0U;
 }
 
+TouchScanResult Touch_ScanRaw(void)
+{
+    return GT1151_Scan();
+}
+
 TouchScanResult Touch_Scan(void)
 {
     TouchScanResult result;
 
-    result = GT1151_Scan();
+    result = Touch_ScanRaw();
     if ((result == TOUCH_SCAN_DOWN) || (result == TOUCH_SCAN_RELEASE))
     {
         Widget_Btn_App(Touch_Sta, Touch_X, Touch_Y);

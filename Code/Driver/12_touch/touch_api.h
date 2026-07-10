@@ -111,6 +111,7 @@ void Touch_Init(void);
  * @details 扫描触摸屏状态，更新触摸坐标和按钮标志位
  */
 TouchScanResult Touch_Scan(void);
+TouchScanResult Touch_ScanRaw(void);
 
 /** @} */
 

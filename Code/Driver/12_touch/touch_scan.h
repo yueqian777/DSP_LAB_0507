@@ -57,6 +57,7 @@ extern volatile unsigned long Touch_DebugReleaseSampleCount;
 extern volatile unsigned int Touch_DebugLastX;
 extern volatile unsigned int Touch_DebugLastY;
 
+TouchScanResult Touch_ScanRaw(void);
 TouchScanResult Touch_Scan(void);
 TouchScanResult GT1151_Scan(void);
 
