@@ -35,6 +35,7 @@
 #include "user_adda.h"
 // Subband flow test
 #include "user_subband_flow.h"
+#include "user_subband_ui.h"
 #include "user_subband_wola.h"
 #include "user_subband_denoise.h"
 #include "user_subband_eval.h"

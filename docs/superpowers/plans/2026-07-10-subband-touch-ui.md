@@ -15,7 +15,7 @@
 **Files:**
 - Create: `Code/User/user_dsp/user_subband_ui_logic.h`
 - Create: `Code/User/user_dsp/user_subband_ui_logic.c`
-- Create: `tools/tests/subband_ui_logic_test.c`
+- Create: `tools/tests/subband_ui_logic_test.c.host`
 
 - [ ] Write tests asserting button mapping `{0,1,2,4,6,7,8,11}`, bitrate normalization to 240, codec-mode activation only for 8/11, learning-mode detection for 2/4/6/7/8, remaining-ms calculation, and one accepted press per press-release cycle.
 - [ ] Compile before implementation with MSYS2 GCC and confirm missing-symbol failure.
@@ -27,7 +27,7 @@
 **Files:**
 - Modify: `Code/User/user_dsp/user_subband_flow.h`
 - Modify: `Code/User/user_dsp/user_subband_flow.c`
-- Extend: `tools/tests/subband_ui_logic_test.c`
+- Extend: `tools/tests/subband_ui_logic_test.c.host`
 
 - [ ] Add a failing source contract test requiring a normalized persistent target and no fixed 240 assignment in Mode 8/11.
 - [ ] Add `SUBBAND_DebugPersistentCodecKbps` and `Subband_Request_Codec_Target()` in the flow control layer.

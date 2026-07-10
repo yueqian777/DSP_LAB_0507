@@ -1,0 +1,49 @@
+#include <assert.h>
+
+#include "user_subband_ui_logic.h"
+
+int main(void)
+{
+    static const int expected_modes[8] = {0, 1, 2, 4, 6, 7, 8, 11};
+    SubbandUITouchLatch latch;
+    unsigned int i;
+
+    for (i = 0U; i < 8U; i++)
+    {
+        assert(SubbandUI_ModeForButton(i) == expected_modes[i]);
+    }
+    assert(SubbandUI_ModeForButton(8U) == -1);
+
+    assert(SubbandUI_NormalizeCodecKbps(160) == 160);
+    assert(SubbandUI_NormalizeCodecKbps(240) == 240);
+    assert(SubbandUI_NormalizeCodecKbps(320) == 320);
+    assert(SubbandUI_NormalizeCodecKbps(123) == 240);
+
+    assert(SubbandUI_IsCodecMode(8) == 1);
+    assert(SubbandUI_IsCodecMode(11) == 1);
+    assert(SubbandUI_IsCodecMode(7) == 0);
+
+    assert(SubbandUI_ModeUsesLearning(2) == 1);
+    assert(SubbandUI_ModeUsesLearning(4) == 1);
+    assert(SubbandUI_ModeUsesLearning(6) == 1);
+    assert(SubbandUI_ModeUsesLearning(7) == 1);
+    assert(SubbandUI_ModeUsesLearning(8) == 1);
+    assert(SubbandUI_ModeUsesLearning(0) == 0);
+    assert(SubbandUI_ModeUsesLearning(1) == 0);
+    assert(SubbandUI_ModeUsesLearning(11) == 0);
+
+    assert(SubbandUI_RemainingMs(0UL, 391UL, 256UL, 50000UL) == 2002UL);
+    assert(SubbandUI_RemainingMs(390UL, 391UL, 256UL, 50000UL) == 6UL);
+    assert(SubbandUI_RemainingMs(391UL, 391UL, 256UL, 50000UL) == 0UL);
+    assert(SubbandUI_RemainingMs(500UL, 391UL, 256UL, 50000UL) == 0UL);
+    assert(SubbandUI_RemainingMs(0UL, 1UL, 256UL, 0UL) == 0UL);
+
+    SubbandUI_LatchInit(&latch);
+    assert(SubbandUI_LatchUpdate(&latch, 1) == 1);
+    assert(SubbandUI_LatchUpdate(&latch, 1) == 0);
+    assert(SubbandUI_LatchUpdate(&latch, 1) == 0);
+    assert(SubbandUI_LatchUpdate(&latch, 0) == 0);
+    assert(SubbandUI_LatchUpdate(&latch, 1) == 1);
+
+    return 0;
+}

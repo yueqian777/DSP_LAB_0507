@@ -25,6 +25,7 @@
 #include "dac_api.h"
 #include "system.h"
 #include "key_api.h"
+#include "user_subband_ui.h"
 #endif
 
 #if defined(SUBBAND_FLOW_ALGO_ONLY) && defined(SUBBAND_OFFLINE_TEST_MAIN)
@@ -90,6 +91,7 @@ volatile unsigned long SUBBAND_FilterbankFrames = 0;
 volatile int SUBBAND_DebugDemoMode = SUBBAND_DEMO_DEFAULT_MODE;
 volatile int SUBBAND_DebugAppliedDemoMode = -1;
 volatile unsigned long SUBBAND_DebugDemoModeChanges = 0UL;
+volatile int SUBBAND_DebugPersistentCodecKbps = 240;
 volatile int SUBBAND_DebugRequestedBackend = SUBBAND_BACKEND_WOLA;
 volatile int SUBBAND_DebugAppliedBackend = -1;
 volatile unsigned long SUBBAND_DebugBackendChanges = 0UL;
@@ -200,6 +202,30 @@ static int Subband_Normalize_Demo_Mode(int mode)
     }
 }
 
+static int Subband_Normalize_Codec_Target(int kbps)
+{
+    if ((kbps == 160) || (kbps == 240) || (kbps == 320))
+    {
+        return kbps;
+    }
+    return 240;
+}
+
+void Subband_Request_Codec_Target(int kbps)
+{
+    int normalized;
+
+    normalized = Subband_Normalize_Codec_Target(kbps);
+    SUBBAND_DebugPersistentCodecKbps = normalized;
+    if ((SUBBAND_DebugAppliedDemoMode ==
+         SUBBAND_DEMO_MODE_MCRA_CODEC_LOOPBACK) ||
+        (SUBBAND_DebugAppliedDemoMode ==
+         SUBBAND_DEMO_MODE_CODEC_LOOPBACK_ONLY))
+    {
+        SUBBAND_CODEC_LOOP_DebugRequestedTargetKbps = normalized;
+    }
+}
+
 static void Subband_Apply_Demo_Mode(int mode)
 {
     SubbandCodecLoopback_SetEnabled(0);
@@ -288,7 +314,9 @@ static void Subband_Apply_Demo_Mode(int mode)
                                      1.40f,
                                      0);
         SubbandCodecLoopback_Reset();
-        SubbandCodecLoopback_SetTargetKbps(240);
+        SubbandCodecLoopback_SetTargetKbps(
+            Subband_Normalize_Codec_Target(
+                SUBBAND_DebugPersistentCodecKbps));
         SubbandCodecLoopback_SetEnabled(1);
         SubbandDenoise_StartNoiseLearning();
         break;
@@ -329,7 +357,9 @@ static void Subband_Apply_Demo_Mode(int mode)
         SubbandDenoise_StopLearning();
         SubbandDenoise_SetEnabled(0);
         SubbandCodecLoopback_Reset();
-        SubbandCodecLoopback_SetTargetKbps(240);
+        SubbandCodecLoopback_SetTargetKbps(
+            Subband_Normalize_Codec_Target(
+                SUBBAND_DebugPersistentCodecKbps));
         SubbandCodecLoopback_SetEnabled(1);
         break;
 
@@ -347,6 +377,14 @@ static void Subband_Apply_Demo_Mode(int mode)
 static void Subband_Service_Demo_Mode(void)
 {
     int mode;
+    int codec_target;
+
+    codec_target = Subband_Normalize_Codec_Target(
+        SUBBAND_DebugPersistentCodecKbps);
+    if (codec_target != SUBBAND_DebugPersistentCodecKbps)
+    {
+        SUBBAND_DebugPersistentCodecKbps = codec_target;
+    }
 
     mode = Subband_Normalize_Demo_Mode(SUBBAND_DebugDemoMode);
     if (SUBBAND_DebugDemoMode != mode)
@@ -358,6 +396,7 @@ static void Subband_Service_Demo_Mode(void)
         Subband_Apply_Demo_Mode(mode);
         SUBBAND_DebugAppliedDemoMode = mode;
         SUBBAND_DebugDemoModeChanges++;
+        SubbandUI_NotifyModeChanged();
     }
 }
 
@@ -1029,6 +1068,7 @@ void Subband_Flow_Example(void)
     Dac_Init(DAC_50KHZ, DAC_SAMPLE_1024, DAC_CHANNEL_ALL);
     Subband_FilterBank_Init();
     Subband_Service_Demo_Mode();
+    SubbandUI_Init();
 
     Adc_Start();
     Dac_Start();
@@ -1082,6 +1122,14 @@ void Subband_Flow_Example(void)
         {
             FLAG_KEY4 = 0;
             Dac_Stop();
+        }
+
+        SubbandUI_ServiceTouch();
+        if ((FLAG_AD == 0) &&
+            (FLAG_DA == 0) &&
+            (FLAG_AD_DONE == 0))
+        {
+            SubbandUI_ServiceDisplay();
         }
     }
 }

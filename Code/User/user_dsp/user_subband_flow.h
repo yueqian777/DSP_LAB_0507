@@ -100,6 +100,7 @@ void Subband_Process_1024(short *in, short *out);
 extern volatile int SUBBAND_DebugDemoMode;
 extern volatile int SUBBAND_DebugAppliedDemoMode;
 extern volatile unsigned long SUBBAND_DebugDemoModeChanges;
+extern volatile int SUBBAND_DebugPersistentCodecKbps;
 extern volatile int SUBBAND_DebugRequestedBackend;
 extern volatile int SUBBAND_DebugAppliedBackend;
 extern volatile unsigned long SUBBAND_DebugBackendChanges;
@@ -124,6 +125,7 @@ extern volatile short SUBBAND_DebugDaFirstSample;
 extern volatile int SUBBAND_DebugAdPeak;
 extern volatile int SUBBAND_DebugDaPeak;
 
+void Subband_Request_Codec_Target(int kbps);
 void Subband_Flow_Example(void);
 #endif
 
