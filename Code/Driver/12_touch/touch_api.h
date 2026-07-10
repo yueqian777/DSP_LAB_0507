@@ -8,6 +8,8 @@
 #ifndef _TOUCH_API_H_
 #define _TOUCH_API_H_
 
+#include "touch_scan.h"
+
 /**
  * @defgroup TOUCH_API Touch用户接口
  * @ingroup TOUCH
@@ -38,7 +40,7 @@
 /** @brief 触摸中断标志位 
  * @details 触摸发生时置1，需要用户使用后手动置为0。
 */
-extern unsigned char FLAG_TOUCH;
+extern volatile unsigned char FLAG_TOUCH;
 
 /** @brief 触摸状态 
  * @details 0: 未触摸 1: 触摸
@@ -52,10 +54,21 @@ extern unsigned int Touch_X;
 extern unsigned int Touch_Y;
 extern volatile unsigned char Touch_DebugRawState;
 extern volatile unsigned long Touch_DebugScanCount;
+extern volatile unsigned long Touch_DebugInterruptCount;
+extern volatile unsigned long Touch_DebugReadyCount;
+extern volatile unsigned long Touch_DebugNoDataCount;
+extern volatile unsigned long Touch_DebugDownCount;
+extern volatile unsigned long Touch_DebugReleaseCount;
+extern volatile unsigned long Touch_DebugI2cErrorCount;
 extern volatile unsigned long Touch_DebugTouchSampleCount;
 extern volatile unsigned long Touch_DebugReleaseSampleCount;
 extern volatile unsigned int Touch_DebugLastX;
 extern volatile unsigned int Touch_DebugLastY;
+extern volatile unsigned char Touch_DebugProductId[5];
+extern volatile unsigned char Touch_DebugProductIdReadOk;
+extern volatile unsigned char Touch_DebugConfigVersion;
+extern volatile unsigned char Touch_DebugConfigSent;
+extern volatile unsigned char Touch_DebugCtrlWriteOk;
 /** @} */
 
 /**
@@ -97,7 +110,7 @@ void Touch_Init(void);
  * @brief 扫描Touch
  * @details 扫描触摸屏状态，更新触摸坐标和按钮标志位
  */
-void Touch_Scan(void);
+TouchScanResult Touch_Scan(void);
 
 /** @} */
 

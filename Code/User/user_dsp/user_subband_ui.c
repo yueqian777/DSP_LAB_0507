@@ -40,8 +40,9 @@
 #define UI_COLOR_DISABLED ClrDimGray
 #define UI_COLOR_PROGRESS ClrLimeGreen
 
-#define UI_COUNTDOWN_FRAME_INTERVAL 5UL
-#define UI_LOAD_FRAME_INTERVAL 25UL
+#define UI_COUNTDOWN_FRAME_INTERVAL 25UL
+#define UI_LOAD_FRAME_INTERVAL 50UL
+#define UI_MIN_DRAW_FRAME_INTERVAL 10UL
 #define UI_FRAME_BUDGET_CYCLES 9338880UL
 
 volatile unsigned long SUBBAND_UI_DebugTouchCount = 0UL;
@@ -66,6 +67,7 @@ static unsigned char UI_Initialized = 0U;
 static unsigned long UI_DirtyFlags = UI_DIRTY_ALL;
 static unsigned long UI_LastCountdownFrame = 0UL;
 static unsigned long UI_LastLoadFrame = 0UL;
+static unsigned long UI_LastDrawFrame = 0UL;
 static int UI_LastLearning = -1;
 static int UI_LastReady = -1;
 static unsigned long UI_LastLearnHops = 0xFFFFFFFFUL;
@@ -269,6 +271,16 @@ static void UI_DrawModePhrase(unsigned int index)
     UI_DrawCenteredPhrase(UI_ModePhrases[index], x, y, UI_MODE_BUTTON_W);
 }
 
+static void UI_DrawModePhrasesOnly(void)
+{
+    unsigned int index;
+
+    for (index = 0U; index < 8U; index++)
+    {
+        UI_DrawModePhrase(index);
+    }
+}
+
 static void UI_DrawModeButtons(void)
 {
     unsigned int index;
@@ -372,6 +384,7 @@ static void UI_DrawRate(void)
     UI_DrawAscii(text, 242, 296, ClrLightSteelBlue);
     SUBBAND_UI_DebugDisplayedTargetKbps =
         SUBBAND_CODEC_LOOP_DebugTargetKbps;
+    UI_DrawModePhrasesOnly();
 }
 
 static void UI_DrawCountdown(void)
@@ -621,7 +634,7 @@ void SubbandUI_Init(void)
     UI_Initialized = 1U;
 }
 
-void SubbandUI_ServiceTouch(void)
+void SubbandUI_ServiceTouch(unsigned char force_scan)
 {
     int mode_index;
     int requested_mode;
@@ -631,7 +644,11 @@ void SubbandUI_ServiceTouch(void)
     unsigned int cycle_end;
 #endif
 
-    if ((UI_Initialized == 0U) || (FLAG_TOUCH == 0U))
+    if (UI_Initialized == 0U)
+    {
+        return;
+    }
+    if ((FLAG_TOUCH == 0U) && (force_scan == 0U))
     {
         return;
     }
@@ -715,6 +732,13 @@ void SubbandUI_ServiceDisplay(void)
         SUBBAND_UI_DebugSkippedRefreshes++;
         return;
     }
+    if ((UI_LastDrawFrame != 0UL) &&
+        ((frame - UI_LastDrawFrame) < UI_MIN_DRAW_FRAME_INTERVAL))
+    {
+        SUBBAND_UI_DebugSkippedRefreshes++;
+        return;
+    }
+    UI_LastDrawFrame = frame;
 
 #if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
     cycle_start = TSCL;
@@ -726,7 +750,7 @@ void SubbandUI_ServiceDisplay(void)
         {
             UI_DrawOneDirtyRegion(flag);
             regions_drawn++;
-            if (regions_drawn >= 2U)
+            if (regions_drawn >= 1U)
             {
                 break;
             }
@@ -752,7 +776,7 @@ void SubbandUI_NotifyModeChanged(void)
 #else
 
 void SubbandUI_Init(void) {}
-void SubbandUI_ServiceTouch(void) {}
+void SubbandUI_ServiceTouch(unsigned char force_scan) { (void)force_scan; }
 void SubbandUI_ServiceDisplay(void) {}
 void SubbandUI_NotifyModeChanged(void) {}
 

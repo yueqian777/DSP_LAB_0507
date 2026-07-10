@@ -36,7 +36,8 @@
 /** @brief 触摸中断标志位 
  * @details 触摸发生时置1，需要用户使用后手动置为0。
 */
-extern unsigned char FLAG_TOUCH;
+extern volatile unsigned char FLAG_TOUCH;
+extern volatile unsigned long Touch_DebugInterruptCount;
 
 
 /**

@@ -38,7 +38,7 @@ extern volatile unsigned long SUBBAND_UI_DebugDirtyFlags;
 extern volatile unsigned long SUBBAND_UI_DebugFontBytes;
 
 void SubbandUI_Init(void);
-void SubbandUI_ServiceTouch(void);
+void SubbandUI_ServiceTouch(unsigned char force_scan);
 void SubbandUI_ServiceDisplay(void);
 void SubbandUI_NotifyModeChanged(void);
 

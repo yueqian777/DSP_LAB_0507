@@ -25,6 +25,8 @@
 #include "dac_api.h"
 #include "system.h"
 #include "key_api.h"
+#include "timer_api.h"
+#include "touch_api.h"
 #include "user_subband_ui.h"
 #endif
 
@@ -1060,6 +1062,7 @@ static void Fill_Dac_Inactive_Buffer(void)
 void Subband_Flow_Example(void)
 {
     unsigned char FLAG_AD_DONE = 0;
+    unsigned char touch_serviced;
 
     Sys_Init();
     Key_Init();
@@ -1069,12 +1072,14 @@ void Subband_Flow_Example(void)
     Subband_FilterBank_Init();
     Subband_Service_Demo_Mode();
     SubbandUI_Init();
+    Tim2_Init(TIMER_20HZ);
 
     Adc_Start();
     Dac_Start();
 
     while (1)
     {
+        touch_serviced = 0U;
         Subband_Service_Demo_Mode();
         Subband_Service_Benchmark_Backend();
 
@@ -1124,10 +1129,19 @@ void Subband_Flow_Example(void)
             Dac_Stop();
         }
 
-        SubbandUI_ServiceTouch();
+        if ((FLAG_TOUCH != 0U) || (FLAG_TIM2 != 0U))
+        {
+            unsigned char force_touch_scan;
+
+            force_touch_scan = (FLAG_TIM2 != 0U) ? 1U : 0U;
+            FLAG_TIM2 = 0U;
+            SubbandUI_ServiceTouch(force_touch_scan);
+            touch_serviced = 1U;
+        }
         if ((FLAG_AD == 0) &&
             (FLAG_DA == 0) &&
-            (FLAG_AD_DONE == 0))
+            (FLAG_AD_DONE == 0) &&
+            (touch_serviced == 0U))
         {
             SubbandUI_ServiceDisplay();
         }

@@ -1,30 +1,35 @@
 /**
  * @file touch_drv.c
- * @brief Touch设备驱动实现文件
- * @details 实现Touch驱动的核心功能，包括初始化GT1151芯片。
- * @ingroup TOUCH_DRV
+ * @brief GT1151 touch controller initialization.
  */
 
-/* 头文件包含 */
-#include "touch_api.h"            // Touch用户接口
-#include "touch_drv.h"            // Touch设备驱动
-#include "touch_pin.h"            // Touch引脚控制
-#include "sys_iic.h"              // 系统IIC接口
+#include "touch_api.h"
+#include "touch_drv.h"
+#include "touch_pin.h"
+#include "sys_iic.h"
 
-#include "i2c.h"                  // I2C驱动
-#include "uart.h"                 // UART驱动
-#include "uartStdio.h"            // UART标准输入输出
-#include "delay.h"                // 延时函数
+#include "delay.h"
 
+#ifndef TOUCH_ENABLE_INIT_PRINTF
+#define TOUCH_ENABLE_INIT_PRINTF 0
+#endif
 
+#if TOUCH_ENABLE_INIT_PRINTF
+#include "uartStdio.h"
+#endif
 
+extern volatile unsigned int AckRolling;
 
-unsigned char GT1151_CFG_TBL[]=
+volatile unsigned char Touch_DebugProductId[5] = {0U};
+volatile unsigned char Touch_DebugProductIdReadOk = 0U;
+volatile unsigned char Touch_DebugConfigVersion = 0U;
+volatile unsigned char Touch_DebugConfigSent = 0U;
+volatile unsigned char Touch_DebugCtrlWriteOk = 0U;
+
+unsigned char GT1151_CFG_TBL[] =
 {
-    // 0x44,0x20,0x03,0xE0,0x01,0x05,0x35,0x04,0x00,0x08,
     0x44,0x20,0x03,0xE0,0x01,0x01,0x35,0x04,0x00,0x08,
     0x09,0x0F,0x55,0x37,0x33,0x11,0x00,0x03,0x08,0x56,
-    // 0x09,0x0F,0x55,0x37,0x31,0x1F,0x00,0x03,0x08,0x56,
     0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x48,0x00,0x00,
     0x3C,0x08,0x0A,0x28,0x1E,0x50,0x00,0x00,0x82,0xB4,
     0xD2,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
@@ -49,14 +54,47 @@ unsigned char GT1151_CFG_TBL[]=
     0xAA,0x00,0x22,0x22,0x00,0x00,0xAA,0x05,0x01,
 };
 
-
-/* 函数声明 */
 void GT1151_Init(void);
-void GT1151_Send_Cfg(unsigned char mode);
+static unsigned char GT1151_Send_Cfg(unsigned char mode);
 
+static unsigned char TouchDrv_ReadReg(unsigned int reg,
+                                      unsigned char *data,
+                                      unsigned int len)
+{
+    AckRolling = 0U;
+    GT1151_RD_Reg(reg, data, len);
+    if (AckRolling != 0U)
+    {
+        Touch_DebugI2cErrorCount++;
+        return 0U;
+    }
+    return 1U;
+}
 
-/* 函数定义 */
-// 初始化触摸芯片
+static unsigned char TouchDrv_WriteReg(unsigned int reg,
+                                       unsigned char *data,
+                                       unsigned int len)
+{
+    AckRolling = 0U;
+    GT1151_WR_Reg(reg, data, len);
+    if (AckRolling != 0U)
+    {
+        Touch_DebugI2cErrorCount++;
+        return 0U;
+    }
+    return 1U;
+}
+
+static void TouchDrv_SaveProductId(const unsigned char *id)
+{
+    unsigned int i;
+
+    for (i = 0U; i < 5U; i++)
+    {
+        Touch_DebugProductId[i] = id[i];
+    }
+}
+
 void Touch_Init(void)
 {
     Sys_IIC_Init();
@@ -67,72 +105,112 @@ void Touch_Init(void)
 
 void GT1151_Init(void)
 {
-    unsigned char id[4];
+    unsigned char id[5] = {0U};
     unsigned char buff[1];
+    unsigned char ctrl_ok;
 
-    // 更换硬件IIC从机地址
     IIC_SelectDevice(IIC_DEVICE_TOUCH);
 
-    // 初始化触摸中断引脚
-    Touch_Int_PinSet(1);
+    Touch_Int_PinSet(1U);
     delay(5);
-    Touch_Int_PinSet(0);
+    Touch_Int_PinSet(0U);
 
-    //读取ID
-    GT1151_RD_Reg(GT_PID_REG,id,4);
-    printf("ID:%s\r\n",id);		//打印ID
-
-    //软复位GT9147
-    buff[0]=0X02;
-    GT1151_WR_Reg(GT_CTRL_REG,buff,1);
-
-    //读取GT_CFGS_REG寄存器
-    GT1151_RD_Reg(GT_CFGS_REG,buff,1);
-    printf("Previous version: %x\r\n",buff[0]);
-
-    //如果之前配置版本小于预配置版本 GT1151_CFG_TBL[0]
-    if(buff[0] < 0x83)		
+    if (TouchDrv_ReadReg(GT_PID_REG, id, 4U) != 0U)
     {
-        //更新配置并保存
-        GT1151_Send_Cfg(1);
+        id[4] = 0U;
+        Touch_DebugProductIdReadOk = 1U;
+    }
+    else
+    {
+        id[0] = 0U;
+        id[1] = 0U;
+        id[2] = 0U;
+        id[3] = 0U;
+        id[4] = 0U;
+        Touch_DebugProductIdReadOk = 0U;
+    }
+    TouchDrv_SaveProductId(id);
+
+#if TOUCH_ENABLE_INIT_PRINTF
+    printf("ID:%.4s\r\n", id);
+#endif
+
+    buff[0] = 0x02U;
+    ctrl_ok = TouchDrv_WriteReg(GT_CTRL_REG, buff, 1U);
+
+    buff[0] = 0U;
+    if (TouchDrv_ReadReg(GT_CFGS_REG, buff, 1U) != 0U)
+    {
+        Touch_DebugConfigVersion = buff[0];
     }
 
-    //读取GT_CFGS_REG寄存器
-    GT1151_RD_Reg(GT_CFGS_REG,buff,1);
-    printf("Current version: %x\r\n",buff[0]);
+#if TOUCH_ENABLE_INIT_PRINTF
+    printf("Previous version: %x\r\n", buff[0]);
+#endif
 
-    //延时10ms
+    if (buff[0] < 0x83U)
+    {
+        Touch_DebugConfigSent = GT1151_Send_Cfg(1U);
+    }
+    else
+    {
+        Touch_DebugConfigSent = 0U;
+    }
+
+    buff[0] = 0U;
+    if (TouchDrv_ReadReg(GT_CFGS_REG, buff, 1U) != 0U)
+    {
+        Touch_DebugConfigVersion = buff[0];
+    }
+
+#if TOUCH_ENABLE_INIT_PRINTF
+    printf("Current version: %x\r\n", buff[0]);
+#endif
+
     delay(10);
 
-    //结束复位
-    buff[0]=0X00;
-    GT1151_WR_Reg(GT_CTRL_REG,buff,1);
-
+    buff[0] = 0x00U;
+    if ((ctrl_ok != 0U) && (TouchDrv_WriteReg(GT_CTRL_REG, buff, 1U) != 0U))
+    {
+        Touch_DebugCtrlWriteOk = 1U;
+    }
+    else
+    {
+        Touch_DebugCtrlWriteOk = 0U;
+    }
 }
 
-// 发送GT1151配置参数
-void GT1151_Send_Cfg(unsigned char mode)
+static unsigned char GT1151_Send_Cfg(unsigned char mode)
 {
-    unsigned short checksum=0;
+    unsigned short checksum;
     unsigned char buf[3];
-    unsigned char i=0;
+    unsigned int cfg_len;
+    unsigned int i;
+    unsigned char ok;
 
-    //计算校验和
-    for(i=0;i<(sizeof(GT1151_CFG_TBL)-3);i+=2)
-    checksum +=((GT1151_CFG_TBL[i]<<8)|GT1151_CFG_TBL[i+1]);//计算校验和
-    checksum =(~checksum)+1;
-    buf[0]= checksum>>8;
-    buf[1]= checksum;
-    buf[2]= mode;	//是否写入到GT5688 FLASH?  即是否掉电保存
+    checksum = 0U;
+    cfg_len = (unsigned int)(sizeof(GT1151_CFG_TBL) - 3U);
+    for (i = 0U; i < cfg_len; i += 2U)
+    {
+        unsigned short word_value;
 
-    //发送寄存器配置
-    GT1151_WR_Reg(GT_CFGS_REG,GT1151_CFG_TBL,sizeof(GT1151_CFG_TBL)-3);
+        word_value = (unsigned short)((unsigned short)GT1151_CFG_TBL[i] << 8);
+        if ((i + 1U) < cfg_len)
+        {
+            word_value |= GT1151_CFG_TBL[i + 1U];
+        }
+        checksum = (unsigned short)(checksum + word_value);
+    }
+    checksum = (unsigned short)((~checksum) + 1U);
 
-    //发送校验和
-    GT1151_WR_Reg(GT_CHECK_REG,buf,3);
+    buf[0] = (unsigned char)(checksum >> 8);
+    buf[1] = (unsigned char)(checksum & 0xFFU);
+    buf[2] = mode;
+
+    ok = TouchDrv_WriteReg(GT_CFGS_REG, GT1151_CFG_TBL, cfg_len);
+    if (TouchDrv_WriteReg(GT_CHECK_REG, buf, 3U) == 0U)
+    {
+        ok = 0U;
+    }
+    return ok;
 }
-
-
-
-
-unsigned char Flag_Touch_Done;
