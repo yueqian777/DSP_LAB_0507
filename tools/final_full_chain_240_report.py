@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import json
 import math
 from pathlib import Path
 from statistics import median
@@ -18,6 +19,7 @@ AUDIO_PATH = OUT / "final_full_chain_240_audio_metrics.csv"
 SUMMARY_PATH = OUT / "final_full_chain_240_summary.md"
 PLOTS = OUT / "plots"
 BUDGET_MS = 20.48
+TEST_VECTOR_MANIFEST = ROOT / "test_vectors" / "final_full_chain_2s_noise_speech_stationary_50k.json"
 
 
 def value(row: dict[str, str], key: str) -> float:
@@ -117,6 +119,8 @@ def main() -> None:
         raise SystemExit("one or more rows do not satisfy final-chain validity criteria")
     if len({row["commit_sha"] for row in rows}) != 1:
         raise SystemExit("commit_sha differs across repeats")
+    vector = json.loads(TEST_VECTOR_MANIFEST.read_text(encoding="utf-8"))
+    target_peak = float(vector["target_peak_lsb"])
 
     diagnostics = select(rows,
         "repeat_index", "valid_repeat", "ad_frames", "da_frames", "algo_frames", "codec_frames",
@@ -157,6 +161,13 @@ def main() -> None:
 
     speech_changed = any(abs(value(row, "speech_phase_speech_probability_avg") - value(row, "noise_phase_speech_probability_avg")) >= 0.02 for row in rows)
     gain_near_floor = median(value(row, "gain_avg") for row in rows) <= median(value(row, "mcra_floor_avg") for row in rows) + 0.03
+    input_peak = median(value(row, "input_peak_max") for row in rows)
+    input_peak_dbfs = 20.0 * math.log10(input_peak / 32767.0)
+    source_level_percent = 100.0 * input_peak / target_peak
+    noise_speech_prob = median(value(row, "noise_phase_speech_probability_avg") for row in rows)
+    speech_speech_prob = median(value(row, "speech_phase_speech_probability_avg") for row in rows)
+    median_gain = median(value(row, "gain_avg") for row in rows)
+    median_floor = median(value(row, "mcra_floor_avg") for row in rows)
     summary = [
         "# Final C6748 Full-Chain 240 kbps Rerun",
         "",
@@ -170,9 +181,19 @@ def main() -> None:
         f"- Gain near MCRA floor: {'yes' if gain_near_floor else 'no'}.",
         "- Audio recording status: `NOT_MEASURED_AUDIO_CAPTURE_UNAVAILABLE`; no audio-quality conclusion is made.",
         "",
-        "## Interpretation",
+        "## Input-level diagnosis",
         "",
-        "A low output level together with gain near the configured MCRA floor indicates denoise attenuation. This diagnostic alone cannot establish that MCRA is the sole cause: the board input RMS and source metadata must also be considered. Codec-only historical tests are not mixed into this result.",
+        f"- Generated source peak is {target_peak:.0f} LSB (-6 dBFS target); board input peak median is {input_peak:.0f} LSB ({input_peak_dbfs:.2f} dBFS), only {source_level_percent:.2f}% of the source peak.",
+        f"- Speech probability rises from {noise_speech_prob:.6f} at the noise checkpoint to {speech_speech_prob:.6f} after speech starts. The detector responds, but its steady-state average remains moderate.",
+        f"- Gain average median is {median_gain:.6f}; MCRA floor median is {median_floor:.6f}. Gain is near the floor, and the board energy/RMS ratios show substantial attenuation.",
+        "- Therefore the low analog input level is a primary condition, and the active MCRA denoiser is the primary in-algorithm source of the low mode-8 output. This does not prove that MCRA parameters are intrinsically wrong; no parameter was changed in this diagnostic.",
+        "- Codec-only historical output was nonzero, while this mode adds MCRA before the same codec loopback. With invalid_count=0 and a valid bitrate here, the evidence points to denoise attenuation rather than a codec failure. That is a diagnosis, not an audio-quality claim.",
+        "",
+        "## Final status",
+        "",
+        "- Real-time status: PASS.",
+        "- Algorithm-state status: PASS (391/391 learning, ready=1, valid codec frames, invalid_count=0).",
+        "- Audio-quality status: pending. No board-output recording path was available, and the measured mode-8 output is strongly attenuated.",
         "",
         "## Artifacts",
         "",

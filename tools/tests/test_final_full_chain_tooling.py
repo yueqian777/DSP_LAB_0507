@@ -50,6 +50,8 @@ class FinalFullChainToolingContractTest(unittest.TestCase):
         self.assertIn("NOT_MEASURED_AUDIO_CAPTURE_UNAVAILABLE", source)
         self.assertIn("valid_repeat", source)
         self.assertIn("final_full_chain_240_diagnostics.csv", source)
+        self.assertIn("Input-level diagnosis", source)
+        self.assertIn("Audio-quality status: pending", source)
 
 
 if __name__ == "__main__":
