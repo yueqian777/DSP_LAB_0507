@@ -25,6 +25,8 @@ class FinalFullChainToolingContractTest(unittest.TestCase):
             "final_full_chain_240_rerun.csv",
         ):
             self.assertIn(token, script)
+        self.assertNotIn(".delete()", script)
+        self.assertIn('file["delete"]()', script)
 
     def test_c_headers_expose_read_only_diagnostic_mirrors(self) -> None:
         denoise_header = (ROOT / "Code" / "User" / "user_dsp" / "user_subband_denoise.h").read_text(

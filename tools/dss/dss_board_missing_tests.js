@@ -120,7 +120,7 @@ function flagPath(repeatIndex, suffix) {
 
 function deleteFlag(path) {
     var file = new File(path);
-    if (file.exists()) { file.delete(); }
+    if (file.exists()) { file["delete"](); }
 }
 
 function signalAudioStart(repeatIndex, notes) {

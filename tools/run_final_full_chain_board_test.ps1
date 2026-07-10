@@ -11,6 +11,7 @@ $gmake = "D:\SoftwareDownload\CCS_20.5.0.00028_win\ccs\utils\bin\gmake.exe"
 $python = "C:\Users\zhangyueqian\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe"
 $audio = Join-Path $root "test_vectors\final_full_chain_2s_noise_speech_stationary_50k.wav"
 $readyPrefix = Join-Path $root "tmp\final_full_chain_repeat"
+$player = $null
 
 Push-Location $root
 try {
@@ -63,5 +64,9 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Final report generation failed." }
 }
 finally {
+    if ($null -ne $player) {
+        Stop-Job -Job $player -ErrorAction SilentlyContinue
+        Remove-Job -Job $player -Force -ErrorAction SilentlyContinue
+    }
     Pop-Location
 }
