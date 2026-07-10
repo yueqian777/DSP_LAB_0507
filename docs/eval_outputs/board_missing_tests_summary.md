@@ -1,43 +1,46 @@
-# Project 3.2 Board Missing Tests Summary
+# Project 3.2 C6748 Board Test Summary
 
-Generated: 2026-07-10T11:24:46
+## Traceability
 
-## Measurement Status
+- Hardware: TMS320C6748, core clock 456 MHz.
+- Configuration: 50 kHz, 1024 samples/frame, CH1, O3 Debug.
+- Commit: `cf0db0781e6dae9a810bef3eb7f29bef1d261339`.
+- Source CSV: `docs/eval_outputs/board_missing_tests_raw.csv`.
+- Each row is a 10 s DSS hardware measurement after a 1 s input-frame preflight.
+- `realtime_pass=1` means measured max processing time is below 20.48 ms. It does not prove audio quality.
 
-- Raw DSS rows: 21 (`board_missing_tests_raw.csv`).
-- Rows with an input-silent or no-frame condition were normalized to `NOT_MEASURED` in `board_missing_tests.csv`.
-- `subjective_result` is automated-only. It cannot claim absence of blast, tearing, or audible distortion.
+## Method Comparison
 
-## Newly Executed Method Comparison
+| Backend | Repeats | Median max ms | Worst max ms | Median CPU | Output observation |
+|---|---:|---:|---:|---:|---|
+| legacy FIR | 3/3 | 2.073 | 2.073 | 10.12% | nonzero frames in all runs |
+| project1 polyphase | 3/3 | 17.557 | 17.558 | 85.73% | below 64 LSB output threshold |
+| WOLA-DFT | 3/3 | 2.198 | 2.198 | 10.73% | nonzero frames in all runs |
 
-| Backend | Valid timing repeats | Median MaxMs | Worst MaxMs | Output status | Conclusion |
-|---|---:|---:|---:|---|---|
-| legacy FIR | 2/3 | 2.000 ms | 2.000 ms | nonzero | timing valid |
-| project1 polyphase | 2/3 | 17.000 ms | 17.000 ms | below output threshold | reconstruction listening test required |
-| WOLA-DFT | 2/3 | 2.000 ms | 2.000 ms | nonzero | timing valid |
+- WOLA reported 3 output-clip frame(s) across the three runs; this is source-level amplitude evidence and needs listening-level confirmation.
+- The project1 polyphase wrapper met timing but its peak output/input ratio was only 0.112-0.128. It is not accepted as a verified audible reconstruction path.
 
-The third repeat for every method had no ADC/input frames. It is not used in the medians or worst-case values, so the requested three valid repetitions have not been completed.
+## Codec-only WOLA
 
-## Codec-only 160 / 240 / 320 kbps
+| Target kbps | Repeats | Measured kbps median | Compression median | Max ms worst | CPU median | Clamp ratio | Invalid count |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 160 | 3/3 | 158 | 5.0x | 4.306 | 21.02% | 0.000 | 0 |
+| 240 | 3/3 | 233 | 3.0x | 5.012 | 24.47% | 0.000 | 0 |
+| 320 | 3/3 | 321 | 2.0x | 5.744 | 28.03% | 0.000 | 0 |
 
-- Newly executed valid codec-only repetitions: 0/9. All current rows are `NOT_MEASURED_INPUT_SILENT`.
-- Therefore target bitrate response, bit allocation, clamp ratio, and audible quality were not re-claimed from this run.
-- Historical board reference: `board_codec_loopback_runtime.csv` (2026-07-08) recorded MCRA+codec, not codec-only: 160->158 kbps, 240->233 kbps, 320->321 kbps; MaxMs 14/15/16 ms; clamp ratios 0.270/0.410/0.472%; invalid_count=0. It has a traceable CSV/configuration but no commit SHA, so it is reference-only and needs current-code rerun.
+## Full Chain: WOLA + MCRA + Codec 240 kbps
 
-## Full Chain WOLA + MCRA + 240 kbps
+| Repeats | Median max ms | Worst max ms | Median CPU | Learning | Ready | Measured kbps | Output observation |
+|---:|---:|---:|---:|---|---:|---:|---|
+| 3/3 | 15.465 | 15.466 | 75.51% | 391/391 | 1 | 233 | below 64 LSB threshold; peak ratio 0.076 |
 
-- Newly executed valid full-chain repetitions: 0/3. Current runs are `NOT_MEASURED_INPUT_SILENT`; learning values are not accepted as a 2 s learning result.
-- Historical logged C6748 results from 2026-07-06 are traceable: 487 AD/DA/WOLA frames in 10 s, 391/391 learning hops, ready=1, WOLA+early denoise MaxMs=3.512 ms, CPU=17%. They are historical measurements, not current-code replacements.
-- Historical 2026-07-08 mode 8 / 240 kbps reference: MaxMs=15 ms, CPU=76%, learning=391/391, ready=1, estimated bitrate=233 kbps, clamp ratio=0.410%, invalid_count=0. It must be re-run after continuous input is restored.
+The full-chain measurements prove the DSP processing schedule and learning state completed in time. They do not prove acceptable sound: all three output peaks were 31 LSB, below the automated 64 LSB nonzero threshold. Repeat listening verification with a documented noise-only then speech-plus-stationary-noise source before making an audio-quality claim.
 
-## Required Rerun Condition
-
-Keep a continuous, fixed-amplitude CH1 source active for the complete test sequence. For the full-chain case, feed noise-only for the first 2 s and speech plus stationary noise afterwards. Then re-run `tmp/dss_board_missing_tests.js`; it will produce three repetitions per requested condition.
-
-## Generated Files
+## Artifacts
 
 - `docs/eval_outputs/board_missing_tests.csv`
 - `docs/eval_outputs/board_missing_tests_raw.csv`
+- `docs/eval_outputs/board_missing_tests_initial_input_lost_raw.csv` (archived incomplete earlier run)
 - `docs/eval_outputs/plots/board_runtime_compare.png`
 - `docs/eval_outputs/plots/codec_bitrate_compare.png`
 - `docs/eval_outputs/plots/codec_band_bits_compare.png`
