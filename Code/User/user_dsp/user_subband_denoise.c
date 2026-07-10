@@ -80,6 +80,17 @@ volatile float SUBBAND_DENOISE_DebugMcraAlphaNoise = 0.85f;
 volatile float SUBBAND_DENOISE_DebugMcraAlphaSpeech = 0.998f;
 volatile float SUBBAND_DENOISE_DebugMcraFloorAvg = SUBBAND_DENOISE_GAIN_FLOOR;
 volatile int SUBBAND_DENOISE_DebugMcraStrongMode = 0;
+volatile unsigned long SUBBAND_DENOISE_DebugLearnProgressX1000000 = 0UL;
+volatile unsigned long SUBBAND_DENOISE_DebugInputPowerAvgDiv16 = 0UL;
+volatile unsigned long SUBBAND_DENOISE_DebugOutputPowerAvgDiv16 = 0UL;
+volatile unsigned long SUBBAND_DENOISE_DebugGainAvgX1000000 = 1000000UL;
+volatile unsigned long SUBBAND_DENOISE_DebugMinGainX1000000 = 1000000UL;
+volatile unsigned long SUBBAND_DENOISE_DebugMaxGainX1000000 = 1000000UL;
+volatile unsigned long SUBBAND_DENOISE_DebugNoisePsdAvgDiv16 = 0UL;
+volatile unsigned long SUBBAND_DENOISE_DebugMcraSpeechProbAvgX1000000 = 0UL;
+volatile unsigned long SUBBAND_DENOISE_DebugMcraOverdriveAvgX1000000 = 1000000UL;
+volatile unsigned long SUBBAND_DENOISE_DebugMcraFloorAvgX1000000 =
+    (unsigned long)(SUBBAND_DENOISE_GAIN_FLOOR * 1000000.0f + 0.5f);
 
 #define SUBBAND_DENOISE_MS_LARGE 1.0e30f
 #define SUBBAND_DENOISE_MS_HYBRID_SPEECH_GUARD 16.0f
@@ -119,6 +130,56 @@ static float Clamp_Float(float value, float lo, float hi)
         return hi;
     }
     return value;
+}
+
+static unsigned long Debug_Unit_To_X1000000(float value)
+{
+    if (value <= 0.0f)
+    {
+        return 0UL;
+    }
+    if (value >= 4000.0f)
+    {
+        return 0xFFFFFFFFUL;
+    }
+    return (unsigned long)(value * 1000000.0f + 0.5f);
+}
+
+static unsigned long Debug_Power_To_Q16(float value)
+{
+    if (value <= 0.0f)
+    {
+        return 0UL;
+    }
+    if (value >= 68719476720.0f)
+    {
+        return 0xFFFFFFFFUL;
+    }
+    return (unsigned long)(value / 16.0f + 0.5f);
+}
+
+static void Update_Debug_Integer_Mirrors(void)
+{
+    SUBBAND_DENOISE_DebugLearnProgressX1000000 =
+        Debug_Unit_To_X1000000(SUBBAND_DENOISE_DebugLearnProgress);
+    SUBBAND_DENOISE_DebugInputPowerAvgDiv16 =
+        Debug_Power_To_Q16(SUBBAND_DENOISE_DebugInputPowerAvg);
+    SUBBAND_DENOISE_DebugOutputPowerAvgDiv16 =
+        Debug_Power_To_Q16(SUBBAND_DENOISE_DebugOutputPowerAvg);
+    SUBBAND_DENOISE_DebugGainAvgX1000000 =
+        Debug_Unit_To_X1000000(SUBBAND_DENOISE_DebugGainAvg);
+    SUBBAND_DENOISE_DebugMinGainX1000000 =
+        Debug_Unit_To_X1000000(SUBBAND_DENOISE_DebugMinGain);
+    SUBBAND_DENOISE_DebugMaxGainX1000000 =
+        Debug_Unit_To_X1000000(SUBBAND_DENOISE_DebugMaxGain);
+    SUBBAND_DENOISE_DebugNoisePsdAvgDiv16 =
+        Debug_Power_To_Q16(SUBBAND_DENOISE_DebugNoisePsdAvg);
+    SUBBAND_DENOISE_DebugMcraSpeechProbAvgX1000000 =
+        Debug_Unit_To_X1000000(SUBBAND_DENOISE_DebugMcraSpeechProbAvg);
+    SUBBAND_DENOISE_DebugMcraOverdriveAvgX1000000 =
+        Debug_Unit_To_X1000000(SUBBAND_DENOISE_DebugMcraOverdriveAvg);
+    SUBBAND_DENOISE_DebugMcraFloorAvgX1000000 =
+        Debug_Unit_To_X1000000(SUBBAND_DENOISE_DebugMcraFloorAvg);
 }
 
 static int Normalize_Noise_Track_Mode(int mode)
@@ -692,6 +753,7 @@ static void Update_Debug_State(void)
         mcra_floor_sum / (float)SUBBAND_POS_BINS;
     SUBBAND_DENOISE_DebugMcraStrongMode =
         SubbandDenoise_State.mcra_strong_mode;
+    Update_Debug_Integer_Mirrors();
 }
 
 static void Start_Learning_Internal(void)
@@ -985,6 +1047,7 @@ void SubbandDenoise_ProcessSpectrum(float *re, float *im)
         SUBBAND_DENOISE_DebugGainAvg = 1.0f;
         SUBBAND_DENOISE_DebugMinGain = 1.0f;
         SUBBAND_DENOISE_DebugMaxGain = 1.0f;
+        Update_Debug_Integer_Mirrors();
         im[0] = 0.0f;
         im[SUBBAND_NFFT / 2] = 0.0f;
         return;
@@ -999,6 +1062,7 @@ void SubbandDenoise_ProcessSpectrum(float *re, float *im)
         SUBBAND_DENOISE_DebugMinGain = 1.0f;
         SUBBAND_DENOISE_DebugMaxGain = 1.0f;
         Update_Debug_State();
+        Update_Debug_Integer_Mirrors();
         im[0] = 0.0f;
         im[SUBBAND_NFFT / 2] = 0.0f;
         return;
@@ -1192,6 +1256,7 @@ void SubbandDenoise_ProcessSpectrum(float *re, float *im)
     SUBBAND_DENOISE_DebugMinGain = min_gain;
     SUBBAND_DENOISE_DebugMaxGain = max_gain;
     Update_Debug_State();
+    Update_Debug_Integer_Mirrors();
 }
 
 unsigned long SubbandDenoise_GetLearnCount(void)

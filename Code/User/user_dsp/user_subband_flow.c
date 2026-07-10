@@ -105,6 +105,8 @@ volatile unsigned long SUBBAND_DebugInputClipFrames = 0UL;
 volatile unsigned long SUBBAND_DebugOutputClipFrames = 0UL;
 volatile int SUBBAND_DebugInputPeakMax = 0;
 volatile int SUBBAND_DebugOutputPeakMax = 0;
+volatile unsigned long SUBBAND_DebugInputMeanSquareAvg = 0UL;
+volatile unsigned long SUBBAND_DebugOutputMeanSquareAvg = 0UL;
 volatile unsigned long SUBBAND_DebugBenchmarkResetRequest = 0UL;
 volatile short SUBBAND_DebugAdFirstSample = 0;
 volatile short SUBBAND_DebugDaFirstSample = 0;
@@ -153,6 +155,27 @@ static int Subband_Frame_Peak(const short *x)
         }
     }
     return peak;
+}
+
+static unsigned long Subband_Frame_Mean_Square(const short *x)
+{
+    int i;
+    unsigned long long sum;
+
+    if (x == 0)
+    {
+        return 0UL;
+    }
+
+    sum = 0ULL;
+    for (i = 0; i < SUBBAND_FRM_LEN; i++)
+    {
+        long sample;
+
+        sample = (long)x[i];
+        sum += (unsigned long long)(sample * sample);
+    }
+    return (unsigned long)(sum / (unsigned long long)SUBBAND_FRM_LEN);
 }
 
 static int Subband_Normalize_Demo_Mode(int mode)
@@ -593,6 +616,8 @@ static void Subband_Reset_Benchmark_Counters(void)
     SUBBAND_DebugOutputClipFrames = 0UL;
     SUBBAND_DebugInputPeakMax = 0;
     SUBBAND_DebugOutputPeakMax = 0;
+    SUBBAND_DebugInputMeanSquareAvg = 0UL;
+    SUBBAND_DebugOutputMeanSquareAvg = 0UL;
     SUBBAND_EVAL_DebugAdFrames = 0UL;
     SUBBAND_EVAL_DebugDaFrames = 0UL;
 }
@@ -632,10 +657,36 @@ static void Subband_Update_Benchmark_Debug(const short *in, const short *out,
 {
     int input_peak;
     int output_peak;
+    unsigned long input_mean_square;
+    unsigned long output_mean_square;
+    unsigned long frames;
 
     input_peak = Subband_Frame_Peak(in);
     output_peak = Subband_Frame_Peak(out);
+    input_mean_square = Subband_Frame_Mean_Square(in);
+    output_mean_square = Subband_Frame_Mean_Square(out);
     SUBBAND_DebugAlgoFrames++;
+    frames = SUBBAND_DebugAlgoFrames;
+    if (frames == 1UL)
+    {
+        SUBBAND_DebugInputMeanSquareAvg = input_mean_square;
+        SUBBAND_DebugOutputMeanSquareAvg = output_mean_square;
+    }
+    else
+    {
+        SUBBAND_DebugInputMeanSquareAvg =
+            (unsigned long)(((unsigned long long)
+                             SUBBAND_DebugInputMeanSquareAvg *
+                             (unsigned long long)(frames - 1UL) +
+                             (unsigned long long)input_mean_square) /
+                            (unsigned long long)frames);
+        SUBBAND_DebugOutputMeanSquareAvg =
+            (unsigned long)(((unsigned long long)
+                             SUBBAND_DebugOutputMeanSquareAvg *
+                             (unsigned long long)(frames - 1UL) +
+                             (unsigned long long)output_mean_square) /
+                            (unsigned long long)frames);
+    }
     SUBBAND_DebugLastCycles = cycles;
     SUBBAND_DebugLastMs = (float)cycles / SUBBAND_CPU_CYCLES_PER_MS;
     if (cycles > SUBBAND_DebugMaxCycles)

@@ -1,0 +1,14 @@
+{
+  "filename": "final_full_chain_2s_noise_speech_stationary_50k.wav",
+  "sha256": "83c264e55b249db9e1b38f43cb2327d08b72bd46351f336fa716ab8c66e7dd8f",
+  "channels": 1,
+  "sample_width_bits": 16,
+  "sample_rate_hz": 50000,
+  "duration_seconds": 14.0,
+  "noise_only_seconds": 2,
+  "speech_plus_stationary_noise_seconds": 12,
+  "target_peak_lsb": 16384,
+  "source_speech": "D:\\NDM\\20241034145.wav",
+  "source_noise": "D:\\NDM\\20241034145_white_noise_20pct.wav",
+  "resampler": "linear"
+}

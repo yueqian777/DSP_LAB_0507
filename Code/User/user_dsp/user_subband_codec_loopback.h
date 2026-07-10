@@ -41,6 +41,10 @@ extern volatile unsigned long SUBBAND_CODEC_LOOP_DebugQuantizerClampCount;
 extern volatile unsigned long SUBBAND_CODEC_LOOP_DebugTotalScalarCount;
 extern volatile float SUBBAND_CODEC_LOOP_DebugQuantizerClampRatio;
 extern volatile unsigned long SUBBAND_CODEC_LOOP_DebugFrames;
+/* Exact per-hop integer sources for host-side metric reconstruction. */
+extern volatile unsigned long SUBBAND_CODEC_LOOP_DebugPayloadBitsPerHop;
+extern volatile unsigned long SUBBAND_CODEC_LOOP_DebugScalarBitsPerHop;
+extern volatile unsigned long SUBBAND_CODEC_LOOP_DebugScalarCountPerHop;
 
 void SubbandCodecLoopback_Init(void);
 void SubbandCodecLoopback_Reset(void);

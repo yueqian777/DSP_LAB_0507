@@ -113,6 +113,18 @@ extern volatile float SUBBAND_DENOISE_DebugMcraAlphaNoise;
 extern volatile float SUBBAND_DENOISE_DebugMcraAlphaSpeech;
 extern volatile float SUBBAND_DENOISE_DebugMcraFloorAvg;
 extern volatile int SUBBAND_DENOISE_DebugMcraStrongMode;
+/* Integer Watch mirrors. Unit quantities use 1e-6 resolution; power
+ * quantities are stored in units of 16 to avoid 32-bit overflow. */
+extern volatile unsigned long SUBBAND_DENOISE_DebugLearnProgressX1000000;
+extern volatile unsigned long SUBBAND_DENOISE_DebugInputPowerAvgDiv16;
+extern volatile unsigned long SUBBAND_DENOISE_DebugOutputPowerAvgDiv16;
+extern volatile unsigned long SUBBAND_DENOISE_DebugGainAvgX1000000;
+extern volatile unsigned long SUBBAND_DENOISE_DebugMinGainX1000000;
+extern volatile unsigned long SUBBAND_DENOISE_DebugMaxGainX1000000;
+extern volatile unsigned long SUBBAND_DENOISE_DebugNoisePsdAvgDiv16;
+extern volatile unsigned long SUBBAND_DENOISE_DebugMcraSpeechProbAvgX1000000;
+extern volatile unsigned long SUBBAND_DENOISE_DebugMcraOverdriveAvgX1000000;
+extern volatile unsigned long SUBBAND_DENOISE_DebugMcraFloorAvgX1000000;
 
 void SubbandDenoise_Init(void);
 void SubbandDenoise_Reset(void);

@@ -115,6 +115,9 @@ extern volatile unsigned long SUBBAND_DebugInputClipFrames;
 extern volatile unsigned long SUBBAND_DebugOutputClipFrames;
 extern volatile int SUBBAND_DebugInputPeakMax;
 extern volatile int SUBBAND_DebugOutputPeakMax;
+/* Integer running mean-square values across the current benchmark window. */
+extern volatile unsigned long SUBBAND_DebugInputMeanSquareAvg;
+extern volatile unsigned long SUBBAND_DebugOutputMeanSquareAvg;
 extern volatile unsigned long SUBBAND_DebugBenchmarkResetRequest;
 extern volatile short SUBBAND_DebugAdFirstSample;
 extern volatile short SUBBAND_DebugDaFirstSample;

@@ -50,6 +50,9 @@ volatile int SUBBAND_CODEC_LOOP_DebugInvalidCount = 0;
 volatile unsigned long SUBBAND_CODEC_LOOP_DebugQuantizerClampCount = 0UL;
 volatile unsigned long SUBBAND_CODEC_LOOP_DebugTotalScalarCount = 0UL;
 volatile float SUBBAND_CODEC_LOOP_DebugQuantizerClampRatio = 0.0f;
+volatile unsigned long SUBBAND_CODEC_LOOP_DebugPayloadBitsPerHop = 0UL;
+volatile unsigned long SUBBAND_CODEC_LOOP_DebugScalarBitsPerHop = 0UL;
+volatile unsigned long SUBBAND_CODEC_LOOP_DebugScalarCountPerHop = 0UL;
 volatile unsigned long SUBBAND_CODEC_LOOP_DebugFrames = 0UL;
 
 static const float SubbandCodecLoopback_PerceptualWeight[SUBBAND_NUM_BANDS] =
@@ -584,6 +587,9 @@ static void Loop_Update_Rate_Debug(void)
     payload_bits = Loop_Current_Payload_Bits();
     scalar_bits = Loop_Current_Scalar_Bits();
     scalar_count = Loop_Current_Scalar_Count();
+    SUBBAND_CODEC_LOOP_DebugPayloadBitsPerHop = payload_bits;
+    SUBBAND_CODEC_LOOP_DebugScalarBitsPerHop = scalar_bits;
+    SUBBAND_CODEC_LOOP_DebugScalarCountPerHop = scalar_count;
     hop_duration = (float)SUBBAND_HOP / (float)SUBBAND_SAMPLE_RATE;
     SUBBAND_CODEC_LOOP_DebugTotalScalarCount += scalar_count;
 
@@ -702,6 +708,9 @@ void SubbandCodecLoopback_Reset(void)
     SUBBAND_CODEC_LOOP_DebugQuantizerClampCount = 0UL;
     SUBBAND_CODEC_LOOP_DebugTotalScalarCount = 0UL;
     SUBBAND_CODEC_LOOP_DebugQuantizerClampRatio = 0.0f;
+    SUBBAND_CODEC_LOOP_DebugPayloadBitsPerHop = 0UL;
+    SUBBAND_CODEC_LOOP_DebugScalarBitsPerHop = 0UL;
+    SUBBAND_CODEC_LOOP_DebugScalarCountPerHop = 0UL;
     SUBBAND_CODEC_LOOP_DebugFrames = 0UL;
     Loop_Update_Band_Debug();
 }
