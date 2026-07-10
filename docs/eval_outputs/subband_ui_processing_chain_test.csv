@@ -1,0 +1,16 @@
+case,expected_result,verification
+remove_req_applied,LCD status panel does not draw REQ or APPLIED,static contract test checks UI_DrawStatus
+remove_sel_tgt_est,LCD bitrate area does not draw SEL/TGT/EST,static contract test checks UI_DrawRateText
+mode_0_chain,CHAIN: ADC > RAW > DAC,code table entry
+mode_1_chain,CHAIN: ADC > WOLA ANA / WOLA SYN > DAC,code table entry
+mode_2_chain,CHAIN: ADC > WOLA ANA > BASIC NR / WOLA SYN > DAC,code table entry
+mode_4_chain,CHAIN: ADC > WOLA ANA > MINSTAT NR / WOLA SYN > DAC,code table entry
+mode_6_chain,CHAIN: ADC > WOLA ANA > MCRA NR / WOLA SYN > DAC,code table entry
+mode_7_chain,CHAIN: ADC > WOLA ANA > STRONG MCRA NR / WOLA SYN > DAC,code table entry
+mode_8_chain,CHAIN: ADC > WOLA ANA > MCRA NR / CODEC XXX kbps > WOLA SYN > DAC,code table entry and target kbps helper
+mode_11_chain,CHAIN: ADC > WOLA ANA / CODEC XXX kbps > WOLA SYN > DAC,code table entry and target kbps helper
+applied_mode_source,Chain reads SUBBAND_DebugAppliedDemoMode,static contract test
+target_kbps_source,Chain uses SUBBAND_CODEC_LOOP_DebugTargetKbps with persistent fallback,static contract test
+no_est_chain_refresh,Estimated bitrate does not drive chain dirty state,static contract test
+one_job_per_service,Chain is a separate UI draw job,static contract test and draw queue inspection
+board_realtime,Mode 8 320 kbps 60 second audio/display run,pending manual board test

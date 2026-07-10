@@ -249,6 +249,64 @@ class SubbandTouchUIContractTest(unittest.TestCase):
         apply_body = flow_source[apply_start:flow_source.index("}", apply_start) + 1]
         self.assertIn("SubbandUI_ResetLoadWindow();", apply_body)
 
+    def test_ui_processing_chain_replaces_visible_debug_fields(self) -> None:
+        ui_header = (ROOT / "Code/User/user_dsp/user_subband_ui.h").read_text(encoding="utf-8")
+        ui_source = (ROOT / "Code/User/user_dsp/user_subband_ui.c").read_text(encoding="utf-8")
+        combined = ui_header + ui_source
+
+        for token in (
+            "UI_DIRTY_CHAIN",
+            "SUBBAND_UI_DebugDisplayedChainMode",
+            "SUBBAND_UI_DebugDisplayedChainKbps",
+            "SUBBAND_UI_DebugChainRefreshCount",
+            "SUBBAND_UI_DebugLastChainDrawCycles",
+            "SUBBAND_UI_DebugMaxChainDrawCycles",
+            "SubbandUIChainDef",
+            "UI_ChainTable",
+            "static void UI_UpdateChainDirtyState(void)",
+            "static void UI_DrawProcessingChain(void)",
+        ):
+            self.assertIn(token, combined)
+
+        status_start = ui_source.index("static void UI_DrawStatus(void)")
+        status_end = ui_source.index("static void UI_DrawStaticBackground(void)", status_start)
+        status_body = ui_source[status_start:status_end]
+        self.assertNotIn('"REQ "', status_body)
+        self.assertNotIn('"  APPLIED "', status_body)
+
+        rate_start = ui_source.index("static void UI_DrawRateText(void)")
+        rate_end = ui_source.index("static int UI_ComputeAlgoLoad(void)", rate_start)
+        rate_body = ui_source[rate_start:rate_end]
+        self.assertNotIn('"SEL "', rate_body)
+        self.assertNotIn('"TGT "', rate_body)
+        self.assertNotIn('"EST "', rate_body)
+        self.assertNotIn("UI_CurrentEstimatedKbps", rate_body)
+
+    def test_ui_processing_chain_uses_applied_mode_and_target_kbps_only(self) -> None:
+        ui_source = (ROOT / "Code/User/user_dsp/user_subband_ui.c").read_text(encoding="utf-8")
+
+        chain_start = ui_source.index("static void UI_DrawProcessingChain(void)")
+        chain_end = ui_source.index("static void UI_DrawStaticBackground(void)", chain_start)
+        chain_body = ui_source[chain_start:chain_end]
+        self.assertIn("applied_mode = SUBBAND_DebugAppliedDemoMode;", chain_body)
+        self.assertIn("target_kbps = UI_CurrentChainKbps(applied_mode);", chain_body)
+        self.assertNotIn("SUBBAND_DebugDemoMode", chain_body)
+        self.assertNotIn("SUBBAND_CODEC_LOOP_DebugEstimatedBitrateKbps", chain_body)
+
+        dirty_start = ui_source.index("static void UI_UpdateChainDirtyState(void)")
+        dirty_end = ui_source.index("static void UI_UpdateDirtyState(void)", dirty_start)
+        dirty_body = ui_source[dirty_start:dirty_end]
+        self.assertIn("SUBBAND_DebugAppliedDemoMode", dirty_body)
+        self.assertIn("SUBBAND_CODEC_LOOP_DebugTargetKbps", dirty_body)
+        for token in (
+            "SUBBAND_DENOISE_DebugLearnHops",
+            "SUBBAND_DENOISE_DebugTargetHops",
+            "SUBBAND_DENOISE_DebugLearning",
+            "SUBBAND_UI_DebugAlgoLoadPercent",
+            "SUBBAND_CODEC_LOOP_DebugEstimatedBitrateKbps",
+        ):
+            self.assertNotIn(token, dirty_body)
+
     def test_flow_services_ui_without_touch_display_back_to_back(self) -> None:
         flow_source = (ROOT / "Code/User/user_dsp/user_subband_flow.c").read_text(encoding="utf-8")
         self.assertIn("touch_serviced = 0U;", flow_source)
@@ -257,6 +315,28 @@ class SubbandTouchUIContractTest(unittest.TestCase):
         touch_call = flow_source.index("SubbandUI_ServiceTouch(force_touch_scan);")
         post_touch = flow_source[touch_call:flow_source.index("if ((FLAG_AD == 0)", touch_call)]
         self.assertNotIn("Subband_Service_Demo_Mode();", post_touch)
+
+    def test_flow_display_slot_ignores_ad_done_but_preserves_io_priority(self) -> None:
+        flow_source = (ROOT / "Code/User/user_dsp/user_subband_flow.c").read_text(encoding="utf-8")
+        self.assertIn("unsigned char audio_serviced;", flow_source)
+        self.assertIn("audio_serviced = 0U;", flow_source)
+
+        ad_start = flow_source.index("if (FLAG_AD == 1)")
+        ad_end = flow_source.index("if (FLAG_DA == 1 && FLAG_AD_DONE == 1)", ad_start)
+        self.assertIn("audio_serviced = 1U;", flow_source[ad_start:ad_end])
+
+        da_start = flow_source.index("if (FLAG_DA == 1 && FLAG_AD_DONE == 1)")
+        da_end = flow_source.index("SUBBAND_DebugFrameReady = FLAG_AD_DONE;", da_start)
+        self.assertIn("audio_serviced = 1U;", flow_source[da_start:da_end])
+
+        display_call = flow_source.index("SubbandUI_ServiceDisplay();")
+        display_guard = flow_source[flow_source.rfind("if (", 0, display_call):display_call]
+
+        self.assertIn("(FLAG_AD == 0)", display_guard)
+        self.assertIn("(FLAG_DA == 0)", display_guard)
+        self.assertIn("(audio_serviced == 0U)", display_guard)
+        self.assertIn("(touch_serviced == 0U)", display_guard)
+        self.assertNotIn("FLAG_AD_DONE == 0", display_guard)
 
 
 if __name__ == "__main__":

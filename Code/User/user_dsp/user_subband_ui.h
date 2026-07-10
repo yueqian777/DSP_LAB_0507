@@ -18,7 +18,8 @@
 #define UI_DIRTY_RATE       0x08UL
 #define UI_DIRTY_LOAD       0x10UL
 #define UI_DIRTY_PROGRESS   0x20UL
-#define UI_DIRTY_ALL        0x3FUL
+#define UI_DIRTY_CHAIN      0x40UL
+#define UI_DIRTY_ALL        0x7FUL
 
 #define SUBBAND_UI_RUNTIME_DRAW_BUDGET_CYCLES 912000UL
 
@@ -47,6 +48,11 @@ extern volatile unsigned long SUBBAND_UI_DebugMaxTextDrawCycles;
 extern volatile unsigned long SUBBAND_UI_DebugRollingCycles;
 extern volatile unsigned long SUBBAND_UI_DebugRollingLoadPercent;
 extern volatile unsigned long SUBBAND_UI_DebugLoadSampleCount;
+extern volatile int SUBBAND_UI_DebugDisplayedChainMode;
+extern volatile int SUBBAND_UI_DebugDisplayedChainKbps;
+extern volatile unsigned long SUBBAND_UI_DebugChainRefreshCount;
+extern volatile unsigned long SUBBAND_UI_DebugLastChainDrawCycles;
+extern volatile unsigned long SUBBAND_UI_DebugMaxChainDrawCycles;
 
 void SubbandUI_Init(void);
 void SubbandUI_ServiceTouch(unsigned char force_scan);

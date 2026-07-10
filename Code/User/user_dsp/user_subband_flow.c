@@ -1064,6 +1064,7 @@ static void Fill_Dac_Inactive_Buffer(void)
 void Subband_Flow_Example(void)
 {
     unsigned char FLAG_AD_DONE = 0;
+    unsigned char audio_serviced;
     unsigned char touch_serviced;
 
     Sys_Init();
@@ -1081,12 +1082,14 @@ void Subband_Flow_Example(void)
 
     while (1)
     {
+        audio_serviced = 0U;
         touch_serviced = 0U;
         Subband_Service_Demo_Mode();
         Subband_Service_Benchmark_Backend();
 
         if (FLAG_AD == 1)
         {
+            audio_serviced = 1U;
             FLAG_AD = 0;
             FLAG_AD_DONE = 1;
             SUBBAND_DebugAdFrames++;
@@ -1097,6 +1100,7 @@ void Subband_Flow_Example(void)
 
         if (FLAG_DA == 1 && FLAG_AD_DONE == 1)
         {
+            audio_serviced = 1U;
             FLAG_DA = 0;
             FLAG_AD_DONE = 0;
             SUBBAND_DebugDaFrames++;
@@ -1142,7 +1146,7 @@ void Subband_Flow_Example(void)
         }
         if ((FLAG_AD == 0) &&
             (FLAG_DA == 0) &&
-            (FLAG_AD_DONE == 0) &&
+            (audio_serviced == 0U) &&
             (touch_serviced == 0U))
         {
             SubbandUI_ServiceDisplay();
