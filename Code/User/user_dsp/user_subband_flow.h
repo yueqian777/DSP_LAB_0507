@@ -20,6 +20,12 @@
 #define SUBBAND_USE_LEGACY_FIR 0
 #endif
 
+/* Keep the original FIR bank compiled as a test backend without making it
+ * the default project path. */
+#ifndef SUBBAND_ENABLE_LEGACY_FIR_BACKEND
+#define SUBBAND_ENABLE_LEGACY_FIR_BACKEND 1
+#endif
+
 #include "user_subband_wola.h"
 
 #define SUBBAND_D        8
@@ -61,6 +67,11 @@
 #define SUBBAND_DEMO_MODE_MCRA_CODEC_LOOPBACK 8
 #define SUBBAND_DEMO_MODE_STRONG_MCRA_CODEC_LOOPBACK 9
 #define SUBBAND_DEMO_MODE_FIXED_CODEC_LOOPBACK 10
+#define SUBBAND_DEMO_MODE_CODEC_LOOPBACK_ONLY 11
+
+#define SUBBAND_BACKEND_WOLA       0
+#define SUBBAND_BACKEND_LEGACY_FIR 1
+#define SUBBAND_BACKEND_POLYPHASE  2
 
 #ifndef SUBBAND_DEMO_DEFAULT_MODE
 #define SUBBAND_DEMO_DEFAULT_MODE SUBBAND_DEMO_MODE_WOLA_DENOISE
@@ -89,6 +100,22 @@ void Subband_Process_1024(short *in, short *out);
 extern volatile int SUBBAND_DebugDemoMode;
 extern volatile int SUBBAND_DebugAppliedDemoMode;
 extern volatile unsigned long SUBBAND_DebugDemoModeChanges;
+extern volatile int SUBBAND_DebugRequestedBackend;
+extern volatile int SUBBAND_DebugAppliedBackend;
+extern volatile unsigned long SUBBAND_DebugBackendChanges;
+extern volatile unsigned long SUBBAND_DebugAlgoFrames;
+extern volatile unsigned long SUBBAND_DebugLastCycles;
+extern volatile unsigned long SUBBAND_DebugMaxCycles;
+extern volatile float SUBBAND_DebugLastMs;
+extern volatile float SUBBAND_DebugMaxMs;
+extern volatile float SUBBAND_DebugCpuUsagePercent;
+extern volatile unsigned long SUBBAND_DebugInputNonzeroFrames;
+extern volatile unsigned long SUBBAND_DebugOutputNonzeroFrames;
+extern volatile unsigned long SUBBAND_DebugInputClipFrames;
+extern volatile unsigned long SUBBAND_DebugOutputClipFrames;
+extern volatile int SUBBAND_DebugInputPeakMax;
+extern volatile int SUBBAND_DebugOutputPeakMax;
+extern volatile unsigned long SUBBAND_DebugBenchmarkResetRequest;
 extern volatile short SUBBAND_DebugAdFirstSample;
 extern volatile short SUBBAND_DebugDaFirstSample;
 extern volatile int SUBBAND_DebugAdPeak;

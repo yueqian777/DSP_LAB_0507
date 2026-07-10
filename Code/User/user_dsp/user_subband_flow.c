@@ -10,8 +10,16 @@
 #include "user_subband_denoise.h"
 #include "user_subband_eval.h"
 #include "user_subband_codec_loopback.h"
+#include "user_subband_polyphase.h"
 #include "math.h"
 #include "string.h"
+
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+#include "c6x.h"
+#define SUBBAND_CPU_CYCLES_PER_MS 456000.0f
+#else
+#define SUBBAND_CPU_CYCLES_PER_MS 1.0f
+#endif
 
 #ifndef SUBBAND_FLOW_ALGO_ONLY
 #include "dac_api.h"
@@ -28,7 +36,7 @@
 
 typedef float SUBBAND_REAL;
 
-#if SUBBAND_USE_LEGACY_FIR && !ADDA_SUBBAND_BYPASS
+#if SUBBAND_ENABLE_LEGACY_FIR_BACKEND
 
 typedef struct
 {
@@ -81,7 +89,23 @@ volatile unsigned char SUBBAND_DebugLastDaPingPong = 0;
 volatile unsigned long SUBBAND_FilterbankFrames = 0;
 volatile int SUBBAND_DebugDemoMode = SUBBAND_DEMO_DEFAULT_MODE;
 volatile int SUBBAND_DebugAppliedDemoMode = -1;
-volatile unsigned long SUBBAND_DebugDemoModeChanges = 0;
+volatile unsigned long SUBBAND_DebugDemoModeChanges = 0UL;
+volatile int SUBBAND_DebugRequestedBackend = SUBBAND_BACKEND_WOLA;
+volatile int SUBBAND_DebugAppliedBackend = -1;
+volatile unsigned long SUBBAND_DebugBackendChanges = 0UL;
+volatile unsigned long SUBBAND_DebugAlgoFrames = 0UL;
+volatile unsigned long SUBBAND_DebugLastCycles = 0UL;
+volatile unsigned long SUBBAND_DebugMaxCycles = 0UL;
+volatile float SUBBAND_DebugLastMs = 0.0f;
+volatile float SUBBAND_DebugMaxMs = 0.0f;
+volatile float SUBBAND_DebugCpuUsagePercent = 0.0f;
+volatile unsigned long SUBBAND_DebugInputNonzeroFrames = 0UL;
+volatile unsigned long SUBBAND_DebugOutputNonzeroFrames = 0UL;
+volatile unsigned long SUBBAND_DebugInputClipFrames = 0UL;
+volatile unsigned long SUBBAND_DebugOutputClipFrames = 0UL;
+volatile int SUBBAND_DebugInputPeakMax = 0;
+volatile int SUBBAND_DebugOutputPeakMax = 0;
+volatile unsigned long SUBBAND_DebugBenchmarkResetRequest = 0UL;
 volatile short SUBBAND_DebugAdFirstSample = 0;
 volatile short SUBBAND_DebugDaFirstSample = 0;
 volatile int SUBBAND_DebugAdPeak = 0;
@@ -89,7 +113,7 @@ volatile int SUBBAND_DebugDaPeak = 0;
 
 #endif
 
-#if SUBBAND_USE_LEGACY_FIR && !ADDA_SUBBAND_BYPASS
+#if SUBBAND_ENABLE_LEGACY_FIR_BACKEND
 
 static void Clear_FilterBank_State(void)
 {
@@ -146,6 +170,7 @@ static int Subband_Normalize_Demo_Mode(int mode)
     case SUBBAND_DEMO_MODE_MCRA_CODEC_LOOPBACK:
     case SUBBAND_DEMO_MODE_STRONG_MCRA_CODEC_LOOPBACK:
     case SUBBAND_DEMO_MODE_FIXED_CODEC_LOOPBACK:
+    case SUBBAND_DEMO_MODE_CODEC_LOOPBACK_ONLY:
         return mode;
     default:
         return SUBBAND_DEMO_DEFAULT_MODE;
@@ -273,6 +298,18 @@ static void Subband_Apply_Demo_Mode(int mode)
         SubbandDenoise_StartNoiseLearning();
         break;
 
+    case SUBBAND_DEMO_MODE_CODEC_LOOPBACK_ONLY:
+        SubbandWOLA_SetBypass(0);
+        SubbandWOLA_ResetStream();
+        SubbandWOLA_ResetAllGains();
+        SubbandDenoise_Reset();
+        SubbandDenoise_StopLearning();
+        SubbandDenoise_SetEnabled(0);
+        SubbandCodecLoopback_Reset();
+        SubbandCodecLoopback_SetTargetKbps(240);
+        SubbandCodecLoopback_SetEnabled(1);
+        break;
+
     case SUBBAND_DEMO_MODE_WOLA_DENOISE:
     default:
         SubbandWOLA_SetBypass(0);
@@ -310,7 +347,7 @@ void Subband_FilterBank_Init(void)
         return;
     }
 
-#if SUBBAND_USE_LEGACY_FIR && !ADDA_SUBBAND_BYPASS
+#if SUBBAND_ENABLE_LEGACY_FIR_BACKEND
     int k;
     int n;
     double m;
@@ -357,14 +394,15 @@ void Subband_FilterBank_Init(void)
     }
 
     Clear_FilterBank_State();
-#else
-    SubbandWOLA_Init();
 #endif
+
+    SubbandWOLA_Init();
+    SubbandPolyphase_Init();
 
     Subband_FilterBank_Ready = 1;
 }
 
-#if SUBBAND_USE_LEGACY_FIR && !ADDA_SUBBAND_BYPASS
+#if SUBBAND_ENABLE_LEGACY_FIR_BACKEND
 
 static short Saturate_Real_To_Short(SUBBAND_REAL value)
 {
@@ -523,10 +561,129 @@ static void Synthesis_Filter_1024(short *out)
 
 #endif
 
+#ifndef SUBBAND_FLOW_ALGO_ONLY
+
+static int Subband_Normalize_Backend(int backend)
+{
+    switch (backend)
+    {
+    case SUBBAND_BACKEND_WOLA:
+    case SUBBAND_BACKEND_LEGACY_FIR:
+    case SUBBAND_BACKEND_POLYPHASE:
+        return backend;
+    default:
+        return SUBBAND_BACKEND_WOLA;
+    }
+}
+
+static void Subband_Reset_Benchmark_Counters(void)
+{
+    SUBBAND_DebugAdFrames = 0UL;
+    SUBBAND_DebugDaFrames = 0UL;
+    SUBBAND_FilterbankFrames = 0UL;
+    SUBBAND_DebugAlgoFrames = 0UL;
+    SUBBAND_DebugLastCycles = 0UL;
+    SUBBAND_DebugMaxCycles = 0UL;
+    SUBBAND_DebugLastMs = 0.0f;
+    SUBBAND_DebugMaxMs = 0.0f;
+    SUBBAND_DebugCpuUsagePercent = 0.0f;
+    SUBBAND_DebugInputNonzeroFrames = 0UL;
+    SUBBAND_DebugOutputNonzeroFrames = 0UL;
+    SUBBAND_DebugInputClipFrames = 0UL;
+    SUBBAND_DebugOutputClipFrames = 0UL;
+    SUBBAND_DebugInputPeakMax = 0;
+    SUBBAND_DebugOutputPeakMax = 0;
+    SUBBAND_EVAL_DebugAdFrames = 0UL;
+    SUBBAND_EVAL_DebugDaFrames = 0UL;
+}
+
+static void Subband_Service_Benchmark_Backend(void)
+{
+    int backend;
+
+    backend = Subband_Normalize_Backend(SUBBAND_DebugRequestedBackend);
+    if (backend != SUBBAND_DebugRequestedBackend)
+    {
+        SUBBAND_DebugRequestedBackend = backend;
+    }
+
+    if (backend != SUBBAND_DebugAppliedBackend)
+    {
+        SubbandWOLA_ResetStream();
+        SubbandWOLA_ResetAllGains();
+#if SUBBAND_ENABLE_LEGACY_FIR_BACKEND
+        Clear_FilterBank_State();
+#endif
+        SubbandPolyphase_Reset();
+        Subband_Reset_Benchmark_Counters();
+        SUBBAND_DebugAppliedBackend = backend;
+        SUBBAND_DebugBackendChanges++;
+    }
+
+    if (SUBBAND_DebugBenchmarkResetRequest != 0UL)
+    {
+        Subband_Reset_Benchmark_Counters();
+        SUBBAND_DebugBenchmarkResetRequest = 0UL;
+    }
+}
+
+static void Subband_Update_Benchmark_Debug(const short *in, const short *out,
+                                           unsigned long cycles)
+{
+    int input_peak;
+    int output_peak;
+
+    input_peak = Subband_Frame_Peak(in);
+    output_peak = Subband_Frame_Peak(out);
+    SUBBAND_DebugAlgoFrames++;
+    SUBBAND_DebugLastCycles = cycles;
+    SUBBAND_DebugLastMs = (float)cycles / SUBBAND_CPU_CYCLES_PER_MS;
+    if (cycles > SUBBAND_DebugMaxCycles)
+    {
+        SUBBAND_DebugMaxCycles = cycles;
+        SUBBAND_DebugMaxMs = SUBBAND_DebugLastMs;
+    }
+    SUBBAND_DebugCpuUsagePercent =
+        (SUBBAND_DebugMaxMs /
+         (((float)SUBBAND_FRM_LEN / SUBBAND_SAMPLE_RATE) * 1000.0f)) * 100.0f;
+
+    if (input_peak > 64)
+    {
+        SUBBAND_DebugInputNonzeroFrames++;
+    }
+    if (output_peak > 64)
+    {
+        SUBBAND_DebugOutputNonzeroFrames++;
+    }
+    if (input_peak >= 32767)
+    {
+        SUBBAND_DebugInputClipFrames++;
+    }
+    if (output_peak >= 32767)
+    {
+        SUBBAND_DebugOutputClipFrames++;
+    }
+    if (input_peak > SUBBAND_DebugInputPeakMax)
+    {
+        SUBBAND_DebugInputPeakMax = input_peak;
+    }
+    if (output_peak > SUBBAND_DebugOutputPeakMax)
+    {
+        SUBBAND_DebugOutputPeakMax = output_peak;
+    }
+}
+
+#endif /* SUBBAND_FLOW_ALGO_ONLY */
+
 void Subband_Process_1024(short *in, short *out)
 {
-#if SUBBAND_USE_LEGACY_FIR && ADDA_SUBBAND_BYPASS
-    int i;
+#ifndef SUBBAND_FLOW_ALGO_ONLY
+    int backend;
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+    unsigned int cycle_start;
+    unsigned int cycle_end;
+    unsigned long cycle_delta;
+#endif
 #endif
 
     if ((in == 0) || (out == 0))
@@ -536,23 +693,45 @@ void Subband_Process_1024(short *in, short *out)
 
     Subband_FilterBank_Init();
 
-#if SUBBAND_USE_LEGACY_FIR
-#if ADDA_SUBBAND_BYPASS
-    for (i = 0; i < SUBBAND_FRM_LEN; i++)
+#ifndef SUBBAND_FLOW_ALGO_ONLY
+    backend = Subband_Normalize_Backend(SUBBAND_DebugAppliedBackend);
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+    cycle_start = TSCL;
+#endif
+#else
     {
-        out[i] = in[i];
-    }
-#else
-    Analysis_Filter_1024(in);
-    Subband_Direct_Through_1024();
-    Synthesis_Filter_1024(out);
-#endif
-#else
-    SubbandWOLA_ProcessFrame(in, out);
-#endif
+        int backend;
 
+        backend = SUBBAND_BACKEND_WOLA;
+#endif
+#if SUBBAND_ENABLE_LEGACY_FIR_BACKEND
+        if (backend == SUBBAND_BACKEND_LEGACY_FIR)
+        {
+            Analysis_Filter_1024(in);
+            Subband_Direct_Through_1024();
+            Synthesis_Filter_1024(out);
+        }
+        else
+#endif
+        if (backend == SUBBAND_BACKEND_POLYPHASE)
+        {
+            SubbandPolyphase_ProcessFrame(in, out, SUBBAND_FRM_LEN);
+        }
+        else
+        {
+            SubbandWOLA_ProcessFrame(in, out);
+        }
 #ifndef SUBBAND_FLOW_ALGO_ONLY
     SUBBAND_FilterbankFrames++;
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+    cycle_end = TSCL;
+    cycle_delta = (unsigned long)(cycle_end - cycle_start);
+    Subband_Update_Benchmark_Debug(in, out, cycle_delta);
+#else
+    Subband_Update_Benchmark_Debug(in, out, 0UL);
+#endif
+#else
+    }
 #endif
 }
 
@@ -806,6 +985,7 @@ void Subband_Flow_Example(void)
     while (1)
     {
         Subband_Service_Demo_Mode();
+        Subband_Service_Benchmark_Backend();
 
         if (FLAG_AD == 1)
         {
