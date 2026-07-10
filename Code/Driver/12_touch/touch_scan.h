@@ -36,6 +36,12 @@ extern unsigned int Touch_X;
 
 /** @brief 触摸点的Y坐标 */
 extern unsigned int Touch_Y;
+extern volatile unsigned char Touch_DebugRawState;
+extern volatile unsigned long Touch_DebugScanCount;
+extern volatile unsigned long Touch_DebugTouchSampleCount;
+extern volatile unsigned long Touch_DebugReleaseSampleCount;
+extern volatile unsigned int Touch_DebugLastX;
+extern volatile unsigned int Touch_DebugLastY;
 
 /** @} */
 

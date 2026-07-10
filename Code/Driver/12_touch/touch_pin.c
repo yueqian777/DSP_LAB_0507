@@ -54,8 +54,8 @@ static void GPIOBankPinMuxSet(void)
 {
     volatile unsigned int savePinMux = 0;
 
-    savePinMux = HWREG(SOC_SYSCFG_0_REGS + SYSCFG0_PINMUX(0)) & ~(TOUCH_INT_MASK);
-    HWREG(SOC_SYSCFG_0_REGS + SYSCFG0_PINMUX(0)) = (TOUCH_INT_ENABLE | savePinMux);
+    savePinMux = HWREG(SOC_SYSCFG_0_REGS + SYSCFG0_PINMUX(18)) & ~(TOUCH_INT_MASK);
+    HWREG(SOC_SYSCFG_0_REGS + SYSCFG0_PINMUX(18)) = (TOUCH_INT_ENABLE | savePinMux);
 }
 
 // GPIO 管脚初始化（输出模式）

@@ -49,6 +49,14 @@ class SubbandTouchUIContractTest(unittest.TestCase):
         self.assertIn("SubbandUI_ServiceTouch", source)
         self.assertIn("SubbandUI_ServiceDisplay", source)
 
+    def test_touch_pinmux_and_font_draw_are_board_safe(self) -> None:
+        touch_source = (ROOT / "Code/Driver/12_touch/touch_pin.c").read_text(encoding="utf-8")
+        font_source = (ROOT / "Code/User/user_dsp/user_subband_ui_font.c").read_text(encoding="utf-8")
+        self.assertIn("SYSCFG0_PINMUX(18)", touch_source)
+        self.assertNotIn("SYSCFG0_PINMUX(0)", touch_source)
+        self.assertIn("GrLineDrawH", font_source)
+        self.assertNotIn("GrPixelDraw", font_source)
+
 
 if __name__ == "__main__":
     unittest.main()
