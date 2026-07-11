@@ -216,6 +216,30 @@ int SubbandUI_RemainingSeconds(unsigned long learn_hops,
     return (int)seconds;
 }
 
+SubbandUILearningDisplayJob SubbandUI_SelectLearningDisplayJob(
+    int mode_uses_learning,
+    int last_mode_uses_learning,
+    int learning,
+    int last_learning,
+    int ready,
+    int last_ready,
+    int remaining_seconds,
+    int last_remaining_seconds)
+{
+    if ((mode_uses_learning != last_mode_uses_learning) ||
+        (learning != last_learning) ||
+        (ready != last_ready))
+    {
+        return SUBBAND_UI_LEARNING_DRAW_STATE;
+    }
+    if ((mode_uses_learning != 0) && (learning != 0) &&
+        (remaining_seconds != last_remaining_seconds))
+    {
+        return SUBBAND_UI_LEARNING_DRAW_REMAINING_DIGIT;
+    }
+    return SUBBAND_UI_LEARNING_DRAW_NONE;
+}
+
 void SubbandUI_LatchInit(SubbandUITouchLatch *latch)
 {
     if (latch != 0)

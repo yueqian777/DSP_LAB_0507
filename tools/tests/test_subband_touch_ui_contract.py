@@ -1,4 +1,8 @@
+import os
 from pathlib import Path
+import subprocess
+import tempfile
+import textwrap
 import unittest
 
 
@@ -395,6 +399,7 @@ class SubbandTouchUIContractTest(unittest.TestCase):
             "UI_DIRTY_CHAIN",
             "UI_DIRTY_RATE",
             "UI_DIRTY_COUNTDOWN",
+            "UI_DIRTY_REMAINING_DIGIT",
             "UI_DIRTY_PROGRESS",
             "UI_DIRTY_LOAD",
         ]
@@ -450,14 +455,139 @@ class SubbandTouchUIContractTest(unittest.TestCase):
 
     def test_coarse_second_change_does_not_redraw_status(self) -> None:
         ui_source = (ROOT / "Code/User/user_dsp/user_subband_ui.c").read_text(encoding="utf-8")
+        logic_source = (ROOT / "Code/User/user_dsp/user_subband_ui_logic.c").read_text(encoding="utf-8")
         update_start = ui_source.index("static void UI_UpdateDirtyState(void)")
         update_end = ui_source.index("static void UI_UpdateLoadDirtyState(void)", update_start)
         update_body = ui_source[update_start:update_end]
+        decision_start = logic_source.index("SubbandUI_SelectLearningDisplayJob")
+        decision_end = logic_source.index("void SubbandUI_LatchInit", decision_start)
+        decision_body = logic_source[decision_start:decision_end]
         self.assertIn("learning_state_changed", update_body)
-        self.assertIn("remaining_seconds != UI_LastRemainingSeconds", update_body)
+        self.assertIn("remaining_seconds != last_remaining_seconds", decision_body)
+        self.assertIn("SUBBAND_UI_LEARNING_DRAW_REMAINING_DIGIT", decision_body)
         status_guard = update_body.index("if (learning_state_changed != 0)")
         status_mark = update_body.index("UI_MarkDirty(UI_DIRTY_STATUS);", status_guard)
         self.assertGreater(status_mark, status_guard)
+
+    def test_learning_state_and_remaining_digit_jobs_are_split(self) -> None:
+        ui_header = (ROOT / "Code/User/user_dsp/user_subband_ui.h").read_text(encoding="utf-8")
+        ui_source = (ROOT / "Code/User/user_dsp/user_subband_ui.c").read_text(encoding="utf-8")
+
+        self.assertIn("UI_DIRTY_REMAINING_DIGIT", ui_header)
+        self.assertIn("UI_DIRTY_ALL        0xFFUL", ui_header)
+        for token in (
+            "SUBBAND_UI_DebugLearningStateDrawCount",
+            "SUBBAND_UI_DebugRemainingDigitDrawCount",
+            "SUBBAND_UI_DebugLastLearningStateDrawCycles",
+            "SUBBAND_UI_DebugMaxLearningStateDrawCycles",
+            "SUBBAND_UI_DebugLastRemainingDigitDrawCycles",
+            "SUBBAND_UI_DebugMaxRemainingDigitDrawCycles",
+            "SUBBAND_UI_DebugCancelledDigitJobs",
+        ):
+            self.assertIn(token, ui_header + ui_source)
+
+        digit_start = ui_source.index("static void UI_DrawRemainingDigit(void)")
+        digit_end = ui_source.index("static void UI_DrawLearningState(void)", digit_start)
+        digit_body = ui_source[digit_start:digit_end]
+        self.assertIn("UI_FillRect(UI_REMAINING_DIGIT_X0", digit_body)
+        self.assertIn("UI_REMAINING_DIGIT_X1", digit_body)
+        self.assertIn("UI_DrawAscii", digit_body)
+        self.assertNotIn("SubbandUIFont_DrawPhrase", digit_body)
+        self.assertNotIn("UI_DrawLearningState();", digit_body)
+        self.assertNotIn("UI_FillRect(28, 326, 222, 376", digit_body)
+
+        update_start = ui_source.index("static void UI_UpdateDirtyState(void)")
+        update_end = ui_source.index("static void UI_UpdateLoadDirtyState(void)", update_start)
+        update_body = ui_source[update_start:update_end]
+        self.assertIn("SubbandUI_SelectLearningDisplayJob", update_body)
+        self.assertIn("UI_CancelRemainingDigitJob();", update_body)
+        self.assertIn("UI_DIRTY_REMAINING_DIGIT", update_body)
+        learning_update_body = update_body[
+            :update_body.index("#if SUBBAND_UI_PROGRESS_POLICY")
+        ]
+        self.assertNotIn("SUBBAND_DENOISE_DebugLearnHops", learning_update_body)
+
+        job_start = ui_source.index("static unsigned long UI_DrawOneJob(void)")
+        job_end = ui_source.index("static void UI_RecordDrawCycles", job_start)
+        job_body = ui_source[job_start:job_end]
+        self.assertLess(job_body.index("UI_DIRTY_COUNTDOWN"),
+                        job_body.index("UI_DIRTY_REMAINING_DIGIT"))
+
+    def test_learning_display_state_machine_runs_against_logic_module(self) -> None:
+        bash = Path("C:/msys64/usr/bin/bash.exe")
+        self.assertTrue(bash.exists(), "MSYS2 bash is required for the host C state-machine test")
+        c_program = textwrap.dedent(
+            """
+            #include "user_subband_ui_logic.h"
+
+            int main(void)
+            {
+                if (SubbandUI_SelectLearningDisplayJob(1, -1, 1, -1, 0, -1,
+                                                       2, -1) !=
+                    SUBBAND_UI_LEARNING_DRAW_STATE)
+                {
+                    return 1;
+                }
+                if (SubbandUI_SelectLearningDisplayJob(1, 1, 1, 1, 0, 0,
+                                                       1, 2) !=
+                    SUBBAND_UI_LEARNING_DRAW_REMAINING_DIGIT)
+                {
+                    return 2;
+                }
+                if (SubbandUI_SelectLearningDisplayJob(1, 1, 0, 1, 1, 0,
+                                                       0, 1) !=
+                    SUBBAND_UI_LEARNING_DRAW_STATE)
+                {
+                    return 3;
+                }
+                if (SubbandUI_SelectLearningDisplayJob(0, 1, 0, 1, 0, 0,
+                                                       0, 1) !=
+                    SUBBAND_UI_LEARNING_DRAW_STATE)
+                {
+                    return 4;
+                }
+                if (SubbandUI_SelectLearningDisplayJob(1, 1, 0, 1, 1, 0,
+                                                       0, 2) !=
+                    SUBBAND_UI_LEARNING_DRAW_STATE)
+                {
+                    return 5;
+                }
+                return 0;
+            }
+            """
+        )
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            c_source = Path(temporary_directory) / "learning_display_state_machine.c"
+            executable = Path(temporary_directory) / "learning_display_state_machine.exe"
+            c_source.write_text(c_program, encoding="utf-8")
+            command = textwrap.dedent(
+                """
+                set -eu
+                export PATH=/mingw64/bin:/usr/bin:$PATH
+                root="$(cygpath -u "$REPO_ROOT")"
+                c_source="$(cygpath -u "$TEST_SOURCE")"
+                executable="$(cygpath -u "$TEST_EXECUTABLE")"
+                gcc -std=c89 -Wall -Werror -I"$root/Code/User/user_dsp" \
+                    "$c_source" "$root/Code/User/user_dsp/user_subband_ui_logic.c" \
+                    -o "$executable"
+                "$executable"
+                """
+            )
+            environment = os.environ.copy()
+            environment["REPO_ROOT"] = str(ROOT)
+            environment["TEST_SOURCE"] = str(c_source)
+            environment["TEST_EXECUTABLE"] = str(executable)
+            result = subprocess.run(
+                [str(bash), "-lc", command],
+                cwd=ROOT,
+                env=environment,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                capture_output=True,
+                check=False,
+            )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 
 if __name__ == "__main__":

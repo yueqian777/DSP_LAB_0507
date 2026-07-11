@@ -35,7 +35,8 @@
 #define UI_DIRTY_LOAD       0x10UL
 #define UI_DIRTY_PROGRESS   0x20UL
 #define UI_DIRTY_CHAIN      0x40UL
-#define UI_DIRTY_ALL        0x7FUL
+#define UI_DIRTY_REMAINING_DIGIT 0x80UL
+#define UI_DIRTY_ALL        0xFFUL
 
 #define SUBBAND_UI_RUNTIME_DRAW_BUDGET_CYCLES 912000UL
 
@@ -77,6 +78,13 @@ extern volatile unsigned long SUBBAND_UI_DebugSkippedSameFrame;
 extern volatile unsigned long SUBBAND_UI_DebugMaxDrawJobsPerFrame;
 extern volatile unsigned long SUBBAND_UI_DebugSkippedDrawGap;
 extern volatile unsigned long SUBBAND_UI_DebugHoldoffSkipCount;
+extern volatile unsigned long SUBBAND_UI_DebugLearningStateDrawCount;
+extern volatile unsigned long SUBBAND_UI_DebugRemainingDigitDrawCount;
+extern volatile unsigned long SUBBAND_UI_DebugLastLearningStateDrawCycles;
+extern volatile unsigned long SUBBAND_UI_DebugMaxLearningStateDrawCycles;
+extern volatile unsigned long SUBBAND_UI_DebugLastRemainingDigitDrawCycles;
+extern volatile unsigned long SUBBAND_UI_DebugMaxRemainingDigitDrawCycles;
+extern volatile unsigned long SUBBAND_UI_DebugCancelledDigitJobs;
 
 void SubbandUI_Init(void);
 void SubbandUI_ServiceTouch(unsigned char force_scan);

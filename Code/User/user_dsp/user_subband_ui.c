@@ -37,6 +37,11 @@
 #define UI_CHAIN_Y_MAX 106
 #define UI_CHAIN_TEXT_CAPACITY 96U
 
+#define UI_REMAINING_DIGIT_X0 82
+#define UI_REMAINING_DIGIT_Y0 352
+#define UI_REMAINING_DIGIT_X1 130
+#define UI_REMAINING_DIGIT_Y1 376
+
 #define UI_PROGRESS_BLOCKS 10U
 #define UI_PROGRESS_X 24
 #define UI_PROGRESS_Y 390
@@ -69,6 +74,7 @@
 #define UI_DRAW_JOB_STATUS    5UL
 #define UI_DRAW_JOB_LOAD      6UL
 #define UI_DRAW_JOB_CHAIN     7UL
+#define UI_DRAW_JOB_REMAINING_DIGIT 8UL
 
 typedef struct
 {
@@ -131,6 +137,13 @@ volatile unsigned long SUBBAND_UI_DebugSkippedSameFrame = 0UL;
 volatile unsigned long SUBBAND_UI_DebugMaxDrawJobsPerFrame = 0UL;
 volatile unsigned long SUBBAND_UI_DebugSkippedDrawGap = 0UL;
 volatile unsigned long SUBBAND_UI_DebugHoldoffSkipCount = 0UL;
+volatile unsigned long SUBBAND_UI_DebugLearningStateDrawCount = 0UL;
+volatile unsigned long SUBBAND_UI_DebugRemainingDigitDrawCount = 0UL;
+volatile unsigned long SUBBAND_UI_DebugLastLearningStateDrawCycles = 0UL;
+volatile unsigned long SUBBAND_UI_DebugMaxLearningStateDrawCycles = 0UL;
+volatile unsigned long SUBBAND_UI_DebugLastRemainingDigitDrawCycles = 0UL;
+volatile unsigned long SUBBAND_UI_DebugMaxRemainingDigitDrawCycles = 0UL;
+volatile unsigned long SUBBAND_UI_DebugCancelledDigitJobs = 0UL;
 
 static const SubbandUIButtonDef UI_ModeButtons[8] =
 {
@@ -166,9 +179,14 @@ static unsigned char UI_Initialized = 0U;
 static unsigned long UI_DirtyFlags = UI_DIRTY_ALL;
 static unsigned long UI_LastCountdownFrame = 0UL;
 static unsigned long UI_LastLoadFrame = 0UL;
+static int UI_LastLearningMode = -1;
 static int UI_LastLearning = -1;
 static int UI_LastReady = -1;
 static int UI_LastRemainingSeconds = -1;
+static int UI_DisplayedLearningMode = -1;
+static int UI_DisplayedLearning = -1;
+static int UI_DisplayedReady = -1;
+static int UI_DisplayedRemainingSeconds = -1;
 static int UI_LastCodecEnabled = -1;
 static int UI_LastSelectedKbps = -1;
 static int UI_LastLoadPercent = -2;
@@ -296,6 +314,15 @@ static void UI_ClearDirty(unsigned long flags)
 {
     UI_DirtyFlags &= ~flags;
     SUBBAND_UI_DebugDirtyFlags = UI_DirtyFlags;
+}
+
+static void UI_CancelRemainingDigitJob(void)
+{
+    if ((UI_DirtyFlags & UI_DIRTY_REMAINING_DIGIT) != 0UL)
+    {
+        UI_ClearDirty(UI_DIRTY_REMAINING_DIGIT);
+        SUBBAND_UI_DebugCancelledDigitJobs++;
+    }
 }
 
 static void UI_MarkChainDirty(void)
@@ -560,16 +587,33 @@ static int UI_CurrentRemainingSeconds(void)
                                       (unsigned long)SUBBAND_SAMPLE_RATE);
 }
 
-static void UI_DrawLearningState(void)
+static void UI_DrawRemainingDigit(void)
 {
     char text[8];
     char *cursor;
+    int remaining_seconds;
+
+    remaining_seconds = UI_CurrentRemainingSeconds();
+    SUBBAND_UI_DebugCountdownMs = remaining_seconds * 1000;
+    UI_FillRect(UI_REMAINING_DIGIT_X0, UI_REMAINING_DIGIT_Y0,
+                UI_REMAINING_DIGIT_X1, UI_REMAINING_DIGIT_Y1,
+                UI_COLOR_PANEL);
+    cursor = UI_AppendInt(text, remaining_seconds);
+    cursor = UI_AppendText(cursor, " s");
+    *cursor = '\0';
+    UI_DrawAscii(text, UI_REMAINING_DIGIT_X0, 354, ClrLightSkyBlue);
+    UI_DisplayedRemainingSeconds = remaining_seconds;
+}
+
+static void UI_DrawLearningState(void)
+{
     int mode;
     int remaining_seconds;
 
     mode = SUBBAND_DebugAppliedDemoMode;
     remaining_seconds = UI_CurrentRemainingSeconds();
     SUBBAND_UI_DebugCountdownMs = remaining_seconds * 1000;
+    UI_CancelRemainingDigitJob();
     UI_FillRect(28, 326, 222, 376, UI_COLOR_PANEL);
     if (SubbandUI_ModeUsesLearning(mode) == 0)
     {
@@ -583,12 +627,9 @@ static void UI_DrawLearningState(void)
                                  SUBBAND_UI_PHRASE_LABEL_LEARNING,
                                  28, 329, UI_COLOR_TEXT);
         SubbandUIFont_DrawPhrase(&Lcd_Context,
-                                 SUBBAND_UI_PHRASE_LABEL_REMAINING,
-                                 28, 357, UI_COLOR_TEXT);
-        cursor = UI_AppendInt(text, remaining_seconds);
-        cursor = UI_AppendText(cursor, " s");
-        *cursor = '\0';
-        UI_DrawAscii(text, 82, 354, ClrLightSkyBlue);
+                                  SUBBAND_UI_PHRASE_LABEL_REMAINING,
+                                  28, 357, UI_COLOR_TEXT);
+        UI_DrawRemainingDigit();
     }
     else if (SUBBAND_DENOISE_DebugReady != 0)
     {
@@ -599,9 +640,13 @@ static void UI_DrawLearningState(void)
     else
     {
         SubbandUIFont_DrawPhrase(&Lcd_Context,
-                                 SUBBAND_UI_PHRASE_LABEL_LEARNING,
-                                 28, 338, ClrLightSteelBlue);
+                                  SUBBAND_UI_PHRASE_LABEL_LEARNING,
+                                  28, 338, ClrLightSteelBlue);
     }
+    UI_DisplayedLearningMode = SubbandUI_ModeUsesLearning(mode);
+    UI_DisplayedLearning = SUBBAND_DENOISE_DebugLearning;
+    UI_DisplayedReady = SUBBAND_DENOISE_DebugReady;
+    UI_DisplayedRemainingSeconds = remaining_seconds;
 }
 
 static const tFont *UI_SelectChainFont(const char *text)
@@ -795,7 +840,9 @@ static void UI_UpdateDirtyState(void)
     int old_rate_index;
     int new_rate_index;
     int remaining_seconds;
+    int mode_uses_learning;
     int learning_state_changed;
+    SubbandUILearningDisplayJob learning_draw_job;
     unsigned int rate_mask;
 
     SUBBAND_UI_DebugSelectedMode = SUBBAND_DebugDemoMode;
@@ -803,6 +850,7 @@ static void UI_UpdateDirtyState(void)
     if (UI_DisplayedAppliedMode != applied)
     {
         UI_ScheduleAppliedModeRedraw(applied);
+        UI_CancelRemainingDigitJob();
         UI_MarkDirty(UI_DIRTY_STATUS | UI_DIRTY_COUNTDOWN | UI_DIRTY_LOAD);
     }
 
@@ -842,17 +890,29 @@ static void UI_UpdateDirtyState(void)
     UI_LastSelectedKbps = selected;
     UI_UpdateChainDirtyState();
 
+    mode_uses_learning = SubbandUI_ModeUsesLearning(applied);
     remaining_seconds = UI_CurrentRemainingSeconds();
+    learning_draw_job = SubbandUI_SelectLearningDisplayJob(
+        mode_uses_learning, UI_LastLearningMode,
+        SUBBAND_DENOISE_DebugLearning, UI_LastLearning,
+        SUBBAND_DENOISE_DebugReady, UI_LastReady,
+        remaining_seconds, UI_LastRemainingSeconds);
     learning_state_changed =
-        ((SUBBAND_DENOISE_DebugLearning != UI_LastLearning) ||
-         (SUBBAND_DENOISE_DebugReady != UI_LastReady)) ? 1 : 0;
-    if ((learning_state_changed != 0) ||
-        (remaining_seconds != UI_LastRemainingSeconds))
+        (learning_draw_job == SUBBAND_UI_LEARNING_DRAW_STATE) ? 1 : 0;
+    if (learning_state_changed != 0)
     {
+        UI_LastLearningMode = mode_uses_learning;
         UI_LastLearning = SUBBAND_DENOISE_DebugLearning;
         UI_LastReady = SUBBAND_DENOISE_DebugReady;
         UI_LastRemainingSeconds = remaining_seconds;
+        UI_CancelRemainingDigitJob();
         UI_MarkDirty(UI_DIRTY_COUNTDOWN);
+    }
+    else if (learning_draw_job ==
+             SUBBAND_UI_LEARNING_DRAW_REMAINING_DIGIT)
+    {
+        UI_LastRemainingSeconds = remaining_seconds;
+        UI_MarkDirty(UI_DIRTY_REMAINING_DIGIT);
     }
     if (learning_state_changed != 0)
     {
@@ -976,6 +1036,30 @@ static unsigned long UI_DrawNextCountdownJob(void)
     return UI_DRAW_JOB_COUNTDOWN;
 }
 
+static unsigned long UI_DrawNextRemainingDigitJob(void)
+{
+    int remaining_seconds;
+
+    if ((SubbandUI_ModeUsesLearning(SUBBAND_DebugAppliedDemoMode) == 0) ||
+        (SUBBAND_DENOISE_DebugLearning == 0))
+    {
+        UI_CancelRemainingDigitJob();
+        return UI_DRAW_JOB_NONE;
+    }
+    remaining_seconds = UI_CurrentRemainingSeconds();
+    if ((UI_DisplayedLearningMode == 0) ||
+        (UI_DisplayedLearning == 0) ||
+        (UI_DisplayedReady != 0) ||
+        (remaining_seconds == UI_DisplayedRemainingSeconds))
+    {
+        UI_CancelRemainingDigitJob();
+        return UI_DRAW_JOB_NONE;
+    }
+    UI_DrawRemainingDigit();
+    UI_ClearDirty(UI_DIRTY_REMAINING_DIGIT);
+    return UI_DRAW_JOB_REMAINING_DIGIT;
+}
+
 static unsigned long UI_DrawOneJob(void)
 {
     unsigned long job;
@@ -1001,21 +1085,20 @@ static unsigned long UI_DrawOneJob(void)
         job = UI_DrawNextRateJob();
         if (job != UI_DRAW_JOB_NONE) return job;
     }
-#if SUBBAND_UI_PROGRESS_POLICY == SUBBAND_UI_PROGRESS_TEN_BLOCK
     if ((UI_DirtyFlags & UI_DIRTY_COUNTDOWN) != 0UL)
     {
         job = UI_DrawNextCountdownJob();
         if (job != UI_DRAW_JOB_NONE) return job;
     }
+    if ((UI_DirtyFlags & UI_DIRTY_REMAINING_DIGIT) != 0UL)
+    {
+        job = UI_DrawNextRemainingDigitJob();
+        if (job != UI_DRAW_JOB_NONE) return job;
+    }
+#if SUBBAND_UI_PROGRESS_POLICY == SUBBAND_UI_PROGRESS_TEN_BLOCK
     if ((UI_DirtyFlags & UI_DIRTY_PROGRESS) != 0UL)
     {
         return UI_DrawNextProgressJob();
-    }
-#else
-    if ((UI_DirtyFlags & UI_DIRTY_COUNTDOWN) != 0UL)
-    {
-        job = UI_DrawNextCountdownJob();
-        if (job != UI_DRAW_JOB_NONE) return job;
     }
 #endif
     if ((UI_DirtyFlags & UI_DIRTY_LOAD) != 0UL)
@@ -1044,6 +1127,24 @@ static void UI_RecordDrawCycles(unsigned long job, unsigned long cycles)
         if (cycles > SUBBAND_UI_DebugMaxProgressDrawCycles)
         {
             SUBBAND_UI_DebugMaxProgressDrawCycles = cycles;
+        }
+    }
+    else if (job == UI_DRAW_JOB_COUNTDOWN)
+    {
+        SUBBAND_UI_DebugLearningStateDrawCount++;
+        SUBBAND_UI_DebugLastLearningStateDrawCycles = cycles;
+        if (cycles > SUBBAND_UI_DebugMaxLearningStateDrawCycles)
+        {
+            SUBBAND_UI_DebugMaxLearningStateDrawCycles = cycles;
+        }
+    }
+    else if (job == UI_DRAW_JOB_REMAINING_DIGIT)
+    {
+        SUBBAND_UI_DebugRemainingDigitDrawCount++;
+        SUBBAND_UI_DebugLastRemainingDigitDrawCycles = cycles;
+        if (cycles > SUBBAND_UI_DebugMaxRemainingDigitDrawCycles)
+        {
+            SUBBAND_UI_DebugMaxRemainingDigitDrawCycles = cycles;
         }
     }
     else if ((job == UI_DRAW_JOB_MODE) || (job == UI_DRAW_JOB_RATE))
@@ -1103,6 +1204,8 @@ static void UI_DrawInitialPage(void)
     UI_DisplayedAppliedMode = SUBBAND_DebugAppliedDemoMode;
     UI_PendingAppliedMode = UI_DisplayedAppliedMode;
     SUBBAND_UI_DebugDisplayedMode = UI_DisplayedAppliedMode;
+    UI_LastLearningMode =
+        SubbandUI_ModeUsesLearning(SUBBAND_DebugAppliedDemoMode);
     UI_LastLearning = SUBBAND_DENOISE_DebugLearning;
     UI_LastReady = SUBBAND_DENOISE_DebugReady;
     UI_LastRemainingSeconds = UI_CurrentRemainingSeconds();
@@ -1218,6 +1321,13 @@ void SubbandUI_Init(void)
     SUBBAND_UI_DebugMaxDrawJobsPerFrame = 0UL;
     SUBBAND_UI_DebugSkippedDrawGap = 0UL;
     SUBBAND_UI_DebugHoldoffSkipCount = 0UL;
+    SUBBAND_UI_DebugLearningStateDrawCount = 0UL;
+    SUBBAND_UI_DebugRemainingDigitDrawCount = 0UL;
+    SUBBAND_UI_DebugLastLearningStateDrawCycles = 0UL;
+    SUBBAND_UI_DebugMaxLearningStateDrawCycles = 0UL;
+    SUBBAND_UI_DebugLastRemainingDigitDrawCycles = 0UL;
+    SUBBAND_UI_DebugMaxRemainingDigitDrawCycles = 0UL;
+    SUBBAND_UI_DebugCancelledDigitJobs = 0UL;
     UI_Initialized = 1U;
 }
 
@@ -1408,6 +1518,8 @@ void SubbandUI_NotifyModeChanged(void)
     UI_SetProgressTarget(UI_ComputeProgressStep(SUBBAND_DENOISE_DebugLearnHops,
                                                 SUBBAND_DENOISE_DebugTargetHops));
 #endif
+    UI_CancelRemainingDigitJob();
+    UI_LastLearningMode = -1;
     UI_LastLearning = -1;
     UI_LastReady = -1;
     UI_LastRemainingSeconds = -1;
