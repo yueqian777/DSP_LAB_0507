@@ -182,6 +182,8 @@ class SubbandTouchUIContractTest(unittest.TestCase):
         self.assertIn("#define UI_COUNTDOWN_FRAME_INTERVAL 10UL", ui_source)
         self.assertIn("#define UI_LOAD_FRAME_INTERVAL 50UL", ui_source)
         self.assertIn("#define SUBBAND_UI_RUNTIME_DRAW_BUDGET_CYCLES 912000UL", ui_header + ui_source)
+        self.assertIn("#define SUBBAND_UI_PROGRESS_COARSE", ui_header)
+        self.assertIn("#define SUBBAND_UI_PROGRESS_POLICY", ui_header)
         self.assertIn("UI_DIRTY_PROGRESS", ui_header)
         for token in (
             "SUBBAND_UI_DebugDrawOverBudgetCount",
@@ -197,12 +199,12 @@ class SubbandTouchUIContractTest(unittest.TestCase):
         update_start = ui_source.index("static void UI_UpdateDirtyState(void)")
         update_end = ui_source.index("#if SUBBAND_UI_SHOW_ALGO_LOAD", update_start)
         learning_block = ui_source[update_start:update_end]
-        self.assertIn("UI_DIRTY_PROGRESS", learning_block)
+        self.assertNotIn("UI_MarkDirty(UI_DIRTY_COUNTDOWN | UI_DIRTY_PROGRESS)", learning_block)
         self.assertNotIn("UI_DIRTY_COUNTDOWN | UI_DIRTY_STATUS", learning_block)
         self.assertNotIn("UI_FillRect(17, 317, 782, 382", ui_source)
         self.assertNotIn("UI_FillRect(24, 390, 775, 409", ui_source)
         self.assertNotIn("UI_FillRect(242, 296, 640, 314", ui_source)
-        self.assertIn("UI_FillRect(690, 252, 783, 312", ui_source)
+        self.assertNotIn("UI_FillRect(690, 252, 783, 312", ui_source)
 
         update_start = ui_source.index("static void UI_UpdateDirtyState(void)")
         update_end = ui_source.index("static void UI_UpdateLoadDirtyState(void)", update_start)
@@ -258,11 +260,13 @@ class SubbandTouchUIContractTest(unittest.TestCase):
             "UI_DIRTY_CHAIN",
             "SUBBAND_UI_DebugDisplayedChainMode",
             "SUBBAND_UI_DebugDisplayedChainKbps",
+            "SUBBAND_UI_DebugChainDirtySetCount",
+            "SUBBAND_UI_DebugChainDrawCount",
+            "SUBBAND_UI_DebugChainDirtyWithoutDrawFrames",
             "SUBBAND_UI_DebugChainRefreshCount",
             "SUBBAND_UI_DebugLastChainDrawCycles",
             "SUBBAND_UI_DebugMaxChainDrawCycles",
-            "SubbandUIChainDef",
-            "UI_ChainTable",
+            "SubbandUI_BuildProcessingChain",
             "static void UI_UpdateChainDirtyState(void)",
             "static void UI_DrawProcessingChain(void)",
         ):
@@ -274,13 +278,9 @@ class SubbandTouchUIContractTest(unittest.TestCase):
         self.assertNotIn('"REQ "', status_body)
         self.assertNotIn('"  APPLIED "', status_body)
 
-        rate_start = ui_source.index("static void UI_DrawRateText(void)")
-        rate_end = ui_source.index("static int UI_ComputeAlgoLoad(void)", rate_start)
-        rate_body = ui_source[rate_start:rate_end]
-        self.assertNotIn('"SEL "', rate_body)
-        self.assertNotIn('"TGT "', rate_body)
-        self.assertNotIn('"EST "', rate_body)
-        self.assertNotIn("UI_CurrentEstimatedKbps", rate_body)
+        self.assertNotIn("UI_DrawRateText", ui_source)
+        self.assertNotIn("UI_DRAW_JOB_RATE_TEXT", ui_source)
+        self.assertNotIn("UI_RateTextDirty", ui_source)
 
     def test_ui_processing_chain_uses_applied_mode_and_target_kbps_only(self) -> None:
         ui_source = (ROOT / "Code/User/user_dsp/user_subband_ui.c").read_text(encoding="utf-8")
@@ -313,10 +313,10 @@ class SubbandTouchUIContractTest(unittest.TestCase):
         self.assertIn("touch_serviced = 1U;", flow_source)
         self.assertIn("(touch_serviced == 0U)", flow_source)
         touch_call = flow_source.index("SubbandUI_ServiceTouch(force_touch_scan);")
-        post_touch = flow_source[touch_call:flow_source.index("if ((FLAG_AD == 0)", touch_call)]
+        post_touch = flow_source[touch_call:flow_source.index("if ((FLAG_AD == 0U)", touch_call)]
         self.assertNotIn("Subband_Service_Demo_Mode();", post_touch)
 
-    def test_flow_display_slot_ignores_ad_done_but_preserves_io_priority(self) -> None:
+    def test_flow_display_slot_requires_ad_done_idle_and_preserves_io_priority(self) -> None:
         flow_source = (ROOT / "Code/User/user_dsp/user_subband_flow.c").read_text(encoding="utf-8")
         self.assertIn("unsigned char audio_serviced;", flow_source)
         self.assertIn("audio_serviced = 0U;", flow_source)
@@ -332,11 +332,132 @@ class SubbandTouchUIContractTest(unittest.TestCase):
         display_call = flow_source.index("SubbandUI_ServiceDisplay();")
         display_guard = flow_source[flow_source.rfind("if (", 0, display_call):display_call]
 
-        self.assertIn("(FLAG_AD == 0)", display_guard)
-        self.assertIn("(FLAG_DA == 0)", display_guard)
+        self.assertIn("(FLAG_AD == 0U)", display_guard)
+        self.assertIn("(FLAG_DA == 0U)", display_guard)
         self.assertIn("(audio_serviced == 0U)", display_guard)
         self.assertIn("(touch_serviced == 0U)", display_guard)
-        self.assertNotIn("FLAG_AD_DONE == 0", display_guard)
+        self.assertIn("(FLAG_AD_DONE == 0U)", display_guard)
+
+    def test_processing_chain_is_single_line_ascii_and_width_checked(self) -> None:
+        ui_source = (ROOT / "Code/User/user_dsp/user_subband_ui.c").read_text(encoding="utf-8")
+        logic_source = (ROOT / "Code/User/user_dsp/user_subband_ui_logic.c").read_text(encoding="utf-8")
+        combined = ui_source + logic_source
+
+        for token in (
+            "#define UI_CHAIN_X 28",
+            "#define UI_CHAIN_Y 84",
+            "#define UI_CHAIN_X_MAX 770",
+            "#define UI_CHAIN_Y_MIN 80",
+            "#define UI_CHAIN_Y_MAX 106",
+            "SubbandUI_BuildProcessingChain",
+            "GrStringWidthGet",
+            "UI_SelectChainFont",
+            " -> ",
+        ):
+            self.assertIn(token, combined)
+        for token in (
+            "UI_CHAIN_Y0",
+            "UI_CHAIN_Y1",
+            "line1",
+            "line2_prefix",
+            "line2_suffix",
+            "UI_DRAW_JOB_CHAIN_LINE1",
+            "UI_DRAW_JOB_CHAIN_LINE2",
+            "→",
+        ):
+            self.assertNotIn(token, combined)
+
+        draw_start = ui_source.index("static void UI_DrawProcessingChain(void)")
+        draw_end = ui_source.index("static void UI_DrawStaticBackground(void)", draw_start)
+        draw_body = ui_source[draw_start:draw_end]
+        self.assertEqual(draw_body.count("GrStringDraw("), 1)
+        self.assertIn("UI_ClearDirty(UI_DIRTY_CHAIN);", draw_body)
+
+    def test_chain_dirty_lifecycle_and_priority_are_explicit(self) -> None:
+        ui_source = (ROOT / "Code/User/user_dsp/user_subband_ui.c").read_text(encoding="utf-8")
+
+        marker_start = ui_source.index("static void UI_MarkChainDirty(void)")
+        marker_end = ui_source.index("static ", marker_start + 8)
+        marker_body = ui_source[marker_start:marker_end]
+        self.assertIn("SUBBAND_UI_DebugChainDirtySetCount++", marker_body)
+        self.assertIn("UI_MarkDirty(UI_DIRTY_CHAIN);", marker_body)
+
+        status_start = ui_source.index("static void UI_DrawStatus(void)")
+        status_end = ui_source.index("static void UI_DrawStaticBackground(void)", status_start)
+        self.assertNotIn("UI_ClearDirty(UI_DIRTY_CHAIN)", ui_source[status_start:status_end])
+
+        job_start = ui_source.index("static unsigned long UI_DrawOneJob(void)")
+        job_end = ui_source.index("static void UI_RecordDrawCycles", job_start)
+        job_body = ui_source[job_start:job_end]
+        priority = [
+            "UI_DIRTY_MODE",
+            "UI_DIRTY_STATUS",
+            "UI_DIRTY_CHAIN",
+            "UI_DIRTY_RATE",
+            "UI_DIRTY_COUNTDOWN",
+            "UI_DIRTY_PROGRESS",
+            "UI_DIRTY_LOAD",
+        ]
+        positions = [job_body.index(token) for token in priority]
+        self.assertEqual(positions, sorted(positions))
+
+        notify_start = ui_source.index("void SubbandUI_NotifyModeChanged(void)")
+        notify_end = ui_source.index("#else", notify_start)
+        self.assertIn("UI_MarkChainDirty();", ui_source[notify_start:notify_end])
+
+    def test_display_scheduler_limits_runtime_draws(self) -> None:
+        ui_header = (ROOT / "Code/User/user_dsp/user_subband_ui.h").read_text(encoding="utf-8")
+        ui_source = (ROOT / "Code/User/user_dsp/user_subband_ui.c").read_text(encoding="utf-8")
+        combined = ui_header + ui_source
+
+        for token in (
+            "SUBBAND_UI_RUNTIME_DRAW_GAP_FRAMES 2UL",
+            "SUBBAND_UI_MODE_CHANGE_HOLDOFF_FRAMES 3UL",
+            "SUBBAND_UI_DebugLastDrawAlgoFrame",
+            "SUBBAND_UI_DebugSkippedSameFrame",
+            "SUBBAND_UI_DebugMaxDrawJobsPerFrame",
+            "SUBBAND_UI_DebugSkippedDrawGap",
+            "SUBBAND_UI_DebugHoldoffSkipCount",
+            "UI_LastDrawAlgoFrame",
+            "UI_DrawHoldoffUntilFrame",
+        ):
+            self.assertIn(token, combined)
+
+        service_start = ui_source.index("void SubbandUI_ServiceDisplay(void)")
+        service_end = ui_source.index("void SubbandUI_NotifyModeChanged(void)", service_start)
+        service_body = ui_source[service_start:service_end]
+        self.assertIn("frame == UI_LastDrawAlgoFrame", service_body)
+        self.assertIn("SUBBAND_UI_RUNTIME_DRAW_GAP_FRAMES", service_body)
+        self.assertIn("UI_DrawHoldoffUntilFrame", service_body)
+        self.assertIn("UI_LastDrawAlgoFrame = frame;", service_body)
+
+    def test_per_frame_load_recorder_only_updates_integer_ema(self) -> None:
+        ui_source = (ROOT / "Code/User/user_dsp/user_subband_ui.c").read_text(encoding="utf-8")
+        recorder_start = ui_source.index("void SubbandUI_RecordAlgoCycles(unsigned long cycles)")
+        recorder_end = ui_source.index("void SubbandUI_ResetLoadWindow", recorder_start)
+        recorder_body = ui_source[recorder_start:recorder_end]
+        self.assertIn("rolling = (rolling * 7UL + cycles + 4UL) / 8UL;", recorder_body)
+        self.assertNotIn("unsigned long long", recorder_body)
+        self.assertNotIn("100ULL", recorder_body)
+        self.assertNotIn("UI_FRAME_BUDGET_CYCLES", recorder_body)
+        self.assertNotIn("UI_MarkDirty", recorder_body)
+
+        load_start = ui_source.index("static void UI_UpdateLoadDirtyState(void)")
+        load_end = ui_source.index("static unsigned long UI_DrawNextModeButton", load_start)
+        load_body = ui_source[load_start:load_end]
+        self.assertIn("UI_FRAME_BUDGET_CYCLES", load_body)
+        self.assertIn("SUBBAND_UI_DebugRollingLoadPercent", load_body)
+
+    def test_coarse_second_change_does_not_redraw_status(self) -> None:
+        ui_source = (ROOT / "Code/User/user_dsp/user_subband_ui.c").read_text(encoding="utf-8")
+        update_start = ui_source.index("static void UI_UpdateDirtyState(void)")
+        update_end = ui_source.index("static void UI_UpdateLoadDirtyState(void)", update_start)
+        update_body = ui_source[update_start:update_end]
+        self.assertIn("learning_state_changed", update_body)
+        self.assertIn("remaining_seconds != UI_LastRemainingSeconds", update_body)
+        status_guard = update_body.index("if (learning_state_changed != 0)")
+        status_mark = update_body.index("UI_MarkDirty(UI_DIRTY_STATUS);", status_guard)
+        self.assertGreater(status_mark, status_guard)
 
 
 if __name__ == "__main__":

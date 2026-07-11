@@ -1,0 +1,22 @@
+check,status,evidence
+single_line_geometry,PASS,single Y and bounded top-panel rectangle
+ascii_arrow_only,PASS,ASCII chain separator; no Unicode arrow
+legacy_second_line_removed,PASS,legacy two-line fields absent
+all_eight_modes,PASS,eight applied modes handled
+codec_rate_dynamic,PASS,mode 8/11 append normalized target kbps
+all_paths_end_dac,PASS,RAW and all WOLA paths retain DAC
+bounded_chain_builder,PASS,bounded append and safe fallback
+font_width_check,PASS,existing font reused with measured 12-pixel fallback
+single_chain_draw,PASS,one atomic chain job
+chain_dirty_lifecycle,PASS,dirty clears only in chain draw
+chain_priority,PASS,status then chain then rate buttons
+initial_chain_draw,PASS,initial static page includes chain
+mode_change_marks_chain,PASS,applied-mode notification marks chain
+ad_done_guard,PASS,LCD service runs only after pending AD-to-DA work is clear
+one_job_per_algo_frame,PASS,same-frame redraw skipped
+draw_gap_two_frames,PASS,default 40.96 ms minimum gap
+mode_holdoff_three_frames,PASS,default 61.44 ms mode-change holdoff
+coarse_learning_default,PASS,"default states are 2 s, 1 s, ready"
+learn_hops_not_direct_dirty,PASS,raw LearnHops changes do not directly dirty LCD
+lightweight_frame_load_recorder,PASS,per-frame path is integer EMA and sample count only
+fixed_nonblocking_ui,PASS,fixed coordinates; no blocking or widget auto-redraw

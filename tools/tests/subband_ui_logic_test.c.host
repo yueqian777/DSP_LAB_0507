@@ -1,11 +1,25 @@
 #include <assert.h>
+#include <string.h>
 
 #include "user_subband_ui_logic.h"
 
 int main(void)
 {
     static const int expected_modes[8] = {0, 1, 2, 4, 6, 7, 8, 11};
+    static const char *expected_chains[8] =
+    {
+        "ADC -> RAW -> DAC",
+        "ADC -> WOLA ANA -> WOLA SYN -> DAC",
+        "ADC -> WOLA ANA -> BASIC NR -> WOLA SYN -> DAC",
+        "ADC -> WOLA ANA -> MINSTAT NR -> WOLA SYN -> DAC",
+        "ADC -> WOLA ANA -> MCRA NR -> WOLA SYN -> DAC",
+        "ADC -> WOLA ANA -> STRONG MCRA -> WOLA SYN -> DAC",
+        "ADC -> WOLA ANA -> MCRA NR -> CODEC 240k -> WOLA SYN -> DAC",
+        "ADC -> WOLA ANA -> CODEC 240k -> WOLA SYN -> DAC"
+    };
     SubbandUITouchLatch latch;
+    char chain[96];
+    char tiny[8];
     unsigned int i;
 
     for (i = 0U; i < 8U; i++)
@@ -37,6 +51,29 @@ int main(void)
     assert(SubbandUI_RemainingMs(391UL, 391UL, 256UL, 50000UL) == 0UL);
     assert(SubbandUI_RemainingMs(500UL, 391UL, 256UL, 50000UL) == 0UL);
     assert(SubbandUI_RemainingMs(0UL, 1UL, 256UL, 0UL) == 0UL);
+    assert(SubbandUI_RemainingSeconds(0UL, 391UL, 256UL, 50000UL) == 2);
+    assert(SubbandUI_RemainingSeconds(1UL, 391UL, 256UL, 50000UL) == 2);
+    assert(SubbandUI_RemainingSeconds(196UL, 391UL, 256UL, 50000UL) == 1);
+    assert(SubbandUI_RemainingSeconds(391UL, 391UL, 256UL, 50000UL) == 0);
+
+    for (i = 0U; i < 8U; i++)
+    {
+        assert(SubbandUI_BuildProcessingChain(chain, sizeof(chain),
+                                              expected_modes[i], 240) == 1);
+        assert(strcmp(chain, expected_chains[i]) == 0);
+        assert(strcmp(chain + strlen(chain) - 3U, "DAC") == 0);
+    }
+    assert(SubbandUI_BuildProcessingChain(chain, sizeof(chain), 8, 160) == 1);
+    assert(strstr(chain, "CODEC 160k") != 0);
+    assert(SubbandUI_BuildProcessingChain(chain, sizeof(chain), 8, 320) == 1);
+    assert(strstr(chain, "CODEC 320k") != 0);
+    assert(SubbandUI_BuildProcessingChain(chain, sizeof(chain), 11, 160) == 1);
+    assert(strstr(chain, "CODEC 160k") != 0);
+    assert(SubbandUI_BuildProcessingChain(chain, sizeof(chain), 99, 240) == 0);
+    assert(strcmp(chain, "ADC -> PROCESSING -> DAC") == 0);
+    memset(tiny, 'X', sizeof(tiny));
+    assert(SubbandUI_BuildProcessingChain(tiny, sizeof(tiny), 8, 320) == 0);
+    assert(tiny[sizeof(tiny) - 1U] == '\0');
 
     SubbandUI_LatchInit(&latch);
     assert(SubbandUI_LatchUpdate(&latch, 1) == 1);
