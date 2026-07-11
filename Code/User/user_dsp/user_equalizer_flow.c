@@ -32,6 +32,7 @@ static short EQ_AD_Buffer8[ADC_SAMPLE_1024];
 static short EQ_DA_Buffer1[DAC_SAMPLE_1024];
 static EQ_STATE EQ_BoardState;
 static int EQ_AppliedMode = -1;
+static int EQ_AppliedDiagPath = -1;
 
 #endif
 
@@ -43,11 +44,15 @@ volatile unsigned long EQ_DebugMaxCycles = 0UL;
 volatile float EQ_DebugLastMs = 0.0f;
 volatile float EQ_DebugMaxMs = 0.0f;
 volatile int EQ_DebugMode = EQ_PRESET_FLAT;
+volatile int EQ_DebugDiagPath = EQ_DIAG_PRESET;
 volatile float EQ_DebugBandGainDb[EQ_NUM_BANDS] =
 {
     0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
     0.0f, 0.0f, 0.0f, 0.0f, 0.0f
 };
+volatile const unsigned long EQ_DebugBuildMagic = 0x33030003UL;
+volatile const char EQ_DebugBuildId[] = "P33_OFFLINE_d06f34a";
+volatile const int EQ_DebugBuildDirty = 1;
 
 #ifndef EQ_ALGO_ONLY
 
@@ -58,6 +63,26 @@ static int EQ_NormalizeMode(int mode)
         return EQ_PRESET_FLAT;
     }
     return mode;
+}
+
+static int EQ_NormalizeDiagPath(int path)
+{
+    if ((path < EQ_DIAG_RAW_COPY) || (path > EQ_DIAG_PRESET))
+    {
+        return EQ_DIAG_PRESET;
+    }
+    return path;
+}
+
+static void EQ_KeepBuildFingerprint(void)
+{
+    volatile const unsigned long *magic = &EQ_DebugBuildMagic;
+    volatile const char *build_id = EQ_DebugBuildId;
+    volatile const int *dirty = &EQ_DebugBuildDirty;
+
+    (void)*magic;
+    (void)*build_id;
+    (void)*dirty;
 }
 
 static void EQ_UpdateDebugGains(void)
@@ -74,15 +99,63 @@ static void EQ_UpdateDebugGains(void)
 
 static void EQ_ServiceMode(void)
 {
+    int diag_path;
     int mode;
 
+    diag_path = EQ_NormalizeDiagPath(EQ_DebugDiagPath);
+    if (EQ_DebugDiagPath != diag_path)
+    {
+        EQ_DebugDiagPath = diag_path;
+    }
     mode = EQ_NormalizeMode(EQ_DebugMode);
     if (EQ_DebugMode != mode)
     {
         EQ_DebugMode = mode;
     }
-    if (mode != EQ_AppliedMode)
+    if (diag_path != EQ_AppliedDiagPath)
     {
+        Equalizer_SetBypass(&EQ_BoardState, 0);
+        if (diag_path == EQ_DIAG_RAW_COPY)
+        {
+            Equalizer_SetCoreMode(&EQ_BoardState, EQ_CORE_RAW_COPY);
+            EQ_AppliedMode = -1;
+        }
+        else if (diag_path == EQ_DIAG_FLOAT_COPY)
+        {
+            Equalizer_SetCoreMode(&EQ_BoardState, EQ_CORE_FLOAT_COPY);
+            EQ_AppliedMode = -1;
+        }
+        else if (diag_path == EQ_DIAG_FLAT)
+        {
+            Equalizer_SetCoreMode(&EQ_BoardState, EQ_CORE_RBJ_CASCADE);
+            Equalizer_ApplyPreset(&EQ_BoardState, EQ_PRESET_FLAT);
+            EQ_AppliedMode = EQ_PRESET_FLAT;
+        }
+        else if (diag_path == EQ_DIAG_SINGLE_BAND)
+        {
+            float gains[EQ_NUM_BANDS];
+            int band;
+
+            Equalizer_SetCoreMode(&EQ_BoardState, EQ_CORE_RBJ_CASCADE);
+            for (band = 0; band < EQ_NUM_BANDS; band++)
+            {
+                gains[band] = 0.0f;
+            }
+            gains[5] = 3.0f;
+            Equalizer_SetAllGainsDb(&EQ_BoardState, gains);
+            EQ_AppliedMode = -1;
+        }
+        else
+        {
+            Equalizer_SetCoreMode(&EQ_BoardState, EQ_CORE_RBJ_CASCADE);
+            Equalizer_ApplyPreset(&EQ_BoardState, mode);
+            EQ_AppliedMode = mode;
+        }
+        EQ_AppliedDiagPath = diag_path;
+    }
+    else if ((diag_path == EQ_DIAG_PRESET) && (mode != EQ_AppliedMode))
+    {
+        Equalizer_SetCoreMode(&EQ_BoardState, EQ_CORE_RBJ_CASCADE);
         Equalizer_ApplyPreset(&EQ_BoardState, mode);
         EQ_AppliedMode = mode;
     }
@@ -185,19 +258,25 @@ static void EQ_FillDacInactiveBuffer(void)
 void Equalizer_Flow_Example(void)
 {
     unsigned char flag_ad_done;
+#if EQ_ENABLE_LCD_DISPLAY != 0
     unsigned long lcd_status_frame;
     int lcd_mode;
+#endif
 
     flag_ad_done = 0;
+#if EQ_ENABLE_LCD_DISPLAY != 0
     lcd_status_frame = 0UL;
     lcd_mode = -1;
+#endif
     Sys_Init();
     Key_Init();
+    EQ_KeepBuildFingerprint();
 
     Adc_Init(ADC_50KHZ, ADC_SAMPLE_1024);
     Dac_Init(DAC_50KHZ, DAC_SAMPLE_1024, DAC_CHANNEL_ALL);
     Equalizer_Init(&EQ_BoardState);
     EQ_ServiceMode();
+#if EQ_ENABLE_LCD_DISPLAY != 0
     EqualizerDisplay_Init();
     EqualizerDisplay_UpdateAll(&EQ_BoardState);
     EqualizerDisplay_UpdateStatus(EQ_DebugProcessFrames,
@@ -206,6 +285,7 @@ void Equalizer_Flow_Example(void)
                                   EQ_DebugClipCount,
                                   EQ_DebugMode);
     lcd_mode = EQ_AppliedMode;
+#endif
 
 #if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
     TSCL = 0;
@@ -256,6 +336,7 @@ void Equalizer_Flow_Example(void)
             Dac_Stop();
         }
 
+#if EQ_ENABLE_LCD_DISPLAY != 0
         if (EQ_AppliedMode != lcd_mode)
         {
             lcd_mode = EQ_AppliedMode;
@@ -276,6 +357,7 @@ void Equalizer_Flow_Example(void)
                                           EQ_DebugClipCount,
                                           EQ_DebugMode);
         }
+#endif
     }
 }
 

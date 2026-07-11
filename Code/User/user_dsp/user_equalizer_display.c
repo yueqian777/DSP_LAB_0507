@@ -332,7 +332,7 @@ static const unsigned char s_cn_label_clip[] =
 };
 #endif
 
-#ifdef EQ_ALGO_ONLY
+#if defined(EQ_ALGO_ONLY)
 static unsigned long s_mock_clear_count = 0UL;
 static unsigned long s_mock_fill_count = 0UL;
 static unsigned long s_mock_line_count = 0UL;
@@ -343,6 +343,11 @@ static unsigned long s_mock_cn_glyph_count = 0UL;
 static unsigned long s_mock_text_clear_count = 0UL;
 static unsigned long s_mock_bar_slot_clear_count = 0UL;
 static unsigned long s_mock_bounds_failures = 0UL;
+#elif EQ_ENABLE_LCD_DISPLAY == 0
+static unsigned long s_mock_clear_count = 0UL;
+static unsigned long s_mock_fill_count = 0UL;
+static unsigned long s_mock_line_count = 0UL;
+static unsigned long s_mock_text_count = 0UL;
 #endif
 
 static float EQ_DisplayAbs(float x)

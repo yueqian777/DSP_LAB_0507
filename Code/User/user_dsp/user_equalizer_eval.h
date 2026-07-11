@@ -7,6 +7,7 @@
 #ifndef _USER_EQUALIZER_EVAL_H_
 #define _USER_EQUALIZER_EVAL_H_
 
+/* Returns zero only when every required host-side quality check passes. */
 int EqualizerEval_OfflineTest_All(void);
 
 #endif /* _USER_EQUALIZER_EVAL_H_ */

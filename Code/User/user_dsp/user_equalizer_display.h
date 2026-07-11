@@ -10,7 +10,7 @@
 #include "user_equalizer.h"
 
 #ifndef EQ_ENABLE_LCD_DISPLAY
-#define EQ_ENABLE_LCD_DISPLAY 1
+#define EQ_ENABLE_LCD_DISPLAY 0
 #endif
 
 /*
