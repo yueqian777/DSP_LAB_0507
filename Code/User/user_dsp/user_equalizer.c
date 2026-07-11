@@ -70,6 +70,9 @@ volatile float EQ_DebugPredictedPeakDb = 0.0f;
 volatile float EQ_DebugPreampDb = 0.0f;
 volatile float EQ_DebugFloatCopyMaxError = 0.0f;
 volatile unsigned long EQ_DebugHeadroomScanCount = 0UL;
+volatile unsigned long EQ_DebugRawCopyMismatchCount = 0UL;
+volatile float EQ_DebugInputPeak = 0.0f;
+volatile float EQ_DebugOutputPeak = 0.0f;
 
 static float EQ_Abs(float x)
 {
@@ -726,6 +729,28 @@ static void EQ_InstallRbjTarget(EQ_STATE *st, int immediate)
     st->rbj_bank_id = EQ_RBJ_BANK_CUSTOM;
 }
 
+static void EQ_CancelTransition(EQ_STATE *st)
+{
+    memset(&st->pending_bank, 0, sizeof(st->pending_bank));
+    st->pending_bank_valid = 0;
+    st->transition_remaining = 0;
+    st->transition_total = 0;
+    st->latest_preset_valid = 0;
+}
+
+static void EQ_ApplyRbjPresetNow(EQ_STATE *st, int preset)
+{
+    int band;
+
+    st->preset = preset;
+    st->rbj_bank_id = preset;
+    for (band = 0; band < EQ_NUM_BANDS; band++)
+    {
+        st->band_gain_db[band] = EQ_RbjPresetGainsDb[preset][band];
+    }
+    EQ_InstallRbjCachedTarget(st, preset, 0);
+}
+
 static float EQ_ProcessLegacySample(EQ_STATE *st, float x)
 {
     float acc;
@@ -796,11 +821,19 @@ static float EQ_ProcessRbjSample(EQ_STATE *st, float x)
         st->transition_remaining--;
         if (st->transition_remaining <= 0)
         {
+            int latest_preset = st->latest_preset;
+            int latest_preset_valid = st->latest_preset_valid;
+
             st->active_bank = st->pending_bank;
             memset(&st->pending_bank, 0, sizeof(st->pending_bank));
             st->pending_bank_valid = 0;
             st->transition_remaining = 0;
             st->transition_total = 0;
+            st->latest_preset_valid = 0;
+            if (latest_preset_valid != 0)
+            {
+                EQ_ApplyRbjPresetNow(st, latest_preset);
+            }
         }
     }
     return active;
@@ -808,7 +841,7 @@ static float EQ_ProcessRbjSample(EQ_STATE *st, float x)
 
 static int EQ_UsesTransparentPath(const EQ_STATE *st)
 {
-    if ((st == 0) || (st->pending_bank_valid != 0))
+    if (st == 0)
     {
         return 0;
     }
@@ -819,6 +852,14 @@ static int EQ_UsesTransparentPath(const EQ_STATE *st)
     if (st->core_mode == EQ_CORE_RAW_COPY)
     {
         return 1;
+    }
+    if (st->core_mode == EQ_CORE_FLOAT_COPY)
+    {
+        return 0;
+    }
+    if (st->pending_bank_valid != 0)
+    {
+        return 0;
     }
     return ((st->core_mode == EQ_CORE_RBJ_CASCADE) &&
             (EQ_AllGainsFlat(st->band_gain_db) != 0)) ? 1 : 0;
@@ -858,6 +899,40 @@ static short EQ_ProcessFloatCopyShort(EQ_STATE *st, short input)
     return output;
 }
 
+static void EQ_UpdateDebugPeaks(short input, short output)
+{
+    float input_peak = EQ_Abs((float)input);
+    float output_peak = EQ_Abs((float)output);
+
+    if (input_peak > EQ_DebugInputPeak)
+    {
+        EQ_DebugInputPeak = input_peak;
+    }
+    if (output_peak > EQ_DebugOutputPeak)
+    {
+        EQ_DebugOutputPeak = output_peak;
+    }
+}
+
+static void EQ_CopyTransparentShort(const short *in, short *out, int n,
+                                    int raw_copy)
+{
+    int index;
+
+    if (in != out)
+    {
+        memcpy(out, in, (unsigned int)n * sizeof(*out));
+    }
+    for (index = 0; index < n; index++)
+    {
+        if ((raw_copy != 0) && (out[index] != in[index]))
+        {
+            EQ_DebugRawCopyMismatchCount++;
+        }
+        EQ_UpdateDebugPeaks(in[index], out[index]);
+    }
+}
+
 void Equalizer_Init(EQ_STATE *st)
 {
     if (st == 0)
@@ -874,6 +949,9 @@ void Equalizer_Init(EQ_STATE *st)
     EQ_InstallRbjCachedTarget(st, EQ_PRESET_FLAT, 1);
     EQ_DebugClipCount = 0UL;
     EQ_DebugFloatCopyMaxError = 0.0f;
+    EQ_DebugRawCopyMismatchCount = 0UL;
+    EQ_DebugInputPeak = 0.0f;
+    EQ_DebugOutputPeak = 0.0f;
 }
 
 void Equalizer_Reset(EQ_STATE *st)
@@ -919,6 +997,9 @@ void Equalizer_Reset(EQ_STATE *st)
     }
     EQ_DebugClipCount = 0UL;
     EQ_DebugFloatCopyMaxError = 0.0f;
+    EQ_DebugRawCopyMismatchCount = 0UL;
+    EQ_DebugInputPeak = 0.0f;
+    EQ_DebugOutputPeak = 0.0f;
     EQ_UpdateDebugHeadroom(st);
 }
 
@@ -927,6 +1008,11 @@ void Equalizer_SetBypass(EQ_STATE *st, int enable)
     if (st != 0)
     {
         st->bypass = (enable != 0) ? 1 : 0;
+        if (st->bypass != 0)
+        {
+            EQ_CancelTransition(st);
+            EQ_UpdateDebugHeadroom(st);
+        }
     }
 }
 
@@ -945,8 +1031,13 @@ void Equalizer_SetCoreMode(EQ_STATE *st, int mode)
     {
         mode = EQ_CORE_RBJ_CASCADE;
     }
+    if ((mode == EQ_CORE_RAW_COPY) || (mode == EQ_CORE_FLOAT_COPY))
+    {
+        EQ_CancelTransition(st);
+    }
     if (st->core_mode == mode)
     {
+        EQ_UpdateDebugHeadroom(st);
         return;
     }
     st->core_mode = mode;
@@ -1040,7 +1131,6 @@ void Equalizer_ApplyPreset(EQ_STATE *st, int preset)
 {
     const float (*preset_bank)[EQ_NUM_BANDS];
     int band;
-    int changed = 0;
 
     if (st == 0)
     {
@@ -1050,16 +1140,32 @@ void Equalizer_ApplyPreset(EQ_STATE *st, int preset)
     {
         preset = EQ_PRESET_FLAT;
     }
+    if (st->core_mode == EQ_CORE_RBJ_CASCADE)
+    {
+        if (st->pending_bank_valid != 0)
+        {
+            if (preset == st->preset)
+            {
+                st->latest_preset_valid = 0;
+            }
+            else
+            {
+                st->latest_preset = preset;
+                st->latest_preset_valid = 1;
+            }
+            return;
+        }
+        if (st->preset != preset)
+        {
+            EQ_ApplyRbjPresetNow(st, preset);
+        }
+        return;
+    }
     st->preset = preset;
     preset_bank = (st->core_mode == EQ_CORE_LEGACY) ?
                    EQ_LegacyPresetGainsDb : EQ_RbjPresetGainsDb;
     for (band = 0; band < EQ_NUM_BANDS; band++)
     {
-        if (EQ_Abs(st->band_gain_db[band] - preset_bank[preset][band]) >=
-            1.0e-7f)
-        {
-            changed = 1;
-        }
         st->band_gain_db[band] = preset_bank[preset][band];
     }
     if (st->core_mode == EQ_CORE_LEGACY)
@@ -1071,10 +1177,6 @@ void Equalizer_ApplyPreset(EQ_STATE *st, int preset)
         return;
     }
     st->rbj_bank_id = preset;
-    if ((st->core_mode == EQ_CORE_RBJ_CASCADE) && (changed != 0))
-    {
-        EQ_InstallRbjCachedTarget(st, preset, 0);
-    }
 }
 
 void Equalizer_ApplySingleBand1kPlus3Db(EQ_STATE *st)
@@ -1121,10 +1223,8 @@ void Equalizer_ProcessFrame(EQ_STATE *st, const short *in, short *out, int n)
     }
     if (EQ_UsesTransparentPath(st) != 0)
     {
-        if (in != out)
-        {
-            memcpy(out, in, (unsigned int)n * sizeof(*out));
-        }
+        EQ_CopyTransparentShort(in, out, n,
+                                (st->core_mode == EQ_CORE_RAW_COPY));
         return;
     }
 
@@ -1133,6 +1233,7 @@ void Equalizer_ProcessFrame(EQ_STATE *st, const short *in, short *out, int n)
         for (index = 0; index < n; index++)
         {
             out[index] = EQ_ProcessFloatCopyShort(st, in[index]);
+            EQ_UpdateDebugPeaks(in[index], out[index]);
         }
         return;
     }
@@ -1145,6 +1246,7 @@ void Equalizer_ProcessFrame(EQ_STATE *st, const short *in, short *out, int n)
         if (EQ_UsesTransparentPath(st) != 0)
         {
             out[index] = in[index];
+            EQ_UpdateDebugPeaks(in[index], out[index]);
             continue;
         }
         if (st->core_mode == EQ_CORE_LEGACY)
@@ -1156,6 +1258,7 @@ void Equalizer_ProcessFrame(EQ_STATE *st, const short *in, short *out, int n)
             y = EQ_ProcessRbjSample(st, (float)in[index]);
         }
         out[index] = EQ_SaturateToShort(st, y);
+        EQ_UpdateDebugPeaks(in[index], out[index]);
     }
 }
 

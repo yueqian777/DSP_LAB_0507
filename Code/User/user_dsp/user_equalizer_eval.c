@@ -1075,6 +1075,181 @@ static int EQ_EvalWriteLongStabilityReport(void)
     return failures;
 }
 
+static int EQ_EvalWriteTransitionInterruptReport(void)
+{
+    FILE *file;
+    const char *labels[3] = { "raw_copy", "hard_bypass", "float_copy" };
+    int case_index;
+    int failures = 0;
+
+    file = fopen("equalizer_transition_interrupt_report.csv", "w");
+    if (file == 0)
+    {
+        return 1;
+    }
+    fprintf(file, "action,pending_before,pending_after,max_abs_error,float_copy_max_error,raw_copy_mismatch,clip_count,pass\n");
+    for (case_index = 0; case_index < 3; case_index++)
+    {
+        EQ_STATE st;
+        float max_error;
+        float rms_error;
+        float snr_db;
+        int index;
+        int pending_before;
+        int pass;
+
+        EQ_EvalConfigure(&st, EQ_CORE_RBJ_CASCADE, EQ_PRESET_BASS_BOOST);
+        Equalizer_ApplyPreset(&st, EQ_PRESET_VOCAL);
+        for (index = 0; index < 3000; index++)
+        {
+            float input = 0.10f * sinf(2.0f * (float)EQ_EVAL_PI * 1000.0f *
+                                        (float)index / EQ_SAMPLE_RATE);
+            float output;
+
+            Equalizer_ProcessFrameFloat(&st, &input, &output, 1);
+        }
+        pending_before = Equalizer_HasPendingTransition(&st);
+        if (case_index == 0)
+        {
+            Equalizer_SetCoreMode(&st, EQ_CORE_RAW_COPY);
+        }
+        else if (case_index == 1)
+        {
+            Equalizer_SetBypass(&st, 1);
+        }
+        else
+        {
+            Equalizer_SetCoreMode(&st, EQ_CORE_FLOAT_COPY);
+        }
+        EQ_EvalFillTransparencySignal(2, EQ_EVAL_FRAME_SAMPLES);
+        Equalizer_ProcessFrame(&st, EQ_EvalShortIn, EQ_EvalShortOut,
+                               EQ_EVAL_FRAME_SAMPLES);
+        EQ_EvalErrorShort(EQ_EvalShortIn, EQ_EvalShortOut,
+                          EQ_EVAL_FRAME_SAMPLES, &max_error, &rms_error,
+                          &snr_db);
+        pass = ((pending_before != 0) &&
+                (Equalizer_HasPendingTransition(&st) == 0) &&
+                (max_error == 0.0f) && (st.clip_count == 0UL) &&
+                ((case_index != 0) ||
+                 (EQ_DebugRawCopyMismatchCount == 0UL)) &&
+                ((case_index != 2) ||
+                 (EQ_DebugFloatCopyMaxError == 0.0f)));
+        fprintf(file, "%s,%d,%d,%.6f,%.6f,%lu,%lu,%s\n", labels[case_index],
+                pending_before, Equalizer_HasPendingTransition(&st), max_error,
+                EQ_DebugFloatCopyMaxError, EQ_DebugRawCopyMismatchCount,
+                st.clip_count, pass ? "PASS" : "FAIL");
+        if (pass == 0)
+        {
+            failures++;
+        }
+    }
+    fclose(file);
+    return failures;
+}
+
+static int EQ_EvalWriteLatestPresetReport(void)
+{
+    FILE *file;
+    EQ_STATE st;
+    const float treble_gains[EQ_NUM_BANDS] =
+    {
+        -1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 1.0f, 2.0f, 3.0f, 3.0f
+    };
+    float baseline_delta = 0.0f;
+    float switch_delta = 0.0f;
+    float previous = 0.0f;
+    int target_not_overwritten = 1;
+    int final_treble = 1;
+    int first = 1;
+    int index;
+    int band;
+    int pass;
+
+    file = fopen("equalizer_latest_preset_report.csv", "w");
+    if (file == 0)
+    {
+        return 1;
+    }
+    EQ_EvalConfigure(&st, EQ_CORE_RBJ_CASCADE, EQ_PRESET_BASS_BOOST);
+    for (index = 0; index < 5000; index++)
+    {
+        float input = 0.10f * sinf(2.0f * (float)EQ_EVAL_PI * 1000.0f *
+                                    (float)index / EQ_SAMPLE_RATE);
+        float output;
+
+        Equalizer_ProcessFrameFloat(&st, &input, &output, 1);
+        if ((first == 0) && (EQ_EvalAbs(output - previous) > baseline_delta))
+        {
+            baseline_delta = EQ_EvalAbs(output - previous);
+        }
+        previous = output;
+        first = 0;
+    }
+    Equalizer_ApplyPreset(&st, EQ_PRESET_VOCAL);
+    for (index = 0; index < 2000; index++)
+    {
+        float input = 0.10f * sinf(2.0f * (float)EQ_EVAL_PI * 1000.0f *
+                                    (float)(index + 5000) / EQ_SAMPLE_RATE);
+        float output;
+
+        Equalizer_ProcessFrameFloat(&st, &input, &output, 1);
+        if (EQ_EvalAbs(output - previous) > switch_delta)
+        {
+            switch_delta = EQ_EvalAbs(output - previous);
+        }
+        previous = output;
+    }
+    Equalizer_ApplyPreset(&st, EQ_PRESET_TREBLE_BOOST);
+    for (band = 0; band < EQ_NUM_BANDS; band++)
+    {
+        if (EQ_EvalAbs(Equalizer_GetBandTargetGainDb(&st, band) -
+                   ((band == 0) ? -2.0f :
+                    (band == 1) ? -1.0f :
+                    (band == 3) ? 1.0f :
+                    (band == 4) ? 2.0f :
+                    (band == 5) ? 3.0f :
+                    (band == 6) ? 2.0f :
+                    (band == 7) ? 1.0f :
+                    (band == 9) ? -1.0f : 0.0f)) > 1.0e-7f)
+        {
+            target_not_overwritten = 0;
+        }
+    }
+    for (index = 0; index < 13000; index++)
+    {
+        float input = 0.10f * sinf(2.0f * (float)EQ_EVAL_PI * 1000.0f *
+                                    (float)(index + 7000) / EQ_SAMPLE_RATE);
+        float output;
+
+        Equalizer_ProcessFrameFloat(&st, &input, &output, 1);
+        if (EQ_EvalAbs(output - previous) > switch_delta)
+        {
+            switch_delta = EQ_EvalAbs(output - previous);
+        }
+        previous = output;
+    }
+    for (band = 0; band < EQ_NUM_BANDS; band++)
+    {
+        if (EQ_EvalAbs(Equalizer_GetBandTargetGainDb(&st, band) -
+                   treble_gains[band]) > 1.0e-7f)
+        {
+            final_treble = 0;
+        }
+    }
+    pass = ((target_not_overwritten != 0) && (final_treble != 0) &&
+            (Equalizer_HasPendingTransition(&st) == 0) &&
+            (st.clip_count == 0UL) &&
+            (switch_delta <= (baseline_delta * 8.0f + 0.02f)));
+    fprintf(file, "sequence,target_not_overwritten,final_treble,baseline_max_sample_delta,switch_max_sample_delta,delta_ratio,clip_count,pass\n");
+    fprintf(file, "bass_to_vocal_to_treble,%d,%d,%.12f,%.12f,%.9f,%lu,%s\n",
+            target_not_overwritten, final_treble, baseline_delta, switch_delta,
+            switch_delta / (baseline_delta + 1.0e-12f), st.clip_count,
+            pass ? "PASS" : "FAIL");
+    fclose(file);
+    return pass ? 0 : 1;
+}
+
 static int EQ_EvalWriteTransitionReport(void)
 {
     FILE *file;
@@ -1194,6 +1369,8 @@ int EqualizerEval_OfflineTest_All(void)
     failures += EQ_EvalWriteThdReport();
     failures += EQ_EvalWriteExpectedClipReport();
     failures += EQ_EvalWriteLongStabilityReport();
+    failures += EQ_EvalWriteTransitionInterruptReport();
+    failures += EQ_EvalWriteLatestPresetReport();
     failures += EQ_EvalWriteTransitionReport();
     printf("EqualizerEval_OfflineTest_All failures=%d\n", failures);
     return failures;

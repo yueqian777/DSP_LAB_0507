@@ -120,6 +120,8 @@ typedef struct
     int core_mode;
     int preset;
     int rbj_bank_id;
+    int latest_preset;
+    int latest_preset_valid;
 } EQ_STATE;
 
 extern volatile unsigned long EQ_DebugClipCount;
@@ -127,6 +129,9 @@ extern volatile float EQ_DebugPredictedPeakDb;
 extern volatile float EQ_DebugPreampDb;
 extern volatile float EQ_DebugFloatCopyMaxError;
 extern volatile unsigned long EQ_DebugHeadroomScanCount;
+extern volatile unsigned long EQ_DebugRawCopyMismatchCount;
+extern volatile float EQ_DebugInputPeak;
+extern volatile float EQ_DebugOutputPeak;
 
 void Equalizer_Init(EQ_STATE *st);
 void Equalizer_Reset(EQ_STATE *st);

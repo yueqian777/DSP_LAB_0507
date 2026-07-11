@@ -20,6 +20,9 @@
 #endif
 
 #define EQ_CPU_CYCLES_PER_MS 456000.0f
+#define EQ_SERVICE_DEADLINE_CYCLES \
+    ((unsigned long)(EQ_CPU_CYCLES_PER_MS * \
+    (1000.0f * (float)ADC_SAMPLE_1024 / EQ_SAMPLE_RATE) + 0.5f))
 
 static short EQ_AD_Buffer1[ADC_SAMPLE_1024];
 static short EQ_AD_Buffer2[ADC_SAMPLE_1024];
@@ -43,6 +46,9 @@ volatile unsigned long EQ_DebugLastCycles = 0UL;
 volatile unsigned long EQ_DebugMaxCycles = 0UL;
 volatile float EQ_DebugLastMs = 0.0f;
 volatile float EQ_DebugMaxMs = 0.0f;
+volatile unsigned long EQ_DebugServiceLastCycles = 0UL;
+volatile unsigned long EQ_DebugServiceMaxCycles = 0UL;
+volatile unsigned long EQ_DebugDeadlineMissCount = 0UL;
 volatile int EQ_DebugMode = EQ_PRESET_FLAT;
 volatile int EQ_DebugDiagPath = EQ_DIAG_PRESET;
 volatile float EQ_DebugBandGainDb[EQ_NUM_BANDS] =
@@ -51,7 +57,7 @@ volatile float EQ_DebugBandGainDb[EQ_NUM_BANDS] =
     0.0f, 0.0f, 0.0f, 0.0f, 0.0f
 };
 volatile const unsigned long EQ_DebugBuildMagic = 0x33030003UL;
-volatile const char EQ_DebugBuildId[] = "P33_FIX_c0eb163";
+volatile const char EQ_DebugBuildId[] = "P33_FIX_7e21952";
 volatile const int EQ_DebugBuildDirty = 0;
 
 #ifndef EQ_ALGO_ONLY
@@ -152,6 +158,32 @@ static void EQ_ServiceMode(void)
         EQ_AppliedMode = mode;
     }
     EQ_UpdateDebugGains();
+}
+
+static void EQ_UpdateServiceTiming(unsigned long cycles)
+{
+    EQ_DebugServiceLastCycles = cycles;
+    if (cycles > EQ_DebugServiceMaxCycles)
+    {
+        EQ_DebugServiceMaxCycles = cycles;
+    }
+    if (cycles > EQ_SERVICE_DEADLINE_CYCLES)
+    {
+        EQ_DebugDeadlineMissCount++;
+    }
+}
+
+static void EQ_ServiceModeTimed(void)
+{
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+    unsigned int cycle_start = TSCL;
+
+    EQ_ServiceMode();
+    EQ_UpdateServiceTiming((unsigned long)(TSCL - cycle_start));
+#else
+    EQ_ServiceMode();
+    EQ_UpdateServiceTiming(0UL);
+#endif
 }
 
 static void EQ_UpdateTiming(unsigned long cycles)
@@ -328,7 +360,7 @@ void Equalizer_Flow_Example(void)
         }
 
         /* Defer bank selection until the current AD/DA work is complete. */
-        EQ_ServiceMode();
+        EQ_ServiceModeTimed();
 
         if (FLAG_KEY1 == 1)
         {
