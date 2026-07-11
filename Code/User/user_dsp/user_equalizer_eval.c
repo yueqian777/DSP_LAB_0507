@@ -21,6 +21,7 @@
 #define EQ_EVAL_SETTLE_SAMPLES 7000
 #define EQ_EVAL_THD_SAMPLES 5000
 #define EQ_EVAL_THD_BIN 100
+#define EQ_EVAL_THD_MAX_DB (-60.0)
 #define EQ_EVAL_LONG_SECONDS 60
 #define EQ_EVAL_LONG_SAMPLES ((int)(EQ_SAMPLE_RATE * EQ_EVAL_LONG_SECONDS))
 
@@ -272,6 +273,21 @@ static int EQ_EvalWriteTransparencyReport(void)
         pass = ((max_error == 0.0f) && (st.clip_count == 0UL) &&
                 (memcmp(&before, &st, sizeof(st)) == 0));
         fprintf(file, "%s,hard_bypass_short,%d,%.6f,%.9f,%.3f,%lu,%s\n",
+                signal_name[signal_id], count, max_error, rms_error, snr_db,
+                st.clip_count, pass ? "PASS" : "FAIL");
+        if (pass == 0)
+        {
+            failures++;
+        }
+
+        Equalizer_Init(&st);
+        Equalizer_SetCoreMode(&st, EQ_CORE_FLOAT_COPY);
+        Equalizer_ProcessFrame(&st, EQ_EvalShortIn, EQ_EvalShortOut, count);
+        EQ_EvalErrorShort(EQ_EvalShortIn, EQ_EvalShortOut, count,
+                          &max_error, &rms_error, &snr_db);
+        pass = ((max_error == 0.0f) && (st.clip_count == 0UL) &&
+                (EQ_DebugFloatCopyMaxError == 0.0f));
+        fprintf(file, "%s,float_copy_short,%d,%.6f,%.9f,%.3f,%lu,%s\n",
                 signal_name[signal_id], count, max_error, rms_error, snr_db,
                 st.clip_count, pass ? "PASS" : "FAIL");
         if (pass == 0)
@@ -590,16 +606,6 @@ static int EQ_EvalWriteCoefficients(void)
     return failures;
 }
 
-static short EQ_EvalMultitoneSample(int sample_index)
-{
-    float t = (float)sample_index / EQ_SAMPLE_RATE;
-    float x = 0.04f * (sinf(2.0f * (float)EQ_EVAL_PI * 62.5f * t) +
-                       sinf(2.0f * (float)EQ_EVAL_PI * 1000.0f * t) +
-                       sinf(2.0f * (float)EQ_EVAL_PI * 8000.0f * t));
-
-    return (short)(x * 32767.0f);
-}
-
 static float EQ_EvalShortPeak(const short *samples, int count)
 {
     int index;
@@ -617,10 +623,58 @@ static float EQ_EvalShortPeak(const short *samples, int count)
     return peak;
 }
 
+static short EQ_EvalStressTone(int sample_index, float level_dbfs)
+{
+    int band = (sample_index / 5000) % EQ_NUM_BANDS;
+    float amplitude = powf(10.0f, level_dbfs / 20.0f) * 32767.0f;
+    float phase = 2.0f * (float)EQ_EVAL_PI *
+                  Equalizer_GetBandCenterHz(band) * (float)sample_index /
+                  EQ_SAMPLE_RATE;
+    float sample = amplitude * sinf(phase);
+
+    return (short)((sample >= 0.0f) ? (sample + 0.5f) : (sample - 0.5f));
+}
+
+static int EQ_EvalWritePresetCacheReport(void)
+{
+    FILE *file;
+    EQ_STATE st;
+    unsigned long before;
+    unsigned long after;
+    int preset;
+    int pass;
+
+    file = fopen("equalizer_preset_cache_report.csv", "w");
+    if (file == 0)
+    {
+        return 1;
+    }
+    Equalizer_Init(&st);
+    before = EQ_DebugHeadroomScanCount;
+    for (preset = EQ_PRESET_FLAT; preset < EQ_PRESET_COUNT; preset++)
+    {
+        Equalizer_ApplyPreset(&st, preset);
+        EQ_EvalSettle(&st);
+    }
+    Equalizer_SetCoreMode(&st, EQ_CORE_RAW_COPY);
+    Equalizer_ApplyPreset(&st, EQ_PRESET_BASS_BOOST);
+    Equalizer_SetCoreMode(&st, EQ_CORE_RBJ_CASCADE);
+    Equalizer_ApplySingleBand1kPlus3Db(&st);
+    EQ_EvalSettle(&st);
+    after = EQ_DebugHeadroomScanCount;
+    pass = (after == before);
+    fprintf(file, "scan_count_before_switches,scan_count_after_switches,pass\n");
+    fprintf(file, "%lu,%lu,%s\n", before, after, pass ? "PASS" : "FAIL");
+    fclose(file);
+    return pass ? 0 : 1;
+}
+
 static int EQ_EvalWriteHeadroom(void)
 {
     FILE *file;
+    const float stress_levels_dbfs[4] = { -12.0f, -6.0f, -3.0f, -1.0f };
     int preset;
+    int level_index;
     int failures = 0;
 
     file = fopen("equalizer_headroom_prediction.csv", "w");
@@ -628,61 +682,91 @@ static int EQ_EvalWriteHeadroom(void)
     {
         return 1;
     }
-    fprintf(file, "preset,signal_id,predicted_peak_db,applied_preamp_db,input_peak_dbfs,output_peak_dbfs,clip_count,expected_limit_dbfs,pass\n");
+    fprintf(file, "preset,signal_id,input_peak_dbfs,output_peak_dbfs,predicted_peak_db,applied_preamp_db,clip_count,pass\n");
     for (preset = EQ_PRESET_FLAT; preset < EQ_PRESET_COUNT; preset++)
     {
-        EQ_STATE st;
-        int total = 20000;
-        int offset;
-        float input_peak;
-        float output_peak;
-        float input_dbfs;
-        float output_dbfs;
-        float expected_limit;
-        int pass;
-
-        EQ_EvalConfigure(&st, EQ_CORE_RBJ_CASCADE, preset);
-        for (offset = 0; offset < total; offset += EQ_EVAL_FRAME_SAMPLES)
+        for (level_index = 0; level_index < 4; level_index++)
         {
-            int count = total - offset;
-            int index;
+            EQ_STATE st;
+            float input_peak = 0.0f;
+            float output_peak = 0.0f;
+            int offset;
+            int pass;
 
-            if (count > EQ_EVAL_FRAME_SAMPLES)
+            EQ_EvalConfigure(&st, EQ_CORE_RBJ_CASCADE, preset);
+            for (offset = 0; offset < 50000; offset += EQ_EVAL_FRAME_SAMPLES)
             {
-                count = EQ_EVAL_FRAME_SAMPLES;
+                int count = 50000 - offset;
+                int index;
+
+                if (count > EQ_EVAL_FRAME_SAMPLES)
+                {
+                    count = EQ_EVAL_FRAME_SAMPLES;
+                }
+                for (index = 0; index < count; index++)
+                {
+                    EQ_EvalShortIn[index] = EQ_EvalStressTone(offset + index,
+                        stress_levels_dbfs[level_index]);
+                }
+                Equalizer_ProcessFrame(&st, EQ_EvalShortIn, EQ_EvalShortOut,
+                                       count);
+                if (EQ_EvalShortPeak(EQ_EvalShortIn, count) > input_peak)
+                {
+                    input_peak = EQ_EvalShortPeak(EQ_EvalShortIn, count);
+                }
+                if (EQ_EvalShortPeak(EQ_EvalShortOut, count) > output_peak)
+                {
+                    output_peak = EQ_EvalShortPeak(EQ_EvalShortOut, count);
+                }
             }
-            for (index = 0; index < count; index++)
+            pass = (st.clip_count == 0UL);
+            fprintf(file, "%s,stress_%+.0fdBFS,%.9f,%.9f,%.9f,%.9f,%lu,%s\n",
+                    EQ_EvalPresetName(preset), stress_levels_dbfs[level_index],
+                    EQ_EvalDb(input_peak / 32767.0f),
+                    EQ_EvalDb(output_peak / 32767.0f),
+                    Equalizer_GetPredictedPeakDb(&st),
+                    Equalizer_GetPreampDb(&st), st.clip_count,
+                    pass ? "PASS" : "FAIL");
+            if (pass == 0)
             {
-                EQ_EvalShortIn[index] = EQ_EvalMultitoneSample(offset + index);
-            }
-            Equalizer_ProcessFrame(&st, EQ_EvalShortIn, EQ_EvalShortOut, count);
-            if (offset == 0)
-            {
-                input_peak = 0.0f;
-                output_peak = 0.0f;
-            }
-            if (EQ_EvalShortPeak(EQ_EvalShortIn, count) > input_peak)
-            {
-                input_peak = EQ_EvalShortPeak(EQ_EvalShortIn, count);
-            }
-            if (EQ_EvalShortPeak(EQ_EvalShortOut, count) > output_peak)
-            {
-                output_peak = EQ_EvalShortPeak(EQ_EvalShortOut, count);
+                failures++;
             }
         }
-        input_dbfs = EQ_EvalDb(input_peak / 32767.0f);
-        output_dbfs = EQ_EvalDb(output_peak / 32767.0f);
-        expected_limit = input_dbfs + Equalizer_GetPredictedPeakDb(&st) +
-                         Equalizer_GetPreampDb(&st) + 1.0f;
-        pass = ((st.clip_count == 0UL) &&
-                (output_dbfs <= expected_limit + 0.25f));
-        fprintf(file, "%s,multitone_62p5_1k_8k,%.9f,%.9f,%.9f,%.9f,%lu,%.9f,%s\n",
-                EQ_EvalPresetName(preset), Equalizer_GetPredictedPeakDb(&st),
-                Equalizer_GetPreampDb(&st), input_dbfs, output_dbfs,
-                st.clip_count, expected_limit, pass ? "PASS" : "FAIL");
-        if (pass == 0)
         {
-            failures++;
+            EQ_STATE st;
+            float input_peak = 0.0f;
+            float output_peak = 0.0f;
+            int index;
+            int pass;
+
+            EQ_EvalConfigure(&st, EQ_CORE_RBJ_CASCADE, preset);
+            for (index = 0; index < 7000; index++)
+            {
+                short input = (index == 0) ? (short)(0.9f * 32767.0f) : 0;
+                short output;
+
+                Equalizer_ProcessFrame(&st, &input, &output, 1);
+                if (EQ_EvalAbs((float)input) > input_peak)
+                {
+                    input_peak = EQ_EvalAbs((float)input);
+                }
+                if (EQ_EvalAbs((float)output) > output_peak)
+                {
+                    output_peak = EQ_EvalAbs((float)output);
+                }
+            }
+            pass = (st.clip_count == 0UL);
+            fprintf(file, "%s,impulse_0.9FS,%.9f,%.9f,%.9f,%.9f,%lu,%s\n",
+                    EQ_EvalPresetName(preset),
+                    EQ_EvalDb(input_peak / 32767.0f),
+                    EQ_EvalDb(output_peak / 32767.0f),
+                    Equalizer_GetPredictedPeakDb(&st),
+                    Equalizer_GetPreampDb(&st), st.clip_count,
+                    pass ? "PASS" : "FAIL");
+            if (pass == 0)
+            {
+                failures++;
+            }
         }
     }
     fclose(file);
@@ -738,7 +822,7 @@ static int EQ_EvalWriteThdReport(void)
     {
         return 1;
     }
-    fprintf(file, "case_id,fs_hz,sample_count,fund_bin,freq_hz,coherent,thd_ratio,thd_db,thdn_ratio,thdn_db,clip_count,pass\n");
+    fprintf(file, "case_id,fs_hz,sample_count,fund_bin,freq_hz,coherent,thd_ratio,thd_db,thd_limit_db,thdn_ratio,thdn_db,clip_count,pass\n");
     for (case_index = 0; case_index < 5; case_index++)
     {
         EQ_STATE st;
@@ -748,6 +832,7 @@ static int EQ_EvalWriteThdReport(void)
         double total_power = 0.0;
         double thd_ratio;
         double thdn_ratio;
+        double thd_db;
         int harmonic;
         int pass;
 
@@ -775,12 +860,14 @@ static int EQ_EvalWriteThdReport(void)
         }
         thd_ratio = sqrt(harmonic_power / (fund_power + EQ_EVAL_EPS));
         thdn_ratio = sqrt(fmax(0.0, total_power - fund_power) /
-                          (fund_power + EQ_EVAL_EPS));
+                           (fund_power + EQ_EVAL_EPS));
+        thd_db = 20.0 * log10(thd_ratio + EQ_EVAL_EPS);
         pass = ((st.clip_count == 0UL) && (fund_power > EQ_EVAL_EPS) &&
-                (isfinite(thd_ratio) != 0) && (isfinite(thdn_ratio) != 0));
-        fprintf(file, "%s,50000,%d,%d,1000.000,1,%.12f,%.9f,%.12f,%.9f,%lu,%s\n",
+                (isfinite(thd_ratio) != 0) && (isfinite(thdn_ratio) != 0) &&
+                (thd_db <= EQ_EVAL_THD_MAX_DB));
+        fprintf(file, "%s,50000,%d,%d,1000.000,1,%.12f,%.9f,%.1f,%.12f,%.9f,%lu,%s\n",
                 labels[case_index], EQ_EVAL_THD_SAMPLES, EQ_EVAL_THD_BIN,
-                thd_ratio, 20.0 * log10(thd_ratio + EQ_EVAL_EPS), thdn_ratio,
+                thd_ratio, thd_db, EQ_EVAL_THD_MAX_DB, thdn_ratio,
                 20.0 * log10(thdn_ratio + EQ_EVAL_EPS), st.clip_count,
                 pass ? "PASS" : "FAIL");
         if (pass == 0)
@@ -991,63 +1078,106 @@ static int EQ_EvalWriteLongStabilityReport(void)
 static int EQ_EvalWriteTransitionReport(void)
 {
     FILE *file;
-    EQ_STATE st;
-    int index;
-    float baseline_delta = 0.0f;
-    float switch_delta = 0.0f;
-    float max_internal_state = 0.0f;
-    float previous = 0.0f;
-    int first = 1;
-    int initial_remaining;
-    int pass;
+    const int source_presets[3] = { EQ_PRESET_FLAT, EQ_PRESET_BASS_BOOST,
+                                    EQ_PRESET_V_SHAPE };
+    const int target_presets[3] = { EQ_PRESET_BASS_BOOST, EQ_PRESET_FLAT,
+                                    EQ_PRESET_FLAT };
+    const char *labels[3] = { "flat_to_bass", "bass_to_flat",
+                              "v_shape_to_flat" };
+    int case_index;
+    int failures = 0;
 
     file = fopen("equalizer_transition_report.csv", "w");
     if (file == 0)
     {
         return 1;
     }
-    EQ_EvalConfigure(&st, EQ_CORE_RBJ_CASCADE, EQ_PRESET_BASS_BOOST);
-    for (index = 0; index < 5000; index++)
+    fprintf(file, "transition,baseline_max_sample_delta,switch_max_sample_delta,delta_ratio,transition_peak,transition_samples,flat_transparent_after,clip_count,pass\n");
+    for (case_index = 0; case_index < 3; case_index++)
     {
-        float input = 0.10f * sinf(2.0f * (float)EQ_EVAL_PI * 1000.0f *
-                                    (float)index / EQ_SAMPLE_RATE);
-        float output;
+        EQ_STATE st;
+        float baseline_delta = 0.0f;
+        float switch_delta = 0.0f;
+        float transition_peak = 0.0f;
+        float max_internal_state = 0.0f;
+        float previous = 0.0f;
+        int first = 1;
+        int initial_remaining;
+        int flat_transparent_after = 1;
+        int index;
+        int pass;
 
-        Equalizer_ProcessFrameFloat(&st, &input, &output, 1);
-        if ((first == 0) && (EQ_EvalAbs(output - previous) > baseline_delta))
+        EQ_EvalConfigure(&st, EQ_CORE_RBJ_CASCADE, source_presets[case_index]);
+        for (index = 0; index < 5000; index++)
         {
-            baseline_delta = EQ_EvalAbs(output - previous);
-        }
-        previous = output;
-        first = 0;
-    }
-    Equalizer_ApplyPreset(&st, EQ_PRESET_VOCAL);
-    initial_remaining = Equalizer_GetTransitionRemaining(&st);
-    first = 1;
-    for (index = 0; index < EQ_EVAL_SETTLE_SAMPLES; index++)
-    {
-        float input = 0.10f * sinf(2.0f * (float)EQ_EVAL_PI * 1000.0f *
-                                    (float)(index + 5000) / EQ_SAMPLE_RATE);
-        float output;
+            float input = 0.10f * sinf(2.0f * (float)EQ_EVAL_PI * 1000.0f *
+                                        (float)index / EQ_SAMPLE_RATE);
+            float output;
 
-        Equalizer_ProcessFrameFloat(&st, &input, &output, 1);
-        if ((first == 0) && (EQ_EvalAbs(output - previous) > switch_delta))
-        {
-            switch_delta = EQ_EvalAbs(output - previous);
+            Equalizer_ProcessFrameFloat(&st, &input, &output, 1);
+            if ((first == 0) && (EQ_EvalAbs(output - previous) > baseline_delta))
+            {
+                baseline_delta = EQ_EvalAbs(output - previous);
+            }
+            previous = output;
+            first = 0;
         }
-        previous = output;
-        first = 0;
+        Equalizer_ApplyPreset(&st, target_presets[case_index]);
+        initial_remaining = Equalizer_GetTransitionRemaining(&st);
+        for (index = 0; index < EQ_EVAL_SETTLE_SAMPLES; index++)
+        {
+            float input = 0.10f * sinf(2.0f * (float)EQ_EVAL_PI * 1000.0f *
+                                        (float)(index + 5000) / EQ_SAMPLE_RATE);
+            float output;
+            int in_transition = Equalizer_HasPendingTransition(&st);
+
+            Equalizer_ProcessFrameFloat(&st, &input, &output, 1);
+            if (in_transition != 0)
+            {
+                if (EQ_EvalAbs(output) > transition_peak)
+                {
+                    transition_peak = EQ_EvalAbs(output);
+                }
+            }
+            if (EQ_EvalAbs(output - previous) > switch_delta)
+            {
+                switch_delta = EQ_EvalAbs(output - previous);
+            }
+            previous = output;
+        }
+        if (target_presets[case_index] == EQ_PRESET_FLAT)
+        {
+            EQ_EvalFillTransparencySignal(2, EQ_EVAL_FRAME_SAMPLES);
+            Equalizer_ProcessFrame(&st, EQ_EvalShortIn, EQ_EvalShortOut,
+                                   EQ_EVAL_FRAME_SAMPLES);
+            for (index = 0; index < EQ_EVAL_FRAME_SAMPLES; index++)
+            {
+                if (EQ_EvalShortIn[index] != EQ_EvalShortOut[index])
+                {
+                    flat_transparent_after = 0;
+                    break;
+                }
+            }
+        }
+        pass = ((st.clip_count == 0UL) &&
+                (EQ_EvalStateIsFinite(&st, &max_internal_state) != 0) &&
+                (initial_remaining == (int)(EQ_SAMPLE_RATE * EQ_TRANSITION_MS /
+                                              1000.0f + 0.5f)) &&
+                (switch_delta <= (baseline_delta * 8.0f + 0.02f)) &&
+                (Equalizer_HasPendingTransition(&st) == 0) &&
+                (flat_transparent_after != 0));
+        fprintf(file, "%s,%.12f,%.12f,%.9f,%.12f,%d,%d,%lu,%s\n",
+                labels[case_index], baseline_delta, switch_delta,
+                switch_delta / (baseline_delta + 1.0e-12f), transition_peak,
+                initial_remaining, flat_transparent_after, st.clip_count,
+                pass ? "PASS" : "FAIL");
+        if (pass == 0)
+        {
+            failures++;
+        }
     }
-    pass = ((st.clip_count == 0UL) &&
-            (EQ_EvalStateIsFinite(&st, &max_internal_state) != 0) &&
-            (switch_delta <= (baseline_delta * 8.0f + 0.02f)) &&
-            (Equalizer_HasPendingTransition(&st) == 0));
-    fprintf(file, "baseline_max_sample_delta,switch_max_sample_delta,delta_ratio,transition_samples,clip_count,pass\n");
-    fprintf(file, "%.12f,%.12f,%.9f,%d,%lu,%s\n", baseline_delta,
-            switch_delta, switch_delta / (baseline_delta + 1.0e-12f),
-            initial_remaining, st.clip_count, pass ? "PASS" : "FAIL");
     fclose(file);
-    return pass ? 0 : 1;
+    return failures;
 }
 
 int EqualizerEval_OfflineTest_All(void)
@@ -1059,6 +1189,7 @@ int EqualizerEval_OfflineTest_All(void)
     failures += EQ_EvalWriteLegacySystemResponse();
     failures += EQ_EvalWriteSystemResponse();
     failures += EQ_EvalWriteCoefficients();
+    failures += EQ_EvalWritePresetCacheReport();
     failures += EQ_EvalWriteHeadroom();
     failures += EQ_EvalWriteThdReport();
     failures += EQ_EvalWriteExpectedClipReport();

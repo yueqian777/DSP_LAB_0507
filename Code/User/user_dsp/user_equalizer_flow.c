@@ -51,8 +51,8 @@ volatile float EQ_DebugBandGainDb[EQ_NUM_BANDS] =
     0.0f, 0.0f, 0.0f, 0.0f, 0.0f
 };
 volatile const unsigned long EQ_DebugBuildMagic = 0x33030003UL;
-volatile const char EQ_DebugBuildId[] = "P33_OFFLINE_d06f34a";
-volatile const int EQ_DebugBuildDirty = 1;
+volatile const char EQ_DebugBuildId[] = "P33_FIX_c0eb163";
+volatile const int EQ_DebugBuildDirty = 0;
 
 #ifndef EQ_ALGO_ONLY
 
@@ -133,16 +133,8 @@ static void EQ_ServiceMode(void)
         }
         else if (diag_path == EQ_DIAG_SINGLE_BAND)
         {
-            float gains[EQ_NUM_BANDS];
-            int band;
-
             Equalizer_SetCoreMode(&EQ_BoardState, EQ_CORE_RBJ_CASCADE);
-            for (band = 0; band < EQ_NUM_BANDS; band++)
-            {
-                gains[band] = 0.0f;
-            }
-            gains[5] = 3.0f;
-            Equalizer_SetAllGainsDb(&EQ_BoardState, gains);
+            Equalizer_ApplySingleBand1kPlus3Db(&EQ_BoardState);
             EQ_AppliedMode = -1;
         }
         else
@@ -243,6 +235,27 @@ static void EQ_FillDacPongBuffer(void)
     memcpy(DA_CH8_Buf1, EQ_AD_Buffer8, 2 * DAC_SAMPLE_1024);
 }
 
+static void EQ_ClearDacBuffers(void)
+{
+    memset(EQ_DA_Buffer1, 0, sizeof(EQ_DA_Buffer1));
+    memset(DA_CH1_Buf0, 0, 2 * DAC_SAMPLE_1024);
+    memset(DA_CH2_Buf0, 0, 2 * DAC_SAMPLE_1024);
+    memset(DA_CH3_Buf0, 0, 2 * DAC_SAMPLE_1024);
+    memset(DA_CH4_Buf0, 0, 2 * DAC_SAMPLE_1024);
+    memset(DA_CH5_Buf0, 0, 2 * DAC_SAMPLE_1024);
+    memset(DA_CH6_Buf0, 0, 2 * DAC_SAMPLE_1024);
+    memset(DA_CH7_Buf0, 0, 2 * DAC_SAMPLE_1024);
+    memset(DA_CH8_Buf0, 0, 2 * DAC_SAMPLE_1024);
+    memset(DA_CH1_Buf1, 0, 2 * DAC_SAMPLE_1024);
+    memset(DA_CH2_Buf1, 0, 2 * DAC_SAMPLE_1024);
+    memset(DA_CH3_Buf1, 0, 2 * DAC_SAMPLE_1024);
+    memset(DA_CH4_Buf1, 0, 2 * DAC_SAMPLE_1024);
+    memset(DA_CH5_Buf1, 0, 2 * DAC_SAMPLE_1024);
+    memset(DA_CH6_Buf1, 0, 2 * DAC_SAMPLE_1024);
+    memset(DA_CH7_Buf1, 0, 2 * DAC_SAMPLE_1024);
+    memset(DA_CH8_Buf1, 0, 2 * DAC_SAMPLE_1024);
+}
+
 static void EQ_FillDacInactiveBuffer(void)
 {
     if (DA_Ping_Pong == DA_BUFFER_PONG)
@@ -276,6 +289,7 @@ void Equalizer_Flow_Example(void)
     Dac_Init(DAC_50KHZ, DAC_SAMPLE_1024, DAC_CHANNEL_ALL);
     Equalizer_Init(&EQ_BoardState);
     EQ_ServiceMode();
+    EQ_ClearDacBuffers();
 #if EQ_ENABLE_LCD_DISPLAY != 0
     EqualizerDisplay_Init();
     EqualizerDisplay_UpdateAll(&EQ_BoardState);
@@ -297,8 +311,6 @@ void Equalizer_Flow_Example(void)
 
     while (1)
     {
-        EQ_ServiceMode();
-
         if (FLAG_AD == 1)
         {
             FLAG_AD = 0;
@@ -314,6 +326,9 @@ void Equalizer_Flow_Example(void)
             EQ_DebugDaFrames++;
             EQ_FillDacInactiveBuffer();
         }
+
+        /* Defer bank selection until the current AD/DA work is complete. */
+        EQ_ServiceMode();
 
         if (FLAG_KEY1 == 1)
         {

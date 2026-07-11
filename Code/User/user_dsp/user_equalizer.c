@@ -16,6 +16,9 @@
 #define EQ_RBJ_BANDWIDTH_OCTAVES 1.0f
 #define EQ_RBJ_SHELF_SLOPE 1.0f
 #define EQ_HEADROOM_POINTS 512
+#define EQ_RBJ_BANK_SINGLE_1K EQ_PRESET_COUNT
+#define EQ_RBJ_BANK_CACHE_COUNT (EQ_PRESET_COUNT + 1)
+#define EQ_RBJ_BANK_CUSTOM (-1)
 
 typedef struct
 {
@@ -59,10 +62,14 @@ static const float EQ_RbjPresetGainsDb[EQ_PRESET_COUNT][EQ_NUM_BANDS] =
 
 static EQ_BIQUAD EQ_LegacyCoeff[EQ_NUM_BANDS];
 static int EQ_LegacyCoeffReady = 0;
+static EQ_FILTER_BANK EQ_RbjBankCache[EQ_RBJ_BANK_CACHE_COUNT];
+static int EQ_RbjBankCacheReady = 0;
 
 volatile unsigned long EQ_DebugClipCount = 0UL;
 volatile float EQ_DebugPredictedPeakDb = 0.0f;
 volatile float EQ_DebugPreampDb = 0.0f;
+volatile float EQ_DebugFloatCopyMaxError = 0.0f;
+volatile unsigned long EQ_DebugHeadroomScanCount = 0UL;
 
 static float EQ_Abs(float x)
 {
@@ -409,6 +416,7 @@ static float EQ_BankPeakDb(const EQ_FILTER_BANK *bank)
     float step;
     float peak_db;
 
+    EQ_DebugHeadroomScanCount++;
     log_min = logf(20.0f);
     log_max = logf(20000.0f);
     step = (log_max - log_min) / (float)(EQ_HEADROOM_POINTS - 1);
@@ -442,6 +450,71 @@ static void EQ_ClearBankState(EQ_FILTER_BANK *bank)
     }
     memset(bank->s1, 0, sizeof(bank->s1));
     memset(bank->s2, 0, sizeof(bank->s2));
+}
+
+static void EQ_BuildRbjBank(EQ_FILTER_BANK *bank,
+                             const float gains_db[EQ_NUM_BANDS]);
+
+static int EQ_GainsMatch(const float a[EQ_NUM_BANDS],
+                         const float b[EQ_NUM_BANDS])
+{
+    int band;
+
+    for (band = 0; band < EQ_NUM_BANDS; band++)
+    {
+        if (EQ_Abs(a[band] - b[band]) > 1.0e-7f)
+        {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static void EQ_EnsureRbjBankCache(void)
+{
+    float single_1k_gains[EQ_NUM_BANDS];
+    int preset;
+    int band;
+
+    if (EQ_RbjBankCacheReady != 0)
+    {
+        return;
+    }
+    for (preset = EQ_PRESET_FLAT; preset < EQ_PRESET_COUNT; preset++)
+    {
+        EQ_BuildRbjBank(&EQ_RbjBankCache[preset],
+                        EQ_RbjPresetGainsDb[preset]);
+    }
+    for (band = 0; band < EQ_NUM_BANDS; band++)
+    {
+        single_1k_gains[band] = 0.0f;
+    }
+    single_1k_gains[5] = 3.0f;
+    EQ_BuildRbjBank(&EQ_RbjBankCache[EQ_RBJ_BANK_SINGLE_1K],
+                    single_1k_gains);
+    EQ_RbjBankCacheReady = 1;
+}
+
+static int EQ_FindRbjCachedBank(const float gains_db[EQ_NUM_BANDS])
+{
+    float single_1k_gains[EQ_NUM_BANDS];
+    int preset;
+    int band;
+
+    for (preset = EQ_PRESET_FLAT; preset < EQ_PRESET_COUNT; preset++)
+    {
+        if (EQ_GainsMatch(gains_db, EQ_RbjPresetGainsDb[preset]) != 0)
+        {
+            return preset;
+        }
+    }
+    for (band = 0; band < EQ_NUM_BANDS; band++)
+    {
+        single_1k_gains[band] = 0.0f;
+    }
+    single_1k_gains[5] = 3.0f;
+    return (EQ_GainsMatch(gains_db, single_1k_gains) != 0) ?
+           EQ_RBJ_BANK_SINGLE_1K : EQ_RBJ_BANK_CUSTOM;
 }
 
 static void EQ_BuildRbjBank(EQ_FILTER_BANK *bank,
@@ -602,15 +675,12 @@ static void EQ_UpdateDebugHeadroom(const EQ_STATE *st)
     EQ_DebugPreampDb = bank->preamp_db;
 }
 
-static void EQ_InstallRbjTarget(EQ_STATE *st, int immediate)
+static void EQ_InstallRbjCandidate(EQ_STATE *st, const EQ_FILTER_BANK *candidate,
+                                   int immediate)
 {
-    EQ_FILTER_BANK candidate;
-
-    EQ_BuildRbjBank(&candidate, st->band_gain_db);
-    if ((immediate != 0) || (EQ_ENABLE_BANK_CROSSFADE == 0) ||
-        (EQ_AllGainsFlat(st->band_gain_db) != 0))
+    if ((immediate != 0) || (EQ_ENABLE_BANK_CROSSFADE == 0))
     {
-        st->active_bank = candidate;
+        st->active_bank = *candidate;
         EQ_ClearBankState(&st->active_bank);
         memset(&st->pending_bank, 0, sizeof(st->pending_bank));
         st->pending_bank_valid = 0;
@@ -619,12 +689,41 @@ static void EQ_InstallRbjTarget(EQ_STATE *st, int immediate)
     }
     else
     {
-        st->pending_bank = candidate;
+        st->pending_bank = *candidate;
+        EQ_ClearBankState(&st->pending_bank);
         st->pending_bank_valid = 1;
         st->transition_total = EQ_TransitionSamples();
         st->transition_remaining = st->transition_total;
     }
     EQ_UpdateDebugHeadroom(st);
+}
+
+static void EQ_InstallRbjCachedTarget(EQ_STATE *st, int bank_id,
+                                      int immediate)
+{
+    EQ_EnsureRbjBankCache();
+    if ((bank_id < EQ_PRESET_FLAT) || (bank_id >= EQ_RBJ_BANK_CACHE_COUNT))
+    {
+        bank_id = EQ_PRESET_FLAT;
+    }
+    EQ_InstallRbjCandidate(st, &EQ_RbjBankCache[bank_id], immediate);
+    st->rbj_bank_id = bank_id;
+}
+
+static void EQ_InstallRbjTarget(EQ_STATE *st, int immediate)
+{
+    EQ_FILTER_BANK candidate;
+    int bank_id;
+
+    bank_id = EQ_FindRbjCachedBank(st->band_gain_db);
+    if (bank_id != EQ_RBJ_BANK_CUSTOM)
+    {
+        EQ_InstallRbjCachedTarget(st, bank_id, immediate);
+        return;
+    }
+    EQ_BuildRbjBank(&candidate, st->band_gain_db);
+    EQ_InstallRbjCandidate(st, &candidate, immediate);
+    st->rbj_bank_id = EQ_RBJ_BANK_CUSTOM;
 }
 
 static float EQ_ProcessLegacySample(EQ_STATE *st, float x)
@@ -709,16 +808,20 @@ static float EQ_ProcessRbjSample(EQ_STATE *st, float x)
 
 static int EQ_UsesTransparentPath(const EQ_STATE *st)
 {
+    if ((st == 0) || (st->pending_bank_valid != 0))
+    {
+        return 0;
+    }
     if (st->bypass != 0)
     {
         return 1;
     }
-    if ((st->core_mode == EQ_CORE_RAW_COPY) ||
-        (st->core_mode == EQ_CORE_FLOAT_COPY))
+    if (st->core_mode == EQ_CORE_RAW_COPY)
     {
         return 1;
     }
-    return EQ_AllGainsFlat(st->band_gain_db);
+    return ((st->core_mode == EQ_CORE_RBJ_CASCADE) &&
+            (EQ_AllGainsFlat(st->band_gain_db) != 0)) ? 1 : 0;
 }
 
 static short EQ_SaturateToShort(EQ_STATE *st, float y)
@@ -741,6 +844,20 @@ static short EQ_SaturateToShort(EQ_STATE *st, float y)
     return (short)rounded;
 }
 
+static short EQ_ProcessFloatCopyShort(EQ_STATE *st, short input)
+{
+    float normalized = (float)input / 32768.0f;
+    float restored = normalized * 32768.0f;
+    short output = EQ_SaturateToShort(st, restored);
+    float error = EQ_Abs((float)output - (float)input);
+
+    if (error > EQ_DebugFloatCopyMaxError)
+    {
+        EQ_DebugFloatCopyMaxError = error;
+    }
+    return output;
+}
+
 void Equalizer_Init(EQ_STATE *st)
 {
     if (st == 0)
@@ -749,11 +866,14 @@ void Equalizer_Init(EQ_STATE *st)
     }
     memset(st, 0, sizeof(*st));
     EQ_DesignLegacyCoeffs();
+    EQ_EnsureRbjBankCache();
     st->core_mode = EQ_CORE_RBJ_CASCADE;
     st->preset = EQ_PRESET_FLAT;
+    st->rbj_bank_id = EQ_PRESET_FLAT;
     EQ_SetLegacyImmediate(st);
-    EQ_InstallRbjTarget(st, 1);
+    EQ_InstallRbjCachedTarget(st, EQ_PRESET_FLAT, 1);
     EQ_DebugClipCount = 0UL;
+    EQ_DebugFloatCopyMaxError = 0.0f;
 }
 
 void Equalizer_Reset(EQ_STATE *st)
@@ -762,6 +882,7 @@ void Equalizer_Reset(EQ_STATE *st)
     int core_mode;
     int bypass;
     int preset;
+    int rbj_bank_id;
     int band;
 
     if (st == 0)
@@ -775,18 +896,29 @@ void Equalizer_Reset(EQ_STATE *st)
     core_mode = st->core_mode;
     bypass = st->bypass;
     preset = st->preset;
+    rbj_bank_id = st->rbj_bank_id;
     memset(st, 0, sizeof(*st));
     st->core_mode = core_mode;
     st->bypass = bypass;
     st->preset = preset;
+    st->rbj_bank_id = rbj_bank_id;
     for (band = 0; band < EQ_NUM_BANDS; band++)
     {
         st->band_gain_db[band] = gains_db[band];
     }
     EQ_DesignLegacyCoeffs();
     EQ_SetLegacyImmediate(st);
-    EQ_InstallRbjTarget(st, 1);
+    if ((st->core_mode == EQ_CORE_RBJ_CASCADE) &&
+        (st->rbj_bank_id != EQ_RBJ_BANK_CUSTOM))
+    {
+        EQ_InstallRbjCachedTarget(st, st->rbj_bank_id, 1);
+    }
+    else
+    {
+        EQ_InstallRbjTarget(st, 1);
+    }
     EQ_DebugClipCount = 0UL;
+    EQ_DebugFloatCopyMaxError = 0.0f;
     EQ_UpdateDebugHeadroom(st);
 }
 
@@ -820,7 +952,17 @@ void Equalizer_SetCoreMode(EQ_STATE *st, int mode)
     st->core_mode = mode;
     EQ_ResetLegacyState(st);
     EQ_SetLegacyImmediate(st);
-    EQ_InstallRbjTarget(st, 1);
+    if (mode == EQ_CORE_RBJ_CASCADE)
+    {
+        if (st->rbj_bank_id != EQ_RBJ_BANK_CUSTOM)
+        {
+            EQ_InstallRbjCachedTarget(st, st->rbj_bank_id, 1);
+        }
+        else
+        {
+            EQ_InstallRbjTarget(st, 1);
+        }
+    }
     EQ_UpdateDebugHeadroom(st);
 }
 
@@ -831,18 +973,27 @@ int Equalizer_GetCoreMode(const EQ_STATE *st)
 
 void Equalizer_SetBandGainDb(EQ_STATE *st, int band, float gain_db)
 {
+    float clamped_gain;
+
     if ((st == 0) || (band < 0) || (band >= EQ_NUM_BANDS))
     {
         return;
     }
-    st->band_gain_db[band] = EQ_ClampDb(gain_db);
+    clamped_gain = EQ_ClampDb(gain_db);
+    if (EQ_Abs(st->band_gain_db[band] - clamped_gain) < 1.0e-7f)
+    {
+        return;
+    }
+    st->band_gain_db[band] = clamped_gain;
+    st->preset = EQ_PRESET_CUSTOM;
+    st->rbj_bank_id = EQ_RBJ_BANK_CUSTOM;
     if (st->core_mode == EQ_CORE_LEGACY)
     {
-        EQ_SetLegacyTarget(st, band, Equalizer_IsFlat(st));
+        EQ_SetLegacyTarget(st, band, 0);
     }
-    else
+    else if (st->core_mode == EQ_CORE_RBJ_CASCADE)
     {
-        EQ_InstallRbjTarget(st, Equalizer_IsFlat(st));
+        EQ_InstallRbjTarget(st, 0);
     }
 }
 
@@ -850,7 +1001,7 @@ void Equalizer_SetAllGainsDb(EQ_STATE *st,
                              const float gains_db[EQ_NUM_BANDS])
 {
     int band;
-    int flat;
+    int changed = 0;
 
     if ((st == 0) || (gains_db == 0))
     {
@@ -858,25 +1009,38 @@ void Equalizer_SetAllGainsDb(EQ_STATE *st,
     }
     for (band = 0; band < EQ_NUM_BANDS; band++)
     {
-        st->band_gain_db[band] = EQ_ClampDb(gains_db[band]);
+        float clamped_gain = EQ_ClampDb(gains_db[band]);
+
+        if (EQ_Abs(st->band_gain_db[band] - clamped_gain) >= 1.0e-7f)
+        {
+            changed = 1;
+        }
+        st->band_gain_db[band] = clamped_gain;
     }
-    flat = EQ_AllGainsFlat(st->band_gain_db);
+    if (changed == 0)
+    {
+        return;
+    }
+    st->preset = EQ_PRESET_CUSTOM;
+    st->rbj_bank_id = EQ_FindRbjCachedBank(st->band_gain_db);
     if (st->core_mode == EQ_CORE_LEGACY)
     {
         for (band = 0; band < EQ_NUM_BANDS; band++)
         {
-            EQ_SetLegacyTarget(st, band, flat);
+            EQ_SetLegacyTarget(st, band, 0);
         }
     }
-    else
+    else if (st->core_mode == EQ_CORE_RBJ_CASCADE)
     {
-        EQ_InstallRbjTarget(st, flat);
+        EQ_InstallRbjTarget(st, 0);
     }
 }
 
 void Equalizer_ApplyPreset(EQ_STATE *st, int preset)
 {
     const float (*preset_bank)[EQ_NUM_BANDS];
+    int band;
+    int changed = 0;
 
     if (st == 0)
     {
@@ -888,8 +1052,63 @@ void Equalizer_ApplyPreset(EQ_STATE *st, int preset)
     }
     st->preset = preset;
     preset_bank = (st->core_mode == EQ_CORE_LEGACY) ?
-                  EQ_LegacyPresetGainsDb : EQ_RbjPresetGainsDb;
-    Equalizer_SetAllGainsDb(st, preset_bank[preset]);
+                   EQ_LegacyPresetGainsDb : EQ_RbjPresetGainsDb;
+    for (band = 0; band < EQ_NUM_BANDS; band++)
+    {
+        if (EQ_Abs(st->band_gain_db[band] - preset_bank[preset][band]) >=
+            1.0e-7f)
+        {
+            changed = 1;
+        }
+        st->band_gain_db[band] = preset_bank[preset][band];
+    }
+    if (st->core_mode == EQ_CORE_LEGACY)
+    {
+        for (band = 0; band < EQ_NUM_BANDS; band++)
+        {
+            EQ_SetLegacyTarget(st, band, 0);
+        }
+        return;
+    }
+    st->rbj_bank_id = preset;
+    if ((st->core_mode == EQ_CORE_RBJ_CASCADE) && (changed != 0))
+    {
+        EQ_InstallRbjCachedTarget(st, preset, 0);
+    }
+}
+
+void Equalizer_ApplySingleBand1kPlus3Db(EQ_STATE *st)
+{
+    int band;
+    int changed = 0;
+
+    if (st == 0)
+    {
+        return;
+    }
+    for (band = 0; band < EQ_NUM_BANDS; band++)
+    {
+        float gain_db = (band == 5) ? 3.0f : 0.0f;
+
+        if (EQ_Abs(st->band_gain_db[band] - gain_db) >= 1.0e-7f)
+        {
+            changed = 1;
+        }
+        st->band_gain_db[band] = gain_db;
+    }
+    st->preset = EQ_PRESET_CUSTOM;
+    st->rbj_bank_id = EQ_RBJ_BANK_SINGLE_1K;
+    if (st->core_mode == EQ_CORE_LEGACY)
+    {
+        for (band = 0; band < EQ_NUM_BANDS; band++)
+        {
+            EQ_SetLegacyTarget(st, band, 0);
+        }
+    }
+    else if ((st->core_mode == EQ_CORE_RBJ_CASCADE) && (changed != 0))
+    {
+        EQ_InstallRbjCachedTarget(st, EQ_RBJ_BANK_SINGLE_1K, 0);
+    }
 }
 
 void Equalizer_ProcessFrame(EQ_STATE *st, const short *in, short *out, int n)
@@ -909,11 +1128,25 @@ void Equalizer_ProcessFrame(EQ_STATE *st, const short *in, short *out, int n)
         return;
     }
 
+    if (st->core_mode == EQ_CORE_FLOAT_COPY)
+    {
+        for (index = 0; index < n; index++)
+        {
+            out[index] = EQ_ProcessFloatCopyShort(st, in[index]);
+        }
+        return;
+    }
+
     EQ_DesignLegacyCoeffs();
     for (index = 0; index < n; index++)
     {
         float y;
 
+        if (EQ_UsesTransparentPath(st) != 0)
+        {
+            out[index] = in[index];
+            continue;
+        }
         if (st->core_mode == EQ_CORE_LEGACY)
         {
             y = EQ_ProcessLegacySample(st, (float)in[index]);
@@ -935,7 +1168,8 @@ void Equalizer_ProcessFrameFloat(EQ_STATE *st, const float *in,
     {
         return;
     }
-    if (EQ_UsesTransparentPath(st) != 0)
+    if ((EQ_UsesTransparentPath(st) != 0) ||
+        (st->core_mode == EQ_CORE_FLOAT_COPY))
     {
         if (in != out)
         {
@@ -947,6 +1181,11 @@ void Equalizer_ProcessFrameFloat(EQ_STATE *st, const float *in,
     EQ_DesignLegacyCoeffs();
     for (index = 0; index < n; index++)
     {
+        if (EQ_UsesTransparentPath(st) != 0)
+        {
+            out[index] = in[index];
+            continue;
+        }
         if (st->core_mode == EQ_CORE_LEGACY)
         {
             out[index] = EQ_ProcessLegacySample(st, in[index]);

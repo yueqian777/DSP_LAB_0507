@@ -45,6 +45,7 @@
 #define EQ_PRESET_TREBLE_BOOST 3
 #define EQ_PRESET_V_SHAPE      4
 #define EQ_PRESET_COUNT        5
+#define EQ_PRESET_CUSTOM       EQ_PRESET_COUNT
 
 #define EQ_CORE_RAW_COPY       0
 #define EQ_CORE_FLOAT_COPY     1
@@ -118,11 +119,14 @@ typedef struct
     int bypass;
     int core_mode;
     int preset;
+    int rbj_bank_id;
 } EQ_STATE;
 
 extern volatile unsigned long EQ_DebugClipCount;
 extern volatile float EQ_DebugPredictedPeakDb;
 extern volatile float EQ_DebugPreampDb;
+extern volatile float EQ_DebugFloatCopyMaxError;
+extern volatile unsigned long EQ_DebugHeadroomScanCount;
 
 void Equalizer_Init(EQ_STATE *st);
 void Equalizer_Reset(EQ_STATE *st);
@@ -134,6 +138,7 @@ void Equalizer_SetBandGainDb(EQ_STATE *st, int band, float gain_db);
 void Equalizer_SetAllGainsDb(EQ_STATE *st,
                              const float gains_db[EQ_NUM_BANDS]);
 void Equalizer_ApplyPreset(EQ_STATE *st, int preset);
+void Equalizer_ApplySingleBand1kPlus3Db(EQ_STATE *st);
 void Equalizer_ProcessFrame(EQ_STATE *st, const short *in, short *out, int n);
 void Equalizer_ProcessFrameFloat(EQ_STATE *st, const float *in,
                                  float *out, int n);

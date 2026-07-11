@@ -1,2 +1,4 @@
-baseline_max_sample_delta,switch_max_sample_delta,delta_ratio,transition_samples,clip_count,pass
-0.007950590923,0.011842328124,1.489490271,6000,0,PASS
+transition,baseline_max_sample_delta,switch_max_sample_delta,delta_ratio,transition_peak,transition_samples,flat_transparent_after,clip_count,pass
+flat_to_bass,0.012540189549,0.012534094974,0.999513984,0.099735267460,6000,1,0,PASS
+bass_to_flat,0.007950590923,0.012540242635,1.577271819,0.099728599191,6000,1,0,PASS
+v_shape_to_flat,0.010606314987,0.012540242635,1.182337403,0.099728807807,6000,1,0,PASS
