@@ -233,12 +233,141 @@ SubbandUILearningDisplayJob SubbandUI_SelectLearningDisplayJob(
         return SUBBAND_UI_LEARNING_DRAW_STATE;
     }
     if ((mode_uses_learning != 0) && (learning != 0) &&
+        (remaining_seconds > 0) &&
         (remaining_seconds != last_remaining_seconds))
     {
         return SUBBAND_UI_LEARNING_DRAW_REMAINING_DIGIT;
     }
     return SUBBAND_UI_LEARNING_DRAW_NONE;
 }
+
+#if defined(SUBBAND_UI_HOST_TEST)
+static void SubbandUI_LearningSchedulerCancelDigit(
+    SubbandUILearningSchedulerState *state)
+{
+    if ((state->dirty_flags & SUBBAND_UI_LEARNING_DIRTY_DIGIT) != 0UL)
+    {
+        state->dirty_flags &= ~SUBBAND_UI_LEARNING_DIRTY_DIGIT;
+        state->cancelled_digit_jobs++;
+    }
+}
+
+void SubbandUI_LearningSchedulerInit(
+    SubbandUILearningSchedulerState *state)
+{
+    if (state == 0)
+    {
+        return;
+    }
+    state->dirty_flags = 0UL;
+    state->last_mode_uses_learning = -1;
+    state->last_learning = -1;
+    state->last_ready = -1;
+    state->last_remaining_seconds = -1;
+    state->displayed_mode_uses_learning = -1;
+    state->displayed_learning = -1;
+    state->displayed_ready = -1;
+    state->displayed_remaining_seconds = -1;
+    state->cancelled_digit_jobs = 0UL;
+}
+
+void SubbandUI_LearningSchedulerObserve(
+    SubbandUILearningSchedulerState *state,
+    int mode_uses_learning,
+    int learning,
+    int ready,
+    int remaining_seconds)
+{
+    SubbandUILearningDisplayJob job;
+
+    if (state == 0)
+    {
+        return;
+    }
+    job = SubbandUI_SelectLearningDisplayJob(
+        mode_uses_learning, state->last_mode_uses_learning,
+        learning, state->last_learning,
+        ready, state->last_ready,
+        remaining_seconds, state->last_remaining_seconds);
+    if (job == SUBBAND_UI_LEARNING_DRAW_STATE)
+    {
+        SubbandUI_LearningSchedulerCancelDigit(state);
+        state->dirty_flags |= SUBBAND_UI_LEARNING_DIRTY_STATE;
+        state->last_mode_uses_learning = mode_uses_learning;
+        state->last_learning = learning;
+        state->last_ready = ready;
+        state->last_remaining_seconds = remaining_seconds;
+    }
+    else if (job == SUBBAND_UI_LEARNING_DRAW_REMAINING_DIGIT)
+    {
+        state->dirty_flags |= SUBBAND_UI_LEARNING_DIRTY_DIGIT;
+        state->last_remaining_seconds = remaining_seconds;
+    }
+}
+
+SubbandUILearningDisplayJob SubbandUI_LearningSchedulerNextJob(
+    const SubbandUILearningSchedulerState *state)
+{
+    if (state == 0)
+    {
+        return SUBBAND_UI_LEARNING_DRAW_NONE;
+    }
+    if ((state->dirty_flags & SUBBAND_UI_LEARNING_DIRTY_STATE) != 0UL)
+    {
+        return SUBBAND_UI_LEARNING_DRAW_STATE;
+    }
+    if ((state->dirty_flags & SUBBAND_UI_LEARNING_DIRTY_DIGIT) != 0UL)
+    {
+        return SUBBAND_UI_LEARNING_DRAW_REMAINING_DIGIT;
+    }
+    return SUBBAND_UI_LEARNING_DRAW_NONE;
+}
+
+SubbandUILearningDisplayJob SubbandUI_LearningSchedulerExecuteNext(
+    SubbandUILearningSchedulerState *state)
+{
+    SubbandUILearningDisplayJob job;
+
+    if (state == 0)
+    {
+        return SUBBAND_UI_LEARNING_DRAW_NONE;
+    }
+    job = SubbandUI_LearningSchedulerNextJob(state);
+    if (job == SUBBAND_UI_LEARNING_DRAW_STATE)
+    {
+        state->dirty_flags &= ~SUBBAND_UI_LEARNING_DIRTY_STATE;
+        SubbandUI_LearningSchedulerCancelDigit(state);
+        state->displayed_mode_uses_learning =
+            state->last_mode_uses_learning;
+        state->displayed_learning = state->last_learning;
+        state->displayed_ready = state->last_ready;
+        state->displayed_remaining_seconds =
+            state->last_remaining_seconds;
+        return job;
+    }
+    if (job == SUBBAND_UI_LEARNING_DRAW_REMAINING_DIGIT)
+    {
+        state->dirty_flags &= ~SUBBAND_UI_LEARNING_DIRTY_DIGIT;
+        if ((state->last_mode_uses_learning == 0) ||
+            (state->last_learning == 0) ||
+            (state->last_ready != 0) ||
+            (state->last_remaining_seconds <= 0) ||
+            (state->displayed_mode_uses_learning == 0) ||
+            (state->displayed_learning == 0) ||
+            (state->displayed_ready != 0) ||
+            (state->displayed_remaining_seconds ==
+             state->last_remaining_seconds))
+        {
+            state->cancelled_digit_jobs++;
+            return SUBBAND_UI_LEARNING_DRAW_NONE;
+        }
+        state->displayed_remaining_seconds =
+            state->last_remaining_seconds;
+        return job;
+    }
+    return SUBBAND_UI_LEARNING_DRAW_NONE;
+}
+#endif
 
 void SubbandUI_LatchInit(SubbandUITouchLatch *latch)
 {

@@ -144,6 +144,7 @@ volatile unsigned long SUBBAND_UI_DebugMaxLearningStateDrawCycles = 0UL;
 volatile unsigned long SUBBAND_UI_DebugLastRemainingDigitDrawCycles = 0UL;
 volatile unsigned long SUBBAND_UI_DebugMaxRemainingDigitDrawCycles = 0UL;
 volatile unsigned long SUBBAND_UI_DebugCancelledDigitJobs = 0UL;
+volatile unsigned long SUBBAND_UI_DebugSuppressedZeroSecondJobs = 0UL;
 
 static const SubbandUIButtonDef UI_ModeButtons[8] =
 {
@@ -587,13 +588,11 @@ static int UI_CurrentRemainingSeconds(void)
                                       (unsigned long)SUBBAND_SAMPLE_RATE);
 }
 
-static void UI_DrawRemainingDigit(void)
+static void UI_DrawRemainingDigit(int remaining_seconds)
 {
     char text[8];
     char *cursor;
-    int remaining_seconds;
 
-    remaining_seconds = UI_CurrentRemainingSeconds();
     SUBBAND_UI_DebugCountdownMs = remaining_seconds * 1000;
     UI_FillRect(UI_REMAINING_DIGIT_X0, UI_REMAINING_DIGIT_Y0,
                 UI_REMAINING_DIGIT_X1, UI_REMAINING_DIGIT_Y1,
@@ -608,14 +607,16 @@ static void UI_DrawRemainingDigit(void)
 static void UI_DrawLearningState(void)
 {
     int mode;
+    int mode_uses_learning;
     int remaining_seconds;
 
     mode = SUBBAND_DebugAppliedDemoMode;
+    mode_uses_learning = SubbandUI_ModeUsesLearning(mode);
     remaining_seconds = UI_CurrentRemainingSeconds();
     SUBBAND_UI_DebugCountdownMs = remaining_seconds * 1000;
     UI_CancelRemainingDigitJob();
     UI_FillRect(28, 326, 222, 376, UI_COLOR_PANEL);
-    if (SubbandUI_ModeUsesLearning(mode) == 0)
+    if (mode_uses_learning == 0)
     {
         SubbandUIFont_DrawPhrase(&Lcd_Context,
                                  SUBBAND_UI_PHRASE_LABEL_RUNNING,
@@ -623,13 +624,22 @@ static void UI_DrawLearningState(void)
     }
     else if (SUBBAND_DENOISE_DebugLearning != 0)
     {
-        SubbandUIFont_DrawPhrase(&Lcd_Context,
-                                 SUBBAND_UI_PHRASE_LABEL_LEARNING,
-                                 28, 329, UI_COLOR_TEXT);
-        SubbandUIFont_DrawPhrase(&Lcd_Context,
-                                  SUBBAND_UI_PHRASE_LABEL_REMAINING,
-                                  28, 357, UI_COLOR_TEXT);
-        UI_DrawRemainingDigit();
+        if (remaining_seconds > 0)
+        {
+            SubbandUIFont_DrawPhrase(&Lcd_Context,
+                                     SUBBAND_UI_PHRASE_LABEL_LEARNING,
+                                     28, 329, UI_COLOR_TEXT);
+            SubbandUIFont_DrawPhrase(&Lcd_Context,
+                                     SUBBAND_UI_PHRASE_LABEL_REMAINING,
+                                     28, 357, UI_COLOR_TEXT);
+            UI_DrawRemainingDigit(remaining_seconds);
+        }
+        else
+        {
+            SubbandUIFont_DrawPhrase(&Lcd_Context,
+                                     SUBBAND_UI_PHRASE_LABEL_LEARNING,
+                                     28, 338, ClrLightSteelBlue);
+        }
     }
     else if (SUBBAND_DENOISE_DebugReady != 0)
     {
@@ -643,7 +653,7 @@ static void UI_DrawLearningState(void)
                                   SUBBAND_UI_PHRASE_LABEL_LEARNING,
                                   28, 338, ClrLightSteelBlue);
     }
-    UI_DisplayedLearningMode = SubbandUI_ModeUsesLearning(mode);
+    UI_DisplayedLearningMode = mode_uses_learning;
     UI_DisplayedLearning = SUBBAND_DENOISE_DebugLearning;
     UI_DisplayedReady = SUBBAND_DENOISE_DebugReady;
     UI_DisplayedRemainingSeconds = remaining_seconds;
@@ -1047,6 +1057,12 @@ static unsigned long UI_DrawNextRemainingDigitJob(void)
         return UI_DRAW_JOB_NONE;
     }
     remaining_seconds = UI_CurrentRemainingSeconds();
+    if (remaining_seconds <= 0)
+    {
+        UI_CancelRemainingDigitJob();
+        SUBBAND_UI_DebugSuppressedZeroSecondJobs++;
+        return UI_DRAW_JOB_NONE;
+    }
     if ((UI_DisplayedLearningMode == 0) ||
         (UI_DisplayedLearning == 0) ||
         (UI_DisplayedReady != 0) ||
@@ -1055,7 +1071,7 @@ static unsigned long UI_DrawNextRemainingDigitJob(void)
         UI_CancelRemainingDigitJob();
         return UI_DRAW_JOB_NONE;
     }
-    UI_DrawRemainingDigit();
+    UI_DrawRemainingDigit(remaining_seconds);
     UI_ClearDirty(UI_DIRTY_REMAINING_DIGIT);
     return UI_DRAW_JOB_REMAINING_DIGIT;
 }
@@ -1328,6 +1344,7 @@ void SubbandUI_Init(void)
     SUBBAND_UI_DebugLastRemainingDigitDrawCycles = 0UL;
     SUBBAND_UI_DebugMaxRemainingDigitDrawCycles = 0UL;
     SUBBAND_UI_DebugCancelledDigitJobs = 0UL;
+    SUBBAND_UI_DebugSuppressedZeroSecondJobs = 0UL;
     UI_Initialized = 1U;
 }
 

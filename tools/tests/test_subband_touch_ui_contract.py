@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 import textwrap
@@ -7,6 +8,27 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def _find_host_c_compiler():
+    for executable_name in ("gcc", "cc", "clang"):
+        compiler = shutil.which(executable_name)
+        if compiler:
+            return "direct", Path(compiler)
+
+    if os.name == "nt":
+        for compiler_path in (
+            Path("C:/msys64/mingw64/bin/gcc.exe"),
+            Path("C:/msys64/ucrt64/bin/gcc.exe"),
+        ):
+            if compiler_path.exists():
+                return "direct", compiler_path
+
+        msys2_bash = Path("C:/msys64/usr/bin/bash.exe")
+        if msys2_bash.exists():
+            return "msys2", msys2_bash
+
+    return None, None
 
 
 class SubbandTouchUIContractTest(unittest.TestCase):
@@ -486,12 +508,15 @@ class SubbandTouchUIContractTest(unittest.TestCase):
         ):
             self.assertIn(token, ui_header + ui_source)
 
-        digit_start = ui_source.index("static void UI_DrawRemainingDigit(void)")
+        digit_start = ui_source.index(
+            "static void UI_DrawRemainingDigit(int remaining_seconds)"
+        )
         digit_end = ui_source.index("static void UI_DrawLearningState(void)", digit_start)
         digit_body = ui_source[digit_start:digit_end]
         self.assertIn("UI_FillRect(UI_REMAINING_DIGIT_X0", digit_body)
         self.assertIn("UI_REMAINING_DIGIT_X1", digit_body)
         self.assertIn("UI_DrawAscii", digit_body)
+        self.assertNotIn("UI_CurrentRemainingSeconds", digit_body)
         self.assertNotIn("SubbandUIFont_DrawPhrase", digit_body)
         self.assertNotIn("UI_DrawLearningState();", digit_body)
         self.assertNotIn("UI_FillRect(28, 326, 222, 376", digit_body)
@@ -513,80 +538,309 @@ class SubbandTouchUIContractTest(unittest.TestCase):
         self.assertLess(job_body.index("UI_DIRTY_COUNTDOWN"),
                         job_body.index("UI_DIRTY_REMAINING_DIGIT"))
 
+    def test_zero_second_remaining_digit_is_suppressed_at_both_boundaries(self) -> None:
+        ui_header = (ROOT / "Code/User/user_dsp/user_subband_ui.h").read_text(encoding="utf-8")
+        ui_source = (ROOT / "Code/User/user_dsp/user_subband_ui.c").read_text(encoding="utf-8")
+        logic_source = (ROOT / "Code/User/user_dsp/user_subband_ui_logic.c").read_text(
+            encoding="utf-8"
+        )
+
+        decision_start = logic_source.index("SubbandUI_SelectLearningDisplayJob")
+        decision_end = logic_source.index("void SubbandUI_LatchInit", decision_start)
+        decision_body = logic_source[decision_start:decision_end]
+        self.assertIn("remaining_seconds > 0", decision_body)
+
+        job_start = ui_source.index("static unsigned long UI_DrawNextRemainingDigitJob(void)")
+        job_end = ui_source.index("static unsigned long UI_DrawOneJob(void)", job_start)
+        job_body = ui_source[job_start:job_end]
+        suppression = job_body.index("remaining_seconds <= 0")
+        draw = job_body.index("UI_DrawRemainingDigit(remaining_seconds)")
+        self.assertLess(suppression, draw)
+        self.assertIn("UI_CancelRemainingDigitJob();", job_body[suppression:draw])
+        self.assertIn("SUBBAND_UI_DebugSuppressedZeroSecondJobs++", job_body[suppression:draw])
+
+        learning_start = ui_source.index("static void UI_DrawLearningState(void)")
+        learning_end = ui_source.index("static const tFont *UI_SelectChainFont", learning_start)
+        learning_body = ui_source[learning_start:learning_end]
+        self.assertIn("if (remaining_seconds > 0)", learning_body)
+        self.assertIn("UI_DrawRemainingDigit(remaining_seconds);", learning_body)
+        self.assertIn("SUBBAND_UI_DebugSuppressedZeroSecondJobs", ui_header + ui_source)
+        self.assertIn("independent remaining-digit jobs only", ui_header.lower())
+
     def test_learning_display_state_machine_runs_against_logic_module(self) -> None:
-        bash = Path("C:/msys64/usr/bin/bash.exe")
-        self.assertTrue(bash.exists(), "MSYS2 bash is required for the host C state-machine test")
+        compiler_kind, compiler = _find_host_c_compiler()
+        if compiler is None:
+            self.skipTest("HOST_C_COMPILER_UNAVAILABLE")
         c_program = textwrap.dedent(
             """
             #include "user_subband_ui_logic.h"
 
-            int main(void)
+            static int scenario_normal_two_to_one_to_ready(void)
             {
-                if (SubbandUI_SelectLearningDisplayJob(1, -1, 1, -1, 0, -1,
-                                                       2, -1) !=
+                SubbandUILearningSchedulerState state;
+
+                SubbandUI_LearningSchedulerInit(&state);
+                SubbandUI_LearningSchedulerObserve(&state, 1, 1, 0, 2);
+                if (state.dirty_flags != SUBBAND_UI_LEARNING_DIRTY_STATE)
+                {
+                    return 11;
+                }
+                if (SubbandUI_LearningSchedulerExecuteNext(&state) !=
                     SUBBAND_UI_LEARNING_DRAW_STATE)
                 {
-                    return 1;
+                    return 12;
                 }
-                if (SubbandUI_SelectLearningDisplayJob(1, 1, 1, 1, 0, 0,
-                                                       1, 2) !=
+                if ((state.displayed_learning != 1) ||
+                    (state.displayed_ready != 0) ||
+                    (state.displayed_remaining_seconds != 2))
+                {
+                    return 13;
+                }
+
+                SubbandUI_LearningSchedulerObserve(&state, 1, 1, 0, 1);
+                if (state.dirty_flags != SUBBAND_UI_LEARNING_DIRTY_DIGIT)
+                {
+                    return 14;
+                }
+                if (SubbandUI_LearningSchedulerExecuteNext(&state) !=
                     SUBBAND_UI_LEARNING_DRAW_REMAINING_DIGIT)
                 {
-                    return 2;
+                    return 15;
                 }
-                if (SubbandUI_SelectLearningDisplayJob(1, 1, 0, 1, 1, 0,
-                                                       0, 1) !=
+                if (state.displayed_remaining_seconds != 1)
+                {
+                    return 16;
+                }
+
+                SubbandUI_LearningSchedulerObserve(&state, 1, 0, 1, 0);
+                if (state.dirty_flags != SUBBAND_UI_LEARNING_DIRTY_STATE)
+                {
+                    return 17;
+                }
+                if (SubbandUI_LearningSchedulerExecuteNext(&state) !=
                     SUBBAND_UI_LEARNING_DRAW_STATE)
                 {
-                    return 3;
+                    return 18;
                 }
-                if (SubbandUI_SelectLearningDisplayJob(0, 1, 0, 1, 0, 0,
-                                                       0, 1) !=
+                if ((state.displayed_learning != 0) ||
+                    (state.displayed_ready != 1) ||
+                    (state.displayed_remaining_seconds != 0) ||
+                    (state.cancelled_digit_jobs != 0UL))
+                {
+                    return 19;
+                }
+                return 0;
+            }
+
+            static int scenario_pending_digit_then_mode_zero(void)
+            {
+                SubbandUILearningSchedulerState state;
+
+                SubbandUI_LearningSchedulerInit(&state);
+                SubbandUI_LearningSchedulerObserve(&state, 1, 1, 0, 2);
+                (void)SubbandUI_LearningSchedulerExecuteNext(&state);
+                SubbandUI_LearningSchedulerObserve(&state, 1, 1, 0, 1);
+                if ((state.dirty_flags & SUBBAND_UI_LEARNING_DIRTY_DIGIT) == 0UL)
+                {
+                    return 21;
+                }
+                SubbandUI_LearningSchedulerObserve(&state, 0, 0, 0, 0);
+                if ((state.dirty_flags != SUBBAND_UI_LEARNING_DIRTY_STATE) ||
+                    (state.cancelled_digit_jobs != 1UL))
+                {
+                    return 22;
+                }
+                if (SubbandUI_LearningSchedulerExecuteNext(&state) !=
                     SUBBAND_UI_LEARNING_DRAW_STATE)
                 {
-                    return 4;
+                    return 23;
                 }
-                if (SubbandUI_SelectLearningDisplayJob(1, 1, 0, 1, 1, 0,
-                                                       0, 2) !=
+                if ((state.displayed_mode_uses_learning != 0) ||
+                    (state.displayed_learning != 0) ||
+                    (state.displayed_ready != 0) ||
+                    (SubbandUI_LearningSchedulerNextJob(&state) !=
+                     SUBBAND_UI_LEARNING_DRAW_NONE))
+                {
+                    return 24;
+                }
+                return 0;
+            }
+
+            static int scenario_two_directly_to_ready(void)
+            {
+                SubbandUILearningSchedulerState state;
+
+                SubbandUI_LearningSchedulerInit(&state);
+                SubbandUI_LearningSchedulerObserve(&state, 1, 1, 0, 2);
+                (void)SubbandUI_LearningSchedulerExecuteNext(&state);
+                SubbandUI_LearningSchedulerObserve(&state, 1, 0, 1, 0);
+                if (state.dirty_flags != SUBBAND_UI_LEARNING_DIRTY_STATE)
+                {
+                    return 31;
+                }
+                (void)SubbandUI_LearningSchedulerExecuteNext(&state);
+                if ((state.displayed_remaining_seconds != 0) ||
+                    (state.cancelled_digit_jobs != 0UL) ||
+                    (SubbandUI_LearningSchedulerNextJob(&state) !=
+                     SUBBAND_UI_LEARNING_DRAW_NONE))
+                {
+                    return 32;
+                }
+                return 0;
+            }
+
+            static int scenario_learning_with_zero_remaining(void)
+            {
+                SubbandUILearningSchedulerState state;
+
+                SubbandUI_LearningSchedulerInit(&state);
+                SubbandUI_LearningSchedulerObserve(&state, 1, 1, 0, 0);
+                if ((state.dirty_flags & SUBBAND_UI_LEARNING_DIRTY_DIGIT) != 0UL)
+                {
+                    return 41;
+                }
+                (void)SubbandUI_LearningSchedulerExecuteNext(&state);
+                SubbandUI_LearningSchedulerObserve(&state, 1, 1, 0, 0);
+                if ((state.dirty_flags != 0UL) ||
+                    (state.cancelled_digit_jobs != 0UL))
+                {
+                    return 42;
+                }
+                return 0;
+            }
+
+            static int scenario_state_and_digit_dirty_together(void)
+            {
+                SubbandUILearningSchedulerState state;
+
+                SubbandUI_LearningSchedulerInit(&state);
+                SubbandUI_LearningSchedulerObserve(&state, 1, 1, 0, 2);
+                SubbandUI_LearningSchedulerObserve(&state, 1, 1, 0, 1);
+                if (state.dirty_flags !=
+                    (SUBBAND_UI_LEARNING_DIRTY_STATE |
+                     SUBBAND_UI_LEARNING_DIRTY_DIGIT))
+                {
+                    return 51;
+                }
+                if (SubbandUI_LearningSchedulerNextJob(&state) !=
                     SUBBAND_UI_LEARNING_DRAW_STATE)
                 {
-                    return 5;
+                    return 52;
                 }
+                if (SubbandUI_LearningSchedulerExecuteNext(&state) !=
+                    SUBBAND_UI_LEARNING_DRAW_STATE)
+                {
+                    return 53;
+                }
+                if ((state.dirty_flags != 0UL) ||
+                    (state.cancelled_digit_jobs != 1UL) ||
+                    (SubbandUI_LearningSchedulerNextJob(&state) !=
+                     SUBBAND_UI_LEARNING_DRAW_NONE))
+                {
+                    return 54;
+                }
+                return 0;
+            }
+
+            int main(void)
+            {
+                int result;
+
+                result = scenario_normal_two_to_one_to_ready();
+                if (result != 0) return result;
+                result = scenario_pending_digit_then_mode_zero();
+                if (result != 0) return result;
+                result = scenario_two_directly_to_ready();
+                if (result != 0) return result;
+                result = scenario_learning_with_zero_remaining();
+                if (result != 0) return result;
+                result = scenario_state_and_digit_dirty_together();
+                if (result != 0) return result;
                 return 0;
             }
             """
         )
         with tempfile.TemporaryDirectory() as temporary_directory:
             c_source = Path(temporary_directory) / "learning_display_state_machine.c"
-            executable = Path(temporary_directory) / "learning_display_state_machine.exe"
+            executable_name = (
+                "learning_display_state_machine.exe"
+                if os.name == "nt"
+                else "learning_display_state_machine"
+            )
+            executable = Path(temporary_directory) / executable_name
             c_source.write_text(c_program, encoding="utf-8")
-            command = textwrap.dedent(
-                """
-                set -eu
-                export PATH=/mingw64/bin:/usr/bin:$PATH
-                root="$(cygpath -u "$REPO_ROOT")"
-                c_source="$(cygpath -u "$TEST_SOURCE")"
-                executable="$(cygpath -u "$TEST_EXECUTABLE")"
-                gcc -std=c89 -Wall -Werror -I"$root/Code/User/user_dsp" \
-                    "$c_source" "$root/Code/User/user_dsp/user_subband_ui_logic.c" \
-                    -o "$executable"
-                "$executable"
-                """
-            )
-            environment = os.environ.copy()
-            environment["REPO_ROOT"] = str(ROOT)
-            environment["TEST_SOURCE"] = str(c_source)
-            environment["TEST_EXECUTABLE"] = str(executable)
-            result = subprocess.run(
-                [str(bash), "-lc", command],
-                cwd=ROOT,
-                env=environment,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                capture_output=True,
-                check=False,
-            )
+            if compiler_kind == "direct":
+                direct_environment = os.environ.copy()
+                direct_environment["PATH"] = (
+                    str(compiler.parent)
+                    + os.pathsep
+                    + direct_environment.get("PATH", "")
+                )
+                compile_result = subprocess.run(
+                    [
+                        str(compiler),
+                        "-std=c89",
+                        "-Wall",
+                        "-Werror",
+                        "-DSUBBAND_UI_HOST_TEST=1",
+                        f"-I{ROOT / 'Code/User/user_dsp'}",
+                        str(c_source),
+                        str(ROOT / "Code/User/user_dsp/user_subband_ui_logic.c"),
+                        "-o",
+                        str(executable),
+                    ],
+                    cwd=ROOT,
+                    env=direct_environment,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertEqual(
+                    compile_result.returncode,
+                    0,
+                    compile_result.stdout + compile_result.stderr,
+                )
+                result = subprocess.run(
+                    [str(executable)],
+                    cwd=ROOT,
+                    env=direct_environment,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    capture_output=True,
+                    check=False,
+                )
+            else:
+                command = textwrap.dedent(
+                    """
+                    set -eu
+                    export PATH=/mingw64/bin:/usr/bin:$PATH
+                    root="$(cygpath -u "$REPO_ROOT")"
+                    c_source="$(cygpath -u "$TEST_SOURCE")"
+                    executable="$(cygpath -u "$TEST_EXECUTABLE")"
+                    gcc -std=c89 -Wall -Werror -DSUBBAND_UI_HOST_TEST=1 \
+                        -I"$root/Code/User/user_dsp" \
+                        "$c_source" "$root/Code/User/user_dsp/user_subband_ui_logic.c" \
+                        -o "$executable"
+                    "$executable"
+                    """
+                )
+                environment = os.environ.copy()
+                environment["REPO_ROOT"] = str(ROOT)
+                environment["TEST_SOURCE"] = str(c_source)
+                environment["TEST_EXECUTABLE"] = str(executable)
+                result = subprocess.run(
+                    [str(compiler), "-lc", command],
+                    cwd=ROOT,
+                    env=environment,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    capture_output=True,
+                    check=False,
+                )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 

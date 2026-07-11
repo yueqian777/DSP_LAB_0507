@@ -20,3 +20,13 @@ coarse_learning_default,PASS,"default states are 2 s, 1 s, ready"
 learn_hops_not_direct_dirty,PASS,raw LearnHops changes do not directly dirty LCD
 lightweight_frame_load_recorder,PASS,per-frame path is integer EMA and sample count only
 fixed_nonblocking_ui,PASS,fixed coordinates; no blocking or widget auto-redraw
+remaining_digit_geometry,PASS,"independent rectangle is (82,352)-(130,376)"
+zero_second_enqueue_guard,PASS,digit job requires remaining_seconds greater than zero
+zero_second_execution_guard,PASS,pending job cancels before draw when remaining is zero or negative
+zero_second_full_state_guard,PASS,full state calls digit renderer only for a positive value
+precomputed_remaining_reuse,PASS,digit renderer does not repeat remaining-time calculation
+learning_job_priority,PASS,full learning state is selected before independent digit
+learning_scheduler_five_scenarios,PASS,host C model executes all required dirty and cancellation cases
+host_compiler_portability,PASS,PATH and common MSYS2 candidates with explicit skip reason
+debug_counter_semantics,PASS,remaining digit counters cover independent jobs only
+graphify_cleanup,PASS,tracked graphify-out files removed and root path ignored

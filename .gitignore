@@ -1,6 +1,7 @@
 # Root-level CCS generated build outputs
 /Debug/
 /Release/
+/graphify-out/
 
 # Local temporary extraction/diagnostic files
 /tmp/

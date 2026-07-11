@@ -79,12 +79,15 @@ extern volatile unsigned long SUBBAND_UI_DebugMaxDrawJobsPerFrame;
 extern volatile unsigned long SUBBAND_UI_DebugSkippedDrawGap;
 extern volatile unsigned long SUBBAND_UI_DebugHoldoffSkipCount;
 extern volatile unsigned long SUBBAND_UI_DebugLearningStateDrawCount;
+/* Counts independent remaining-digit jobs only, not digits drawn by a full state job. */
 extern volatile unsigned long SUBBAND_UI_DebugRemainingDigitDrawCount;
 extern volatile unsigned long SUBBAND_UI_DebugLastLearningStateDrawCycles;
 extern volatile unsigned long SUBBAND_UI_DebugMaxLearningStateDrawCycles;
+/* Independent remaining-digit jobs only; full state cycles include their initial digit. */
 extern volatile unsigned long SUBBAND_UI_DebugLastRemainingDigitDrawCycles;
 extern volatile unsigned long SUBBAND_UI_DebugMaxRemainingDigitDrawCycles;
 extern volatile unsigned long SUBBAND_UI_DebugCancelledDigitJobs;
+extern volatile unsigned long SUBBAND_UI_DebugSuppressedZeroSecondJobs;
 
 void SubbandUI_Init(void);
 void SubbandUI_ServiceTouch(unsigned char force_scan);

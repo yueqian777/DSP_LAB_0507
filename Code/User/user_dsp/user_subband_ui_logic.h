@@ -13,6 +13,25 @@ typedef enum
     SUBBAND_UI_LEARNING_DRAW_REMAINING_DIGIT
 } SubbandUILearningDisplayJob;
 
+#if defined(SUBBAND_UI_HOST_TEST)
+#define SUBBAND_UI_LEARNING_DIRTY_STATE 0x01UL
+#define SUBBAND_UI_LEARNING_DIRTY_DIGIT 0x02UL
+
+typedef struct
+{
+    unsigned long dirty_flags;
+    int last_mode_uses_learning;
+    int last_learning;
+    int last_ready;
+    int last_remaining_seconds;
+    int displayed_mode_uses_learning;
+    int displayed_learning;
+    int displayed_ready;
+    int displayed_remaining_seconds;
+    unsigned long cancelled_digit_jobs;
+} SubbandUILearningSchedulerState;
+#endif
+
 int SubbandUI_ModeForButton(unsigned int button_index);
 int SubbandUI_NormalizeCodecKbps(int kbps);
 int SubbandUI_IsCodecMode(int mode);
@@ -38,6 +57,20 @@ SubbandUILearningDisplayJob SubbandUI_SelectLearningDisplayJob(
     int last_ready,
     int remaining_seconds,
     int last_remaining_seconds);
+#if defined(SUBBAND_UI_HOST_TEST)
+void SubbandUI_LearningSchedulerInit(
+    SubbandUILearningSchedulerState *state);
+void SubbandUI_LearningSchedulerObserve(
+    SubbandUILearningSchedulerState *state,
+    int mode_uses_learning,
+    int learning,
+    int ready,
+    int remaining_seconds);
+SubbandUILearningDisplayJob SubbandUI_LearningSchedulerNextJob(
+    const SubbandUILearningSchedulerState *state);
+SubbandUILearningDisplayJob SubbandUI_LearningSchedulerExecuteNext(
+    SubbandUILearningSchedulerState *state);
+#endif
 void SubbandUI_LatchInit(SubbandUITouchLatch *latch);
 int SubbandUI_LatchUpdate(SubbandUITouchLatch *latch, int is_pressed);
 
