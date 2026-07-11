@@ -1144,8 +1144,9 @@ void Subband_Flow_Example(void)
             SubbandUI_ServiceTouch(force_touch_scan);
             touch_serviced = 1U;
         }
-        if ((FLAG_AD == 0) &&
-            (FLAG_DA == 0) &&
+        if ((FLAG_AD == 0U) &&
+            (FLAG_DA == 0U) &&
+            (FLAG_AD_DONE == 0U) &&
             (audio_serviced == 0U) &&
             (touch_serviced == 0U))
         {

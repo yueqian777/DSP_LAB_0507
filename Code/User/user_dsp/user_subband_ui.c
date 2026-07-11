@@ -31,9 +31,11 @@
 #define UI_RATE_Y 258
 
 #define UI_CHAIN_X 28
-#define UI_CHAIN_Y0 80
-#define UI_CHAIN_Y1 100
-#define UI_CHAIN_X_MAX 760
+#define UI_CHAIN_Y 84
+#define UI_CHAIN_X_MAX 770
+#define UI_CHAIN_Y_MIN 80
+#define UI_CHAIN_Y_MAX 106
+#define UI_CHAIN_TEXT_CAPACITY 96U
 
 #define UI_PROGRESS_BLOCKS 10U
 #define UI_PROGRESS_X 24
@@ -65,9 +67,8 @@
 #define UI_DRAW_JOB_PROGRESS  3UL
 #define UI_DRAW_JOB_COUNTDOWN 4UL
 #define UI_DRAW_JOB_STATUS    5UL
-#define UI_DRAW_JOB_RATE_TEXT 6UL
-#define UI_DRAW_JOB_LOAD      7UL
-#define UI_DRAW_JOB_CHAIN     8UL
+#define UI_DRAW_JOB_LOAD      6UL
+#define UI_DRAW_JOB_CHAIN     7UL
 
 typedef struct
 {
@@ -78,15 +79,6 @@ typedef struct
     int value;
     SubbandUIPhrase phrase;
 } SubbandUIButtonDef;
-
-typedef struct
-{
-    int mode;
-    const char *line1;
-    const char *line2_prefix;
-    const char *line2_suffix;
-    unsigned char uses_dynamic_kbps;
-} SubbandUIChainDef;
 
 typedef enum
 {
@@ -131,6 +123,14 @@ volatile int SUBBAND_UI_DebugDisplayedChainKbps = 0;
 volatile unsigned long SUBBAND_UI_DebugChainRefreshCount = 0UL;
 volatile unsigned long SUBBAND_UI_DebugLastChainDrawCycles = 0UL;
 volatile unsigned long SUBBAND_UI_DebugMaxChainDrawCycles = 0UL;
+volatile unsigned long SUBBAND_UI_DebugChainDirtySetCount = 0UL;
+volatile unsigned long SUBBAND_UI_DebugChainDrawCount = 0UL;
+volatile unsigned long SUBBAND_UI_DebugChainDirtyWithoutDrawFrames = 0UL;
+volatile unsigned long SUBBAND_UI_DebugLastDrawAlgoFrame = 0xFFFFFFFFUL;
+volatile unsigned long SUBBAND_UI_DebugSkippedSameFrame = 0UL;
+volatile unsigned long SUBBAND_UI_DebugMaxDrawJobsPerFrame = 0UL;
+volatile unsigned long SUBBAND_UI_DebugSkippedDrawGap = 0UL;
+volatile unsigned long SUBBAND_UI_DebugHoldoffSkipCount = 0UL;
 
 static const SubbandUIButtonDef UI_ModeButtons[8] =
 {
@@ -162,37 +162,15 @@ static const SubbandUIButtonDef UI_RateButtons[3] =
      SUBBAND_UI_PHRASE_LABEL_BITRATE}
 };
 
-static const SubbandUIChainDef UI_ChainTable[] =
-{
-    {0, "CHAIN: ADC > RAW > DAC",
-     "", "", 0U},
-    {1, "CHAIN: ADC > WOLA ANA",
-     "       WOLA SYN > DAC", "", 0U},
-    {2, "CHAIN: ADC > WOLA ANA > BASIC NR",
-     "       WOLA SYN > DAC", "", 0U},
-    {4, "CHAIN: ADC > WOLA ANA > MINSTAT NR",
-     "       WOLA SYN > DAC", "", 0U},
-    {6, "CHAIN: ADC > WOLA ANA > MCRA NR",
-     "       WOLA SYN > DAC", "", 0U},
-    {7, "CHAIN: ADC > WOLA ANA > STRONG MCRA NR",
-     "       WOLA SYN > DAC", "", 0U},
-    {8, "CHAIN: ADC > WOLA ANA > MCRA NR",
-     "       CODEC ", " kbps > WOLA SYN > DAC", 1U},
-    {11, "CHAIN: ADC > WOLA ANA",
-     "       CODEC ", " kbps > WOLA SYN > DAC", 1U}
-};
-
 static unsigned char UI_Initialized = 0U;
 static unsigned long UI_DirtyFlags = UI_DIRTY_ALL;
 static unsigned long UI_LastCountdownFrame = 0UL;
 static unsigned long UI_LastLoadFrame = 0UL;
 static int UI_LastLearning = -1;
 static int UI_LastReady = -1;
-static unsigned long UI_LastLearnHops = 0xFFFFFFFFUL;
-static unsigned long UI_LastTargetHops = 0xFFFFFFFFUL;
+static int UI_LastRemainingSeconds = -1;
 static int UI_LastCodecEnabled = -1;
 static int UI_LastSelectedKbps = -1;
-static int UI_LastTargetKbps = -1;
 static int UI_LastLoadPercent = -2;
 static int UI_DisplayedAppliedMode = -1;
 static int UI_PendingAppliedMode = -1;
@@ -200,11 +178,13 @@ static int UI_DisplayedChainMode = -1;
 static int UI_DisplayedChainKbps = 0;
 static unsigned int UI_ModeDirtyMask = 0U;
 static unsigned int UI_RateDirtyMask = 0U;
-static unsigned char UI_RateTextDirty = 0U;
-static unsigned char UI_CountdownStateDirty = 0U;
-static unsigned char UI_CountdownTextDirty = 0U;
+#if SUBBAND_UI_PROGRESS_POLICY == SUBBAND_UI_PROGRESS_TEN_BLOCK
 static int UI_DisplayedProgressStep = -1;
 static int UI_TargetProgressStep = 0;
+#endif
+static unsigned long UI_LastDrawAlgoFrame = 0xFFFFFFFFUL;
+static unsigned long UI_DrawHoldoffUntilFrame = 0UL;
+static unsigned long UI_LastChainDirtyCountedFrame = 0xFFFFFFFFUL;
 static SubbandUITouchState UI_TouchState = UI_TOUCH_IDLE;
 static SubbandUIButtonType UI_PressedButtonType = UI_BUTTON_NONE;
 static int UI_PressedButtonIndex = -1;
@@ -318,6 +298,25 @@ static void UI_ClearDirty(unsigned long flags)
     SUBBAND_UI_DebugDirtyFlags = UI_DirtyFlags;
 }
 
+static void UI_MarkChainDirty(void)
+{
+    if ((UI_DirtyFlags & UI_DIRTY_CHAIN) == 0UL)
+    {
+        SUBBAND_UI_DebugChainDirtySetCount++;
+    }
+    UI_MarkDirty(UI_DIRTY_CHAIN);
+}
+
+static void UI_RecordChainDirtyWait(unsigned long frame)
+{
+    if (((UI_DirtyFlags & UI_DIRTY_CHAIN) != 0UL) &&
+        (frame != UI_LastChainDirtyCountedFrame))
+    {
+        UI_LastChainDirtyCountedFrame = frame;
+        SUBBAND_UI_DebugChainDirtyWithoutDrawFrames++;
+    }
+}
+
 static unsigned int UI_ButtonMaskBit(unsigned int index)
 {
     return (unsigned int)(1U << index);
@@ -370,31 +369,6 @@ static int UI_CurrentChainKbps(int mode)
         return target_kbps;
     }
     return SubbandUI_NormalizeCodecKbps(SUBBAND_DebugPersistentCodecKbps);
-}
-
-static const SubbandUIChainDef *UI_FindChainDef(int mode)
-{
-    unsigned int index;
-    static const SubbandUIChainDef fallback =
-    {
-        -1,
-        "CHAIN: UNKNOWN MODE",
-        "       ADC > WOLA > DAC",
-        "",
-        0U
-    };
-
-    for (index = 0U;
-         index < (unsigned int)(sizeof(UI_ChainTable) /
-                                sizeof(UI_ChainTable[0]));
-         index++)
-    {
-        if (UI_ChainTable[index].mode == mode)
-        {
-            return &UI_ChainTable[index];
-        }
-    }
-    return &fallback;
 }
 
 static int UI_HitButton(const SubbandUIButtonDef *buttons,
@@ -496,6 +470,7 @@ static void UI_DrawRateButton(unsigned int index, int selected,
     UI_DrawAscii(text, button->x + 39, button->y + 14, UI_COLOR_TEXT);
 }
 
+#if SUBBAND_UI_PROGRESS_POLICY == SUBBAND_UI_PROGRESS_TEN_BLOCK
 static int UI_ComputeProgressStep(unsigned long learn_hops,
                                   unsigned long target_hops)
 {
@@ -570,12 +545,31 @@ static void UI_DrawAllProgressBlocks(int step)
     }
     UI_DisplayedProgressStep = step;
 }
+#endif
 
-static void UI_DrawCountdownState(void)
+static int UI_CurrentRemainingSeconds(void)
 {
+    if ((SubbandUI_ModeUsesLearning(SUBBAND_DebugAppliedDemoMode) == 0) ||
+        (SUBBAND_DENOISE_DebugLearning == 0))
+    {
+        return 0;
+    }
+    return SubbandUI_RemainingSeconds(SUBBAND_DENOISE_DebugLearnHops,
+                                      SUBBAND_DENOISE_DebugTargetHops,
+                                      SUBBAND_HOP,
+                                      (unsigned long)SUBBAND_SAMPLE_RATE);
+}
+
+static void UI_DrawLearningState(void)
+{
+    char text[8];
+    char *cursor;
     int mode;
+    int remaining_seconds;
 
     mode = SUBBAND_DebugAppliedDemoMode;
+    remaining_seconds = UI_CurrentRemainingSeconds();
+    SUBBAND_UI_DebugCountdownMs = remaining_seconds * 1000;
     UI_FillRect(28, 326, 222, 376, UI_COLOR_PANEL);
     if (SubbandUI_ModeUsesLearning(mode) == 0)
     {
@@ -591,6 +585,10 @@ static void UI_DrawCountdownState(void)
         SubbandUIFont_DrawPhrase(&Lcd_Context,
                                  SUBBAND_UI_PHRASE_LABEL_REMAINING,
                                  28, 357, UI_COLOR_TEXT);
+        cursor = UI_AppendInt(text, remaining_seconds);
+        cursor = UI_AppendText(cursor, " s");
+        *cursor = '\0';
+        UI_DrawAscii(text, 82, 354, ClrLightSkyBlue);
     }
     else if (SUBBAND_DENOISE_DebugReady != 0)
     {
@@ -606,86 +604,48 @@ static void UI_DrawCountdownState(void)
     }
 }
 
-static void UI_DrawCountdownText(void)
+static const tFont *UI_SelectChainFont(const char *text)
 {
-    char text[24];
-    char *cursor;
-    unsigned long remaining_ms;
+    const tFont *font;
+    int available_width;
 
-    remaining_ms = SubbandUI_RemainingMs(SUBBAND_DENOISE_DebugLearnHops,
-                                         SUBBAND_DENOISE_DebugTargetHops,
-                                         SUBBAND_HOP,
-                                         (unsigned long)SUBBAND_SAMPLE_RATE);
-    SUBBAND_UI_DebugCountdownMs = (int)remaining_ms;
-    UI_FillRect(82, 354, 170, 374, UI_COLOR_PANEL);
-    if ((SubbandUI_ModeUsesLearning(SUBBAND_DebugAppliedDemoMode) != 0) &&
-        (SUBBAND_DENOISE_DebugLearning != 0))
+    available_width = UI_CHAIN_X_MAX - UI_CHAIN_X;
+    font = &g_sFontCmss18b;
+    GrContextFontSet(&Lcd_Context, font);
+    if (GrStringWidthGet(&Lcd_Context, text, -1) <= available_width)
     {
-        cursor = UI_AppendUnsigned(text, remaining_ms / 1000UL);
-        cursor = UI_AppendText(cursor, ".");
-        *cursor++ = (char)('0' + ((remaining_ms % 1000UL) / 100UL));
-        cursor = UI_AppendText(cursor, " s");
-        *cursor = '\0';
-        UI_DrawAscii(text, 82, 354, ClrLightSkyBlue);
+        return font;
     }
-}
-
-static void UI_DrawRateText(void)
-{
-    char text[20];
-    char *cursor;
-    int codec_active;
-    int target_kbps;
-
-    codec_active = SubbandUI_IsCodecMode(SUBBAND_DebugAppliedDemoMode);
-    UI_FillRect(690, 252, 783, 312, UI_COLOR_BACKGROUND);
-    if (codec_active != 0)
-    {
-        target_kbps = UI_CurrentChainKbps(SUBBAND_DebugAppliedDemoMode);
-        cursor = UI_AppendInt(text, target_kbps);
-        cursor = UI_AppendText(cursor, " kbps");
-        *cursor = '\0';
-        UI_DrawAscii(text, 690, 273, ClrLightSteelBlue);
-    }
-    SUBBAND_UI_DebugDisplayedTargetKbps =
-        SUBBAND_CODEC_LOOP_DebugTargetKbps;
+    return &g_sFontCmtt12;
 }
 
 static void UI_DrawProcessingChain(void)
 {
-    char text[80];
-    char *cursor;
-    const SubbandUIChainDef *chain;
+    char text[UI_CHAIN_TEXT_CAPACITY];
+    const tFont *font;
     int applied_mode;
     int target_kbps;
 
     applied_mode = SUBBAND_DebugAppliedDemoMode;
     target_kbps = UI_CurrentChainKbps(applied_mode);
-    chain = UI_FindChainDef(applied_mode);
-
-    UI_FillRect(UI_CHAIN_X, UI_CHAIN_Y0,
-                UI_CHAIN_X_MAX, UI_CHAIN_Y1 + 18,
+    (void)SubbandUI_BuildProcessingChain(text, sizeof(text),
+                                         applied_mode, target_kbps);
+    font = UI_SelectChainFont(text);
+    UI_FillRect(UI_CHAIN_X, UI_CHAIN_Y_MIN,
+                UI_CHAIN_X_MAX, UI_CHAIN_Y_MAX,
                 UI_COLOR_PANEL);
-    UI_DrawAscii(chain->line1, UI_CHAIN_X, UI_CHAIN_Y0,
-                 ClrLightSteelBlue);
-    if (chain->line2_prefix[0] != '\0')
-    {
-        cursor = UI_AppendText(text, chain->line2_prefix);
-        if (chain->uses_dynamic_kbps != 0U)
-        {
-            cursor = UI_AppendInt(cursor, target_kbps);
-        }
-        cursor = UI_AppendText(cursor, chain->line2_suffix);
-        *cursor = '\0';
-        UI_DrawAscii(text, UI_CHAIN_X, UI_CHAIN_Y1,
-                     ClrLightSteelBlue);
-    }
+    GrContextFontSet(&Lcd_Context, font);
+    GrContextForegroundSet(&Lcd_Context, ClrLightSteelBlue);
+    GrStringDraw(&Lcd_Context, text, -1, UI_CHAIN_X, UI_CHAIN_Y, 0);
 
     UI_DisplayedChainMode = applied_mode;
     UI_DisplayedChainKbps = target_kbps;
     SUBBAND_UI_DebugDisplayedChainMode = applied_mode;
     SUBBAND_UI_DebugDisplayedChainKbps = target_kbps;
+    SUBBAND_UI_DebugDisplayedTargetKbps = target_kbps;
     SUBBAND_UI_DebugChainRefreshCount++;
+    SUBBAND_UI_DebugChainDrawCount++;
+    UI_ClearDirty(UI_DIRTY_CHAIN);
 }
 
 static int UI_ComputeAlgoLoad(void)
@@ -798,14 +758,10 @@ static void UI_ScheduleAppliedModeRedraw(int applied)
     }
 }
 
-static void UI_ScheduleRateButtons(unsigned int mask, int redraw_text)
+static void UI_ScheduleRateButtons(unsigned int mask)
 {
     UI_RateDirtyMask |= (mask & 0x7U);
-    if (redraw_text != 0)
-    {
-        UI_RateTextDirty = 1U;
-    }
-    if ((UI_RateDirtyMask != 0U) || (UI_RateTextDirty != 0U))
+    if (UI_RateDirtyMask != 0U)
     {
         UI_MarkDirty(UI_DIRTY_RATE);
     }
@@ -826,7 +782,7 @@ static void UI_UpdateChainDirtyState(void)
         ((SubbandUI_IsCodecMode(applied) != 0) &&
          (UI_DisplayedChainKbps != target)))
     {
-        UI_MarkDirty(UI_DIRTY_CHAIN);
+        UI_MarkChainDirty();
     }
 }
 
@@ -838,7 +794,8 @@ static void UI_UpdateDirtyState(void)
     int target;
     int old_rate_index;
     int new_rate_index;
-    int progress_step;
+    int remaining_seconds;
+    int learning_state_changed;
     unsigned int rate_mask;
 
     SUBBAND_UI_DebugSelectedMode = SUBBAND_DebugDemoMode;
@@ -846,16 +803,18 @@ static void UI_UpdateDirtyState(void)
     if (UI_DisplayedAppliedMode != applied)
     {
         UI_ScheduleAppliedModeRedraw(applied);
-        UI_MarkDirty(UI_DIRTY_STATUS | UI_DIRTY_COUNTDOWN |
-                     UI_DIRTY_RATE | UI_DIRTY_LOAD);
-        UI_CountdownStateDirty = 1U;
-        UI_CountdownTextDirty = 1U;
-        UI_RateTextDirty = 1U;
+        UI_MarkDirty(UI_DIRTY_STATUS | UI_DIRTY_COUNTDOWN | UI_DIRTY_LOAD);
     }
 
     codec_active = SubbandUI_IsCodecMode(applied);
     selected = SUBBAND_UI_DebugSelectedCodecKbps;
     target = SUBBAND_CODEC_LOOP_DebugTargetKbps;
+    if ((codec_active != 0) && (UI_IsValidChainKbps(target) != 0) &&
+        (selected != target))
+    {
+        selected = target;
+        SUBBAND_UI_DebugSelectedCodecKbps = target;
+    }
     rate_mask = 0U;
     if (codec_active != UI_LastCodecEnabled)
     {
@@ -875,47 +834,51 @@ static void UI_UpdateDirtyState(void)
             rate_mask |= UI_ButtonMaskBit((unsigned int)new_rate_index);
         }
     }
-    if (target != UI_LastTargetKbps)
+    if (rate_mask != 0U)
     {
-        UI_RateTextDirty = 1U;
-    }
-    if ((rate_mask != 0U) || (UI_RateTextDirty != 0U))
-    {
-        UI_ScheduleRateButtons(rate_mask, UI_RateTextDirty);
+        UI_ScheduleRateButtons(rate_mask);
     }
     UI_LastCodecEnabled = codec_active;
     UI_LastSelectedKbps = selected;
-    UI_LastTargetKbps = target;
     UI_UpdateChainDirtyState();
 
-    if ((SUBBAND_DENOISE_DebugLearning != UI_LastLearning) ||
-        (SUBBAND_DENOISE_DebugReady != UI_LastReady))
+    remaining_seconds = UI_CurrentRemainingSeconds();
+    learning_state_changed =
+        ((SUBBAND_DENOISE_DebugLearning != UI_LastLearning) ||
+         (SUBBAND_DENOISE_DebugReady != UI_LastReady)) ? 1 : 0;
+    if ((learning_state_changed != 0) ||
+        (remaining_seconds != UI_LastRemainingSeconds))
     {
         UI_LastLearning = SUBBAND_DENOISE_DebugLearning;
         UI_LastReady = SUBBAND_DENOISE_DebugReady;
-        UI_CountdownStateDirty = 1U;
-        UI_CountdownTextDirty = 1U;
+        UI_LastRemainingSeconds = remaining_seconds;
         UI_MarkDirty(UI_DIRTY_COUNTDOWN);
+    }
+    if (learning_state_changed != 0)
+    {
         UI_MarkDirty(UI_DIRTY_STATUS);
     }
-    if ((SUBBAND_DENOISE_DebugLearnHops != UI_LastLearnHops) ||
-        (SUBBAND_DENOISE_DebugTargetHops != UI_LastTargetHops))
-    {
-        UI_LastLearnHops = SUBBAND_DENOISE_DebugLearnHops;
-        UI_LastTargetHops = SUBBAND_DENOISE_DebugTargetHops;
-        UI_CountdownTextDirty = 1U;
-        UI_MarkDirty(UI_DIRTY_COUNTDOWN | UI_DIRTY_PROGRESS);
-    }
-    progress_step = UI_ComputeProgressStep(SUBBAND_DENOISE_DebugLearnHops,
-                                           SUBBAND_DENOISE_DebugTargetHops);
-    UI_SetProgressTarget(progress_step);
-
+#if SUBBAND_UI_PROGRESS_POLICY == SUBBAND_UI_PROGRESS_TEN_BLOCK
+    UI_SetProgressTarget(
+        UI_ComputeProgressStep(SUBBAND_DENOISE_DebugLearnHops,
+                               SUBBAND_DENOISE_DebugTargetHops));
+#endif
 }
 
 static void UI_UpdateLoadDirtyState(void)
 {
 #if SUBBAND_UI_SHOW_ALGO_LOAD
     int load_percent;
+    unsigned long percent;
+
+    percent = (SUBBAND_UI_DebugRollingCycles * 100UL +
+               UI_FRAME_BUDGET_CYCLES / 2UL) /
+              UI_FRAME_BUDGET_CYCLES;
+    if (percent > 999UL)
+    {
+        percent = 999UL;
+    }
+    SUBBAND_UI_DebugRollingLoadPercent = percent;
 
     load_percent = UI_ComputeAlgoLoad();
     if (load_percent != UI_LastLoadPercent)
@@ -970,27 +933,18 @@ static unsigned long UI_DrawNextRateJob(void)
                               (UI_RateButtons[index].value == selected) ?
                               1 : 0,
                               codec_active);
-            if ((UI_RateDirtyMask == 0U) && (UI_RateTextDirty == 0U))
+            if (UI_RateDirtyMask == 0U)
             {
                 UI_ClearDirty(UI_DIRTY_RATE);
             }
             return UI_DRAW_JOB_RATE;
         }
     }
-    if (UI_RateTextDirty != 0U)
-    {
-        UI_RateTextDirty = 0U;
-        UI_DrawRateText();
-        if (UI_RateDirtyMask == 0U)
-        {
-            UI_ClearDirty(UI_DIRTY_RATE);
-        }
-        return UI_DRAW_JOB_RATE_TEXT;
-    }
     UI_ClearDirty(UI_DIRTY_RATE);
     return UI_DRAW_JOB_NONE;
 }
 
+#if SUBBAND_UI_PROGRESS_POLICY == SUBBAND_UI_PROGRESS_TEN_BLOCK
 static unsigned long UI_DrawNextProgressJob(void)
 {
     if (UI_DisplayedProgressStep < 0)
@@ -1013,33 +967,13 @@ static unsigned long UI_DrawNextProgressJob(void)
     }
     return UI_DRAW_JOB_PROGRESS;
 }
+#endif
 
 static unsigned long UI_DrawNextCountdownJob(void)
 {
-    if (UI_CountdownStateDirty != 0U)
-    {
-        UI_CountdownStateDirty = 0U;
-        UI_DrawCountdownState();
-        if ((UI_CountdownStateDirty == 0U) &&
-            (UI_CountdownTextDirty == 0U))
-        {
-            UI_ClearDirty(UI_DIRTY_COUNTDOWN);
-        }
-        return UI_DRAW_JOB_COUNTDOWN;
-    }
-    if (UI_CountdownTextDirty != 0U)
-    {
-        UI_CountdownTextDirty = 0U;
-        UI_DrawCountdownText();
-        if ((UI_CountdownStateDirty == 0U) &&
-            (UI_CountdownTextDirty == 0U))
-        {
-            UI_ClearDirty(UI_DIRTY_COUNTDOWN);
-        }
-        return UI_DRAW_JOB_COUNTDOWN;
-    }
+    UI_DrawLearningState();
     UI_ClearDirty(UI_DIRTY_COUNTDOWN);
-    return UI_DRAW_JOB_NONE;
+    return UI_DRAW_JOB_COUNTDOWN;
 }
 
 static unsigned long UI_DrawOneJob(void)
@@ -1051,11 +985,6 @@ static unsigned long UI_DrawOneJob(void)
         job = UI_DrawNextModeButton();
         if (job != UI_DRAW_JOB_NONE) return job;
     }
-    if ((UI_DirtyFlags & UI_DIRTY_RATE) != 0UL)
-    {
-        job = UI_DrawNextRateJob();
-        if (job != UI_DRAW_JOB_NONE) return job;
-    }
     if ((UI_DirtyFlags & UI_DIRTY_STATUS) != 0UL)
     {
         UI_DrawStatus();
@@ -1065,18 +994,30 @@ static unsigned long UI_DrawOneJob(void)
     if ((UI_DirtyFlags & UI_DIRTY_CHAIN) != 0UL)
     {
         UI_DrawProcessingChain();
-        UI_ClearDirty(UI_DIRTY_CHAIN);
         return UI_DRAW_JOB_CHAIN;
     }
-    if ((UI_DirtyFlags & UI_DIRTY_PROGRESS) != 0UL)
+    if ((UI_DirtyFlags & UI_DIRTY_RATE) != 0UL)
     {
-        return UI_DrawNextProgressJob();
+        job = UI_DrawNextRateJob();
+        if (job != UI_DRAW_JOB_NONE) return job;
     }
+#if SUBBAND_UI_PROGRESS_POLICY == SUBBAND_UI_PROGRESS_TEN_BLOCK
     if ((UI_DirtyFlags & UI_DIRTY_COUNTDOWN) != 0UL)
     {
         job = UI_DrawNextCountdownJob();
         if (job != UI_DRAW_JOB_NONE) return job;
     }
+    if ((UI_DirtyFlags & UI_DIRTY_PROGRESS) != 0UL)
+    {
+        return UI_DrawNextProgressJob();
+    }
+#else
+    if ((UI_DirtyFlags & UI_DIRTY_COUNTDOWN) != 0UL)
+    {
+        job = UI_DrawNextCountdownJob();
+        if (job != UI_DRAW_JOB_NONE) return job;
+    }
+#endif
     if ((UI_DirtyFlags & UI_DIRTY_LOAD) != 0UL)
     {
         UI_DrawLoad();
@@ -1131,7 +1072,9 @@ static void UI_DrawInitialPage(void)
     unsigned int index;
     int codec_active;
     int selected;
+#if SUBBAND_UI_PROGRESS_POLICY == SUBBAND_UI_PROGRESS_TEN_BLOCK
     int progress_step;
+#endif
 
     codec_active = SubbandUI_IsCodecMode(SUBBAND_DebugAppliedDemoMode);
     selected = SUBBAND_UI_DebugSelectedCodecKbps;
@@ -1147,19 +1090,22 @@ static void UI_DrawInitialPage(void)
                           (UI_RateButtons[index].value == selected) ? 1 : 0,
                           codec_active);
     }
+#if SUBBAND_UI_PROGRESS_POLICY == SUBBAND_UI_PROGRESS_TEN_BLOCK
     progress_step = UI_ComputeProgressStep(SUBBAND_DENOISE_DebugLearnHops,
                                            SUBBAND_DENOISE_DebugTargetHops);
     UI_DrawAllProgressBlocks(progress_step);
     UI_TargetProgressStep = progress_step;
+#endif
     UI_DrawStatus();
     UI_DrawProcessingChain();
-    UI_DrawCountdownState();
-    UI_DrawCountdownText();
-    UI_DrawRateText();
+    UI_DrawLearningState();
     UI_DrawLoad();
     UI_DisplayedAppliedMode = SUBBAND_DebugAppliedDemoMode;
     UI_PendingAppliedMode = UI_DisplayedAppliedMode;
     SUBBAND_UI_DebugDisplayedMode = UI_DisplayedAppliedMode;
+    UI_LastLearning = SUBBAND_DENOISE_DebugLearning;
+    UI_LastReady = SUBBAND_DENOISE_DebugReady;
+    UI_LastRemainingSeconds = UI_CurrentRemainingSeconds();
 }
 
 static void UI_AcceptModeClick(unsigned int index)
@@ -1199,7 +1145,7 @@ static void UI_AcceptRateClick(unsigned int index)
     SUBBAND_UI_DebugSelectedCodecKbps = requested_kbps;
     Subband_Request_Codec_Target(requested_kbps);
     SUBBAND_UI_DebugAcceptedTouchCount++;
-    UI_ScheduleRateButtons(0x7U, 1);
+    UI_ScheduleRateButtons(0x7U);
 }
 
 static void UI_HandleAcceptedClick(SubbandUIButtonType type, int index)
@@ -1217,7 +1163,6 @@ static void UI_HandleAcceptedClick(SubbandUIButtonType type, int index)
 void SubbandUI_RecordAlgoCycles(unsigned long cycles)
 {
     unsigned long rolling;
-    unsigned long percent;
 
     rolling = SUBBAND_UI_DebugRollingCycles;
     if (SUBBAND_UI_DebugLoadSampleCount == 0UL)
@@ -1233,14 +1178,6 @@ void SubbandUI_RecordAlgoCycles(unsigned long cycles)
     {
         SUBBAND_UI_DebugLoadSampleCount++;
     }
-    percent = (unsigned long)(((unsigned long long)rolling * 100ULL +
-                               UI_FRAME_BUDGET_CYCLES / 2UL) /
-                              UI_FRAME_BUDGET_CYCLES);
-    if (percent > 999UL)
-    {
-        percent = 999UL;
-    }
-    SUBBAND_UI_DebugRollingLoadPercent = percent;
 }
 
 void SubbandUI_ResetLoadWindow(void)
@@ -1269,13 +1206,18 @@ void SubbandUI_Init(void)
     UI_DirtyFlags = 0UL;
     UI_ModeDirtyMask = 0U;
     UI_RateDirtyMask = 0U;
-    UI_RateTextDirty = 0U;
-    UI_CountdownStateDirty = 0U;
-    UI_CountdownTextDirty = 0U;
     UI_DisplayedChainMode = SUBBAND_DebugAppliedDemoMode;
     UI_DisplayedChainKbps =
         UI_CurrentChainKbps(SUBBAND_DebugAppliedDemoMode);
     SUBBAND_UI_DebugDirtyFlags = 0UL;
+    UI_LastDrawAlgoFrame = 0xFFFFFFFFUL;
+    UI_DrawHoldoffUntilFrame = 0UL;
+    UI_LastChainDirtyCountedFrame = 0xFFFFFFFFUL;
+    SUBBAND_UI_DebugLastDrawAlgoFrame = 0xFFFFFFFFUL;
+    SUBBAND_UI_DebugSkippedSameFrame = 0UL;
+    SUBBAND_UI_DebugMaxDrawJobsPerFrame = 0UL;
+    SUBBAND_UI_DebugSkippedDrawGap = 0UL;
+    SUBBAND_UI_DebugHoldoffSkipCount = 0UL;
     UI_Initialized = 1U;
 }
 
@@ -1404,8 +1346,31 @@ void SubbandUI_ServiceDisplay(void)
     }
 #if SUBBAND_UI_RUNTIME_DYNAMIC_DRAW == 0
     SUBBAND_UI_DebugSkippedRefreshes++;
+    UI_RecordChainDirtyWait(frame);
     return;
 #else
+    if ((UI_LastDrawAlgoFrame != 0xFFFFFFFFUL) &&
+        (frame == UI_LastDrawAlgoFrame))
+    {
+        SUBBAND_UI_DebugSkippedSameFrame++;
+        UI_RecordChainDirtyWait(frame);
+        return;
+    }
+    if ((UI_LastDrawAlgoFrame != 0xFFFFFFFFUL) &&
+        ((frame - UI_LastDrawAlgoFrame) <
+         SUBBAND_UI_RUNTIME_DRAW_GAP_FRAMES))
+    {
+        SUBBAND_UI_DebugSkippedDrawGap++;
+        UI_RecordChainDirtyWait(frame);
+        return;
+    }
+    if ((UI_DrawHoldoffUntilFrame != 0UL) &&
+        ((long)(frame - UI_DrawHoldoffUntilFrame) < 0L))
+    {
+        SUBBAND_UI_DebugHoldoffSkipCount++;
+        UI_RecordChainDirtyWait(frame);
+        return;
+    }
 #if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
     cycle_start = TSCL;
 #endif
@@ -1419,7 +1384,14 @@ void SubbandUI_ServiceDisplay(void)
     if (job != UI_DRAW_JOB_NONE)
     {
         SUBBAND_UI_DebugRefreshCount++;
+        UI_LastDrawAlgoFrame = frame;
+        SUBBAND_UI_DebugLastDrawAlgoFrame = frame;
+        if (SUBBAND_UI_DebugMaxDrawJobsPerFrame < 1UL)
+        {
+            SUBBAND_UI_DebugMaxDrawJobsPerFrame = 1UL;
+        }
     }
+    UI_RecordChainDirtyWait(frame);
 #endif
 }
 
@@ -1431,13 +1403,18 @@ void SubbandUI_NotifyModeChanged(void)
         return;
     }
     UI_ScheduleAppliedModeRedraw(SUBBAND_DebugAppliedDemoMode);
-    UI_ScheduleRateButtons(0x7U, 1);
-    UI_CountdownStateDirty = 1U;
-    UI_CountdownTextDirty = 1U;
+    UI_ScheduleRateButtons(0x7U);
+#if SUBBAND_UI_PROGRESS_POLICY == SUBBAND_UI_PROGRESS_TEN_BLOCK
     UI_SetProgressTarget(UI_ComputeProgressStep(SUBBAND_DENOISE_DebugLearnHops,
                                                 SUBBAND_DENOISE_DebugTargetHops));
-    UI_MarkDirty(UI_DIRTY_STATUS | UI_DIRTY_COUNTDOWN |
-                 UI_DIRTY_CHAIN | UI_DIRTY_LOAD);
+#endif
+    UI_LastLearning = -1;
+    UI_LastReady = -1;
+    UI_LastRemainingSeconds = -1;
+    UI_MarkChainDirty();
+    UI_MarkDirty(UI_DIRTY_STATUS | UI_DIRTY_COUNTDOWN | UI_DIRTY_LOAD);
+    UI_DrawHoldoffUntilFrame = SUBBAND_DebugAlgoFrames +
+                               SUBBAND_UI_MODE_CHANGE_HOLDOFF_FRAMES;
 }
 
 #else

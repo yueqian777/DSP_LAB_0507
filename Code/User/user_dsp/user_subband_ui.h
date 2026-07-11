@@ -12,6 +12,22 @@
 #define SUBBAND_UI_SHOW_ALGO_LOAD 1
 #endif
 
+#define SUBBAND_UI_PROGRESS_DISABLED  0
+#define SUBBAND_UI_PROGRESS_COARSE    1
+#define SUBBAND_UI_PROGRESS_TEN_BLOCK 2
+
+#ifndef SUBBAND_UI_PROGRESS_POLICY
+#define SUBBAND_UI_PROGRESS_POLICY SUBBAND_UI_PROGRESS_COARSE
+#endif
+
+#ifndef SUBBAND_UI_RUNTIME_DRAW_GAP_FRAMES
+#define SUBBAND_UI_RUNTIME_DRAW_GAP_FRAMES 2UL
+#endif
+
+#ifndef SUBBAND_UI_MODE_CHANGE_HOLDOFF_FRAMES
+#define SUBBAND_UI_MODE_CHANGE_HOLDOFF_FRAMES 3UL
+#endif
+
 #define UI_DIRTY_MODE       0x01UL
 #define UI_DIRTY_STATUS     0x02UL
 #define UI_DIRTY_COUNTDOWN  0x04UL
@@ -53,6 +69,14 @@ extern volatile int SUBBAND_UI_DebugDisplayedChainKbps;
 extern volatile unsigned long SUBBAND_UI_DebugChainRefreshCount;
 extern volatile unsigned long SUBBAND_UI_DebugLastChainDrawCycles;
 extern volatile unsigned long SUBBAND_UI_DebugMaxChainDrawCycles;
+extern volatile unsigned long SUBBAND_UI_DebugChainDirtySetCount;
+extern volatile unsigned long SUBBAND_UI_DebugChainDrawCount;
+extern volatile unsigned long SUBBAND_UI_DebugChainDirtyWithoutDrawFrames;
+extern volatile unsigned long SUBBAND_UI_DebugLastDrawAlgoFrame;
+extern volatile unsigned long SUBBAND_UI_DebugSkippedSameFrame;
+extern volatile unsigned long SUBBAND_UI_DebugMaxDrawJobsPerFrame;
+extern volatile unsigned long SUBBAND_UI_DebugSkippedDrawGap;
+extern volatile unsigned long SUBBAND_UI_DebugHoldoffSkipCount;
 
 void SubbandUI_Init(void);
 void SubbandUI_ServiceTouch(unsigned char force_scan);
