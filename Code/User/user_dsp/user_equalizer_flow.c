@@ -7,6 +7,7 @@
 
 #include "user_equalizer_flow.h"
 #include "user_equalizer_display.h"
+#include "equalizer_build_id.h"
 #include "string.h"
 
 #ifndef EQ_ALGO_ONLY
@@ -20,10 +21,6 @@
 #endif
 
 #define EQ_CPU_CYCLES_PER_MS 456000.0f
-#define EQ_SERVICE_DEADLINE_CYCLES \
-    ((unsigned long)(EQ_CPU_CYCLES_PER_MS * \
-    (1000.0f * (float)ADC_SAMPLE_1024 / EQ_SAMPLE_RATE) + 0.5f))
-
 static short EQ_AD_Buffer1[ADC_SAMPLE_1024];
 static short EQ_AD_Buffer2[ADC_SAMPLE_1024];
 static short EQ_AD_Buffer3[ADC_SAMPLE_1024];
@@ -34,31 +31,52 @@ static short EQ_AD_Buffer7[ADC_SAMPLE_1024];
 static short EQ_AD_Buffer8[ADC_SAMPLE_1024];
 static short EQ_DA_Buffer1[DAC_SAMPLE_1024];
 static EQ_STATE EQ_BoardState;
-static int EQ_AppliedMode = -1;
+static int EQ_LastServicedMode = -1;
 static int EQ_AppliedDiagPath = -1;
+static unsigned int EQ_FrameServiceStartCycle = 0U;
+static unsigned int EQ_FrameActiveSegmentStartCycle = 0U;
+static unsigned long EQ_FrameActiveServiceCycles = 0UL;
+static unsigned char EQ_FrameServicePending = 0U;
 
 #endif
 
 volatile unsigned long EQ_DebugAdFrames = 0UL;
 volatile unsigned long EQ_DebugDaFrames = 0UL;
 volatile unsigned long EQ_DebugProcessFrames = 0UL;
-volatile unsigned long EQ_DebugLastCycles = 0UL;
-volatile unsigned long EQ_DebugMaxCycles = 0UL;
-volatile float EQ_DebugLastMs = 0.0f;
-volatile float EQ_DebugMaxMs = 0.0f;
-volatile unsigned long EQ_DebugServiceLastCycles = 0UL;
-volatile unsigned long EQ_DebugServiceMaxCycles = 0UL;
+volatile unsigned long EQ_DebugAlgoLastCycles = 0UL;
+volatile unsigned long EQ_DebugAlgoMaxCycles = 0UL;
+volatile float EQ_DebugAlgoLastMs = 0.0f;
+volatile float EQ_DebugAlgoMaxMs = 0.0f;
+volatile unsigned long EQ_DebugModeServiceLastCycles = 0UL;
+volatile unsigned long EQ_DebugModeServiceMaxCycles = 0UL;
+volatile unsigned long EQ_DebugFrameServiceLastCycles = 0UL;
+volatile unsigned long EQ_DebugFrameServiceMaxCycles = 0UL;
+volatile float EQ_DebugFrameServiceLastMs = 0.0f;
+volatile float EQ_DebugFrameServiceMaxMs = 0.0f;
+volatile unsigned long EQ_DebugFrameLatencyLastCycles = 0UL;
+volatile unsigned long EQ_DebugFrameLatencyMaxCycles = 0UL;
+volatile float EQ_DebugFrameLatencyLastMs = 0.0f;
+volatile float EQ_DebugFrameLatencyMaxMs = 0.0f;
 volatile unsigned long EQ_DebugDeadlineMissCount = 0UL;
+volatile unsigned long EQ_DebugFrameServiceOverlapCount = 0UL;
+volatile unsigned long EQ_DebugFrameServiceDroppedCount = 0UL;
 volatile int EQ_DebugMode = EQ_PRESET_FLAT;
 volatile int EQ_DebugDiagPath = EQ_DIAG_PRESET;
+volatile int EQ_DebugRequestedMode = EQ_PRESET_FLAT;
+volatile int EQ_DebugTransitionTargetMode = EQ_PRESET_NONE;
+volatile int EQ_DebugAppliedMode = EQ_PRESET_FLAT;
+volatile unsigned long EQ_DebugModeChangeCount = 0UL;
 volatile float EQ_DebugBandGainDb[EQ_NUM_BANDS] =
 {
     0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
     0.0f, 0.0f, 0.0f, 0.0f, 0.0f
 };
 volatile const unsigned long EQ_DebugBuildMagic = 0x33030003UL;
-volatile const char EQ_DebugBuildId[] = "P33_FIX_7e21952";
-volatile const int EQ_DebugBuildDirty = 0;
+volatile const char EQ_DebugBuildId[] = EQ_BUILD_VERSION;
+volatile const char EQ_DebugBuildVersion[] = EQ_BUILD_VERSION;
+volatile const char EQ_DebugBuildGitSha[] = EQ_BUILD_GIT_SHA;
+volatile const char EQ_DebugBuildTimestamp[] = EQ_BUILD_TIMESTAMP;
+volatile const int EQ_DebugBuildDirty = EQ_BUILD_DIRTY;
 
 #ifndef EQ_ALGO_ONLY
 
@@ -84,10 +102,16 @@ static void EQ_KeepBuildFingerprint(void)
 {
     volatile const unsigned long *magic = &EQ_DebugBuildMagic;
     volatile const char *build_id = EQ_DebugBuildId;
+    volatile const char *build_version = EQ_DebugBuildVersion;
+    volatile const char *build_git_sha = EQ_DebugBuildGitSha;
+    volatile const char *build_timestamp = EQ_DebugBuildTimestamp;
     volatile const int *dirty = &EQ_DebugBuildDirty;
 
     (void)*magic;
     (void)*build_id;
+    (void)*build_version;
+    (void)*build_git_sha;
+    (void)*build_timestamp;
     (void)*dirty;
 }
 
@@ -101,6 +125,14 @@ static void EQ_UpdateDebugGains(void)
             Equalizer_GetBandTargetGainDb(&EQ_BoardState, band);
     }
     EQ_DebugClipCount = EQ_BoardState.clip_count;
+    EQ_DebugRequestedMode =
+        ((EQ_AppliedDiagPath == EQ_DIAG_PRESET) ||
+         (EQ_AppliedDiagPath == EQ_DIAG_FLAT)) ?
+        Equalizer_GetRequestedPreset(&EQ_BoardState) : EQ_PRESET_NONE;
+    EQ_DebugTransitionTargetMode =
+        Equalizer_GetTransitionTargetPreset(&EQ_BoardState);
+    EQ_DebugAppliedMode = Equalizer_GetAppliedPreset(&EQ_BoardState);
+    EQ_DebugModeChangeCount = Equalizer_GetModeChangeCount(&EQ_BoardState);
 }
 
 static void EQ_ServiceMode(void)
@@ -124,52 +156,49 @@ static void EQ_ServiceMode(void)
         if (diag_path == EQ_DIAG_RAW_COPY)
         {
             Equalizer_SetCoreMode(&EQ_BoardState, EQ_CORE_RAW_COPY);
-            EQ_AppliedMode = -1;
+            EQ_LastServicedMode = EQ_PRESET_NONE;
         }
         else if (diag_path == EQ_DIAG_FLOAT_COPY)
         {
             Equalizer_SetCoreMode(&EQ_BoardState, EQ_CORE_FLOAT_COPY);
-            EQ_AppliedMode = -1;
+            EQ_LastServicedMode = EQ_PRESET_NONE;
         }
         else if (diag_path == EQ_DIAG_FLAT)
         {
             Equalizer_SetCoreMode(&EQ_BoardState, EQ_CORE_RBJ_CASCADE);
             Equalizer_ApplyPreset(&EQ_BoardState, EQ_PRESET_FLAT);
-            EQ_AppliedMode = EQ_PRESET_FLAT;
+            EQ_LastServicedMode = EQ_PRESET_FLAT;
         }
         else if (diag_path == EQ_DIAG_SINGLE_BAND)
         {
             Equalizer_SetCoreMode(&EQ_BoardState, EQ_CORE_RBJ_CASCADE);
             Equalizer_ApplySingleBand1kPlus3Db(&EQ_BoardState);
-            EQ_AppliedMode = -1;
+            EQ_LastServicedMode = EQ_PRESET_NONE;
         }
         else
         {
             Equalizer_SetCoreMode(&EQ_BoardState, EQ_CORE_RBJ_CASCADE);
             Equalizer_ApplyPreset(&EQ_BoardState, mode);
-            EQ_AppliedMode = mode;
+            EQ_LastServicedMode = mode;
         }
         EQ_AppliedDiagPath = diag_path;
     }
-    else if ((diag_path == EQ_DIAG_PRESET) && (mode != EQ_AppliedMode))
+    else if ((diag_path == EQ_DIAG_PRESET) &&
+             (mode != EQ_LastServicedMode))
     {
         Equalizer_SetCoreMode(&EQ_BoardState, EQ_CORE_RBJ_CASCADE);
         Equalizer_ApplyPreset(&EQ_BoardState, mode);
-        EQ_AppliedMode = mode;
+        EQ_LastServicedMode = mode;
     }
     EQ_UpdateDebugGains();
 }
 
-static void EQ_UpdateServiceTiming(unsigned long cycles)
+static void EQ_UpdateModeServiceTiming(unsigned long cycles)
 {
-    EQ_DebugServiceLastCycles = cycles;
-    if (cycles > EQ_DebugServiceMaxCycles)
+    EQ_DebugModeServiceLastCycles = cycles;
+    if (cycles > EQ_DebugModeServiceMaxCycles)
     {
-        EQ_DebugServiceMaxCycles = cycles;
-    }
-    if (cycles > EQ_SERVICE_DEADLINE_CYCLES)
-    {
-        EQ_DebugDeadlineMissCount++;
+        EQ_DebugModeServiceMaxCycles = cycles;
     }
 }
 
@@ -179,22 +208,91 @@ static void EQ_ServiceModeTimed(void)
     unsigned int cycle_start = TSCL;
 
     EQ_ServiceMode();
-    EQ_UpdateServiceTiming((unsigned long)(TSCL - cycle_start));
+    EQ_UpdateModeServiceTiming((unsigned long)(TSCL - cycle_start));
 #else
     EQ_ServiceMode();
-    EQ_UpdateServiceTiming(0UL);
+    EQ_UpdateModeServiceTiming(0UL);
 #endif
 }
 
-static void EQ_UpdateTiming(unsigned long cycles)
+static void EQ_UpdateAlgoTiming(unsigned long cycles)
 {
-    EQ_DebugLastCycles = cycles;
-    EQ_DebugLastMs = (float)cycles / EQ_CPU_CYCLES_PER_MS;
-    if (cycles > EQ_DebugMaxCycles)
+    EQ_DebugAlgoLastCycles = cycles;
+    EQ_DebugAlgoLastMs = (float)cycles / EQ_CPU_CYCLES_PER_MS;
+    if (cycles > EQ_DebugAlgoMaxCycles)
     {
-        EQ_DebugMaxCycles = cycles;
-        EQ_DebugMaxMs = EQ_DebugLastMs;
+        EQ_DebugAlgoMaxCycles = cycles;
+        EQ_DebugAlgoMaxMs = EQ_DebugAlgoLastMs;
     }
+}
+
+static void EQ_BeginFrameService(void)
+{
+    if (EQ_FrameServicePending != 0U)
+    {
+        EQ_DebugFrameServiceOverlapCount++;
+        EQ_DebugFrameServiceDroppedCount++;
+    }
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+    EQ_FrameServiceStartCycle = TSCL;
+#else
+    EQ_FrameServiceStartCycle = 0U;
+#endif
+    EQ_FrameActiveServiceCycles = 0UL;
+    EQ_FrameServicePending = 1U;
+}
+
+static void EQ_BeginFrameActiveSegment(void)
+{
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+    EQ_FrameActiveSegmentStartCycle = TSCL;
+#else
+    EQ_FrameActiveSegmentStartCycle = 0U;
+#endif
+}
+
+static void EQ_EndFrameActiveSegment(void)
+{
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+    EQ_FrameActiveServiceCycles +=
+        (unsigned long)(TSCL - EQ_FrameActiveSegmentStartCycle);
+#endif
+}
+
+static void EQ_EndFrameService(void)
+{
+    unsigned long latency_cycles;
+
+    if (EQ_FrameServicePending == 0U)
+    {
+        return;
+    }
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+    latency_cycles = (unsigned long)(TSCL - EQ_FrameServiceStartCycle);
+#else
+    latency_cycles = 0UL;
+#endif
+    EQ_DebugFrameServiceLastCycles = EQ_FrameActiveServiceCycles;
+    EQ_DebugFrameServiceLastMs =
+        (float)EQ_FrameActiveServiceCycles / EQ_CPU_CYCLES_PER_MS;
+    if (EQ_FrameActiveServiceCycles > EQ_DebugFrameServiceMaxCycles)
+    {
+        EQ_DebugFrameServiceMaxCycles = EQ_FrameActiveServiceCycles;
+        EQ_DebugFrameServiceMaxMs = EQ_DebugFrameServiceLastMs;
+    }
+    EQ_DebugFrameLatencyLastCycles = latency_cycles;
+    EQ_DebugFrameLatencyLastMs =
+        (float)latency_cycles / EQ_CPU_CYCLES_PER_MS;
+    if (latency_cycles > EQ_DebugFrameLatencyMaxCycles)
+    {
+        EQ_DebugFrameLatencyMaxCycles = latency_cycles;
+        EQ_DebugFrameLatencyMaxMs = EQ_DebugFrameLatencyLastMs;
+    }
+    if (EQ_FrameActiveServiceCycles > EQ_FRAME_SERVICE_BUDGET_CYCLES)
+    {
+        EQ_DebugDeadlineMissCount++;
+    }
+    EQ_FrameServicePending = 0U;
 }
 
 static void EQ_CaptureAdcFrame(void)
@@ -237,9 +335,9 @@ static void EQ_CaptureAdcFrame(void)
 #if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
     cycle_end = TSCL;
     cycle_delta = (unsigned long)(cycle_end - cycle_start);
-    EQ_UpdateTiming(cycle_delta);
+    EQ_UpdateAlgoTiming(cycle_delta);
 #else
-    EQ_UpdateTiming(0UL);
+    EQ_UpdateAlgoTiming(0UL);
 #endif
 }
 
@@ -326,16 +424,15 @@ void Equalizer_Flow_Example(void)
     EqualizerDisplay_Init();
     EqualizerDisplay_UpdateAll(&EQ_BoardState);
     EqualizerDisplay_UpdateStatus(EQ_DebugProcessFrames,
-                                  EQ_DebugLastMs,
-                                  EQ_DebugMaxMs,
+                                  EQ_DebugAlgoLastMs,
+                                  EQ_DebugAlgoMaxMs,
                                   EQ_DebugClipCount,
                                   EQ_DebugMode);
-    lcd_mode = EQ_AppliedMode;
+    lcd_mode = EQ_DebugAppliedMode;
 #endif
 
 #if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
     TSCL = 0;
-    TSCH = 0;
 #endif
 
     Adc_Start();
@@ -345,66 +442,82 @@ void Equalizer_Flow_Example(void)
     {
         if (FLAG_AD == 1)
         {
+            EQ_BeginFrameService();
+            EQ_BeginFrameActiveSegment();
             FLAG_AD = 0;
             flag_ad_done = 1;
             EQ_DebugAdFrames++;
             EQ_CaptureAdcFrame();
+            EQ_EndFrameActiveSegment();
         }
 
         if ((FLAG_DA == 1) && (flag_ad_done == 1))
         {
+            EQ_BeginFrameActiveSegment();
             FLAG_DA = 0;
             flag_ad_done = 0;
             EQ_DebugDaFrames++;
             EQ_FillDacInactiveBuffer();
+            EQ_EndFrameActiveSegment();
+            EQ_EndFrameService();
         }
 
-        /* Defer bank selection until the current AD/DA work is complete. */
-        EQ_ServiceModeTimed();
+        if ((FLAG_AD == 0) && (FLAG_DA == 0) && (flag_ad_done == 0))
+        {
+            EQ_ServiceModeTimed();
 
-        if (FLAG_KEY1 == 1)
-        {
-            FLAG_KEY1 = 0;
-            Adc_Start();
-        }
-        if (FLAG_KEY2 == 1)
-        {
-            FLAG_KEY2 = 0;
-            Adc_Stop();
-        }
-        if (FLAG_KEY3 == 1)
-        {
-            FLAG_KEY3 = 0;
-            Dac_Start();
-        }
-        if (FLAG_KEY4 == 1)
-        {
-            FLAG_KEY4 = 0;
-            Dac_Stop();
-        }
+            if ((FLAG_AD == 0) && (FLAG_DA == 0) && (flag_ad_done == 0) &&
+                (FLAG_KEY1 == 1))
+            {
+                FLAG_KEY1 = 0;
+                Adc_Start();
+            }
+            if ((FLAG_AD == 0) && (FLAG_DA == 0) && (flag_ad_done == 0) &&
+                (FLAG_KEY2 == 1))
+            {
+                FLAG_KEY2 = 0;
+                Adc_Stop();
+            }
+            if ((FLAG_AD == 0) && (FLAG_DA == 0) && (flag_ad_done == 0) &&
+                (FLAG_KEY3 == 1))
+            {
+                FLAG_KEY3 = 0;
+                Dac_Start();
+            }
+            if ((FLAG_AD == 0) && (FLAG_DA == 0) && (flag_ad_done == 0) &&
+                (FLAG_KEY4 == 1))
+            {
+                FLAG_KEY4 = 0;
+                Dac_Stop();
+            }
 
 #if EQ_ENABLE_LCD_DISPLAY != 0
-        if (EQ_AppliedMode != lcd_mode)
-        {
-            lcd_mode = EQ_AppliedMode;
-            EqualizerDisplay_UpdateGains(&EQ_BoardState);
-            EqualizerDisplay_UpdateStatus(EQ_DebugProcessFrames,
-                                          EQ_DebugLastMs,
-                                          EQ_DebugMaxMs,
-                                          EQ_DebugClipCount,
-                                          EQ_DebugMode);
-        }
-        if ((EQ_DebugProcessFrames != lcd_status_frame) &&
-            ((EQ_DebugProcessFrames % EQ_LCD_REFRESH_FRAMES) == 0UL))
-        {
-            lcd_status_frame = EQ_DebugProcessFrames;
-            EqualizerDisplay_UpdateStatus(EQ_DebugProcessFrames,
-                                          EQ_DebugLastMs,
-                                          EQ_DebugMaxMs,
-                                          EQ_DebugClipCount,
-                                          EQ_DebugMode);
-        }
+            if ((FLAG_AD == 0) && (FLAG_DA == 0) &&
+                (flag_ad_done == 0) &&
+                (EQ_DebugAppliedMode != lcd_mode))
+            {
+                lcd_mode = EQ_DebugAppliedMode;
+                EqualizerDisplay_UpdateGains(&EQ_BoardState);
+                EqualizerDisplay_UpdateStatus(EQ_DebugProcessFrames,
+                                              EQ_DebugAlgoLastMs,
+                                              EQ_DebugAlgoMaxMs,
+                                              EQ_DebugClipCount,
+                                              EQ_DebugMode);
+            }
+            if ((FLAG_AD == 0) && (FLAG_DA == 0) &&
+                (flag_ad_done == 0) &&
+                (EQ_DebugProcessFrames != lcd_status_frame) &&
+                ((EQ_DebugProcessFrames % EQ_LCD_REFRESH_FRAMES) == 0UL))
+            {
+                lcd_status_frame = EQ_DebugProcessFrames;
+                EqualizerDisplay_UpdateStatus(EQ_DebugProcessFrames,
+                                              EQ_DebugAlgoLastMs,
+                                              EQ_DebugAlgoMaxMs,
+                                              EQ_DebugClipCount,
+                                              EQ_DebugMode);
+            }
 #endif
+        }
     }
 }
 

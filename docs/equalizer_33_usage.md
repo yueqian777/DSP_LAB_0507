@@ -30,7 +30,8 @@ cd /c/Users/zhangyueqian/lab8/DSP_LAB_0507
 ```
 
 The strict evaluator writes transparency, coefficient, legacy/RBJ response,
-headroom, coherent THD, expected-clip, long-stability, and transition CSVs.
+headroom, coherent THD, expected-clip, long-stability, transition, bypass
+restore, mode-state, and frame-service-contract CSVs.
 
 Run the independent Python response check after the C test:
 
@@ -52,7 +53,19 @@ Outputs are written below `docs/eval_outputs/equalizer_33_offline/`.
 parallel band-pass implementation remains available as `EQ_CORE_LEGACY` for
 offline comparison only.  `EQ_CORE_RAW_COPY`, `EQ_CORE_FLOAT_COPY`, hard
 bypass, and FLAT are transparent paths and do not update filter state or
-clip counters.
+clip counters. Bypass ON cancels an in-flight bank transition but preserves
+the latest accepted preset/custom target. Bypass OFF restores that target with
+a 120 ms dry-to-bank crossfade before the stable transparent FLAT path can be
+used.
+
+Preset/custom requests made during a transition do not replace the pending
+bank. The current transition finishes first, then only the latest requested
+target starts. The public state meanings are:
+
+- requested: latest accepted preset/custom target
+- transition target: bank currently being crossfaded to, or NONE
+- applied: stable active preset, or NONE during bypass/dry restore/custom
+- latest pending: a newer target waits behind the current transition
 
 ## Board Diagnostics
 
@@ -80,8 +93,13 @@ DSP_LAB_PROJECT_SELECT=33
 For the generated command-line build on this workstation:
 
 ```powershell
-& 'D:\SoftwareDownload\CCS_20.5.0.00028_win\ccs\utils\bin\gmake.exe' -B -C Debug all 'GEN_OPTS__FLAG=--define=DSP_LAB_PROJECT_SELECT=33'
+.\tools\generate_equalizer_build_id.ps1
+& 'D:\SoftwareDownload\CCS_20.5.0.00028_win\ccs\utils\bin\gmake.exe' -B -C Debug all 'GEN_OPTS__FLAG=--define=DSP_LAB_PROJECT_SELECT=33 --define=EQ_USE_GENERATED_BUILD_ID=1'
 ```
+
+The generator records the current short Git SHA and dirty state in an ignored
+header. Direct builds use the stable `P33_FIX_V5` fallback and report Git as
+unavailable instead of relying on a hand-maintained SHA.
 
 ## Legacy Files
 
@@ -100,13 +118,27 @@ Watch variables:
 - `EQ_DebugAdFrames`
 - `EQ_DebugDaFrames`
 - `EQ_DebugProcessFrames`
-- `EQ_DebugLastCycles`
-- `EQ_DebugMaxCycles`
-- `EQ_DebugLastMs`
-- `EQ_DebugMaxMs`
+- `EQ_DebugAlgoLastCycles`, `EQ_DebugAlgoMaxCycles`
+- `EQ_DebugAlgoLastMs`, `EQ_DebugAlgoMaxMs`
+- `EQ_DebugModeServiceLastCycles`, `EQ_DebugModeServiceMaxCycles`
+- `EQ_DebugFrameServiceLastCycles`, `EQ_DebugFrameServiceMaxCycles`
+- `EQ_DebugFrameServiceLastMs`, `EQ_DebugFrameServiceMaxMs`
+- `EQ_DebugFrameLatencyLastCycles`, `EQ_DebugFrameLatencyMaxCycles`
+- `EQ_DebugFrameLatencyLastMs`, `EQ_DebugFrameLatencyMaxMs`
+- `EQ_DebugDeadlineMissCount`
+- `EQ_DebugFrameServiceOverlapCount`, `EQ_DebugFrameServiceDroppedCount`
 - `EQ_DebugMode`
+- `EQ_DebugRequestedMode`, `EQ_DebugTransitionTargetMode`
+- `EQ_DebugAppliedMode`, `EQ_DebugModeChangeCount`
 - `EQ_DebugClipCount`
 - `EQ_DebugBandGainDb`
+
+Algorithm time measures only CH1 equalizer processing. Mode-service time is
+measured separately and runs only while AD/DA work is idle. Frame-service time
+sums active ADC copy/algorithm/DAC copy segments and excludes waiting. Frame
+latency runs from detection of `FLAG_AD` until the inactive DAC buffer is
+written and remains an additional scheduling diagnostic. Deadline misses are
+based on the active frame-service time against the 20.48 ms frame budget.
 
 `EQ_DebugMode` selects presets:
 

@@ -679,41 +679,73 @@ static void EQ_UpdateDebugHeadroom(const EQ_STATE *st)
 }
 
 static void EQ_InstallRbjCandidate(EQ_STATE *st, const EQ_FILTER_BANK *candidate,
-                                   int immediate)
+                                   int bank_id, int preset, int immediate,
+                                   int transition_kind)
 {
+    int band;
+
     if ((immediate != 0) || (EQ_ENABLE_BANK_CROSSFADE == 0))
     {
         st->active_bank = *candidate;
         EQ_ClearBankState(&st->active_bank);
+        st->active_bank_id = bank_id;
+        st->active_preset = preset;
+        st->active_generation = st->target_generation;
+        for (band = 0; band < EQ_NUM_BANDS; band++)
+        {
+            st->active_gain_db[band] = st->band_gain_db[band];
+        }
         memset(&st->pending_bank, 0, sizeof(st->pending_bank));
         st->pending_bank_valid = 0;
+        st->pending_bank_id = EQ_RBJ_BANK_CUSTOM;
+        st->pending_preset = EQ_PRESET_NONE;
+        st->pending_generation = 0UL;
+        memset(st->pending_gain_db, 0, sizeof(st->pending_gain_db));
         st->transition_remaining = 0;
         st->transition_total = 0;
+        st->transition_kind = EQ_TRANSITION_NONE;
     }
     else
     {
         st->pending_bank = *candidate;
         EQ_ClearBankState(&st->pending_bank);
         st->pending_bank_valid = 1;
+        st->pending_bank_id = bank_id;
+        st->pending_preset = preset;
+        st->pending_generation = st->target_generation;
+        for (band = 0; band < EQ_NUM_BANDS; band++)
+        {
+            st->pending_gain_db[band] = st->band_gain_db[band];
+        }
         st->transition_total = EQ_TransitionSamples();
         st->transition_remaining = st->transition_total;
+        st->transition_kind = transition_kind;
     }
     EQ_UpdateDebugHeadroom(st);
 }
 
-static void EQ_InstallRbjCachedTarget(EQ_STATE *st, int bank_id,
-                                      int immediate)
+static void EQ_InstallRbjCachedTargetKind(EQ_STATE *st, int bank_id,
+                                          int immediate, int transition_kind)
 {
     EQ_EnsureRbjBankCache();
     if ((bank_id < EQ_PRESET_FLAT) || (bank_id >= EQ_RBJ_BANK_CACHE_COUNT))
     {
         bank_id = EQ_PRESET_FLAT;
     }
-    EQ_InstallRbjCandidate(st, &EQ_RbjBankCache[bank_id], immediate);
     st->rbj_bank_id = bank_id;
+    EQ_InstallRbjCandidate(st, &EQ_RbjBankCache[bank_id], bank_id, st->preset,
+                           immediate, transition_kind);
 }
 
-static void EQ_InstallRbjTarget(EQ_STATE *st, int immediate)
+static void EQ_InstallRbjCachedTarget(EQ_STATE *st, int bank_id,
+                                      int immediate)
+{
+    EQ_InstallRbjCachedTargetKind(st, bank_id, immediate,
+                                  EQ_TRANSITION_BANK_TO_BANK);
+}
+
+static void EQ_InstallRbjTargetKind(EQ_STATE *st, int immediate,
+                                    int transition_kind)
 {
     EQ_FILTER_BANK candidate;
     int bank_id;
@@ -721,34 +753,86 @@ static void EQ_InstallRbjTarget(EQ_STATE *st, int immediate)
     bank_id = EQ_FindRbjCachedBank(st->band_gain_db);
     if (bank_id != EQ_RBJ_BANK_CUSTOM)
     {
-        EQ_InstallRbjCachedTarget(st, bank_id, immediate);
+        EQ_InstallRbjCachedTargetKind(st, bank_id, immediate, transition_kind);
         return;
     }
     EQ_BuildRbjBank(&candidate, st->band_gain_db);
-    EQ_InstallRbjCandidate(st, &candidate, immediate);
     st->rbj_bank_id = EQ_RBJ_BANK_CUSTOM;
+    EQ_InstallRbjCandidate(st, &candidate, EQ_RBJ_BANK_CUSTOM, st->preset,
+                           immediate, transition_kind);
+}
+
+static void EQ_InstallRbjTarget(EQ_STATE *st, int immediate)
+{
+    EQ_InstallRbjTargetKind(st, immediate, EQ_TRANSITION_BANK_TO_BANK);
 }
 
 static void EQ_CancelTransition(EQ_STATE *st)
 {
     memset(&st->pending_bank, 0, sizeof(st->pending_bank));
     st->pending_bank_valid = 0;
+    st->pending_bank_id = EQ_RBJ_BANK_CUSTOM;
+    st->pending_preset = EQ_PRESET_NONE;
+    st->pending_generation = 0UL;
+    memset(st->pending_gain_db, 0, sizeof(st->pending_gain_db));
     st->transition_remaining = 0;
     st->transition_total = 0;
+    st->transition_kind = EQ_TRANSITION_NONE;
     st->latest_preset_valid = 0;
 }
 
-static void EQ_ApplyRbjPresetNow(EQ_STATE *st, int preset)
+static void EQ_SetPresetTargetMetadata(EQ_STATE *st, int preset)
 {
     int band;
 
+    st->requested_preset = preset;
     st->preset = preset;
     st->rbj_bank_id = preset;
     for (band = 0; band < EQ_NUM_BANDS; band++)
     {
         st->band_gain_db[band] = EQ_RbjPresetGainsDb[preset][band];
     }
-    EQ_InstallRbjCachedTarget(st, preset, 0);
+}
+
+static void EQ_MarkTargetChanged(EQ_STATE *st)
+{
+    st->target_generation++;
+    if (st->target_generation == 0UL)
+    {
+        st->target_generation = 1UL;
+    }
+    st->latest_preset_valid =
+        ((st->pending_bank_valid != 0) &&
+         (st->pending_generation != st->target_generation)) ? 1 : 0;
+}
+
+static void EQ_StartCurrentTarget(EQ_STATE *st, int transition_kind)
+{
+    st->latest_preset_valid = 0;
+    if (st->rbj_bank_id != EQ_RBJ_BANK_CUSTOM)
+    {
+        EQ_InstallRbjCachedTargetKind(st, st->rbj_bank_id, 0,
+                                      transition_kind);
+    }
+    else
+    {
+        EQ_InstallRbjTargetKind(st, 0, transition_kind);
+    }
+}
+
+static void EQ_QueueOrStartCurrentTarget(EQ_STATE *st)
+{
+    if (st->bypass != 0)
+    {
+        return;
+    }
+    if (st->pending_bank_valid != 0)
+    {
+        st->latest_preset_valid =
+            (st->pending_generation != st->target_generation) ? 1 : 0;
+        return;
+    }
+    EQ_StartCurrentTarget(st, EQ_TRANSITION_BANK_TO_BANK);
 }
 
 static float EQ_ProcessLegacySample(EQ_STATE *st, float x)
@@ -800,7 +884,8 @@ static float EQ_ProcessRbjSample(EQ_STATE *st, float x)
 {
     float active;
 
-    active = EQ_ProcessRbjBank(&st->active_bank, x);
+    active = (st->transition_kind == EQ_TRANSITION_DRY_TO_BANK) ? x :
+             EQ_ProcessRbjBank(&st->active_bank, x);
     if (st->pending_bank_valid != 0)
     {
         float pending;
@@ -821,18 +906,33 @@ static float EQ_ProcessRbjSample(EQ_STATE *st, float x)
         st->transition_remaining--;
         if (st->transition_remaining <= 0)
         {
-            int latest_preset = st->latest_preset;
-            int latest_preset_valid = st->latest_preset_valid;
+            unsigned long previous_active_generation = st->active_generation;
+            int completed_transition_kind = st->transition_kind;
 
             st->active_bank = st->pending_bank;
+            st->active_bank_id = st->pending_bank_id;
+            st->active_preset = st->pending_preset;
+            st->active_generation = st->pending_generation;
+            memcpy(st->active_gain_db, st->pending_gain_db,
+                   sizeof(st->active_gain_db));
             memset(&st->pending_bank, 0, sizeof(st->pending_bank));
             st->pending_bank_valid = 0;
+            st->pending_bank_id = EQ_RBJ_BANK_CUSTOM;
+            st->pending_preset = EQ_PRESET_NONE;
+            st->pending_generation = 0UL;
+            memset(st->pending_gain_db, 0, sizeof(st->pending_gain_db));
             st->transition_remaining = 0;
             st->transition_total = 0;
+            st->transition_kind = EQ_TRANSITION_NONE;
             st->latest_preset_valid = 0;
-            if (latest_preset_valid != 0)
+            if ((completed_transition_kind == EQ_TRANSITION_DRY_TO_BANK) ||
+                (previous_active_generation != st->active_generation))
             {
-                EQ_ApplyRbjPresetNow(st, latest_preset);
+                st->mode_change_count++;
+            }
+            if (st->active_generation != st->target_generation)
+            {
+                EQ_StartCurrentTarget(st, EQ_TRANSITION_BANK_TO_BANK);
             }
         }
     }
@@ -945,6 +1045,12 @@ void Equalizer_Init(EQ_STATE *st)
     st->core_mode = EQ_CORE_RBJ_CASCADE;
     st->preset = EQ_PRESET_FLAT;
     st->rbj_bank_id = EQ_PRESET_FLAT;
+    st->requested_preset = EQ_PRESET_FLAT;
+    st->active_preset = EQ_PRESET_NONE;
+    st->pending_preset = EQ_PRESET_NONE;
+    st->active_bank_id = EQ_RBJ_BANK_CUSTOM;
+    st->pending_bank_id = EQ_RBJ_BANK_CUSTOM;
+    st->target_generation = 1UL;
     EQ_SetLegacyImmediate(st);
     EQ_InstallRbjCachedTarget(st, EQ_PRESET_FLAT, 1);
     EQ_DebugClipCount = 0UL;
@@ -980,6 +1086,12 @@ void Equalizer_Reset(EQ_STATE *st)
     st->bypass = bypass;
     st->preset = preset;
     st->rbj_bank_id = rbj_bank_id;
+    st->requested_preset = preset;
+    st->active_preset = EQ_PRESET_NONE;
+    st->pending_preset = EQ_PRESET_NONE;
+    st->active_bank_id = EQ_RBJ_BANK_CUSTOM;
+    st->pending_bank_id = EQ_RBJ_BANK_CUSTOM;
+    st->target_generation = 1UL;
     for (band = 0; band < EQ_NUM_BANDS; band++)
     {
         st->band_gain_db[band] = gains_db[band];
@@ -1005,14 +1117,26 @@ void Equalizer_Reset(EQ_STATE *st)
 
 void Equalizer_SetBypass(EQ_STATE *st, int enable)
 {
-    if (st != 0)
+    int requested_enable;
+    int was_bypassed;
+
+    if (st == 0)
     {
-        st->bypass = (enable != 0) ? 1 : 0;
-        if (st->bypass != 0)
-        {
-            EQ_CancelTransition(st);
-            EQ_UpdateDebugHeadroom(st);
-        }
+        return;
+    }
+    requested_enable = (enable != 0) ? 1 : 0;
+    was_bypassed = st->bypass;
+    if (requested_enable != 0)
+    {
+        st->bypass = 1;
+        EQ_CancelTransition(st);
+        EQ_UpdateDebugHeadroom(st);
+        return;
+    }
+    st->bypass = 0;
+    if ((was_bypassed != 0) && (st->core_mode == EQ_CORE_RBJ_CASCADE))
+    {
+        EQ_StartCurrentTarget(st, EQ_TRANSITION_DRY_TO_BANK);
     }
 }
 
@@ -1077,14 +1201,16 @@ void Equalizer_SetBandGainDb(EQ_STATE *st, int band, float gain_db)
     }
     st->band_gain_db[band] = clamped_gain;
     st->preset = EQ_PRESET_CUSTOM;
-    st->rbj_bank_id = EQ_RBJ_BANK_CUSTOM;
+    st->requested_preset = EQ_PRESET_CUSTOM;
+    st->rbj_bank_id = EQ_FindRbjCachedBank(st->band_gain_db);
+    EQ_MarkTargetChanged(st);
     if (st->core_mode == EQ_CORE_LEGACY)
     {
         EQ_SetLegacyTarget(st, band, 0);
     }
     else if (st->core_mode == EQ_CORE_RBJ_CASCADE)
     {
-        EQ_InstallRbjTarget(st, 0);
+        EQ_QueueOrStartCurrentTarget(st);
     }
 }
 
@@ -1113,7 +1239,9 @@ void Equalizer_SetAllGainsDb(EQ_STATE *st,
         return;
     }
     st->preset = EQ_PRESET_CUSTOM;
+    st->requested_preset = EQ_PRESET_CUSTOM;
     st->rbj_bank_id = EQ_FindRbjCachedBank(st->band_gain_db);
+    EQ_MarkTargetChanged(st);
     if (st->core_mode == EQ_CORE_LEGACY)
     {
         for (band = 0; band < EQ_NUM_BANDS; band++)
@@ -1123,7 +1251,7 @@ void Equalizer_SetAllGainsDb(EQ_STATE *st,
     }
     else if (st->core_mode == EQ_CORE_RBJ_CASCADE)
     {
-        EQ_InstallRbjTarget(st, 0);
+        EQ_QueueOrStartCurrentTarget(st);
     }
 }
 
@@ -1142,26 +1270,29 @@ void Equalizer_ApplyPreset(EQ_STATE *st, int preset)
     }
     if (st->core_mode == EQ_CORE_RBJ_CASCADE)
     {
-        if (st->pending_bank_valid != 0)
+        if ((st->pending_bank_valid != 0) &&
+            (preset == st->pending_preset))
         {
-            if (preset == st->preset)
-            {
-                st->latest_preset_valid = 0;
-            }
-            else
-            {
-                st->latest_preset = preset;
-                st->latest_preset_valid = 1;
-            }
+            EQ_SetPresetTargetMetadata(st, preset);
+            EQ_MarkTargetChanged(st);
+            st->pending_generation = st->target_generation;
+            memcpy(st->pending_gain_db, st->band_gain_db,
+                   sizeof(st->pending_gain_db));
+            st->latest_preset_valid = 0;
             return;
         }
-        if (st->preset != preset)
+        if (st->preset == preset)
         {
-            EQ_ApplyRbjPresetNow(st, preset);
+            st->requested_preset = preset;
+            return;
         }
+        EQ_SetPresetTargetMetadata(st, preset);
+        EQ_MarkTargetChanged(st);
+        EQ_QueueOrStartCurrentTarget(st);
         return;
     }
     st->preset = preset;
+    st->requested_preset = preset;
     preset_bank = (st->core_mode == EQ_CORE_LEGACY) ?
                    EQ_LegacyPresetGainsDb : EQ_RbjPresetGainsDb;
     for (band = 0; band < EQ_NUM_BANDS; band++)
@@ -1198,8 +1329,15 @@ void Equalizer_ApplySingleBand1kPlus3Db(EQ_STATE *st)
         }
         st->band_gain_db[band] = gain_db;
     }
+    if ((changed == 0) && (st->preset == EQ_PRESET_CUSTOM) &&
+        (st->rbj_bank_id == EQ_RBJ_BANK_SINGLE_1K))
+    {
+        return;
+    }
     st->preset = EQ_PRESET_CUSTOM;
+    st->requested_preset = EQ_PRESET_CUSTOM;
     st->rbj_bank_id = EQ_RBJ_BANK_SINGLE_1K;
+    EQ_MarkTargetChanged(st);
     if (st->core_mode == EQ_CORE_LEGACY)
     {
         for (band = 0; band < EQ_NUM_BANDS; band++)
@@ -1209,7 +1347,7 @@ void Equalizer_ApplySingleBand1kPlus3Db(EQ_STATE *st)
     }
     else if ((st->core_mode == EQ_CORE_RBJ_CASCADE) && (changed != 0))
     {
-        EQ_InstallRbjCachedTarget(st, EQ_RBJ_BANK_SINGLE_1K, 0);
+        EQ_QueueOrStartCurrentTarget(st);
     }
 }
 
@@ -1340,8 +1478,7 @@ float Equalizer_GetPredictedPeakDb(const EQ_STATE *st)
 {
     const EQ_FILTER_BANK *bank;
 
-    if ((st == 0) || (st->core_mode != EQ_CORE_RBJ_CASCADE) ||
-        (Equalizer_IsFlat(st) != 0))
+    if ((st == 0) || (st->core_mode != EQ_CORE_RBJ_CASCADE))
     {
         return 0.0f;
     }
@@ -1354,8 +1491,7 @@ float Equalizer_GetPreampDb(const EQ_STATE *st)
 {
     const EQ_FILTER_BANK *bank;
 
-    if ((st == 0) || (st->core_mode != EQ_CORE_RBJ_CASCADE) ||
-        (Equalizer_IsFlat(st) != 0))
+    if ((st == 0) || (st->core_mode != EQ_CORE_RBJ_CASCADE))
     {
         return 0.0f;
     }
@@ -1379,6 +1515,55 @@ int Equalizer_GetTransitionRemaining(const EQ_STATE *st)
     return (st == 0) ? 0 : st->transition_remaining;
 }
 
+int Equalizer_GetRequestedPreset(const EQ_STATE *st)
+{
+    return (st == 0) ? EQ_PRESET_NONE : st->requested_preset;
+}
+
+int Equalizer_GetTransitionTargetPreset(const EQ_STATE *st)
+{
+    return ((st != 0) && (st->pending_bank_valid != 0)) ?
+           st->pending_preset : EQ_PRESET_NONE;
+}
+
+int Equalizer_GetAppliedPreset(const EQ_STATE *st)
+{
+    if ((st == 0) || (st->core_mode != EQ_CORE_RBJ_CASCADE) ||
+        (st->bypass != 0) ||
+        (st->transition_kind == EQ_TRANSITION_DRY_TO_BANK))
+    {
+        return EQ_PRESET_NONE;
+    }
+    return ((st->active_preset >= EQ_PRESET_FLAT) &&
+            (st->active_preset < EQ_PRESET_COUNT)) ?
+           st->active_preset : EQ_PRESET_NONE;
+}
+
+int Equalizer_GetLatestPresetPending(const EQ_STATE *st)
+{
+    return ((st != 0) && (st->latest_preset_valid != 0)) ? 1 : 0;
+}
+
+unsigned long Equalizer_GetModeChangeCount(const EQ_STATE *st)
+{
+    return (st == 0) ? 0UL : st->mode_change_count;
+}
+
+int Equalizer_ActiveBankMatchesTarget(const EQ_STATE *st)
+{
+    if ((st == 0) || (st->core_mode != EQ_CORE_RBJ_CASCADE) ||
+        (st->bypass != 0) || (st->pending_bank_valid != 0))
+    {
+        return 0;
+    }
+    return ((st->active_bank_id == st->rbj_bank_id) &&
+            (st->active_preset == st->preset) &&
+            (st->requested_preset == st->preset) &&
+            (st->active_generation == st->target_generation) &&
+            (EQ_GainsMatch(st->active_gain_db, st->band_gain_db) != 0)) ?
+           1 : 0;
+}
+
 int Equalizer_GetCoefficientInfo(const EQ_STATE *st, int section,
                                  EQ_SECTION_INFO *info)
 {
@@ -1394,9 +1579,9 @@ int Equalizer_GetCoefficientInfo(const EQ_STATE *st, int section,
     info->core = st->core_mode;
     info->section = section;
     info->f0_hz = EQ_BandCenterHz[section];
-    info->gain_db = st->band_gain_db[section];
     if (st->core_mode == EQ_CORE_LEGACY)
     {
+        info->gain_db = st->band_gain_db[section];
         EQ_DesignLegacyCoeffs();
         c = &EQ_LegacyCoeff[section];
         info->type = EQ_SECTION_LEGACY_BANDPASS;
@@ -1406,6 +1591,9 @@ int Equalizer_GetCoefficientInfo(const EQ_STATE *st, int section,
     {
         bank = (st->pending_bank_valid != 0) ? &st->pending_bank :
                                                 &st->active_bank;
+        info->gain_db = (st->pending_bank_valid != 0) ?
+                        st->pending_gain_db[section] :
+                        st->active_gain_db[section];
         c = &bank->section[section];
         info->type = (section == 0) ? EQ_SECTION_LOW_SHELF :
                      ((section == (EQ_NUM_BANDS - 1)) ?

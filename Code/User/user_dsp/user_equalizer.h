@@ -46,11 +46,16 @@
 #define EQ_PRESET_V_SHAPE      4
 #define EQ_PRESET_COUNT        5
 #define EQ_PRESET_CUSTOM       EQ_PRESET_COUNT
+#define EQ_PRESET_NONE         (-1)
 
 #define EQ_CORE_RAW_COPY       0
 #define EQ_CORE_FLOAT_COPY     1
 #define EQ_CORE_LEGACY         2
 #define EQ_CORE_RBJ_CASCADE    3
+
+#define EQ_TRANSITION_NONE          0
+#define EQ_TRANSITION_BANK_TO_BANK  1
+#define EQ_TRANSITION_DRY_TO_BANK   2
 
 #define EQ_SECTION_LEGACY_BANDPASS 0
 #define EQ_SECTION_LOW_SHELF       1
@@ -109,6 +114,8 @@ typedef struct
 
     /* The requested gain surface is shared by legacy and RBJ cores. */
     float band_gain_db[EQ_NUM_BANDS];
+    float active_gain_db[EQ_NUM_BANDS];
+    float pending_gain_db[EQ_NUM_BANDS];
     EQ_FILTER_BANK active_bank;
     EQ_FILTER_BANK pending_bank;
     int pending_bank_valid;
@@ -120,8 +127,17 @@ typedef struct
     int core_mode;
     int preset;
     int rbj_bank_id;
-    int latest_preset;
+    int requested_preset;
+    int active_preset;
+    int pending_preset;
+    int active_bank_id;
+    int pending_bank_id;
+    int transition_kind;
     int latest_preset_valid;
+    unsigned long target_generation;
+    unsigned long active_generation;
+    unsigned long pending_generation;
+    unsigned long mode_change_count;
 } EQ_STATE;
 
 extern volatile unsigned long EQ_DebugClipCount;
@@ -156,6 +172,12 @@ float Equalizer_GetPreampDb(const EQ_STATE *st);
 int Equalizer_IsFlat(const EQ_STATE *st);
 int Equalizer_HasPendingTransition(const EQ_STATE *st);
 int Equalizer_GetTransitionRemaining(const EQ_STATE *st);
+int Equalizer_GetRequestedPreset(const EQ_STATE *st);
+int Equalizer_GetTransitionTargetPreset(const EQ_STATE *st);
+int Equalizer_GetAppliedPreset(const EQ_STATE *st);
+int Equalizer_GetLatestPresetPending(const EQ_STATE *st);
+unsigned long Equalizer_GetModeChangeCount(const EQ_STATE *st);
+int Equalizer_ActiveBankMatchesTarget(const EQ_STATE *st);
 int Equalizer_GetCoefficientInfo(const EQ_STATE *st, int section,
                                  EQ_SECTION_INFO *info);
 void Equalizer_GetSystemResponse(const EQ_STATE *st, float freq_hz,

@@ -2,13 +2,9 @@
 
 ## Scope and Baseline
 
-This report covers only Project 3.3 files on branch
-`fix/project33-offline-quality`, based on `d06f34a`.  Project 3.2 sources,
-WOLA, denoise, codec, Touch, ADC/DAC drivers, linker configuration, and the
-default `DSP_LAB_PROJECT_SELECT=32` entry remain unchanged.
-
-The attempted `git fetch origin` was blocked by a local TLS handshake error,
-so the recorded baseline is the checked-out local commit.
+This report covers only Project 3.3 files. Project 3.2 sources, WOLA, denoise,
+codec, Touch, ADC/DAC drivers, linker configuration, and the default
+`DSP_LAB_PROJECT_SELECT=32` entry remain unchanged.
 
 ## Current Code Audit
 
@@ -89,7 +85,10 @@ comparison plots.
 - `HOST_PASS`: independent Python reference and C-rendered WAV A/B.
 
 The build fingerprint symbols are `EQ_DebugBuildMagic=0x33030003`,
-`EQ_DebugBuildId="P33_OFFLINE_d06f34a"`, and `EQ_DebugBuildDirty=1`.
+`EQ_DebugBuildVersion="P33_FIX_V5"`, `EQ_DebugBuildGitSha`,
+`EQ_DebugBuildTimestamp`, and `EQ_DebugBuildDirty`. The generated header reads
+the short SHA and dirty state at build time; the source fallback reports Git
+as unavailable rather than embedding a hand-maintained commit ID.
 
 ## PENDING_HARDWARE
 

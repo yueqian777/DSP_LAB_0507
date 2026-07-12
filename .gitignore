@@ -6,6 +6,7 @@
 # Local temporary extraction/diagnostic files
 /tmp/
 /test_vectors/subband_eval_audio/
+Code/User/user_dsp/equalizer_build_id_generated.h
 
 # Generated local audio diagnostics
 subband_eval_report.csv
