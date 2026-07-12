@@ -1,0 +1,262 @@
+#include "user_equalizer_flow.h"
+
+#include <stddef.h>
+
+static short s_input[EQ_FRAME_LEN];
+static short s_output[EQ_FRAME_LEN];
+
+static int require_true(int condition, int code)
+{
+    return condition ? 0 : code;
+}
+
+static void make_frame(int frame)
+{
+    int sample;
+
+    for (sample = 0; sample < EQ_FRAME_LEN; sample++)
+    {
+        s_input[sample] = (short)frame;
+        s_output[sample] = (short)(1000 + frame);
+    }
+}
+
+static void submit_frame(int frame)
+{
+    make_frame(frame);
+    EqualizerCapture_OnFrame(s_input, s_output);
+}
+
+static int require_frame(const short *input,
+                         const short *output,
+                         int slot,
+                         int frame,
+                         int code)
+{
+    int sample;
+    size_t base = (size_t)slot * (size_t)EQ_FRAME_LEN;
+
+    for (sample = 0; sample < EQ_FRAME_LEN; sample++)
+    {
+        if ((input[base + (size_t)sample] != (short)frame) ||
+            (output[base + (size_t)sample] != (short)(1000 + frame)))
+        {
+            return code;
+        }
+    }
+    return 0;
+}
+
+static int test_disabled_and_manual(void)
+{
+    int frame;
+    int rc;
+
+    EqualizerCapture_Reset();
+    EQ_CaptureInput[0] = -123;
+    EQ_CaptureOutput[0] = -456;
+    submit_frame(1);
+    rc = require_true((EQ_CaptureInput[0] == -123) &&
+                      (EQ_CaptureOutput[0] == -456), 1);
+    if (rc != 0) return rc;
+    rc = require_true((EQ_CaptureManualActive == 0U) &&
+                      (EQ_CaptureManualReady == 0U) &&
+                      (EQ_TriggerCaptureActive == 0U) &&
+                      (EQ_TriggerCaptureReady == 0U), 2);
+    if (rc != 0) return rc;
+
+    EQ_CaptureManualRequest = 1U;
+    for (frame = 10; frame < 18; frame++) submit_frame(frame);
+    rc = require_true((EQ_CaptureManualActive == 0U) &&
+                      (EQ_CaptureManualReady == 1U) &&
+                      (EQ_CaptureManualFrameCount == EQ_CAPTURE_FRAMES) &&
+                      (EQ_CaptureManualIndex == EQ_CAPTURE_SAMPLES), 3);
+    if (rc != 0) return rc;
+    for (frame = 0; frame < EQ_CAPTURE_FRAMES; frame++)
+    {
+        rc = require_frame(EQ_CaptureInput, EQ_CaptureOutput,
+                           frame, 10 + frame, 10 + frame);
+        if (rc != 0) return rc;
+    }
+
+    /* Ready data cannot be overwritten by another request. */
+    EQ_CaptureManualRequest = 1U;
+    submit_frame(99);
+    rc = require_frame(EQ_CaptureInput, EQ_CaptureOutput, 0, 10, 20);
+    if (rc != 0) return rc;
+    rc = require_true(EQ_CaptureManualRequest == 0U, 21);
+    if (rc != 0) return rc;
+
+    EqualizerCapture_AcknowledgeManual();
+    rc = require_true((EQ_CaptureManualReady == 0U) &&
+                      (EQ_CaptureManualRequest == 0U), 22);
+    return rc;
+}
+
+static int run_trigger(unsigned int source, int frame_base, int code_base)
+{
+    int frame;
+    int rc;
+    unsigned int saved_write;
+
+    EqualizerCapture_Reset();
+    EQ_TriggerCaptureRequest = source;
+
+    /* Events before four complete pre-frames cannot claim a 4+8 result. */
+    submit_frame(frame_base + 0);
+    submit_frame(frame_base + 1);
+    EqualizerCapture_NotifyEvent(source);
+    rc = require_true((EQ_TriggerCaptureActive == 1U) &&
+                      (EQ_TriggerCaptureTriggered == 0U) &&
+                      (EQ_TriggerCapturePrefill == 2U), code_base + 1);
+    if (rc != 0) return rc;
+
+    submit_frame(frame_base + 2);
+    submit_frame(frame_base + 3);
+    rc = require_true(EQ_TriggerCaptureArmedReady == 1U, code_base + 2);
+    if (rc != 0) return rc;
+    submit_frame(frame_base + 4);
+    submit_frame(frame_base + 5);
+    EqualizerCapture_NotifyEvent(source);
+    saved_write = EQ_TriggerCapturePreWriteIndex;
+    rc = require_true((EQ_TriggerCaptureTriggered == 1U) &&
+                      (saved_write == 2U), code_base + 3);
+    if (rc != 0) return rc;
+
+    /* A second event while active is ignored. */
+    EqualizerCapture_NotifyEvent(source);
+    for (frame = 6; frame < 14; frame++) submit_frame(frame_base + frame);
+    rc = require_true((EQ_TriggerCaptureActive == 0U) &&
+                      (EQ_TriggerCaptureReady == 1U) &&
+                      (EQ_TriggerCapturePostCount == EQ_TRIGGER_POST_FRAMES) &&
+                      (EQ_TriggerCaptureSource == source), code_base + 4);
+    if (rc != 0) return rc;
+
+    /* saved_write is the oldest pre-frame slot; rotate from it. */
+    for (frame = 0; frame < EQ_TRIGGER_PRE_FRAMES; frame++)
+    {
+        int slot = (int)((saved_write + (unsigned int)frame) %
+                         EQ_TRIGGER_PRE_FRAMES);
+        rc = require_frame(EQ_TriggerCaptureInput,
+                           EQ_TriggerCaptureOutput,
+                           slot, frame_base + frame + 2,
+                           code_base + 10 + frame);
+        if (rc != 0) return rc;
+    }
+    for (frame = 0; frame < EQ_TRIGGER_POST_FRAMES; frame++)
+    {
+        rc = require_frame(EQ_TriggerCaptureInput,
+                           EQ_TriggerCaptureOutput,
+                           EQ_TRIGGER_PRE_FRAMES + frame,
+                           frame_base + 6 + frame,
+                           code_base + 20 + frame);
+        if (rc != 0) return rc;
+    }
+
+    /* Ready capture ignores both events and requests until acknowledged. */
+    EQ_TriggerCaptureRequest = source;
+    EqualizerCapture_NotifyEvent(source);
+    submit_frame(frame_base + 99);
+    rc = require_frame(EQ_TriggerCaptureInput, EQ_TriggerCaptureOutput,
+                       EQ_TRIGGER_PRE_FRAMES, frame_base + 6,
+                       code_base + 30);
+    if (rc != 0) return rc;
+    EqualizerCapture_AcknowledgeTrigger();
+    return require_true((EQ_TriggerCaptureReady == 0U) &&
+                        (EQ_TriggerCaptureRequest == 0U), code_base + 31);
+}
+
+static int test_conflict_priority(void)
+{
+    EqualizerCapture_Reset();
+    EQ_CaptureManualRequest = 1U;
+    EQ_TriggerCaptureRequest = EQ_CAPTURE_TRIGGER_LCD_JOB;
+    submit_frame(200);
+    return require_true((EQ_CaptureManualActive == 1U) &&
+                        (EQ_CaptureManualFrameCount == 1U) &&
+                        (EQ_TriggerCaptureActive == 0U) &&
+                        (EQ_TriggerCaptureRequest == 0U), 90);
+}
+
+static int test_armed_source_is_locked(void)
+{
+    int frame;
+
+    EqualizerCapture_Reset();
+    EQ_TriggerCaptureRequest = EQ_CAPTURE_TRIGGER_LCD_JOB;
+    for (frame = 0; frame < EQ_TRIGGER_PRE_FRAMES; frame++)
+    {
+        submit_frame(300 + frame);
+    }
+    EQ_TriggerCaptureRequest = EQ_CAPTURE_TRIGGER_MODE_SWITCH;
+    EqualizerCapture_NotifyEvent(EQ_CAPTURE_TRIGGER_LCD_JOB);
+    return require_true((EQ_TriggerCaptureTriggered == 1U) &&
+                        (EQ_TriggerCaptureArmedSource ==
+                         EQ_CAPTURE_TRIGGER_LCD_JOB), 91);
+}
+
+static int test_busy_requests_are_discarded(void)
+{
+    int frame;
+
+    EqualizerCapture_Reset();
+    EQ_CaptureManualRequest = 1U;
+    submit_frame(400);
+    EQ_TriggerCaptureRequest = EQ_CAPTURE_TRIGGER_LCD_JOB;
+    submit_frame(401);
+    if (require_true(EQ_TriggerCaptureRequest == 0U, 92) != 0) return 92;
+    for (frame = 2; frame < EQ_CAPTURE_FRAMES; frame++)
+    {
+        submit_frame(400 + frame);
+    }
+    EQ_TriggerCaptureRequest = EQ_CAPTURE_TRIGGER_LCD_JOB;
+    submit_frame(499);
+    if (require_true(EQ_TriggerCaptureRequest == 0U, 93) != 0) return 93;
+    EqualizerCapture_AcknowledgeManual();
+    submit_frame(500);
+    if (require_true(EQ_TriggerCaptureActive == 0U, 94) != 0) return 94;
+
+    EqualizerCapture_Reset();
+    EQ_TriggerCaptureRequest = EQ_CAPTURE_TRIGGER_MODE_SWITCH;
+    submit_frame(510);
+    EQ_CaptureManualRequest = 1U;
+    submit_frame(511);
+    return require_true(EQ_CaptureManualRequest == 0U, 95);
+}
+
+static int test_mode_change_requires_advanced_count(void)
+{
+    int frame;
+
+    EqualizerCapture_Reset();
+    EQ_TriggerCaptureRequest = EQ_CAPTURE_TRIGGER_MODE_SWITCH;
+    for (frame = 0; frame < EQ_TRIGGER_PRE_FRAMES; frame++)
+    {
+        submit_frame(600 + frame);
+    }
+    EqualizerCapture_NotifyModeChange(10UL, 10UL);
+    if (require_true(EQ_TriggerCaptureTriggered == 0U, 96) != 0) return 96;
+    EqualizerCapture_NotifyModeChange(10UL, 11UL);
+    return require_true(EQ_TriggerCaptureTriggered == 1U, 97);
+}
+
+int main(void)
+{
+    int rc;
+
+    rc = test_disabled_and_manual();
+    if (rc != 0) return rc;
+    rc = run_trigger(EQ_CAPTURE_TRIGGER_LCD_JOB, 100, 100);
+    if (rc != 0) return rc;
+    rc = run_trigger(EQ_CAPTURE_TRIGGER_MODE_SWITCH, 200, 200);
+    if (rc != 0) return rc;
+    rc = run_trigger(EQ_CAPTURE_TRIGGER_AUDIO_DURING_LCD, 300, 300);
+    if (rc != 0) return rc;
+    rc = test_conflict_priority();
+    if (rc != 0) return rc;
+    rc = test_armed_source_is_locked();
+    if (rc != 0) return rc;
+    rc = test_busy_requests_are_discarded();
+    if (rc != 0) return rc;
+    return test_mode_change_requires_advanced_count();
+}

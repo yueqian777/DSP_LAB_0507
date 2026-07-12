@@ -58,6 +58,7 @@ volatile unsigned long EQ_DebugFrameLatencyMaxCycles = 0UL;
 volatile float EQ_DebugFrameLatencyLastMs = 0.0f;
 volatile float EQ_DebugFrameLatencyMaxMs = 0.0f;
 volatile unsigned long EQ_DebugDeadlineMissCount = 0UL;
+volatile unsigned long EQ_DebugFrameLatencyDeadlineMissCount = 0UL;
 volatile unsigned long EQ_DebugFrameServiceOverlapCount = 0UL;
 volatile unsigned long EQ_DebugFrameServiceDroppedCount = 0UL;
 volatile int EQ_DebugMode = EQ_PRESET_FLAT;
@@ -77,6 +78,346 @@ volatile const char EQ_DebugBuildVersion[] = EQ_BUILD_VERSION;
 volatile const char EQ_DebugBuildGitSha[] = EQ_BUILD_GIT_SHA;
 volatile const char EQ_DebugBuildTimestamp[] = EQ_BUILD_TIMESTAMP;
 volatile const int EQ_DebugBuildDirty = EQ_BUILD_DIRTY;
+
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+#pragma DATA_SECTION(EQ_CaptureInput, ".far")
+#pragma DATA_SECTION(EQ_CaptureOutput, ".far")
+#pragma DATA_SECTION(EQ_TriggerCaptureInput, ".far")
+#pragma DATA_SECTION(EQ_TriggerCaptureOutput, ".far")
+#endif
+short EQ_CaptureInput[EQ_CAPTURE_SAMPLES];
+short EQ_CaptureOutput[EQ_CAPTURE_SAMPLES];
+short EQ_TriggerCaptureInput[EQ_TRIGGER_CAPTURE_SAMPLES];
+short EQ_TriggerCaptureOutput[EQ_TRIGGER_CAPTURE_SAMPLES];
+
+volatile unsigned int EQ_CaptureManualRequest = 0U;
+volatile unsigned int EQ_CaptureManualActive = 0U;
+volatile unsigned int EQ_CaptureManualReady = 0U;
+volatile unsigned int EQ_CaptureManualIndex = 0U;
+volatile unsigned int EQ_CaptureManualFrameCount = 0U;
+volatile unsigned int EQ_TriggerCaptureRequest = 0U;
+volatile unsigned int EQ_TriggerCaptureActive = 0U;
+volatile unsigned int EQ_TriggerCaptureTriggered = 0U;
+volatile unsigned int EQ_TriggerCaptureReady = 0U;
+volatile unsigned int EQ_TriggerCaptureArmedSource = 0U;
+volatile unsigned int EQ_TriggerCaptureSource = 0U;
+volatile unsigned int EQ_TriggerCapturePrefill = 0U;
+volatile unsigned int EQ_TriggerCaptureArmedReady = 0U;
+volatile unsigned int EQ_TriggerCapturePreWriteIndex = 0U;
+volatile unsigned int EQ_TriggerCapturePostCount = 0U;
+
+static void EQ_CaptureCopyFrame(short *destination,
+                                unsigned int frame_index,
+                                const short *source)
+{
+    memcpy(destination + ((unsigned long)frame_index * EQ_FRAME_LEN),
+           source, sizeof(short) * EQ_FRAME_LEN);
+}
+
+void EqualizerCapture_AcknowledgeManual(void)
+{
+    if (EQ_CaptureManualActive == 0U)
+    {
+        EQ_CaptureManualReady = 0U;
+        EQ_CaptureManualRequest = 0U;
+        EQ_CaptureManualIndex = 0U;
+        EQ_CaptureManualFrameCount = 0U;
+        EQ_TriggerCaptureRequest = 0U;
+    }
+}
+
+void EqualizerCapture_AcknowledgeTrigger(void)
+{
+    if (EQ_TriggerCaptureActive == 0U)
+    {
+        EQ_CaptureManualRequest = 0U;
+        EQ_TriggerCaptureRequest = 0U;
+        EQ_TriggerCaptureTriggered = 0U;
+        EQ_TriggerCaptureReady = 0U;
+        EQ_TriggerCaptureArmedSource = 0U;
+        EQ_TriggerCaptureSource = 0U;
+        EQ_TriggerCapturePrefill = 0U;
+        EQ_TriggerCaptureArmedReady = 0U;
+        EQ_TriggerCapturePreWriteIndex = 0U;
+        EQ_TriggerCapturePostCount = 0U;
+    }
+}
+
+void EqualizerCapture_Reset(void)
+{
+    EQ_CaptureManualRequest = 0U;
+    EQ_CaptureManualActive = 0U;
+    EQ_CaptureManualReady = 0U;
+    EQ_CaptureManualIndex = 0U;
+    EQ_CaptureManualFrameCount = 0U;
+    EQ_TriggerCaptureRequest = 0U;
+    EQ_TriggerCaptureActive = 0U;
+    EQ_TriggerCaptureTriggered = 0U;
+    EQ_TriggerCaptureReady = 0U;
+    EQ_TriggerCaptureArmedSource = 0U;
+    EQ_TriggerCaptureSource = 0U;
+    EQ_TriggerCapturePrefill = 0U;
+    EQ_TriggerCaptureArmedReady = 0U;
+    EQ_TriggerCapturePreWriteIndex = 0U;
+    EQ_TriggerCapturePostCount = 0U;
+}
+
+static int EQ_CaptureSourceValid(unsigned int source)
+{
+    return (source == EQ_CAPTURE_TRIGGER_LCD_JOB) ||
+           (source == EQ_CAPTURE_TRIGGER_MODE_SWITCH) ||
+           (source == EQ_CAPTURE_TRIGGER_AUDIO_DURING_LCD);
+}
+
+static void EQ_CaptureAcceptRequest(void)
+{
+    unsigned int manual_request;
+    unsigned int trigger_request;
+
+    manual_request = EQ_CaptureManualRequest;
+    trigger_request = EQ_TriggerCaptureRequest;
+    if ((EQ_CaptureManualActive != 0U) ||
+        (EQ_CaptureManualReady != 0U) ||
+        (EQ_TriggerCaptureActive != 0U) ||
+        (EQ_TriggerCaptureReady != 0U))
+    {
+        EQ_CaptureManualRequest = 0U;
+        EQ_TriggerCaptureRequest = 0U;
+        return;
+    }
+    if (manual_request != 0U)
+    {
+        EQ_CaptureManualActive = 1U;
+        EQ_CaptureManualRequest = 0U;
+        EQ_CaptureManualIndex = 0U;
+        EQ_CaptureManualFrameCount = 0U;
+        EQ_TriggerCaptureRequest = 0U;
+        return;
+    }
+    if (EQ_CaptureSourceValid(trigger_request))
+    {
+        EQ_TriggerCaptureActive = 1U;
+        EQ_TriggerCaptureTriggered = 0U;
+        EQ_TriggerCaptureArmedSource = trigger_request;
+        EQ_TriggerCaptureRequest = 0U;
+        EQ_TriggerCaptureSource = 0U;
+        EQ_TriggerCapturePrefill = 0U;
+        EQ_TriggerCaptureArmedReady = 0U;
+        EQ_TriggerCapturePreWriteIndex = 0U;
+        EQ_TriggerCapturePostCount = 0U;
+    }
+}
+
+void EqualizerCapture_OnFrame(const short *input, const short *output)
+{
+    unsigned int slot;
+
+    if ((input == 0) || (output == 0))
+    {
+        return;
+    }
+    EQ_CaptureAcceptRequest();
+    if (EQ_CaptureManualActive != 0U)
+    {
+        slot = EQ_CaptureManualFrameCount;
+        EQ_CaptureCopyFrame(EQ_CaptureInput, slot, input);
+        EQ_CaptureCopyFrame(EQ_CaptureOutput, slot, output);
+        EQ_CaptureManualFrameCount++;
+        EQ_CaptureManualIndex += EQ_FRAME_LEN;
+        if (EQ_CaptureManualFrameCount >= EQ_CAPTURE_FRAMES)
+        {
+            EQ_CaptureManualActive = 0U;
+            EQ_CaptureManualReady = 1U;
+            EQ_CaptureManualRequest = 0U;
+        }
+        return;
+    }
+    if (EQ_TriggerCaptureActive == 0U)
+    {
+        return;
+    }
+    if (EQ_TriggerCaptureTriggered == 0U)
+    {
+        slot = EQ_TriggerCapturePreWriteIndex;
+        EQ_CaptureCopyFrame(EQ_TriggerCaptureInput, slot, input);
+        EQ_CaptureCopyFrame(EQ_TriggerCaptureOutput, slot, output);
+        EQ_TriggerCapturePreWriteIndex =
+            (slot + 1U) % EQ_TRIGGER_PRE_FRAMES;
+        if (EQ_TriggerCapturePrefill < EQ_TRIGGER_PRE_FRAMES)
+        {
+            EQ_TriggerCapturePrefill++;
+            if (EQ_TriggerCapturePrefill == EQ_TRIGGER_PRE_FRAMES)
+            {
+                EQ_TriggerCaptureArmedReady = 1U;
+            }
+        }
+        return;
+    }
+
+    slot = EQ_TRIGGER_PRE_FRAMES + EQ_TriggerCapturePostCount;
+    EQ_CaptureCopyFrame(EQ_TriggerCaptureInput, slot, input);
+    EQ_CaptureCopyFrame(EQ_TriggerCaptureOutput, slot, output);
+    EQ_TriggerCapturePostCount++;
+    if (EQ_TriggerCapturePostCount >= EQ_TRIGGER_POST_FRAMES)
+    {
+        EQ_TriggerCaptureActive = 0U;
+        EQ_TriggerCaptureReady = 1U;
+        EQ_TriggerCaptureRequest = 0U;
+    }
+}
+
+void EqualizerCapture_NotifyEvent(unsigned int source)
+{
+    if ((EQ_TriggerCaptureActive == 0U) ||
+        (EQ_TriggerCaptureTriggered != 0U) ||
+        (EQ_TriggerCaptureReady != 0U) ||
+        (EQ_TriggerCaptureArmedReady == 0U) ||
+        (source != EQ_TriggerCaptureArmedSource))
+    {
+        return;
+    }
+    EQ_TriggerCaptureTriggered = 1U;
+    EQ_TriggerCaptureSource = source;
+    EQ_TriggerCapturePostCount = 0U;
+}
+
+void EqualizerCapture_NotifyModeChange(unsigned long before_count,
+                                       unsigned long after_count)
+{
+    if (after_count != before_count)
+    {
+        EqualizerCapture_NotifyEvent(EQ_CAPTURE_TRIGGER_MODE_SWITCH);
+    }
+}
+
+void EqualizerLcdPolicy_Init(EQ_LCD_SERVICE_POLICY *policy)
+{
+    policy->last_service_frame = 0UL;
+    policy->last_deferred_frame = ~0UL;
+    policy->last_status_request_frame = 0UL;
+}
+
+int EqualizerLcdPolicy_CanService(const EQ_LCD_SERVICE_POLICY *policy,
+                                  unsigned long process_frames,
+                                  int flag_ad,
+                                  int flag_da,
+                                  int flag_ad_done,
+                                  int frame_service_pending,
+                                  int has_pending_job)
+{
+    return (flag_ad == 0) &&
+           (flag_da == 0) &&
+           (flag_ad_done == 0) &&
+           (frame_service_pending == 0) &&
+           (process_frames != policy->last_service_frame) &&
+           (has_pending_job != 0);
+}
+
+int EqualizerLcdPolicy_Decide(const EQ_LCD_SERVICE_POLICY *policy,
+                              unsigned long process_frames,
+                              int outer_flag_ad,
+                              int outer_flag_da,
+                              int outer_flag_ad_done,
+                              int outer_frame_service_pending,
+                              int predraw_flag_ad,
+                              int predraw_flag_da,
+                              int predraw_flag_ad_done,
+                              int predraw_frame_service_pending,
+                              int has_pending_job)
+{
+    if (!EqualizerLcdPolicy_CanService(
+            policy, process_frames,
+            outer_flag_ad, outer_flag_da, outer_flag_ad_done,
+            outer_frame_service_pending, has_pending_job))
+    {
+        if ((has_pending_job != 0) &&
+            ((outer_flag_ad != 0) || (outer_flag_da != 0) ||
+             (outer_flag_ad_done != 0) ||
+             (outer_frame_service_pending != 0)))
+        {
+            return EQ_LCD_POLICY_DEFER;
+        }
+        return EQ_LCD_POLICY_NONE;
+    }
+    if (!EqualizerLcdPolicy_CanService(
+            policy, process_frames,
+            predraw_flag_ad, predraw_flag_da, predraw_flag_ad_done,
+            predraw_frame_service_pending, has_pending_job))
+    {
+        return EQ_LCD_POLICY_DEFER;
+    }
+    return EQ_LCD_POLICY_SERVICE;
+}
+
+void EqualizerLcdPolicy_RecordService(EQ_LCD_SERVICE_POLICY *policy,
+                                      unsigned long process_frames,
+                                      int completed_job)
+{
+    if (completed_job != 0)
+    {
+        policy->last_service_frame = process_frames;
+    }
+}
+
+int EqualizerLcdPolicy_RecordDeferred(EQ_LCD_SERVICE_POLICY *policy,
+                                      unsigned long process_frames)
+{
+    if (process_frames == policy->last_deferred_frame)
+    {
+        return 0;
+    }
+    policy->last_deferred_frame = process_frames;
+    return 1;
+}
+
+int EqualizerLcdPolicy_ShouldRequestStatus(EQ_LCD_SERVICE_POLICY *policy,
+                                           unsigned long process_frames)
+{
+    if ((process_frames - policy->last_status_request_frame) <
+        EQ_LCD_REFRESH_FRAMES)
+    {
+        return 0;
+    }
+    policy->last_status_request_frame = process_frames;
+    return 1;
+}
+
+void EqualizerLcdFaultPolicy_Init(EQ_LCD_FAULT_POLICY *policy)
+{
+    policy->previous_latency_misses = 0UL;
+    policy->previous_overlaps = 0UL;
+    policy->previous_dropped = 0UL;
+}
+
+unsigned long EqualizerLcdFaultPolicy_Monitor(
+    EQ_LCD_FAULT_POLICY *policy,
+    int runtime_enabled,
+    unsigned long latency_misses,
+    unsigned long overlaps,
+    unsigned long dropped)
+{
+    unsigned long reason = 0UL;
+
+    if (runtime_enabled != 0)
+    {
+        if (latency_misses != policy->previous_latency_misses)
+        {
+            reason |= EQ_LCD_FAULT_LATENCY_MISS;
+        }
+        if (overlaps != policy->previous_overlaps)
+        {
+            reason |= EQ_LCD_FAULT_OVERLAP;
+        }
+        if (dropped != policy->previous_dropped)
+        {
+            reason |= EQ_LCD_FAULT_DROPPED;
+        }
+    }
+    policy->previous_latency_misses = latency_misses;
+    policy->previous_overlaps = overlaps;
+    policy->previous_dropped = dropped;
+    return reason;
+}
 
 #ifndef EQ_ALGO_ONLY
 
@@ -292,11 +633,17 @@ static void EQ_EndFrameService(void)
     {
         EQ_DebugDeadlineMissCount++;
     }
+    if (latency_cycles > EQ_FRAME_SERVICE_BUDGET_CYCLES)
+    {
+        EQ_DebugFrameLatencyDeadlineMissCount++;
+    }
     EQ_FrameServicePending = 0U;
 }
 
 static void EQ_CaptureAdcFrame(void)
 {
+    unsigned long mode_change_before;
+    unsigned long mode_change_after;
 #if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
     unsigned int cycle_start;
     unsigned int cycle_end;
@@ -329,8 +676,10 @@ static void EQ_CaptureAdcFrame(void)
 #if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
     cycle_start = TSCL;
 #endif
+    mode_change_before = Equalizer_GetModeChangeCount(&EQ_BoardState);
     Equalizer_ProcessFrame(&EQ_BoardState, EQ_AD_Buffer1, EQ_DA_Buffer1,
                            ADC_SAMPLE_1024);
+    mode_change_after = Equalizer_GetModeChangeCount(&EQ_BoardState);
     EQ_DebugProcessFrames++;
 #if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
     cycle_end = TSCL;
@@ -339,6 +688,8 @@ static void EQ_CaptureAdcFrame(void)
 #else
     EQ_UpdateAlgoTiming(0UL);
 #endif
+    EqualizerCapture_NotifyModeChange(mode_change_before, mode_change_after);
+    EqualizerCapture_OnFrame(EQ_AD_Buffer1, EQ_DA_Buffer1);
 }
 
 static void EQ_FillDacPingBuffer(void)
@@ -402,14 +753,25 @@ void Equalizer_Flow_Example(void)
 {
     unsigned char flag_ad_done;
 #if EQ_ENABLE_LCD_DISPLAY != 0
-    unsigned long lcd_status_frame;
-    int lcd_mode;
+    EQ_LCD_SERVICE_POLICY lcd_policy;
+    EQ_LCD_FAULT_POLICY lcd_fault_policy;
+    unsigned long lcd_disable_reason;
+    unsigned int lcd_audio_before;
+    unsigned int lcd_audio_after;
+    int lcd_requested_mode;
+    int lcd_transition_target_mode;
+    int lcd_applied_mode;
+    int lcd_job;
+    int lcd_policy_decision;
 #endif
 
     flag_ad_done = 0;
 #if EQ_ENABLE_LCD_DISPLAY != 0
-    lcd_status_frame = 0UL;
-    lcd_mode = -1;
+    EqualizerLcdPolicy_Init(&lcd_policy);
+    EqualizerLcdFaultPolicy_Init(&lcd_fault_policy);
+    lcd_requested_mode = EQ_PRESET_NONE;
+    lcd_transition_target_mode = EQ_PRESET_NONE;
+    lcd_applied_mode = EQ_PRESET_NONE;
 #endif
     Sys_Init();
     Key_Init();
@@ -422,13 +784,20 @@ void Equalizer_Flow_Example(void)
     EQ_ClearDacBuffers();
 #if EQ_ENABLE_LCD_DISPLAY != 0
     EqualizerDisplay_Init();
-    EqualizerDisplay_UpdateAll(&EQ_BoardState);
-    EqualizerDisplay_UpdateStatus(EQ_DebugProcessFrames,
-                                  EQ_DebugAlgoLastMs,
-                                  EQ_DebugAlgoMaxMs,
-                                  EQ_DebugClipCount,
-                                  EQ_DebugMode);
-    lcd_mode = EQ_DebugAppliedMode;
+    EqualizerDisplay_DrawStaticLayout();
+    EqualizerDisplay_BeginRuntime();
+    EqualizerDisplay_RequestGains(&EQ_BoardState);
+    EqualizerDisplay_RequestStatus(
+        EQ_DebugProcessFrames,
+        EQ_DebugAlgoLastMs,
+        EQ_DebugAlgoMaxMs,
+        EQ_DebugClipCount,
+        EQ_DebugRequestedMode,
+        EQ_DebugTransitionTargetMode,
+        EQ_DebugAppliedMode);
+    lcd_requested_mode = EQ_DebugRequestedMode;
+    lcd_transition_target_mode = EQ_DebugTransitionTargetMode;
+    lcd_applied_mode = EQ_DebugAppliedMode;
 #endif
 
 #if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
@@ -466,6 +835,49 @@ void Equalizer_Flow_Example(void)
         {
             EQ_ServiceModeTimed();
 
+#if EQ_ENABLE_LCD_DISPLAY != 0
+            if ((EQ_DebugRequestedMode != lcd_requested_mode) ||
+                (EQ_DebugTransitionTargetMode != lcd_transition_target_mode) ||
+                (EQ_DebugAppliedMode != lcd_applied_mode))
+            {
+                lcd_requested_mode = EQ_DebugRequestedMode;
+                lcd_transition_target_mode = EQ_DebugTransitionTargetMode;
+                lcd_applied_mode = EQ_DebugAppliedMode;
+                EqualizerDisplay_RequestGains(&EQ_BoardState);
+                EqualizerDisplay_RequestStatus(
+                    EQ_DebugProcessFrames,
+                    EQ_DebugAlgoLastMs,
+                    EQ_DebugAlgoMaxMs,
+                    EQ_DebugClipCount,
+                    EQ_DebugRequestedMode,
+                    EQ_DebugTransitionTargetMode,
+                    EQ_DebugAppliedMode);
+            }
+            if (EqualizerLcdPolicy_ShouldRequestStatus(
+                    &lcd_policy, EQ_DebugProcessFrames))
+            {
+                EqualizerDisplay_RequestStatus(
+                    EQ_DebugProcessFrames,
+                    EQ_DebugAlgoLastMs,
+                    EQ_DebugAlgoMaxMs,
+                    EQ_DebugClipCount,
+                    EQ_DebugRequestedMode,
+                    EQ_DebugTransitionTargetMode,
+                    EQ_DebugAppliedMode);
+            }
+
+            lcd_disable_reason = EqualizerLcdFaultPolicy_Monitor(
+                &lcd_fault_policy,
+                EQ_DebugLcdRuntimeMask != 0U,
+                EQ_DebugFrameLatencyDeadlineMissCount,
+                EQ_DebugFrameServiceOverlapCount,
+                EQ_DebugFrameServiceDroppedCount);
+            if (lcd_disable_reason != 0UL)
+            {
+                EqualizerDisplay_AutoDisable(lcd_disable_reason);
+            }
+#endif
+
             if ((FLAG_AD == 0) && (FLAG_DA == 0) && (flag_ad_done == 0) &&
                 (FLAG_KEY1 == 1))
             {
@@ -491,33 +903,69 @@ void Equalizer_Flow_Example(void)
                 Dac_Stop();
             }
 
-#if EQ_ENABLE_LCD_DISPLAY != 0
-            if ((FLAG_AD == 0) && (FLAG_DA == 0) &&
-                (flag_ad_done == 0) &&
-                (EQ_DebugAppliedMode != lcd_mode))
-            {
-                lcd_mode = EQ_DebugAppliedMode;
-                EqualizerDisplay_UpdateGains(&EQ_BoardState);
-                EqualizerDisplay_UpdateStatus(EQ_DebugProcessFrames,
-                                              EQ_DebugAlgoLastMs,
-                                              EQ_DebugAlgoMaxMs,
-                                              EQ_DebugClipCount,
-                                              EQ_DebugMode);
-            }
-            if ((FLAG_AD == 0) && (FLAG_DA == 0) &&
-                (flag_ad_done == 0) &&
-                (EQ_DebugProcessFrames != lcd_status_frame) &&
-                ((EQ_DebugProcessFrames % EQ_LCD_REFRESH_FRAMES) == 0UL))
-            {
-                lcd_status_frame = EQ_DebugProcessFrames;
-                EqualizerDisplay_UpdateStatus(EQ_DebugProcessFrames,
-                                              EQ_DebugAlgoLastMs,
-                                              EQ_DebugAlgoMaxMs,
-                                              EQ_DebugClipCount,
-                                              EQ_DebugMode);
-            }
-#endif
         }
+
+#if EQ_ENABLE_LCD_DISPLAY != 0
+        if (EqualizerLcdPolicy_CanService(
+                &lcd_policy, EQ_DebugProcessFrames,
+                FLAG_AD, FLAG_DA, flag_ad_done,
+                EQ_FrameServicePending,
+                EqualizerDisplay_HasPendingJob()))
+        {
+            lcd_audio_before = ((FLAG_AD != 0) ? 0x01U : 0U) |
+                               ((FLAG_DA != 0) ? 0x02U : 0U) |
+                               ((flag_ad_done != 0) ? 0x04U : 0U) |
+                               ((EQ_FrameServicePending != 0U) ? 0x08U : 0U);
+            lcd_policy_decision = EqualizerLcdPolicy_Decide(
+                &lcd_policy, EQ_DebugProcessFrames,
+                0, 0, 0, 0,
+                (lcd_audio_before & 0x01U) != 0U,
+                (lcd_audio_before & 0x02U) != 0U,
+                (lcd_audio_before & 0x04U) != 0U,
+                (lcd_audio_before & 0x08U) != 0U,
+                1);
+            if (lcd_policy_decision == EQ_LCD_POLICY_DEFER)
+            {
+                if (EqualizerLcdPolicy_RecordDeferred(
+                        &lcd_policy, EQ_DebugProcessFrames))
+                {
+                    EQ_DebugLcdDeferredAudioCount++;
+                }
+            }
+            else if (lcd_policy_decision == EQ_LCD_POLICY_SERVICE)
+            {
+                lcd_job = EqualizerDisplay_ServiceOneJob();
+                lcd_audio_after = ((FLAG_AD != 0) ? 0x01U : 0U) |
+                                  ((FLAG_DA != 0) ? 0x02U : 0U) |
+                                  ((flag_ad_done != 0) ? 0x04U : 0U) |
+                                  ((EQ_FrameServicePending != 0U) ?
+                                   0x08U : 0U);
+                if ((lcd_audio_before == 0U) && (lcd_audio_after != 0U))
+                {
+                    EQ_DebugLcdAudioArrivedDuringDrawCount++;
+                    EqualizerCapture_NotifyEvent(
+                        EQ_CAPTURE_TRIGGER_AUDIO_DURING_LCD);
+                }
+                if (lcd_job != EQ_LCD_JOB_NONE)
+                {
+                    EqualizerCapture_NotifyEvent(
+                        EQ_CAPTURE_TRIGGER_LCD_JOB);
+                    EqualizerLcdPolicy_RecordService(
+                        &lcd_policy, EQ_DebugProcessFrames, 1);
+                    continue;
+                }
+            }
+        }
+        else if ((EqualizerDisplay_HasPendingJob() != 0) &&
+                 ((FLAG_AD != 0) || (FLAG_DA != 0) ||
+                  (flag_ad_done != 0) ||
+                  (EQ_FrameServicePending != 0U)) &&
+                 EqualizerLcdPolicy_RecordDeferred(
+                     &lcd_policy, EQ_DebugProcessFrames))
+        {
+            EQ_DebugLcdDeferredAudioCount++;
+        }
+#endif
     }
 }
 

@@ -8,8 +8,16 @@
 #include "stdio.h"
 #include "string.h"
 
+#ifdef EQUALIZER_DISPLAY_TEST_MAIN
+#include "math.h"
+#endif
+
 #if (!defined(EQ_ALGO_ONLY)) && (EQ_ENABLE_LCD_DISPLAY != 0)
 #include "lcd_api.h"
+#endif
+
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+#include "c6x.h"
 #endif
 
 #define EQ_LCD_W 800
@@ -45,6 +53,17 @@
 #define EQ_CLIP_W 176
 #define EQ_CLIP_H 24
 
+#define EQ_MODE_VALUE_X 76
+#define EQ_MODE_VALUE_W (EQ_MODE_X + EQ_MODE_W - EQ_MODE_VALUE_X)
+#define EQ_FRAMES_VALUE_X 472
+#define EQ_FRAMES_VALUE_W (EQ_FRAMES_X + EQ_FRAMES_W - EQ_FRAMES_VALUE_X)
+#define EQ_LAST_VALUE_X 652
+#define EQ_LAST_VALUE_W (EQ_LAST_X + EQ_LAST_W - EQ_LAST_VALUE_X)
+#define EQ_MAX_VALUE_X 504
+#define EQ_MAX_VALUE_W (EQ_MAX_X + EQ_MAX_W - EQ_MAX_VALUE_X)
+#define EQ_CLIP_VALUE_X 652
+#define EQ_CLIP_VALUE_W (EQ_CLIP_X + EQ_CLIP_W - EQ_CLIP_VALUE_X)
+
 #define EQ_BAR_AREA_X 80
 #define EQ_BAR_AREA_Y 130
 #define EQ_BAR_AREA_W 640
@@ -79,11 +98,62 @@ volatile unsigned long EQ_DebugLcdGainRedrawCount = 0UL;
 volatile unsigned long EQ_DebugLcdStatusRedrawCount = 0UL;
 volatile int EQ_DebugLcdEnabled = 0;
 volatile int EQ_DebugLcdLastMode = EQ_PRESET_FLAT;
+volatile unsigned int EQ_DebugLcdRuntimeMask = 0U;
+volatile unsigned long EQ_DebugLcdPendingMask = 0UL;
+volatile unsigned long EQ_DebugLcdJobCount = 0UL;
+volatile unsigned long EQ_DebugLcdDeferredAudioCount = 0UL;
+volatile unsigned long EQ_DebugLcdAudioArrivedDuringDrawCount = 0UL;
+volatile unsigned long EQ_DebugLcdUnexpectedFullRedrawCount = 0UL;
+volatile unsigned long EQ_DebugLcdBudgetExceededCount = 0UL;
+volatile unsigned long EQ_DebugLcdLastJobCycles = 0UL;
+volatile unsigned long EQ_DebugLcdMaxJobCycles = 0UL;
+volatile unsigned long EQ_DebugLcdLastJobTenthsMs = 0UL;
+volatile unsigned long EQ_DebugLcdMaxJobTenthsMs = 0UL;
+volatile float EQ_DebugLcdLastJobMs = 0.0f;
+volatile float EQ_DebugLcdMaxJobMs = 0.0f;
+volatile int EQ_DebugLcdLastJob = EQ_LCD_JOB_NONE;
+volatile unsigned long EQ_DebugLcdAutoDisabledCount = 0UL;
+volatile unsigned long EQ_DebugLcdAutoDisableReason = 0UL;
+volatile unsigned long EQ_DebugLcdCategoryCount[EQ_LCD_CATEGORY_COUNT] =
+{
+    0UL, 0UL, 0UL, 0UL, 0UL, 0UL
+};
+volatile unsigned long EQ_DebugLcdCategoryLastCycles[EQ_LCD_CATEGORY_COUNT] =
+{
+    0UL, 0UL, 0UL, 0UL, 0UL, 0UL
+};
+volatile unsigned long EQ_DebugLcdCategoryMaxCycles[EQ_LCD_CATEGORY_COUNT] =
+{
+    0UL, 0UL, 0UL, 0UL, 0UL, 0UL
+};
 
 static volatile int s_lcd_busy = 0;
 static int s_layout_drawn = 0;
-static int s_have_last_gains = 0;
-static float s_last_gains_db[EQ_NUM_BANDS];
+static int s_runtime_started = 0;
+static unsigned long s_dirty_mask = 0UL;
+static unsigned long s_forced_dirty_mask = 0UL;
+static int s_job_cursor = 0;
+static unsigned int s_applied_runtime_mask = 0U;
+static int s_have_requested_gains = 0;
+static int s_have_requested_status = 0;
+static float s_requested_gains_db[EQ_NUM_BANDS];
+static float s_displayed_gains_db[EQ_NUM_BANDS];
+static unsigned char s_gain_displayed_valid[EQ_NUM_BANDS];
+static unsigned long s_requested_frames = 0UL;
+static unsigned long s_displayed_frames = 0UL;
+static unsigned long s_requested_algo_last_tenths = 0UL;
+static unsigned long s_displayed_algo_last_tenths = 0UL;
+static unsigned long s_requested_algo_max_tenths = 0UL;
+static unsigned long s_displayed_algo_max_tenths = 0UL;
+static unsigned long s_requested_clip_count = 0UL;
+static unsigned long s_displayed_clip_count = 0UL;
+static int s_requested_transition_target_mode = EQ_PRESET_NONE;
+static int s_requested_applied_mode = EQ_PRESET_FLAT;
+static int s_displayed_transition_target_mode = EQ_PRESET_NONE;
+static int s_status_displayed_valid[5] = { 0, 0, 0, 0, 0 };
+
+#define EQ_LCD_STATUS_DIRTY_MASK 0x001FUL
+#define EQ_LCD_GAINS_DIRTY_MASK  0x7FE0UL
 
 static const char * const s_band_labels[EQ_NUM_BANDS] =
 {
@@ -298,22 +368,6 @@ static const unsigned char s_cn_mode_label[] =
 {
     CN_MO, CN_SHI_MODE
 };
-static const unsigned char s_cn_mode_flat[] =
-{
-    CN_PING, CN_ZHI
-};
-static const unsigned char s_cn_mode_bass[] =
-{
-    CN_DI, CN_YIN, CN_ZENG, CN_QIANG
-};
-static const unsigned char s_cn_mode_vocal[] =
-{
-    CN_REN, CN_SHENG, CN_ZENG, CN_QIANG
-};
-static const unsigned char s_cn_mode_treble[] =
-{
-    CN_GAO, CN_YIN, CN_ZENG, CN_QIANG
-};
 static const unsigned char s_cn_label_frames[] =
 {
     CN_ZHEN, CN_SHU
@@ -343,6 +397,11 @@ static unsigned long s_mock_cn_glyph_count = 0UL;
 static unsigned long s_mock_text_clear_count = 0UL;
 static unsigned long s_mock_bar_slot_clear_count = 0UL;
 static unsigned long s_mock_bounds_failures = 0UL;
+static unsigned long s_mock_chart_border_segment_count = 0UL;
+static char s_mock_last_text[48];
+static int s_mock_last_bar_bottom_y = -1;
+static unsigned long s_mock_cycle_clock = 0UL;
+static unsigned long s_mock_forced_job_cycles = 0UL;
 #elif EQ_ENABLE_LCD_DISPLAY == 0
 static unsigned long s_mock_clear_count = 0UL;
 static unsigned long s_mock_fill_count = 0UL;
@@ -395,7 +454,8 @@ static int EQ_DbToY(float db)
     span = EQ_GAIN_MAX_DB - EQ_GAIN_MIN_DB;
     offset = (EQ_GAIN_MAX_DB - db) * (float)EQ_BAR_AREA_H / span;
     y = EQ_BAR_AREA_Y + (int)(offset + 0.5f);
-    return EQ_ClampInt(y, EQ_BAR_AREA_Y, EQ_BAR_AREA_Y + EQ_BAR_AREA_H);
+    return EQ_ClampInt(y, EQ_BAR_AREA_Y,
+                       EQ_BAR_AREA_Y + EQ_BAR_AREA_H - 1);
 }
 
 static const char *EQ_ModeName(int mode)
@@ -619,6 +679,20 @@ static void EQ_LcdDrawLine(int x1, int y1, int x2, int y2, int color)
 #else
     (void)color;
     s_mock_line_count++;
+#ifdef EQ_ALGO_ONLY
+    if (((y1 == EQ_BAR_AREA_Y) ||
+         (y1 == EQ_BAR_AREA_Y + EQ_BAR_AREA_H - 1)) &&
+        (y1 == y2))
+    {
+        s_mock_chart_border_segment_count++;
+    }
+    if ((x1 == EQ_BAR_AREA_X) && (x2 == EQ_BAR_AREA_X) &&
+        (y1 == EQ_BAR_AREA_Y) &&
+        (y2 == EQ_BAR_AREA_Y + EQ_BAR_AREA_H - 1))
+    {
+        s_mock_chart_border_segment_count++;
+    }
+#endif
 #endif
 }
 
@@ -650,6 +724,10 @@ static void EQ_LcdDrawText(int x, int y, const char *text,
     (void)centered;
     (void)region_w;
     s_mock_text_count++;
+#ifdef EQ_ALGO_ONLY
+    strncpy(s_mock_last_text, text, sizeof(s_mock_last_text) - 1U);
+    s_mock_last_text[sizeof(s_mock_last_text) - 1U] = '\0';
+#endif
 #endif
 }
 
@@ -726,30 +804,6 @@ static int EQ_DrawCnSeq(int x, int y,
     return x;
 }
 
-static int EQ_DrawCnModeName(int x, int y, int mode, int color)
-{
-    switch (mode)
-    {
-        case EQ_PRESET_FLAT:
-            return EQ_DrawCnSeq(x, y, s_cn_mode_flat,
-                                (int)sizeof(s_cn_mode_flat), color);
-        case EQ_PRESET_BASS_BOOST:
-            return EQ_DrawCnSeq(x, y, s_cn_mode_bass,
-                                (int)sizeof(s_cn_mode_bass), color);
-        case EQ_PRESET_VOCAL:
-            return EQ_DrawCnSeq(x, y, s_cn_mode_vocal,
-                                (int)sizeof(s_cn_mode_vocal), color);
-        case EQ_PRESET_TREBLE_BOOST:
-            return EQ_DrawCnSeq(x, y, s_cn_mode_treble,
-                                (int)sizeof(s_cn_mode_treble), color);
-        case EQ_PRESET_V_SHAPE:
-        default:
-            EQ_LcdDrawText(x, y + 2, EQ_ModeName(mode),
-                           EQ_FONT_SMALL, color, 0, 80);
-            return x + 70;
-    }
-}
-
 static void EQ_DrawCnTitleRegion(void)
 {
     int x;
@@ -770,40 +824,30 @@ static void EQ_DrawCnTitleRegion(void)
                        (int)sizeof(s_cn_title_right), EQ_COLOR_TEXT);
 }
 
-static void EQ_DrawCnModeRegion(int mode)
-{
-    int x;
-    int y;
-
-    EQ_LcdClearRect(EQ_MODE_X, EQ_MODE_Y, EQ_MODE_W, EQ_MODE_H);
-#ifdef EQ_ALGO_ONLY
-    s_mock_text_clear_count++;
-#endif
-    x = EQ_MODE_X + 2;
-    y = EQ_MODE_Y + 4;
-    x = EQ_DrawCnSeq(x, y, s_cn_mode_label,
-                     (int)sizeof(s_cn_mode_label), EQ_COLOR_TEXT);
-    EQ_LcdDrawText(x, EQ_MODE_Y + 3, ":", EQ_FONT_MEDIUM,
-                   EQ_COLOR_TEXT, 0, 12);
-    x += 12;
-    (void)EQ_DrawCnModeName(x, y, mode, EQ_COLOR_TEXT);
-}
-
-static void EQ_DrawCnValueRegion(int x, int y, int w, int h,
+static void EQ_DrawCnStaticLabel(int x, int y,
                                  const unsigned char *label,
-                                 int label_count, const char *value)
+                                 int label_count)
 {
     int label_x;
 
-    EQ_LcdClearRect(x, y, w, h);
-#ifdef EQ_ALGO_ONLY
-    s_mock_text_clear_count++;
-#endif
-    label_x = EQ_DrawCnSeq(x + 2, y + 4, label, label_count, EQ_COLOR_TEXT);
+    label_x = EQ_DrawCnSeq(x + 2, y + 4, label, label_count,
+                           EQ_COLOR_TEXT);
     EQ_LcdDrawText(label_x + 4, y + 3, ":", EQ_FONT_MEDIUM,
                    EQ_COLOR_TEXT, 0, 12);
-    EQ_LcdDrawText(label_x + 16, y + 3, value, EQ_FONT_MEDIUM,
-                   EQ_COLOR_TEXT, 0, w - (label_x - x) - 16);
+}
+
+static void EQ_DrawCnStaticStatusLabels(void)
+{
+    EQ_DrawCnStaticLabel(EQ_MODE_X, EQ_MODE_Y, s_cn_mode_label,
+                         (int)sizeof(s_cn_mode_label));
+    EQ_DrawCnStaticLabel(EQ_FRAMES_X, EQ_FRAMES_Y, s_cn_label_frames,
+                         (int)sizeof(s_cn_label_frames));
+    EQ_DrawCnStaticLabel(EQ_LAST_X, EQ_LAST_Y, s_cn_label_last,
+                         (int)sizeof(s_cn_label_last));
+    EQ_DrawCnStaticLabel(EQ_MAX_X, EQ_MAX_Y, s_cn_label_max,
+                         (int)sizeof(s_cn_label_max));
+    EQ_DrawCnStaticLabel(EQ_CLIP_X, EQ_CLIP_Y, s_cn_label_clip,
+                         (int)sizeof(s_cn_label_clip));
 }
 #endif
 
@@ -828,7 +872,7 @@ static void EQ_DrawBandLabel(int band)
                       EQ_FONT_SMALL, EQ_COLOR_MUTED, 1);
 }
 
-static void EQ_DrawBand(int band, float gain_db)
+static void EQ_DrawBandBarOnly(int band, float gain_db)
 {
     int slot_x;
     int bar_x;
@@ -839,11 +883,6 @@ static void EQ_DrawBand(int band, float gain_db)
     slot_x = EQ_BAR_AREA_X + band * EQ_BAR_PITCH;
     bar_x = slot_x + ((EQ_BAR_SLOT_W - EQ_BAR_WIDTH) / 2);
     y = EQ_DbToY(gain_db);
-
-    EQ_LcdClearRect(slot_x, EQ_BAR_AREA_Y, EQ_BAR_SLOT_W, EQ_BAR_SLOT_H);
-#ifdef EQ_ALGO_ONLY
-    s_mock_bar_slot_clear_count++;
-#endif
 
     if (gain_db >= 0.0f)
     {
@@ -863,48 +902,165 @@ static void EQ_DrawBand(int band, float gain_db)
             h = 2;
         }
         color = EQ_COLOR_BAR_NEG;
+#ifdef EQ_ALGO_ONLY
+        s_mock_last_bar_bottom_y = EQ_BAR_ZERO_Y + h - 1;
+#endif
         EQ_LcdFillRect(bar_x, EQ_BAR_ZERO_Y, EQ_BAR_WIDTH, h, color);
     }
 }
 
-#if !EQ_LCD_USE_CHINESE
-static void EQ_FormatMs(char *buf, const char *label, float ms)
+static void EQ_DrawBandJob(int band, float gain_db)
 {
-    unsigned long tenths;
+    int slot_x;
 
-    if (ms < 0.0f)
-    {
-        ms = 0.0f;
-    }
-    tenths = (unsigned long)(ms * 10.0f + 0.5f);
-    sprintf(buf, "%s: %lu.%lu ms", label, tenths / 10UL, tenths % 10UL);
-}
+    slot_x = EQ_BAR_AREA_X + band * EQ_BAR_PITCH;
+    EQ_LcdClearRect(slot_x, EQ_BAR_AREA_Y, EQ_BAR_SLOT_W, EQ_BAR_SLOT_H);
+#ifdef EQ_ALGO_ONLY
+    s_mock_bar_slot_clear_count++;
 #endif
+    EQ_LcdDrawLine(slot_x, EQ_BAR_AREA_Y,
+                   slot_x + EQ_BAR_SLOT_W - 1, EQ_BAR_AREA_Y,
+                   EQ_COLOR_AXIS);
+    EQ_LcdDrawLine(slot_x, EQ_BAR_AREA_Y + EQ_BAR_AREA_H - 1,
+                   slot_x + EQ_BAR_SLOT_W - 1,
+                   EQ_BAR_AREA_Y + EQ_BAR_AREA_H - 1,
+                   EQ_COLOR_AXIS);
+    if (band == 0)
+    {
+        EQ_LcdDrawLine(EQ_BAR_AREA_X, EQ_BAR_AREA_Y,
+                       EQ_BAR_AREA_X,
+                       EQ_BAR_AREA_Y + EQ_BAR_AREA_H - 1,
+                       EQ_COLOR_AXIS);
+    }
+    EQ_LcdDrawLine(slot_x, EQ_BAR_ZERO_Y,
+                   slot_x + EQ_BAR_SLOT_W - 1, EQ_BAR_ZERO_Y,
+                   EQ_COLOR_AXIS);
+    EQ_DrawBandBarOnly(band, gain_db);
+}
 
-#if EQ_LCD_USE_CHINESE
-static void EQ_FormatMsValue(char *buf, float ms)
+static int EQ_AppendChar(char *buf, int capacity, int length, char value)
 {
-    unsigned long tenths;
-
-    if (ms < 0.0f)
+    if (length < capacity - 1)
     {
-        ms = 0.0f;
+        buf[length] = value;
+        length++;
+        buf[length] = '\0';
     }
-    tenths = (unsigned long)(ms * 10.0f + 0.5f);
-    sprintf(buf, "%lu.%lu ms", tenths / 10UL, tenths % 10UL);
+    return length;
 }
-#endif
+
+static int EQ_AppendText(char *buf, int capacity, int length,
+                         const char *text)
+{
+    while (*text != '\0')
+    {
+        length = EQ_AppendChar(buf, capacity, length, *text);
+        text++;
+    }
+    return length;
+}
+
+static int EQ_AppendUnsigned(char *buf, int capacity, int length,
+                             unsigned long value)
+{
+    char reversed[11];
+    int count;
+
+    count = 0;
+    do
+    {
+        reversed[count] = (char)('0' + (value % 10UL));
+        count++;
+        value /= 10UL;
+    }
+    while ((value != 0UL) && (count < (int)sizeof(reversed)));
+
+    while (count > 0)
+    {
+        count--;
+        length = EQ_AppendChar(buf, capacity, length, reversed[count]);
+    }
+    return length;
+}
+
+static void EQ_FormatUnsignedValue(char *buf, int capacity,
+                                   unsigned long value)
+{
+    buf[0] = '\0';
+    (void)EQ_AppendUnsigned(buf, capacity, 0, value);
+}
+
+static void EQ_FormatTenthsMsValue(char *buf, int capacity,
+                                   unsigned long tenths)
+{
+    int length;
+
+    buf[0] = '\0';
+    length = EQ_AppendUnsigned(buf, capacity, 0, tenths / 10UL);
+    length = EQ_AppendChar(buf, capacity, length, '.');
+    length = EQ_AppendChar(buf, capacity, length,
+                           (char)('0' + (tenths % 10UL)));
+    (void)EQ_AppendText(buf, capacity, length, " ms");
+}
+
+static void EQ_FormatModeValue(char *buf, int capacity,
+                               int applied_mode, int transition_target_mode)
+{
+    int length;
+
+    buf[0] = '\0';
+    length = EQ_AppendText(buf, capacity, 0, EQ_ModeName(applied_mode));
+    if (transition_target_mode != EQ_PRESET_NONE)
+    {
+        length = EQ_AppendChar(buf, capacity, length, '>');
+        (void)EQ_AppendText(buf, capacity, length,
+                            EQ_ModeName(transition_target_mode));
+    }
+}
 
 void EqualizerDisplay_Init(void)
 {
     int band;
+    int category;
 
     s_lcd_busy = 0;
     s_layout_drawn = 0;
-    s_have_last_gains = 0;
+    s_runtime_started = 0;
+    s_dirty_mask = 0UL;
+    s_forced_dirty_mask = 0UL;
+    s_job_cursor = 0;
+    s_applied_runtime_mask = 0U;
+    s_have_requested_gains = 0;
+    s_have_requested_status = 0;
+    EQ_LcdRuntimeMask = 0U;
+    EQ_DebugLcdPendingMask = 0UL;
+    EQ_DebugLcdJobCount = 0UL;
+    EQ_DebugLcdUnexpectedFullRedrawCount = 0UL;
+    EQ_DebugLcdBudgetExceededCount = 0UL;
+    EQ_DebugLcdLastJobCycles = 0UL;
+    EQ_DebugLcdMaxJobCycles = 0UL;
+    EQ_DebugLcdLastJobTenthsMs = 0UL;
+    EQ_DebugLcdMaxJobTenthsMs = 0UL;
+    EQ_DebugLcdLastJobMs = 0.0f;
+    EQ_DebugLcdMaxJobMs = 0.0f;
+    EQ_DebugLcdLastJob = EQ_LCD_JOB_NONE;
+    EQ_DebugLcdAutoDisabledCount = 0UL;
+    EQ_DebugLcdAutoDisableReason = 0UL;
     for (band = 0; band < EQ_NUM_BANDS; band++)
     {
-        s_last_gains_db[band] = 999.0f;
+        s_requested_gains_db[band] = 0.0f;
+        s_displayed_gains_db[band] = 0.0f;
+        s_gain_displayed_valid[band] = 0U;
+    }
+    for (category = 0; category < EQ_LCD_CATEGORY_COUNT; category++)
+    {
+        EQ_DebugLcdCategoryCount[category] = 0UL;
+        EQ_DebugLcdCategoryLastCycles[category] = 0UL;
+        EQ_DebugLcdCategoryMaxCycles[category] = 0UL;
+    }
+    for (category = 0; category < 5; category++)
+    {
+        s_status_displayed_valid[category] = 0;
     }
 
 #if EQ_ENABLE_LCD_DISPLAY == 0
@@ -915,7 +1071,6 @@ void EqualizerDisplay_Init(void)
 #if (!defined(EQ_ALGO_ONLY))
     Lcd_Init();
 #endif
-    EqualizerDisplay_DrawStaticLayout();
 #endif
 }
 
@@ -923,6 +1078,15 @@ void EqualizerDisplay_DrawStaticLayout(void)
 {
     int band;
 
+    if (s_runtime_started != 0)
+    {
+        EQ_DebugLcdUnexpectedFullRedrawCount++;
+        return;
+    }
+    if (s_layout_drawn != 0)
+    {
+        return;
+    }
     if (EQ_BeginDraw() == 0)
     {
         return;
@@ -931,10 +1095,21 @@ void EqualizerDisplay_DrawStaticLayout(void)
     EQ_LcdClearRect(0, 0, EQ_LCD_W, EQ_LCD_H);
 #if EQ_LCD_USE_CHINESE
     EQ_DrawCnTitleRegion();
+    EQ_DrawCnStaticStatusLabels();
 #else
     EQ_DrawTextRegion(EQ_TITLE_X, EQ_TITLE_Y, EQ_TITLE_W, EQ_TITLE_H,
                       "P3.3 Graphic EQ",
                       EQ_FONT_LARGE, EQ_COLOR_TEXT, 0);
+    EQ_LcdDrawText(EQ_MODE_X + 2, EQ_MODE_Y + 3, "Mode:",
+                   EQ_FONT_MEDIUM, EQ_COLOR_TEXT, 0, 48);
+    EQ_LcdDrawText(EQ_FRAMES_X + 2, EQ_FRAMES_Y + 3, "Frames:",
+                   EQ_FONT_MEDIUM, EQ_COLOR_TEXT, 0, 50);
+    EQ_LcdDrawText(EQ_LAST_X + 2, EQ_LAST_Y + 3, "Last:",
+                   EQ_FONT_MEDIUM, EQ_COLOR_TEXT, 0, 48);
+    EQ_LcdDrawText(EQ_MAX_X + 2, EQ_MAX_Y + 3, "Max:",
+                   EQ_FONT_MEDIUM, EQ_COLOR_TEXT, 0, 82);
+    EQ_LcdDrawText(EQ_CLIP_X + 2, EQ_CLIP_Y + 3, "Clip:",
+                   EQ_FONT_MEDIUM, EQ_COLOR_TEXT, 0, 48);
 #endif
     EQ_DrawTextRegion(EQ_DB_LABEL_X, EQ_BAR_AREA_Y - 6,
                       EQ_DB_LABEL_W, EQ_DB_LABEL_H,
@@ -956,56 +1131,362 @@ void EqualizerDisplay_DrawStaticLayout(void)
     EQ_EndDraw();
 }
 
-void EqualizerDisplay_UpdateAll(const EQ_STATE *st)
+static unsigned long EQ_StatusFloatToTenths(float value)
 {
-    EqualizerDisplay_DrawStaticLayout();
-    EqualizerDisplay_UpdateGains(st);
+    float max_ms;
+
+    if ((value != value) || (value <= 0.0f))
+    {
+        return 0UL;
+    }
+    max_ms = (float)EQ_LCD_STATUS_MAX_TENTHS / 10.0f;
+    if (value >= max_ms)
+    {
+        return EQ_LCD_STATUS_MAX_TENTHS;
+    }
+    return (unsigned long)(value * 10.0f + 0.5f);
 }
 
-void EqualizerDisplay_UpdateGains(const EQ_STATE *st)
+static unsigned long EQ_ReadCycles(void)
+{
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+    return (unsigned long)TSCL;
+#elif defined(EQ_ALGO_ONLY)
+    unsigned long value;
+
+    value = s_mock_cycle_clock;
+    s_mock_cycle_clock += s_mock_forced_job_cycles;
+    return value;
+#else
+    return 0UL;
+#endif
+}
+
+static void EQ_UpdatePendingDiagnostic(void)
+{
+    EQ_DebugLcdPendingMask = s_dirty_mask;
+}
+
+static void EQ_SyncRuntimeMask(void)
+{
+    unsigned int current;
+    unsigned int rising;
+    unsigned int falling;
+
+    current = EQ_LcdRuntimeMask &
+              (EQ_LCD_RUNTIME_STATUS | EQ_LCD_RUNTIME_GAINS);
+    rising = current & ~s_applied_runtime_mask;
+    falling = s_applied_runtime_mask & ~current;
+
+    if ((falling & EQ_LCD_RUNTIME_STATUS) != 0U)
+    {
+        s_dirty_mask &= ~EQ_LCD_STATUS_DIRTY_MASK;
+        s_forced_dirty_mask &= ~EQ_LCD_STATUS_DIRTY_MASK;
+    }
+    if ((falling & EQ_LCD_RUNTIME_GAINS) != 0U)
+    {
+        s_dirty_mask &= ~EQ_LCD_GAINS_DIRTY_MASK;
+        s_forced_dirty_mask &= ~EQ_LCD_GAINS_DIRTY_MASK;
+    }
+    if (((rising & EQ_LCD_RUNTIME_STATUS) != 0U) &&
+        (s_have_requested_status != 0))
+    {
+        s_dirty_mask |= EQ_LCD_STATUS_DIRTY_MASK;
+        s_forced_dirty_mask |= EQ_LCD_STATUS_DIRTY_MASK;
+    }
+    if (((rising & EQ_LCD_RUNTIME_GAINS) != 0U) &&
+        (s_have_requested_gains != 0))
+    {
+        s_dirty_mask |= EQ_LCD_GAINS_DIRTY_MASK;
+        s_forced_dirty_mask |= EQ_LCD_GAINS_DIRTY_MASK;
+    }
+
+    s_applied_runtime_mask = current;
+    EQ_UpdatePendingDiagnostic();
+}
+
+void EqualizerDisplay_BeginRuntime(void)
+{
+    s_runtime_started = 1;
+}
+
+void EqualizerDisplay_RequestGains(const EQ_STATE *st)
 {
     int band;
-    int redraw;
-    float gains_db[EQ_NUM_BANDS];
+    float gain_db;
+    unsigned long bit;
 
     if (st == 0)
     {
         return;
     }
-    if (s_layout_drawn == 0)
-    {
-        EqualizerDisplay_DrawStaticLayout();
-    }
-
-    redraw = (s_have_last_gains == 0) ? 1 : 0;
+    s_have_requested_gains = 1;
     for (band = 0; band < EQ_NUM_BANDS; band++)
     {
-        gains_db[band] = Equalizer_GetBandTargetGainDb(st, band);
-        if (EQ_DisplayAbs(gains_db[band] - s_last_gains_db[band]) >= 0.05f)
+        gain_db = Equalizer_GetBandTargetGainDb(st, band);
+        s_requested_gains_db[band] = gain_db;
+        bit = 1UL << (EQ_LCD_JOB_BAND_0 - 1 + band);
+        if (((s_applied_runtime_mask & EQ_LCD_RUNTIME_GAINS) != 0U) &&
+            ((s_gain_displayed_valid[band] == 0U) ||
+             (EQ_DisplayAbs(gain_db - s_displayed_gains_db[band]) >= 0.05f)))
         {
-            redraw = 1;
+            s_dirty_mask |= bit;
+        }
+        else if ((s_forced_dirty_mask & bit) == 0UL)
+        {
+            s_dirty_mask &= ~bit;
         }
     }
-    if (redraw == 0)
+    EQ_UpdatePendingDiagnostic();
+}
+
+void EqualizerDisplay_RequestStatus(unsigned long frames,
+                                    float algo_last_ms,
+                                    float algo_max_ms,
+                                    unsigned long clip_count,
+                                    int requested_mode,
+                                    int transition_target_mode,
+                                    int applied_mode)
+{
+    unsigned long mode_bit;
+    unsigned long last_tenths;
+    unsigned long max_tenths;
+
+    last_tenths = EQ_StatusFloatToTenths(algo_last_ms);
+    max_tenths = EQ_StatusFloatToTenths(algo_max_ms);
+    s_requested_frames = frames;
+    s_requested_algo_last_tenths = last_tenths;
+    s_requested_algo_max_tenths = max_tenths;
+    s_requested_clip_count = clip_count;
+    (void)requested_mode;
+    s_requested_transition_target_mode = transition_target_mode;
+    s_requested_applied_mode = applied_mode;
+    s_have_requested_status = 1;
+
+    mode_bit = 1UL << (EQ_LCD_JOB_MODE - 1);
+    if (((s_applied_runtime_mask & EQ_LCD_RUNTIME_STATUS) != 0U) &&
+        ((s_status_displayed_valid[0] == 0) ||
+         (applied_mode != EQ_DebugLcdLastMode) ||
+         (transition_target_mode != s_displayed_transition_target_mode)))
     {
-        return;
+        s_dirty_mask |= mode_bit;
     }
-    if (EQ_BeginDraw() == 0)
+    else if ((s_forced_dirty_mask & mode_bit) == 0UL)
     {
+        s_dirty_mask &= ~mode_bit;
+    }
+#define EQ_SET_STATUS_DIRTY(index_, changed_) \
+    do { \
+        unsigned long status_bit_; \
+        status_bit_ = 1UL << (index_); \
+        if (((s_applied_runtime_mask & EQ_LCD_RUNTIME_STATUS) != 0U) && \
+            ((s_status_displayed_valid[index_] == 0) || (changed_))) \
+        { \
+            s_dirty_mask |= status_bit_; \
+        } \
+        else if ((s_forced_dirty_mask & status_bit_) == 0UL) \
+        { \
+            s_dirty_mask &= ~status_bit_; \
+        } \
+    } while (0)
+    EQ_SET_STATUS_DIRTY(1, frames != s_displayed_frames);
+    EQ_SET_STATUS_DIRTY(2, last_tenths != s_displayed_algo_last_tenths);
+    EQ_SET_STATUS_DIRTY(3, max_tenths != s_displayed_algo_max_tenths);
+    EQ_SET_STATUS_DIRTY(4, clip_count != s_displayed_clip_count);
+#undef EQ_SET_STATUS_DIRTY
+    EQ_UpdatePendingDiagnostic();
+}
+
+int EqualizerDisplay_HasPendingJob(void)
+{
+    unsigned int current;
+
+    current = EQ_LcdRuntimeMask &
+              (EQ_LCD_RUNTIME_STATUS | EQ_LCD_RUNTIME_GAINS);
+    return ((s_dirty_mask != 0UL) ||
+            ((current & ~s_applied_runtime_mask) != 0U)) ? 1 : 0;
+}
+
+void EqualizerDisplay_CancelRuntimeJobs(void)
+{
+    s_dirty_mask = 0UL;
+    s_forced_dirty_mask = 0UL;
+    EQ_UpdatePendingDiagnostic();
+}
+
+void EqualizerDisplay_AutoDisable(unsigned long reason)
+{
+    EQ_DebugLcdAutoDisableReason |= reason;
+    if (EQ_LcdRuntimeMask != 0U)
+    {
+        EQ_LcdRuntimeMask = 0U;
+        EQ_DebugLcdAutoDisabledCount++;
+    }
+    EqualizerDisplay_CancelRuntimeJobs();
+}
+
+static int EQ_JobCategory(int job)
+{
+    if ((job >= EQ_LCD_JOB_BAND_0) && (job <= EQ_LCD_JOB_BAND_9))
+    {
+        return EQ_LCD_CATEGORY_BAND;
+    }
+    return job - EQ_LCD_JOB_MODE + EQ_LCD_CATEGORY_MODE;
+}
+
+static void EQ_DrawDynamicText(int x, int y, int w, int h, const char *text)
+{
+    EQ_DrawTextRegion(x, y, w, h, text,
+                      EQ_FONT_MEDIUM, EQ_COLOR_TEXT, 0);
+}
+
+static void EQ_DrawSelectedJob(int job)
+{
+    char buf[48];
+    int band;
+
+    if ((job >= EQ_LCD_JOB_BAND_0) && (job <= EQ_LCD_JOB_BAND_9))
+    {
+        band = job - EQ_LCD_JOB_BAND_0;
+        EQ_DrawBandJob(band, s_requested_gains_db[band]);
+        s_displayed_gains_db[band] = s_requested_gains_db[band];
+        s_gain_displayed_valid[band] = 1U;
+        EQ_DebugLcdGainRedrawCount++;
         return;
     }
 
-    for (band = 0; band < EQ_NUM_BANDS; band++)
+    switch (job)
     {
-        EQ_DrawBand(band, gains_db[band]);
-        s_last_gains_db[band] = gains_db[band];
+        case EQ_LCD_JOB_MODE:
+            EQ_FormatModeValue(buf, (int)sizeof(buf),
+                               s_requested_applied_mode,
+                               s_requested_transition_target_mode);
+            EQ_DrawDynamicText(EQ_MODE_VALUE_X, EQ_MODE_Y,
+                               EQ_MODE_VALUE_W, EQ_MODE_H, buf);
+            EQ_DebugLcdLastMode = s_requested_applied_mode;
+            s_displayed_transition_target_mode =
+                s_requested_transition_target_mode;
+            s_status_displayed_valid[0] = 1;
+            break;
+        case EQ_LCD_JOB_FRAMES:
+            EQ_FormatUnsignedValue(buf, (int)sizeof(buf), s_requested_frames);
+            EQ_DrawDynamicText(EQ_FRAMES_VALUE_X, EQ_FRAMES_Y,
+                               EQ_FRAMES_VALUE_W, EQ_FRAMES_H, buf);
+            s_displayed_frames = s_requested_frames;
+            s_status_displayed_valid[1] = 1;
+            break;
+        case EQ_LCD_JOB_ALGO_LAST:
+            EQ_FormatTenthsMsValue(buf, (int)sizeof(buf),
+                                   s_requested_algo_last_tenths);
+            EQ_DrawDynamicText(EQ_LAST_VALUE_X, EQ_LAST_Y,
+                               EQ_LAST_VALUE_W, EQ_LAST_H, buf);
+            s_displayed_algo_last_tenths = s_requested_algo_last_tenths;
+            s_status_displayed_valid[2] = 1;
+            break;
+        case EQ_LCD_JOB_ALGO_MAX:
+            EQ_FormatTenthsMsValue(buf, (int)sizeof(buf),
+                                   s_requested_algo_max_tenths);
+            EQ_DrawDynamicText(EQ_MAX_VALUE_X, EQ_MAX_Y,
+                               EQ_MAX_VALUE_W, EQ_MAX_H, buf);
+            s_displayed_algo_max_tenths = s_requested_algo_max_tenths;
+            s_status_displayed_valid[3] = 1;
+            break;
+        case EQ_LCD_JOB_CLIP:
+            EQ_FormatUnsignedValue(buf, (int)sizeof(buf),
+                                   s_requested_clip_count);
+            EQ_DrawDynamicText(EQ_CLIP_VALUE_X, EQ_CLIP_Y,
+                               EQ_CLIP_VALUE_W, EQ_CLIP_H, buf);
+            s_displayed_clip_count = s_requested_clip_count;
+            s_status_displayed_valid[4] = 1;
+            break;
+        default:
+            break;
     }
-    EQ_DrawAxes();
+    EQ_DebugLcdStatusRedrawCount++;
+}
 
-    s_have_last_gains = 1;
-    EQ_DebugLcdGainRedrawCount++;
-    EQ_DebugLcdRefreshCount++;
-    EQ_EndDraw();
+int EqualizerDisplay_ServiceOneJob(void)
+{
+    int checked;
+    int index;
+    int job;
+    int category;
+    unsigned long bit;
+    unsigned long start_cycles;
+    unsigned long elapsed_cycles;
+    unsigned long tenths_ms;
+
+    EQ_SyncRuntimeMask();
+    for (checked = 0; checked < EQ_LCD_JOB_COUNT; checked++)
+    {
+        index = (s_job_cursor + checked) % EQ_LCD_JOB_COUNT;
+        bit = 1UL << index;
+        if ((s_dirty_mask & bit) != 0UL)
+        {
+            if (EQ_BeginDraw() == 0)
+            {
+                return EQ_LCD_JOB_NONE;
+            }
+            s_job_cursor = (index + 1) % EQ_LCD_JOB_COUNT;
+            job = index + 1;
+            start_cycles = EQ_ReadCycles();
+            EQ_DrawSelectedJob(job);
+            elapsed_cycles = EQ_ReadCycles() - start_cycles;
+            EQ_EndDraw();
+
+            s_dirty_mask &= ~bit;
+            s_forced_dirty_mask &= ~bit;
+            EQ_UpdatePendingDiagnostic();
+            category = EQ_JobCategory(job);
+            tenths_ms = elapsed_cycles / 45600UL;
+            EQ_DebugLcdJobCount++;
+            EQ_DebugLcdRefreshCount++;
+            EQ_DebugLcdLastJob = job;
+            EQ_DebugLcdLastJobCycles = elapsed_cycles;
+            EQ_DebugLcdLastJobTenthsMs = tenths_ms;
+            EQ_DebugLcdLastJobMs = (float)elapsed_cycles / 456000.0f;
+            if (elapsed_cycles > EQ_DebugLcdMaxJobCycles)
+            {
+                EQ_DebugLcdMaxJobCycles = elapsed_cycles;
+            }
+            if (tenths_ms > EQ_DebugLcdMaxJobTenthsMs)
+            {
+                EQ_DebugLcdMaxJobTenthsMs = tenths_ms;
+            }
+            if (EQ_DebugLcdLastJobMs > EQ_DebugLcdMaxJobMs)
+            {
+                EQ_DebugLcdMaxJobMs = EQ_DebugLcdLastJobMs;
+            }
+            EQ_DebugLcdCategoryCount[category]++;
+            EQ_DebugLcdCategoryLastCycles[category] = elapsed_cycles;
+            if (elapsed_cycles > EQ_DebugLcdCategoryMaxCycles[category])
+            {
+                EQ_DebugLcdCategoryMaxCycles[category] = elapsed_cycles;
+            }
+            if (elapsed_cycles > EQ_LCD_JOB_TARGET_CYCLES)
+            {
+                EQ_DebugLcdBudgetExceededCount++;
+            }
+            if (elapsed_cycles > EQ_LCD_JOB_HARD_CYCLES)
+            {
+                EqualizerDisplay_AutoDisable(
+                    EQ_LCD_AUTO_DISABLE_JOB_OVER_5MS);
+            }
+            return job;
+        }
+    }
+    return EQ_LCD_JOB_NONE;
+}
+
+void EqualizerDisplay_UpdateAll(const EQ_STATE *st)
+{
+    EqualizerDisplay_DrawStaticLayout();
+    EqualizerDisplay_RequestGains(st);
+}
+
+void EqualizerDisplay_UpdateGains(const EQ_STATE *st)
+{
+    EqualizerDisplay_RequestGains(st);
 }
 
 void EqualizerDisplay_UpdateStatus(unsigned long frames,
@@ -1014,73 +1495,8 @@ void EqualizerDisplay_UpdateStatus(unsigned long frames,
                                    unsigned long clip_count,
                                    int mode)
 {
-    char buf[48];
-
-    if (s_layout_drawn == 0)
-    {
-        EqualizerDisplay_DrawStaticLayout();
-    }
-    if (EQ_BeginDraw() == 0)
-    {
-        return;
-    }
-
-#if EQ_LCD_USE_CHINESE
-    EQ_DrawCnModeRegion(mode);
-
-    sprintf(buf, "%lu", frames);
-    EQ_DrawCnValueRegion(EQ_FRAMES_X, EQ_FRAMES_Y,
-                         EQ_FRAMES_W, EQ_FRAMES_H,
-                         s_cn_label_frames,
-                         (int)sizeof(s_cn_label_frames),
-                         buf);
-
-    EQ_FormatMsValue(buf, last_ms);
-    EQ_DrawCnValueRegion(EQ_LAST_X, EQ_LAST_Y,
-                         EQ_LAST_W, EQ_LAST_H,
-                         s_cn_label_last,
-                         (int)sizeof(s_cn_label_last),
-                         buf);
-
-    EQ_FormatMsValue(buf, max_ms);
-    EQ_DrawCnValueRegion(EQ_MAX_X, EQ_MAX_Y,
-                         EQ_MAX_W, EQ_MAX_H,
-                         s_cn_label_max,
-                         (int)sizeof(s_cn_label_max),
-                         buf);
-
-    sprintf(buf, "%lu", clip_count);
-    EQ_DrawCnValueRegion(EQ_CLIP_X, EQ_CLIP_Y,
-                         EQ_CLIP_W, EQ_CLIP_H,
-                         s_cn_label_clip,
-                         (int)sizeof(s_cn_label_clip),
-                         buf);
-#else
-    sprintf(buf, "Mode: %s", EQ_ModeName(mode));
-    EQ_DrawTextRegion(EQ_MODE_X, EQ_MODE_Y, EQ_MODE_W, EQ_MODE_H,
-                      buf, EQ_FONT_MEDIUM, EQ_COLOR_TEXT, 0);
-
-    sprintf(buf, "Frames: %lu", frames);
-    EQ_DrawTextRegion(EQ_FRAMES_X, EQ_FRAMES_Y, EQ_FRAMES_W, EQ_FRAMES_H,
-                      buf, EQ_FONT_MEDIUM, EQ_COLOR_TEXT, 0);
-
-    EQ_FormatMs(buf, "Last", last_ms);
-    EQ_DrawTextRegion(EQ_LAST_X, EQ_LAST_Y, EQ_LAST_W, EQ_LAST_H,
-                      buf, EQ_FONT_MEDIUM, EQ_COLOR_TEXT, 0);
-
-    EQ_FormatMs(buf, "Max", max_ms);
-    EQ_DrawTextRegion(EQ_MAX_X, EQ_MAX_Y, EQ_MAX_W, EQ_MAX_H,
-                      buf, EQ_FONT_MEDIUM, EQ_COLOR_TEXT, 0);
-
-    sprintf(buf, "Clip: %lu", clip_count);
-    EQ_DrawTextRegion(EQ_CLIP_X, EQ_CLIP_Y, EQ_CLIP_W, EQ_CLIP_H,
-                      buf, EQ_FONT_MEDIUM, EQ_COLOR_TEXT, 0);
-#endif
-
-    EQ_DebugLcdLastMode = mode;
-    EQ_DebugLcdStatusRedrawCount++;
-    EQ_DebugLcdRefreshCount++;
-    EQ_EndDraw();
+    EqualizerDisplay_RequestStatus(frames, last_ms, max_ms, clip_count,
+                                   mode, EQ_PRESET_NONE, mode);
 }
 
 #ifdef EQUALIZER_DISPLAY_TEST_MAIN
@@ -1097,9 +1513,14 @@ static int EQ_DisplayTestRequire(int condition, const char *message)
 int main(void)
 {
     EQ_STATE st;
-    unsigned long gain_redraws;
-    unsigned long status_redraws;
-    unsigned long bar_clears;
+    unsigned long before;
+    unsigned long pending_before;
+    unsigned long border_before;
+    unsigned long full_axis_lines;
+    unsigned long auto_disabled;
+    int job;
+    int job_count;
+    int i;
     int failures;
 
     failures = 0;
@@ -1108,6 +1529,11 @@ int main(void)
 
     failures += EQ_DisplayTestRequire(EQ_DebugLcdEnabled == 1,
                                       "LCD display not enabled");
+    failures += EQ_DisplayTestRequire(s_layout_drawn == 0,
+                                      "init drew static layout");
+    failures += EQ_DisplayTestRequire(EQ_DebugLcdRuntimeMask == 0U,
+                                      "runtime mask not disabled by default");
+    EqualizerDisplay_DrawStaticLayout();
     failures += EQ_DisplayTestRequire(s_layout_drawn == 1,
                                       "static layout not drawn");
     failures += EQ_DisplayTestRequire(s_mock_bounds_failures == 0UL,
@@ -1117,55 +1543,448 @@ int main(void)
                                       "Chinese title glyphs not drawn");
 #endif
 
+    EqualizerDisplay_BeginRuntime();
+    EQ_LcdRuntimeMask = EQ_LCD_RUNTIME_GAINS;
     s_mock_bar_slot_clear_count = 0UL;
+    full_axis_lines = s_mock_line_count;
     Equalizer_ApplyPreset(&st, EQ_PRESET_BASS_BOOST);
-    EqualizerDisplay_UpdateGains(&st);
-    failures += EQ_DisplayTestRequire(s_mock_bar_slot_clear_count ==
-                                      (unsigned long)EQ_NUM_BANDS,
-                                      "bar slots not cleared before redraw");
-    failures += EQ_DisplayTestRequire(s_mock_fill_count >=
-                                      (unsigned long)EQ_NUM_BANDS,
-                                      "bars not filled");
+    EqualizerDisplay_RequestGains(&st);
+    for (job_count = 0; job_count < EQ_NUM_BANDS; job_count++)
+    {
+        before = s_mock_bar_slot_clear_count;
+        border_before = s_mock_chart_border_segment_count;
+        full_axis_lines = s_mock_line_count;
+        pending_before = EQ_DebugLcdPendingMask;
+        job = EqualizerDisplay_ServiceOneJob();
+        failures += EQ_DisplayTestRequire(job >= EQ_LCD_JOB_BAND_0 &&
+                                          job <= EQ_LCD_JOB_BAND_9,
+                                          "gain request returned non-band job");
+        failures += EQ_DisplayTestRequire(s_mock_bar_slot_clear_count ==
+                                          before + 1UL,
+                                          "band job did not clear one slot");
+        failures += EQ_DisplayTestRequire(
+            EQ_DebugLcdPendingMask ==
+            (((job_count == 0) ? EQ_LCD_GAINS_DIRTY_MASK : pending_before) &
+             ~(1UL << (job - 1))),
+                                          "service changed more than one dirty bit");
+        failures += EQ_DisplayTestRequire(s_mock_line_count ==
+                                          full_axis_lines +
+                                          ((job == EQ_LCD_JOB_BAND_0) ?
+                                           4UL : 3UL),
+                                          "band job line work was not bounded");
+        failures += EQ_DisplayTestRequire(
+            s_mock_chart_border_segment_count == border_before +
+            ((job == EQ_LCD_JOB_BAND_0) ? 3UL : 2UL),
+            "band job did not restore erased chart border");
+    }
+    failures += EQ_DisplayTestRequire(EqualizerDisplay_HasPendingJob() == 0,
+                                      "ten gain jobs did not drain request");
     failures += EQ_DisplayTestRequire(s_mock_bounds_failures == 0UL,
                                       "gain redraw exceeded LCD bounds");
 
-    gain_redraws = EQ_DebugLcdGainRedrawCount;
-    bar_clears = s_mock_bar_slot_clear_count;
-    EqualizerDisplay_UpdateGains(&st);
-    failures += EQ_DisplayTestRequire(EQ_DebugLcdGainRedrawCount ==
-                                      gain_redraws,
-                                      "unchanged gains redrawn");
-    failures += EQ_DisplayTestRequire(s_mock_bar_slot_clear_count ==
-                                      bar_clears,
-                                      "unchanged gains cleared bar slots");
+    before = s_mock_bar_slot_clear_count;
+    EqualizerDisplay_RequestGains(&st);
+    failures += EQ_DisplayTestRequire(EqualizerDisplay_HasPendingJob() == 0,
+                                      "unchanged gains created dirty work");
+    failures += EQ_DisplayTestRequire(s_mock_bar_slot_clear_count == before,
+                                      "gain request performed LCD work");
 
+    Equalizer_SetBandGainDb(&st, 4, 3.0f);
+    EqualizerDisplay_RequestGains(&st);
+    failures += EQ_DisplayTestRequire(EqualizerDisplay_ServiceOneJob() ==
+                                      EQ_LCD_JOB_BAND_0 + 4,
+                                      "single changed band selected wrong job");
+    failures += EQ_DisplayTestRequire(s_mock_bar_slot_clear_count == before + 1UL,
+                                      "single band touched multiple slots");
+    failures += EQ_DisplayTestRequire(EqualizerDisplay_HasPendingJob() == 0,
+                                      "single band left dirty work");
+
+    Equalizer_ApplyPreset(&st, EQ_PRESET_BASS_BOOST);
+    EqualizerDisplay_RequestGains(&st);
     Equalizer_ApplyPreset(&st, EQ_PRESET_TREBLE_BOOST);
-    EqualizerDisplay_UpdateGains(&st);
-    failures += EQ_DisplayTestRequire(EQ_DebugLcdGainRedrawCount ==
-                                      gain_redraws + 1UL,
-                                      "changed gains not redrawn");
+    EqualizerDisplay_RequestGains(&st);
+    job_count = 0;
+    while (EqualizerDisplay_HasPendingJob() != 0)
+    {
+        failures += EQ_DisplayTestRequire(EqualizerDisplay_ServiceOneJob() !=
+                                          EQ_LCD_JOB_NONE,
+                                          "latest gain snapshot stalled");
+        job_count++;
+    }
+    failures += EQ_DisplayTestRequire(job_count <= EQ_NUM_BANDS,
+                                      "obsolete gain snapshot was queued");
+    for (i = 0; i < EQ_NUM_BANDS; i++)
+    {
+        failures += EQ_DisplayTestRequire(
+            EQ_DisplayAbs(s_displayed_gains_db[i] -
+                          Equalizer_GetBandTargetGainDb(&st, i)) < 0.05f,
+            "latest gain snapshot was not displayed");
+    }
 
-    status_redraws = EQ_DebugLcdStatusRedrawCount;
+    EQ_LcdRuntimeMask = EQ_LCD_RUNTIME_STATUS;
     s_mock_text_clear_count = 0UL;
 #if EQ_LCD_USE_CHINESE
     s_mock_cn_glyph_count = 0UL;
 #endif
-    EqualizerDisplay_UpdateStatus(25UL, 1.2f, 3.4f, 7UL,
-                                  EQ_PRESET_TREBLE_BOOST);
-    failures += EQ_DisplayTestRequire(EQ_DebugLcdStatusRedrawCount ==
-                                      status_redraws + 1UL,
-                                      "status not redrawn");
-    failures += EQ_DisplayTestRequire(s_mock_text_clear_count >= 5UL,
-                                      "status text regions not cleared");
+    EqualizerDisplay_RequestStatus(25UL, 1.2f, 3.4f, 7UL,
+                                   EQ_PRESET_TREBLE_BOOST,
+                                   EQ_PRESET_NONE,
+                                   EQ_PRESET_TREBLE_BOOST);
+    for (job_count = 0; job_count < 5; job_count++)
+    {
+        before = s_mock_text_clear_count;
+        failures += EQ_DisplayTestRequire(EqualizerDisplay_ServiceOneJob() !=
+                                          EQ_LCD_JOB_NONE,
+                                          "status request returned no job");
+        failures += EQ_DisplayTestRequire(s_mock_text_clear_count == before + 1UL,
+                                          "status job did not clear one region");
+    }
+    failures += EQ_DisplayTestRequire(EqualizerDisplay_HasPendingJob() == 0,
+                                      "five status jobs did not drain request");
     failures += EQ_DisplayTestRequire(EQ_DebugLcdLastMode ==
                                       EQ_PRESET_TREBLE_BOOST,
                                       "status mode not recorded");
-#if EQ_LCD_USE_CHINESE
-    failures += EQ_DisplayTestRequire(s_mock_cn_glyph_count >= 14UL,
-                                      "Chinese status glyphs not drawn");
-#endif
+    before = s_mock_text_clear_count;
+    EqualizerDisplay_RequestStatus(25UL, 1.2f, 3.4f, 7UL,
+                                   EQ_PRESET_TREBLE_BOOST,
+                                   EQ_PRESET_NONE,
+                                   EQ_PRESET_TREBLE_BOOST);
+    failures += EQ_DisplayTestRequire(EqualizerDisplay_HasPendingJob() == 0,
+                                      "unchanged status created dirty work");
+    failures += EQ_DisplayTestRequire(s_mock_text_clear_count == before,
+                                      "status request performed LCD work");
+
+    EqualizerDisplay_RequestStatus(25UL, 1.2f, 3.4f, 7UL,
+                                   EQ_PRESET_BASS_BOOST,
+                                   EQ_PRESET_NONE,
+                                   EQ_PRESET_BASS_BOOST);
+    failures += EQ_DisplayTestRequire(EqualizerDisplay_ServiceOneJob() ==
+                                      EQ_LCD_JOB_MODE,
+                                      "steady mode job not selected");
+    failures += EQ_DisplayTestRequire(strcmp(s_mock_last_text, "BASS") == 0,
+                                      "steady mode did not show applied state");
+    EqualizerDisplay_RequestStatus(25UL, 1.2f, 3.4f, 7UL,
+                                   EQ_PRESET_VOCAL,
+                                   EQ_PRESET_TREBLE_BOOST,
+                                   EQ_PRESET_BASS_BOOST);
+    failures += EQ_DisplayTestRequire(EqualizerDisplay_ServiceOneJob() ==
+                                      EQ_LCD_JOB_MODE,
+                                      "transition mode job not selected");
+    failures += EQ_DisplayTestRequire(strcmp(s_mock_last_text,
+                                             "BASS>TREBLE") == 0,
+                                      "transition did not show applied>target");
+    EqualizerDisplay_RequestStatus(25UL, 1.2f, 3.4f, 7UL,
+                                   EQ_PRESET_V_SHAPE,
+                                   EQ_PRESET_TREBLE_BOOST,
+                                   EQ_PRESET_BASS_BOOST);
+    failures += EQ_DisplayTestRequire(EqualizerDisplay_HasPendingJob() == 0,
+                                      "queued request changed displayed mode");
+    failures += EQ_DisplayTestRequire(strcmp(s_mock_last_text,
+                                             "BASS>TREBLE") == 0,
+                                      "queued request was shown as applied");
+
+    for (i = 0; i < 1000; i++)
+    {
+        int applied;
+        int target;
+
+        applied = (i & 1) ? EQ_PRESET_BASS_BOOST : EQ_PRESET_FLAT;
+        target = (i & 1) ? EQ_PRESET_VOCAL : EQ_PRESET_TREBLE_BOOST;
+        EqualizerDisplay_RequestStatus(25UL, 1.2f, 3.4f, 7UL,
+                                       target, target, applied);
+        failures += EQ_DisplayTestRequire(EqualizerDisplay_ServiceOneJob() ==
+                                          EQ_LCD_JOB_MODE,
+                                          "transition mode job not selected");
+    }
     failures += EQ_DisplayTestRequire(s_mock_bounds_failures == 0UL,
-                                      "status redraw exceeded LCD bounds");
+                                      "mode transitions exceeded LCD bounds");
+
+    EqualizerDisplay_RequestStatus(25UL, NAN, INFINITY, 7UL,
+                                   EQ_PRESET_BASS_BOOST,
+                                   EQ_PRESET_NONE,
+                                   EQ_PRESET_BASS_BOOST);
+    failures += EQ_DisplayTestRequire(s_requested_algo_last_tenths == 0UL,
+                                      "NaN status time was not clamped");
+    failures += EQ_DisplayTestRequire(s_requested_algo_max_tenths ==
+                                      EQ_LCD_STATUS_MAX_TENTHS,
+                                      "infinite status time was not saturated");
+    EqualizerDisplay_RequestStatus(25UL, -INFINITY, 3.4e38f, 7UL,
+                                   EQ_PRESET_BASS_BOOST,
+                                   EQ_PRESET_NONE,
+                                   EQ_PRESET_BASS_BOOST);
+    failures += EQ_DisplayTestRequire(s_requested_algo_last_tenths == 0UL,
+                                      "negative infinite time was not clamped");
+    failures += EQ_DisplayTestRequire(s_requested_algo_max_tenths ==
+                                      EQ_LCD_STATUS_MAX_TENTHS,
+                                      "large finite status time was not saturated");
+
+    before = EQ_DebugLcdUnexpectedFullRedrawCount;
+    EqualizerDisplay_DrawStaticLayout();
+    failures += EQ_DisplayTestRequire(EQ_DebugLcdUnexpectedFullRedrawCount ==
+                                      before + 1UL,
+                                      "runtime static layout was not rejected");
+
+    before = s_mock_clear_count + s_mock_fill_count + s_mock_line_count +
+             s_mock_text_count;
+    EqualizerDisplay_UpdateAll(&st);
+    EqualizerDisplay_UpdateGains(&st);
+    EqualizerDisplay_UpdateStatus(25UL, 1.2f, 3.4f, 7UL,
+                                  EQ_PRESET_TREBLE_BOOST);
+    failures += EQ_DisplayTestRequire(s_mock_clear_count + s_mock_fill_count +
+                                      s_mock_line_count + s_mock_text_count ==
+                                      before,
+                                      "legacy runtime API performed LCD work");
+
+    EQ_LcdRuntimeMask = 0U;
+    (void)EqualizerDisplay_HasPendingJob();
+    Equalizer_SetBandGainDb(&st, 2, -18.0f);
+    EqualizerDisplay_RequestGains(&st);
+    EQ_LcdRuntimeMask = EQ_LCD_RUNTIME_GAINS;
+    job = EQ_LCD_JOB_NONE;
+    while ((job != EQ_LCD_JOB_BAND_0 + 2) &&
+           (EqualizerDisplay_HasPendingJob() != 0))
+    {
+        job = EqualizerDisplay_ServiceOneJob();
+    }
+    failures += EQ_DisplayTestRequire(job == EQ_LCD_JOB_BAND_0 + 2,
+                                      "-18 dB band was not serviced");
+    failures += EQ_DisplayTestRequire(s_mock_last_bar_bottom_y <=
+                                      EQ_BAR_AREA_Y + EQ_BAR_AREA_H - 1,
+                                      "-18 dB bar exceeded slot bottom");
+    failures += EQ_DisplayTestRequire(s_mock_last_bar_bottom_y ==
+                                      EQ_BAR_AREA_Y + EQ_BAR_AREA_H - 1,
+                                      "-18 dB bar did not reach clamped bottom");
+    EqualizerDisplay_RequestStatus(26UL, 1.3f, 3.5f, 8UL,
+                                   EQ_PRESET_FLAT, EQ_PRESET_NONE,
+                                   EQ_PRESET_FLAT);
+    EqualizerDisplay_CancelRuntimeJobs();
+    failures += EQ_DisplayTestRequire(EqualizerDisplay_HasPendingJob() == 0,
+                                      "cancel left runtime jobs pending");
+
+    EQ_LcdRuntimeMask = 0U;
+    EqualizerDisplay_RequestGains(&st);
+    EqualizerDisplay_RequestStatus(27UL, 1.4f, 3.6f, 9UL,
+                                   EQ_PRESET_VOCAL, EQ_PRESET_NONE,
+                                   EQ_PRESET_VOCAL);
+    failures += EQ_DisplayTestRequire(EqualizerDisplay_HasPendingJob() == 0,
+                                      "mask zero exposed dynamic jobs");
+    EQ_LcdRuntimeMask = EQ_LCD_RUNTIME_STATUS;
+    EqualizerDisplay_RequestStatus(27UL, 1.4f, 3.6f, 9UL,
+                                   EQ_PRESET_VOCAL, EQ_PRESET_NONE,
+                                   EQ_PRESET_VOCAL);
+    job_count = 0;
+    while (EqualizerDisplay_HasPendingJob() != 0)
+    {
+        failures += EQ_DisplayTestRequire(EqualizerDisplay_ServiceOneJob() >=
+                                          EQ_LCD_JOB_MODE &&
+                                          EQ_DebugLcdLastJob <= EQ_LCD_JOB_CLIP,
+                                          "status rising edge exposed wrong job");
+        job_count++;
+    }
+    failures += EQ_DisplayTestRequire(job_count == 5,
+                                      "status rising edge did not refresh snapshot");
+    EQ_LcdRuntimeMask = EQ_LCD_RUNTIME_GAINS;
+    EqualizerDisplay_RequestGains(&st);
+    job_count = 0;
+    while (EqualizerDisplay_HasPendingJob() != 0)
+    {
+        job = EqualizerDisplay_ServiceOneJob();
+        failures += EQ_DisplayTestRequire(job >= EQ_LCD_JOB_BAND_0 &&
+                                          job <= EQ_LCD_JOB_BAND_9,
+                                          "gains rising edge exposed wrong job");
+        job_count++;
+    }
+    failures += EQ_DisplayTestRequire(job_count == EQ_NUM_BANDS,
+                                      "gains rising edge did not refresh snapshot");
+
+    /* Polling and snapshot updates must not consume an unsynced mask edge. */
+    EQ_LcdRuntimeMask = 0U;
+    (void)EqualizerDisplay_ServiceOneJob();
+    EqualizerDisplay_RequestStatus(50UL, 1.7f, 3.9f, 12UL,
+                                   EQ_PRESET_BASS_BOOST, EQ_PRESET_NONE,
+                                   EQ_PRESET_BASS_BOOST);
+    EQ_LcdRuntimeMask = EQ_LCD_RUNTIME_STATUS;
+    pending_before = EQ_DebugLcdPendingMask;
+    before = EQ_DebugLcdJobCount;
+    EqualizerDisplay_RequestStatus(51UL, 1.8f, 4.0f, 13UL,
+                                   EQ_PRESET_VOCAL, EQ_PRESET_NONE,
+                                   EQ_PRESET_VOCAL);
+    failures += EQ_DisplayTestRequire(EqualizerDisplay_HasPendingJob() != 0,
+                                      "status rising edge was not observable");
+    EqualizerDisplay_RequestStatus(52UL, 1.9f, 4.1f, 14UL,
+                                   EQ_PRESET_TREBLE_BOOST, EQ_PRESET_NONE,
+                                   EQ_PRESET_TREBLE_BOOST);
+    failures += EQ_DisplayTestRequire(EqualizerDisplay_HasPendingJob() != 0,
+                                      "status polling consumed rising edge");
+    failures += EQ_DisplayTestRequire(EQ_DebugLcdPendingMask == pending_before,
+                                      "status polling changed pending mask");
+    failures += EQ_DisplayTestRequire(EQ_DebugLcdJobCount == before,
+                                      "status polling changed job count");
+    failures += EQ_DisplayTestRequire(s_applied_runtime_mask == 0U,
+                                      "status polling synchronized mask");
+    job = EqualizerDisplay_ServiceOneJob();
+    failures += EQ_DisplayTestRequire(job >= EQ_LCD_JOB_MODE &&
+                                      job <= EQ_LCD_JOB_CLIP,
+                                      "status service lost rising edge");
+    failures += EQ_DisplayTestRequire(s_applied_runtime_mask ==
+                                      EQ_LCD_RUNTIME_STATUS,
+                                      "status service did not synchronize mask");
+
+    EQ_LcdRuntimeMask = 0U;
+    (void)EqualizerDisplay_ServiceOneJob();
+    Equalizer_ApplyPreset(&st, EQ_PRESET_FLAT);
+    EqualizerDisplay_RequestGains(&st);
+    EQ_LcdRuntimeMask = EQ_LCD_RUNTIME_GAINS;
+    pending_before = EQ_DebugLcdPendingMask;
+    before = EQ_DebugLcdJobCount;
+    Equalizer_ApplyPreset(&st, EQ_PRESET_V_SHAPE);
+    EqualizerDisplay_RequestGains(&st);
+    failures += EQ_DisplayTestRequire(EqualizerDisplay_HasPendingJob() != 0,
+                                      "gains rising edge was not observable");
+    Equalizer_ApplyPreset(&st, EQ_PRESET_TREBLE_BOOST);
+    EqualizerDisplay_RequestGains(&st);
+    failures += EQ_DisplayTestRequire(EqualizerDisplay_HasPendingJob() != 0,
+                                      "gains polling consumed rising edge");
+    failures += EQ_DisplayTestRequire(EQ_DebugLcdPendingMask == pending_before,
+                                      "gains polling changed pending mask");
+    failures += EQ_DisplayTestRequire(EQ_DebugLcdJobCount == before,
+                                      "gains polling changed job count");
+    failures += EQ_DisplayTestRequire(s_applied_runtime_mask == 0U,
+                                      "gains polling synchronized mask");
+    job = EqualizerDisplay_ServiceOneJob();
+    failures += EQ_DisplayTestRequire(job >= EQ_LCD_JOB_BAND_0 &&
+                                      job <= EQ_LCD_JOB_BAND_9,
+                                      "gains service lost rising edge");
+    failures += EQ_DisplayTestRequire(s_applied_runtime_mask ==
+                                      EQ_LCD_RUNTIME_GAINS,
+                                      "gains service did not synchronize mask");
+
+    Equalizer_SetBandGainDb(&st, 3, -9.0f);
+    EqualizerDisplay_RequestGains(&st);
+    failures += EQ_DisplayTestRequire(EQ_DebugLcdPendingMask != 0UL,
+                                      "falling-edge setup created no dirty job");
+    EQ_LcdRuntimeMask = 0U;
+    pending_before = EQ_DebugLcdPendingMask;
+    failures += EQ_DisplayTestRequire(EqualizerDisplay_HasPendingJob() != 0,
+                                      "falling-edge poll hid existing dirty job");
+    failures += EQ_DisplayTestRequire(EQ_DebugLcdPendingMask == pending_before,
+                                      "falling-edge poll cancelled jobs");
+    failures += EQ_DisplayTestRequire(s_applied_runtime_mask ==
+                                      EQ_LCD_RUNTIME_GAINS,
+                                      "falling-edge poll synchronized mask");
+    failures += EQ_DisplayTestRequire(EqualizerDisplay_ServiceOneJob() ==
+                                      EQ_LCD_JOB_NONE,
+                                      "falling-edge service drew cancelled job");
+    failures += EQ_DisplayTestRequire(EQ_DebugLcdPendingMask == 0UL,
+                                      "falling-edge service did not cancel jobs");
+    failures += EQ_DisplayTestRequire(s_applied_runtime_mask == 0U,
+                                      "falling-edge service did not sync mask");
+
+    EQ_LcdRuntimeMask = EQ_LCD_RUNTIME_STATUS | EQ_LCD_RUNTIME_GAINS;
+    Equalizer_SetBandGainDb(&st, 0, -6.0f);
+    EqualizerDisplay_RequestGains(&st);
+    EqualizerDisplay_RequestStatus(40UL, 1.4f, 3.6f, 9UL,
+                                   EQ_PRESET_VOCAL, EQ_PRESET_NONE,
+                                   EQ_PRESET_VOCAL);
+    job_count = 0;
+    job = EQ_LCD_JOB_NONE;
+    while ((job != EQ_LCD_JOB_BAND_0) && (job_count < EQ_LCD_JOB_COUNT))
+    {
+        EqualizerDisplay_RequestStatus(40UL + (unsigned long)job_count,
+                                       1.4f, 3.6f, 9UL,
+                                       EQ_PRESET_VOCAL, EQ_PRESET_NONE,
+                                       EQ_PRESET_VOCAL);
+        job = EqualizerDisplay_ServiceOneJob();
+        job_count++;
+    }
+    failures += EQ_DisplayTestRequire(job == EQ_LCD_JOB_BAND_0,
+                                      "repeated frames starved a band job");
+    EQ_LcdRuntimeMask = EQ_LCD_RUNTIME_STATUS | EQ_LCD_RUNTIME_GAINS;
+    EqualizerDisplay_RequestStatus(28UL, 1.5f, 3.7f, 10UL,
+                                   EQ_PRESET_FLAT, EQ_PRESET_NONE,
+                                   EQ_PRESET_FLAT);
+    EqualizerDisplay_RequestGains(&st);
+    EQ_LcdRuntimeMask = 0U;
+    failures += EQ_DisplayTestRequire(EqualizerDisplay_HasPendingJob() != 0,
+                                      "mask falling edge hid pending work");
+    failures += EQ_DisplayTestRequire(EqualizerDisplay_ServiceOneJob() ==
+                                      EQ_LCD_JOB_NONE,
+                                      "mask falling edge serviced cancelled job");
+    failures += EQ_DisplayTestRequire(EqualizerDisplay_HasPendingJob() == 0,
+                                      "mask falling edge did not cancel jobs");
+
+    EQ_LcdRuntimeMask = EQ_LCD_RUNTIME_GAINS;
+    EqualizerDisplay_RequestGains(&st);
+    while (EqualizerDisplay_HasPendingJob() != 0)
+    {
+        (void)EqualizerDisplay_ServiceOneJob();
+    }
+    Equalizer_SetBandGainDb(&st, 7, -7.0f);
+    EqualizerDisplay_RequestGains(&st);
+    before = EQ_DebugLcdBudgetExceededCount;
+    pending_before = EQ_DebugLcdCategoryCount[EQ_LCD_CATEGORY_BAND];
+    s_mock_forced_job_cycles = EQ_LCD_JOB_TARGET_CYCLES + 1UL;
+    failures += EQ_DisplayTestRequire(EqualizerDisplay_ServiceOneJob() ==
+                                      EQ_LCD_JOB_BAND_0 + 7,
+                                      "target-budget band job was not serviced");
+    s_mock_forced_job_cycles = 0UL;
+    failures += EQ_DisplayTestRequire(EQ_DebugLcdBudgetExceededCount ==
+                                      before + 1UL,
+                                      "2 ms budget exceed was not counted");
+    failures += EQ_DisplayTestRequire(
+        EQ_DebugLcdCategoryCount[EQ_LCD_CATEGORY_BAND] == pending_before + 1UL,
+        "band category count was not updated");
+    failures += EQ_DisplayTestRequire(
+        EQ_DebugLcdCategoryLastCycles[EQ_LCD_CATEGORY_BAND] ==
+        EQ_LCD_JOB_TARGET_CYCLES + 1UL,
+        "band category last timing was not updated");
+    failures += EQ_DisplayTestRequire(
+        EQ_DebugLcdCategoryMaxCycles[EQ_LCD_CATEGORY_BAND] >=
+        EQ_LCD_JOB_TARGET_CYCLES + 1UL,
+        "band category max timing was not updated");
+
+    EQ_LcdRuntimeMask = EQ_LCD_RUNTIME_STATUS;
+    EqualizerDisplay_RequestStatus(29UL, 1.6f, 3.8f, 11UL,
+                                   EQ_PRESET_FLAT, EQ_PRESET_NONE,
+                                   EQ_PRESET_FLAT);
+    auto_disabled = EQ_DebugLcdAutoDisabledCount;
+    s_mock_forced_job_cycles = EQ_LCD_JOB_HARD_CYCLES + 1UL;
+    failures += EQ_DisplayTestRequire(EqualizerDisplay_ServiceOneJob() !=
+                                      EQ_LCD_JOB_NONE,
+                                      "hard-budget job was not serviced");
+    s_mock_forced_job_cycles = 0UL;
+    failures += EQ_DisplayTestRequire(EQ_LcdRuntimeMask == 0U,
+                                      "hard-budget job did not auto-disable");
+    failures += EQ_DisplayTestRequire(EQ_DebugLcdAutoDisabledCount ==
+                                      auto_disabled + 1UL,
+                                      "hard-budget auto-disable count wrong");
+    failures += EQ_DisplayTestRequire((EQ_DebugLcdAutoDisableReason &
+                                      EQ_LCD_AUTO_DISABLE_JOB_OVER_5MS) != 0UL,
+                                      "hard-budget reason not recorded");
+    failures += EQ_DisplayTestRequire(EqualizerDisplay_HasPendingJob() == 0,
+                                      "hard-budget auto-disable left jobs");
+
+    EQ_LcdRuntimeMask = EQ_LCD_RUNTIME_STATUS | EQ_LCD_RUNTIME_GAINS;
+    EqualizerDisplay_RequestGains(&st);
+    auto_disabled = EQ_DebugLcdAutoDisabledCount;
+    EqualizerDisplay_AutoDisable(EQ_LCD_AUTO_DISABLE_JOB_OVER_5MS);
+    failures += EQ_DisplayTestRequire(EQ_LcdRuntimeMask == 0U,
+                                      "auto-disable left runtime enabled");
+    failures += EQ_DisplayTestRequire(EQ_DebugLcdAutoDisabledCount ==
+                                      auto_disabled + 1UL,
+                                      "auto-disable did not count transition");
+    failures += EQ_DisplayTestRequire(EqualizerDisplay_HasPendingJob() == 0,
+                                      "auto-disable left dirty jobs");
+    EqualizerDisplay_AutoDisable(EQ_LCD_AUTO_DISABLE_LATENCY_MISS);
+    failures += EQ_DisplayTestRequire(EQ_DebugLcdAutoDisabledCount ==
+                                      auto_disabled + 1UL,
+                                      "repeated auto-disable counted twice");
+    failures += EQ_DisplayTestRequire((EQ_DebugLcdAutoDisableReason &
+                                      (EQ_LCD_AUTO_DISABLE_JOB_OVER_5MS |
+                                       EQ_LCD_AUTO_DISABLE_LATENCY_MISS)) ==
+                                      (EQ_LCD_AUTO_DISABLE_JOB_OVER_5MS |
+                                       EQ_LCD_AUTO_DISABLE_LATENCY_MISS),
+                                      "auto-disable reasons were not retained");
 
     if (failures != 0)
     {
