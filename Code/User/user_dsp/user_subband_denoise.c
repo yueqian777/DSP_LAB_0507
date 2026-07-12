@@ -32,6 +32,9 @@ typedef struct
     float mcra_overdrive_speech;
     float mcra_overdrive_noise;
     float mcra_bias;
+    float mcra_tonal_snr_min;
+    float mcra_tonal_neighbor_ratio;
+    float mcra_tonal_floor;
     unsigned long learn_count;
     unsigned long target_hops;
     unsigned long fade_count;
@@ -80,6 +83,9 @@ volatile float SUBBAND_DENOISE_DebugMcraAlphaNoise = 0.85f;
 volatile float SUBBAND_DENOISE_DebugMcraAlphaSpeech = 0.998f;
 volatile float SUBBAND_DENOISE_DebugMcraFloorAvg = SUBBAND_DENOISE_GAIN_FLOOR;
 volatile int SUBBAND_DENOISE_DebugMcraStrongMode = 0;
+volatile unsigned long SUBBAND_DENOISE_DebugMcraTonalGuardHits = 0UL;
+volatile unsigned long
+    SUBBAND_DENOISE_DebugMcraTonalGuardBinsLastFrame = 0UL;
 volatile unsigned long SUBBAND_DENOISE_DebugLearnProgressX1000000 = 0UL;
 volatile unsigned long SUBBAND_DENOISE_DebugInputPowerAvgDiv16 = 0UL;
 volatile unsigned long SUBBAND_DENOISE_DebugOutputPowerAvgDiv16 = 0UL;
@@ -229,6 +235,9 @@ static void Set_Mcra_Default_Params_Internal(void)
     SubbandDenoise_State.mcra_overdrive_speech = 1.10f;
     SubbandDenoise_State.mcra_overdrive_noise = 1.70f;
     SubbandDenoise_State.mcra_bias = 1.40f;
+    SubbandDenoise_State.mcra_tonal_snr_min = 3.0f;
+    SubbandDenoise_State.mcra_tonal_neighbor_ratio = 1.35f;
+    SubbandDenoise_State.mcra_tonal_floor = 0.45f;
     SubbandDenoise_State.mcra_strong_mode = 0;
 }
 
@@ -503,7 +512,8 @@ static void Update_Minimum_Statistics(const float *re, const float *im)
             mcra_tonal_guard = 0;
             if ((k > 0) && (k < (SUBBAND_NFFT / 2)) &&
                 (Mcra_Is_Speech_Band(k) != 0) &&
-                (snr_ratio > 3.0f))
+                (snr_ratio >
+                 SubbandDenoise_State.mcra_tonal_snr_min))
             {
                 float left_power;
                 float right_power;
@@ -515,9 +525,13 @@ static void Update_Minimum_Statistics(const float *re, const float *im)
                               im[k + 1] * im[k + 1];
                 neighbor_power = 0.5f * (left_power + right_power) +
                                  SUBBAND_DENOISE_EPS;
-                if (power > (1.35f * neighbor_power))
+                if (power >
+                    (SubbandDenoise_State.mcra_tonal_neighbor_ratio *
+                     neighbor_power))
                 {
                     mcra_tonal_guard = 1;
+                    SUBBAND_DENOISE_DebugMcraTonalGuardHits++;
+                    SUBBAND_DENOISE_DebugMcraTonalGuardBinsLastFrame++;
                     if (speech_prob < 0.95f)
                     {
                         speech_prob = 0.95f;
@@ -614,9 +628,11 @@ static void Update_Minimum_Statistics(const float *re, const float *im)
             SubbandDenoise_State.mcra_floor[k] = Mcra_Floor_For_Bin(k);
             if ((mcra_tonal_guard != 0) &&
                 (SubbandDenoise_State.mcra_strong_mode == 0) &&
-                (SubbandDenoise_State.mcra_floor[k] < 0.45f))
+                (SubbandDenoise_State.mcra_floor[k] <
+                 SubbandDenoise_State.mcra_tonal_floor))
             {
-                SubbandDenoise_State.mcra_floor[k] = 0.45f;
+                SubbandDenoise_State.mcra_floor[k] =
+                    SubbandDenoise_State.mcra_tonal_floor;
             }
             continue;
         }
@@ -864,6 +880,8 @@ void SubbandDenoise_Init(void)
 
 void SubbandDenoise_Reset(void)
 {
+    SUBBAND_DENOISE_DebugMcraTonalGuardHits = 0UL;
+    SUBBAND_DENOISE_DebugMcraTonalGuardBinsLastFrame = 0UL;
     SubbandDenoise_State.initialized = 0;
     SubbandDenoise_Init();
 }
@@ -991,6 +1009,20 @@ void SubbandDenoise_SetMcraParams(float delta_low,
     Update_Debug_State();
 }
 
+void SubbandDenoise_SetMcraTonalGuardParams(float snr_min,
+                                            float neighbor_ratio,
+                                            float tonal_floor)
+{
+    SubbandDenoise_Init();
+
+    SubbandDenoise_State.mcra_tonal_snr_min =
+        Clamp_Float(snr_min, 0.0f, 1000.0f);
+    SubbandDenoise_State.mcra_tonal_neighbor_ratio =
+        Clamp_Float(neighbor_ratio, 0.0f, 1000.0f);
+    SubbandDenoise_State.mcra_tonal_floor =
+        Clamp_Float(tonal_floor, 0.0f, 1.0f);
+}
+
 void SubbandDenoise_ResetMcraState(void)
 {
     SubbandDenoise_Init();
@@ -1013,6 +1045,7 @@ void SubbandDenoise_ProcessSpectrum(float *re, float *im)
         return;
     }
 
+    SUBBAND_DENOISE_DebugMcraTonalGuardBinsLastFrame = 0UL;
     SubbandDenoise_Init();
 
     input_sum = 0.0f;

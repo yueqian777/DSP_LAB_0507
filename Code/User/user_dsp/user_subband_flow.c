@@ -281,6 +281,8 @@ static void Subband_Apply_Demo_Mode(int mode)
         SubbandWOLA_ResetStream();
         SubbandWOLA_ResetAllGains();
         SubbandDenoise_Reset();
+        SubbandDenoise_SetParams(0.96f, 0.15f, 0.85f, 0.80f);
+        SubbandDenoise_SetMcraTonalGuardParams(5.0f, 1.80f, 0.28f);
         SubbandDenoise_SetNoiseTrackMode(SUBBAND_DENOISE_TRACK_MCRA);
         SubbandDenoise_SetMcraParams(1.5f, 4.0f,
                                      0.85f, 0.998f,
