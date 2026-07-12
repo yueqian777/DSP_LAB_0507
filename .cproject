@@ -131,6 +131,7 @@
                     </folderInfo>
                     <sourceEntries>
                         <entry excluding="tmp|tools/tests" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
+                        <entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="tools/tests/__pycache__"/>
                     </sourceEntries>
                 </configuration>
             </storageModule>

@@ -42,6 +42,24 @@
 #define UI_REMAINING_DIGIT_X1 130
 #define UI_REMAINING_DIGIT_Y1 376
 
+#define UI_LOAD_PANEL_X0 16
+#define UI_LOAD_PANEL_X1 783
+#define UI_LOAD_VALUE_X0 150
+#define UI_LOAD_VALUE_X1 220
+#if SUBBAND_UI_PROGRESS_POLICY == SUBBAND_UI_PROGRESS_TEN_BLOCK
+#define UI_LOAD_PANEL_Y0 420
+#define UI_LOAD_PANEL_Y1 463
+#define UI_LOAD_VALUE_Y0 431
+#define UI_LOAD_VALUE_Y1 451
+#define UI_LOAD_LABEL_Y 434
+#else
+#define UI_LOAD_PANEL_Y0 388
+#define UI_LOAD_PANEL_Y1 431
+#define UI_LOAD_VALUE_Y0 399
+#define UI_LOAD_VALUE_Y1 419
+#define UI_LOAD_LABEL_Y 402
+#endif
+
 #define UI_PROGRESS_BLOCKS 10U
 #define UI_PROGRESS_X 24
 #define UI_PROGRESS_Y 390
@@ -674,6 +692,66 @@ static const tFont *UI_SelectChainFont(const char *text)
     return &g_sFontCmtt12;
 }
 
+static char *UI_FindChainSeparator(char *text)
+{
+    while (*text != '\0')
+    {
+        if ((text[0] == ' ') && (text[1] == '-') &&
+            (text[2] == '>') && (text[3] == ' '))
+        {
+            return text;
+        }
+        text++;
+    }
+    return 0;
+}
+
+static void UI_DrawChainArrow(int x, int y, int width)
+{
+    int arrow_start;
+    int arrow_tip;
+    int arrow_y;
+
+    arrow_start = x + 2;
+    arrow_tip = x + width - 3;
+    arrow_y = y + 8;
+    GrLineDrawH(&Lcd_Context, arrow_start, arrow_tip, arrow_y);
+    GrLineDraw(&Lcd_Context, arrow_tip - 4, arrow_y - 4,
+               arrow_tip, arrow_y);
+    GrLineDraw(&Lcd_Context, arrow_tip - 4, arrow_y + 4,
+               arrow_tip, arrow_y);
+}
+
+static void UI_DrawProcessingChainText(char *text, const tFont *font)
+{
+    char *segment;
+    char *separator;
+    int arrow_width;
+    int draw_x;
+
+    GrContextFontSet(&Lcd_Context, font);
+    arrow_width = GrStringWidthGet(&Lcd_Context, " -> ", 4);
+    segment = text;
+    draw_x = UI_CHAIN_X;
+    for (;;)
+    {
+        separator = UI_FindChainSeparator(segment);
+        if (separator == 0)
+        {
+            GrStringDraw(&Lcd_Context, segment, -1,
+                         draw_x, UI_CHAIN_Y, 0);
+            break;
+        }
+        *separator = '\0';
+        GrStringDraw(&Lcd_Context, segment, -1,
+                     draw_x, UI_CHAIN_Y, 0);
+        draw_x = draw_x + GrStringWidthGet(&Lcd_Context, segment, -1);
+        UI_DrawChainArrow(draw_x, UI_CHAIN_Y, arrow_width);
+        draw_x = draw_x + arrow_width;
+        segment = separator + 4;
+    }
+}
+
 static void UI_DrawProcessingChain(void)
 {
     char text[UI_CHAIN_TEXT_CAPACITY];
@@ -689,9 +767,8 @@ static void UI_DrawProcessingChain(void)
     UI_FillRect(UI_CHAIN_X, UI_CHAIN_Y_MIN,
                 UI_CHAIN_X_MAX, UI_CHAIN_Y_MAX,
                 UI_COLOR_PANEL);
-    GrContextFontSet(&Lcd_Context, font);
     GrContextForegroundSet(&Lcd_Context, ClrLightSteelBlue);
-    GrStringDraw(&Lcd_Context, text, -1, UI_CHAIN_X, UI_CHAIN_Y, 0);
+    UI_DrawProcessingChainText(text, font);
 
     UI_DisplayedChainMode = applied_mode;
     UI_DisplayedChainKbps = target_kbps;
@@ -726,17 +803,21 @@ static void UI_DrawLoad(void)
     int load_percent;
 
     load_percent = SUBBAND_UI_DebugAlgoLoadPercent;
-    UI_FillRect(150, 431, 220, 451, UI_COLOR_PANEL);
+    UI_FillRect(UI_LOAD_VALUE_X0, UI_LOAD_VALUE_Y0,
+                UI_LOAD_VALUE_X1, UI_LOAD_VALUE_Y1,
+                UI_COLOR_PANEL);
     if (load_percent < 0)
     {
-        UI_DrawAscii("--", 150, 431, ClrLightSkyBlue);
+        UI_DrawAscii("--", UI_LOAD_VALUE_X0, UI_LOAD_VALUE_Y0,
+                     ClrLightSkyBlue);
     }
     else
     {
         cursor = UI_AppendInt(text, load_percent);
         cursor = UI_AppendText(cursor, "%");
         *cursor = '\0';
-        UI_DrawAscii(text, 150, 431, ClrLightSkyBlue);
+        UI_DrawAscii(text, UI_LOAD_VALUE_X0, UI_LOAD_VALUE_Y0,
+                     ClrLightSkyBlue);
     }
 }
 
@@ -772,13 +853,15 @@ static void UI_DrawStaticBackground(void)
                           UI_COLOR_TEXT);
     UI_FillRect(16, 44, 783, 115, UI_COLOR_PANEL);
     UI_FillRect(16, 316, 783, 383, UI_COLOR_PANEL);
-    UI_FillRect(16, 420, 783, 463, UI_COLOR_PANEL);
+    UI_FillRect(UI_LOAD_PANEL_X0, UI_LOAD_PANEL_Y0,
+                UI_LOAD_PANEL_X1, UI_LOAD_PANEL_Y1,
+                UI_COLOR_PANEL);
     SubbandUIFont_DrawPhrase(&Lcd_Context, SUBBAND_UI_PHRASE_LABEL_MODE,
                              28, 56, UI_COLOR_TEXT);
     SubbandUIFont_DrawPhrase(&Lcd_Context, SUBBAND_UI_PHRASE_LABEL_BITRATE,
                              18, 272, UI_COLOR_TEXT);
     SubbandUIFont_DrawPhrase(&Lcd_Context, SUBBAND_UI_PHRASE_LABEL_LOAD,
-                             28, 434, UI_COLOR_TEXT);
+                             28, UI_LOAD_LABEL_Y, UI_COLOR_TEXT);
     SUBBAND_UI_DebugFullRedrawCount++;
 }
 

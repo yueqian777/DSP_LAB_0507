@@ -396,8 +396,69 @@ class SubbandTouchUIContractTest(unittest.TestCase):
         draw_start = ui_source.index("static void UI_DrawProcessingChain(void)")
         draw_end = ui_source.index("static void UI_DrawStaticBackground(void)", draw_start)
         draw_body = ui_source[draw_start:draw_end]
-        self.assertEqual(draw_body.count("GrStringDraw("), 1)
+        self.assertIn("UI_DrawProcessingChainText(text, font);", draw_body)
         self.assertIn("UI_ClearDirty(UI_DIRTY_CHAIN);", draw_body)
+
+    def test_processing_chain_uses_geometric_arrows_not_font_glyphs(self) -> None:
+        ui_source = (ROOT / "Code/User/user_dsp/user_subband_ui.c").read_text(encoding="utf-8")
+
+        find_start = ui_source.index("static char *UI_FindChainSeparator(char *text)")
+        arrow_start = ui_source.index("static void UI_DrawChainArrow", find_start)
+        draw_text_start = ui_source.index(
+            "static void UI_DrawProcessingChainText", arrow_start
+        )
+        processing_start = ui_source.index(
+            "static void UI_DrawProcessingChain(void)", draw_text_start
+        )
+
+        find_body = ui_source[find_start:arrow_start]
+        arrow_body = ui_source[arrow_start:draw_text_start]
+        draw_text_body = ui_source[draw_text_start:processing_start]
+        self.assertIn("text[0] == ' '", find_body)
+        self.assertIn("text[1] == '-'", find_body)
+        self.assertIn("text[2] == '>'", find_body)
+        self.assertIn("text[3] == ' '", find_body)
+        self.assertIn("GrLineDrawH", arrow_body)
+        self.assertEqual(arrow_body.count("GrLineDraw("), 2)
+        separator_cut = draw_text_body.index("*separator = '\\0';")
+        string_draw = draw_text_body.index("GrStringDraw(", separator_cut)
+        self.assertLess(separator_cut, string_draw)
+        self.assertIn("UI_DrawChainArrow", draw_text_body)
+        self.assertIn("segment = separator + 4;", draw_text_body)
+
+    def test_default_layout_reclaims_obsolete_progress_band(self) -> None:
+        ui_source = (ROOT / "Code/User/user_dsp/user_subband_ui.c").read_text(encoding="utf-8")
+
+        for token in (
+            "#define UI_LOAD_PANEL_Y0 388",
+            "#define UI_LOAD_PANEL_Y1 431",
+            "#define UI_LOAD_VALUE_Y0 399",
+            "#define UI_LOAD_VALUE_Y1 419",
+            "#define UI_LOAD_LABEL_Y 402",
+        ):
+            self.assertIn(token, ui_source)
+        self.assertIn(
+            "#if SUBBAND_UI_PROGRESS_POLICY == SUBBAND_UI_PROGRESS_TEN_BLOCK",
+            ui_source,
+        )
+        self.assertIn("#define UI_LOAD_PANEL_Y0 420", ui_source)
+        self.assertIn("#define UI_LOAD_PANEL_Y1 463", ui_source)
+
+        background_start = ui_source.index("static void UI_DrawStaticBackground(void)")
+        background_end = ui_source.index(
+            "static void UI_ScheduleAppliedModeRedraw", background_start
+        )
+        background_body = ui_source[background_start:background_end]
+        self.assertIn("UI_LOAD_PANEL_Y0", background_body)
+        self.assertIn("UI_LOAD_PANEL_Y1", background_body)
+        self.assertNotIn("UI_FillRect(16, 420, 783, 463", background_body)
+
+        load_start = ui_source.index("static void UI_DrawLoad(void)")
+        load_end = ui_source.index("static void UI_DrawStatus(void)", load_start)
+        load_body = ui_source[load_start:load_end]
+        self.assertIn("UI_LOAD_VALUE_Y0", load_body)
+        self.assertIn("UI_LOAD_VALUE_Y1", load_body)
+        self.assertIn("UI_LOAD_LABEL_Y", background_body)
 
     def test_chain_dirty_lifecycle_and_priority_are_explicit(self) -> None:
         ui_source = (ROOT / "Code/User/user_dsp/user_subband_ui.c").read_text(encoding="utf-8")
