@@ -26,3 +26,5 @@ compare_*.wav
 .DS_Store
 Thumbs.db
 desktop.ini
+**/__pycache__/
+*.py[cod]

@@ -171,6 +171,10 @@ def analyze(arguments: argparse.Namespace) -> int:
         mismatch != 0 or report["output_clipping_count"] != 0
     ):
         return 2
+    if arguments.mode == "processed" and (
+        report["input_peak"] == 0 or report["output_clipping_count"] != 0
+    ):
+        return 3
     return 0
 
 

@@ -8,7 +8,7 @@
 
 **Tech Stack:** TI C6000 C89 board code, MSYS2 GCC C99 host tests, Python unittest and audio analysis, CCS 20.5 managed build/gmake, DSS JavaScript, PowerShell board-test wrapper.
 
-**Execution rule:** Do not create another branch and do not make intermediate commits. Preserve the user's uncommitted `Code/main.c` Project 33 selector. After every required verification passes, stage only the intended Project 3.3 paths and make one final commit on `main`.
+**Execution rule:** Do not create another branch and do not make intermediate commits. Keep `Code/main.c` defaulting to Project 32; select Project 3.3 only with the build define. After every required verification passes, stage only the intended Project 3.3 paths and make one final commit on `main`.
 
 ---
 
@@ -385,9 +385,10 @@ Assert the capture tool reads little-endian signed 16-bit mono without normaliza
 
 Assert the DSS script reads the required `EQ_Debug*` fields, supports runtime masks 0/STATUS/GAINS/BOTH, writes commit SHA and measurement status, and does not read CH2 capture arrays.
 
-Assert capture export waits for ready, halts the target, exports only the CH1
-input/output arrays as signed little-endian 16-bit raw data, and records source,
-frame counts, pre-write index, and trigger metadata for the analyzer.
+Assert debug capture runs for a bounded board-side window and then halts once
+to inspect/export only the CH1 arrays. It records source, frame counts,
+pre-write index, and trigger metadata, and is labeled `DEBUG_CAPTURE`; it is
+not evidence for frame-boundary continuity or real-time latency.
 
 Test bounded timeout behavior: a trigger such as audio-during-draw may remain
 `NOT_OBSERVED`; the script must not hang or convert absence into PASS.
@@ -406,10 +407,15 @@ Provide subcommands for manual and trigger captures. Output WAV without resampli
 
 - [ ] **Step 4: Implement the DSS snapshot matrix**
 
-Reuse the existing load/run/halt/evaluate pattern. Each 60-second row records frame, timing, LCD, auto-disable, capture, clip, and mismatch variables. Tests requiring 5-second or 2-second operator mode changes are labeled `MEASURED_DSS_WATCH_PLUS_OPERATOR`; the script does not claim uninterrupted mode injection if it must halt the target.
+Each 60-second non-switching row performs one uninterrupted target run and then
+halts once for its snapshot. The 5-second and 2-second switching rows are
+`MANUAL_HARDWARE_TEST` unless a board-side low-priority sequence performs the
+switches; debugger halt/run mode injection is forbidden for continuity claims.
 
-For capture rows, arm the request, wait for ready with a bounded timeout, halt,
-export the arrays and metadata, and pass those files to the capture analyzer.
+For capture rows, arm the request, run a bounded debug window, halt once, and
+export only if ready and metadata are valid. `AUDIO_DURING_LCD` absence is
+`NOT_OBSERVED`, not a failure; malformed metadata after an observed event is a
+failure.
 
 - [ ] **Step 5: Implement the PowerShell wrapper**
 
@@ -422,6 +428,11 @@ five-minute windows.
 The wrapper may open only the PC default line-output playback path. Add a
 source contract forbidding recording/input-device APIs, and keep loudspeaker
 observations explicitly subjective in the report.
+
+The wrapper enforces a 20-minute external DSS timeout, terminates the DSS
+process tree, and stops playback in `finally`. Repository, CCS, DSS, and Python
+paths come from parameters or environment variables rather than machine-local
+hard-coded paths.
 
 - [ ] **Step 6: Run GREEN tooling tests**
 
@@ -485,6 +496,9 @@ signed shorts per manual array and 12288 signed shorts per trigger array.
 Document the old/new call chains, dirty bits, jobs, runtime masks, auto-disable reasons, capture layout/export, Watch variables, build results, board matrix, and `PENDING_DIAGNOSTIC` ISR boundary.
 
 ### Task 7: Run real-board LCD OFF/ON validation
+
+Current status: `PENDING_HARDWARE`. This task is not executed by the convergence
+change; LCD-on compile/link success is not board validation.
 
 **Files:**
 - Modify: `docs/equalizer_33_lcd_audio_safe.md`

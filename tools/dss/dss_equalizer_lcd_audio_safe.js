@@ -4,10 +4,12 @@ importPackage(Packages.com.ti.ccstudio.scripting.environment);
 importPackage(Packages.java.lang);
 importPackage(Packages.java.io);
 
-var root = "C:/Users/zhangyueqian/lab8/DSP_LAB_0507";
-var ccxml = root + "/TargetConfig/C6748.ccxml";
-var program = root + "/Debug/DSP_LAB_0507.out";
-var resultDir = root + "/docs/eval_outputs/equalizer_lcd_audio_safe";
+var defaultRoot = String(new File(".").getCanonicalPath()).replace(/\\/g, "/");
+var root = env("DSP_TEST_ROOT", defaultRoot);
+var ccxml = env("DSP_TEST_CCXML", root + "/TargetConfig/C6748.ccxml");
+var program = env("DSP_TEST_PROGRAM", root + "/Debug/DSP_LAB_0507.out");
+var resultDir = env("DSP_TEST_RESULT_DIR",
+                    root + "/docs/eval_outputs/equalizer_lcd_audio_safe");
 var csvPath = resultDir + "/matrix.csv";
 var metadataPath = resultDir + "/capture_metadata.jsonl";
 var summaryPath = resultDir + "/final_summary.json";
@@ -16,11 +18,11 @@ var buildConfig = env("DSP_TEST_BUILD_CONFIG", "C6748;Project=33;Fs=50k;Frame=10
 var dirtyState = env("DSP_TEST_DIRTY_STATE", "UNKNOWN");
 var operatorStatus = env("DSP_TEST_OPERATOR_STATUS", "NOT_OBSERVED");
 var operatorNotes = env("DSP_TEST_OPERATOR_NOTES", "");
-var python = env("DSP_TEST_PYTHON", "D:/SoftwareDownload/python.exe");
+var python = env("DSP_TEST_PYTHON", "python");
 var measurementMs = envInt("DSP_TEST_ROW_MS", 60000);
 var stabilityMs = envInt("DSP_TEST_STABILITY_MS", 300000);
-var readyTimeoutMs = envInt("DSP_TEST_CAPTURE_TIMEOUT_MS", 15000);
-var pollMs = 100;
+var debugCaptureArmMs = envInt("DSP_TEST_CAPTURE_ARM_MS", 500);
+var debugCaptureRunMs = envInt("DSP_TEST_CAPTURE_RUN_MS", 1000);
 var EQ_LCD_RUNTIME_STATUS = 1;
 var EQ_LCD_RUNTIME_GAINS = 2;
 var MASK_BOTH = EQ_LCD_RUNTIME_STATUS | EQ_LCD_RUNTIME_GAINS;
@@ -36,6 +38,7 @@ var stabilityTechnicalPass = false;
 var EQ_DIAG_RAW_COPY = 0;
 var EQ_DIAG_FLAT = 2;
 var EQ_DIAG_PRESET = 4;
+var EQ_PRESET_COUNT = 6;
 
 var fields = [
     "test_name", "requested_runtime_mask", "actual_runtime_mask", "mask_name",
@@ -288,31 +291,32 @@ function measureRow(name, mask, duration, operatorMode, diagPath, mode) {
     snapshot(name, mask, duration, operatorMode, "MEASURED_DSS_WATCH", notes, baseline);
 }
 
-function measureSwitchingRow(name, mask, duration, interval) {
-    var notes = [], baseline, elapsed = 0, mode = 0, segment;
-    write("EQ_DebugLcdRuntimeMask = " + mask, notes);
-    write("EQ_DebugDiagPath = " + EQ_DIAG_PRESET, notes);
-    baseline = takeBaseline(notes);
-    while (elapsed < duration) {
-        write("EQ_DebugMode = " + mode, notes);
-        mode = (mode + 1) % 6;
-        segment = Math.min(interval, duration - elapsed);
-        runFor(segment);
-        elapsed += segment;
+function recordManualSwitchingTest(name, duration, interval) {
+    var row = {}, index, mode = 0, switches, sequence = [];
+    switches = Math.floor(duration / interval);
+    for (index = 0; index < switches; index++) {
+        mode = (mode + 1) % EQ_PRESET_COUNT;
+        sequence.push(mode);
     }
-    snapshot(name, mask, duration, true, "MEASURED_DSS_WATCH", notes, baseline);
-}
-
-function waitFor(expression, expected, timeout) {
-    var waited = 0;
-    while (waited < timeout) {
-        debugSession.target.halt();
-        if (read(expression, []) == String(expected)) return true;
-        debugSession.target.runAsynch();
-        Thread.sleep(pollMs); waited += pollMs;
-    }
-    debugSession.target.halt();
-    return false;
+    for (index = 0; index < fields.length; index++) row[fields[index]] = "";
+    row.test_name = name;
+    row.requested_runtime_mask = MASK_BOTH;
+    row.mask_name = "BOTH";
+    row.duration_ms = duration;
+    row.operator_mode = true;
+    row.operator_status = "NOT_OBSERVED";
+    row.technical_pass = false;
+    row.pass = false;
+    row.pass_reasons = "MANUAL_HARDWARE_TEST";
+    row.measurement_status = "MANUAL_HARDWARE_TEST";
+    row.commit_sha = commitSha;
+    row.build_config = buildConfig;
+    row.dirty_state = dirtyState;
+    row.notes = "switch_interval_ms=" + interval +
+                "|preset_sequence=" + sequence.join(":") +
+                "|debugger halt/run forbidden";
+    writeRow(row);
+    allSixtySecondRowsComplete = false;
 }
 
 function addressOf(symbol) { return debugSession.symbol.getAddress(symbol); }
@@ -325,6 +329,7 @@ function saveRawI16LE(symbol, samples, fileName) {
 
 function metadataLine(kind, status, source, frameCount, prewrite, postCount, input, output) {
     metadata.write(JSON.stringify({capture_kind: kind, measurement_status: status,
+        capture_scope: "DEBUG_CAPTURE",
         trigger_source: source, frame_count: frameCount, pre_write_index: prewrite,
         trigger_post_count: postCount, armed_ready: read("EQ_TriggerCaptureArmedReady", []),
         ready: kind == "manual" ? read("EQ_CaptureManualReady", []) :
@@ -349,6 +354,7 @@ function recordAnalyzerResult(kind, exitCode, source, frameCount, prewrite,
     var status = exitCode == 0 ? "CAPTURE_ANALYZER_PASS" : "CAPTURE_ANALYZER_FAILED";
     if (exitCode != 0) captureOverallPass = false;
     metadata.write(JSON.stringify({capture_kind: kind, measurement_status: status,
+        capture_scope: "DEBUG_CAPTURE",
         analyzer_exit_code: exitCode, trigger_source: source, frame_count: frameCount,
         pre_write_index: prewrite, trigger_post_count: postCount, input_raw: input,
         output_raw: output, commit_sha: commitSha}) + "\n");
@@ -362,10 +368,11 @@ function captureManual() {
     write("EQ_DebugDiagPath = " + EQ_DIAG_RAW_COPY, notes); /* RAW_COPY */
     write("EQ_DebugMode = 0", notes);
     write("EQ_CaptureManualRequest = 1", notes);
-    debugSession.target.runAsynch();
-    if (!waitFor("EQ_CaptureManualReady", 1, readyTimeoutMs)) {
+    runFor(debugCaptureRunMs);
+    if (read("EQ_CaptureManualReady", notes) != "1") {
         captureOverallPass = false;
-        metadataLine("manual", "NOT_OBSERVED", 0, 0, 0, 0, input, output);
+        metadataLine("manual", "DEBUG_CAPTURE_NOT_READY", 0, 0, 0, 0,
+                     input, output);
         write("EqualizerCapture_AcknowledgeManual()", notes);
         write("EqualizerCapture_Reset()", notes);
         return;
@@ -373,7 +380,7 @@ function captureManual() {
     debugSession.target.halt();
     saveRawI16LE("EQ_CaptureInput", 8 * 1024, input);
     saveRawI16LE("EQ_CaptureOutput", 8 * 1024, output);
-    metadataLine("manual", "MEASURED_DSS_WATCH", 0, 8, 0, 0, input, output);
+    metadataLine("manual", "DEBUG_CAPTURE", 0, 8, 0, 0, input, output);
     exitCode = runAnalyzer("manual", input, output, directory, 0, "raw");
     recordAnalyzerResult("manual", exitCode, 0, 8, 0, 0, input, output);
     write("EqualizerCapture_AcknowledgeManual()", notes);
@@ -390,10 +397,11 @@ function captureTrigger(source, name) {
         write("EQ_DebugLcdRuntimeMask = " + MASK_BOTH, notes);
     }
     write("EQ_TriggerCaptureRequest = " + source, notes);
-    debugSession.target.runAsynch();
-    if (!waitFor("EQ_TriggerCaptureArmedReady", 1, readyTimeoutMs)) {
+    runFor(debugCaptureArmMs);
+    if (read("EQ_TriggerCaptureArmedReady", notes) != "1") {
         captureOverallPass = false;
-        metadataLine("trigger", "NOT_OBSERVED", source, 0, 0, 0, input, output);
+        metadataLine("trigger", "DEBUG_CAPTURE_ARM_NOT_READY", source,
+                     0, 0, 0, input, output);
         write("EqualizerCapture_AcknowledgeTrigger()", notes);
         write("EqualizerCapture_Reset()", notes);
         return;
@@ -412,11 +420,13 @@ function captureTrigger(source, name) {
         /* Armed-ready is established before inducing a real accepted 0 -> 1 mode change. */
         write("EQ_DebugMode = 1", notes);
     }
-    /* Source 4 may remain NOT_OBSERVED; that is recorded and cannot pass overall. */
-    debugSession.target.runAsynch();
-    if (!waitFor("EQ_TriggerCaptureReady", 1, readyTimeoutMs)) {
-        captureOverallPass = false;
-        metadataLine("trigger", "NOT_OBSERVED", source, 0, 0, 0, input, output);
+    /* Fixed debug window, followed by one halt for metadata/export. */
+    runFor(debugCaptureRunMs);
+    if (read("EQ_TriggerCaptureReady", notes) != "1") {
+        if (source != 4) captureOverallPass = false;
+        metadataLine("trigger",
+                     source == 4 ? "NOT_OBSERVED" : "DEBUG_CAPTURE_NOT_READY",
+                     source, 0, 0, 0, input, output);
         write("EqualizerCapture_AcknowledgeTrigger()", notes);
         write("EqualizerCapture_Reset()", notes);
         return;
@@ -440,7 +450,7 @@ function captureTrigger(source, name) {
     }
     saveRawI16LE("EQ_TriggerCaptureInput", 12 * 1024, input);
     saveRawI16LE("EQ_TriggerCaptureOutput", 12 * 1024, output);
-    metadataLine("trigger", "MEASURED_DSS_WATCH", actualSource,
+    metadataLine("trigger", "DEBUG_CAPTURE", actualSource,
                  12, prewrite, postCount, input, output);
     exitCode = runAnalyzer("trigger", input, output, directory, prewrite, "processed");
     recordAnalyzerResult("trigger", exitCode, actualSource, 12, prewrite,
@@ -449,6 +459,8 @@ function captureTrigger(source, name) {
 }
 
 try {
+    if (!new File(ccxml).exists()) throw "Missing CCXML: " + ccxml;
+    if (!new File(program).exists()) throw "Missing program: " + program;
     mkdirs(resultDir);
     csv = new FileWriter(csvPath, false); csv.write(fields.join(",") + "\n");
     metadata = new FileWriter(metadataPath, false);
@@ -461,8 +473,8 @@ try {
     measureRow("flat_lcd_status", EQ_LCD_RUNTIME_STATUS, measurementMs, false, EQ_DIAG_FLAT, 0); /* FLAT */
     measureRow("preset_lcd_gains", EQ_LCD_RUNTIME_GAINS, measurementMs, false, EQ_DIAG_PRESET, 0); /* PRESET */
     measureRow("preset_lcd_both", MASK_BOTH, measurementMs, false, EQ_DIAG_PRESET, 0);
-    measureSwitchingRow("mode_switch_5s", MASK_BOTH, measurementMs, 5000);
-    measureSwitchingRow("mode_switch_2s", MASK_BOTH, measurementMs, 2000);
+    recordManualSwitchingTest("mode_switch_5s", measurementMs, 5000);
+    recordManualSwitchingTest("mode_switch_2s", measurementMs, 2000);
     if (allSixtySecondRowsComplete) {
         measureRow("stability_five_minutes", MASK_BOTH, stabilityMs, false,
                    EQ_DIAG_PRESET, 0);

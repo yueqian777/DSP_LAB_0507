@@ -1304,7 +1304,7 @@ int EqualizerDisplay_HasPendingJob(void)
     current = EQ_LcdRuntimeMask &
               (EQ_LCD_RUNTIME_STATUS | EQ_LCD_RUNTIME_GAINS);
     return ((s_dirty_mask != 0UL) ||
-            ((current & ~s_applied_runtime_mask) != 0U)) ? 1 : 0;
+            (current != s_applied_runtime_mask)) ? 1 : 0;
 }
 
 void EqualizerDisplay_CancelRuntimeJobs(void)
@@ -1322,6 +1322,7 @@ void EqualizerDisplay_AutoDisable(unsigned long reason)
         EQ_LcdRuntimeMask = 0U;
         EQ_DebugLcdAutoDisabledCount++;
     }
+    s_applied_runtime_mask = 0U;
     EqualizerDisplay_CancelRuntimeJobs();
 }
 
@@ -1762,6 +1763,11 @@ int main(void)
                                       "cancel left runtime jobs pending");
 
     EQ_LcdRuntimeMask = 0U;
+    failures += EQ_DisplayTestRequire(EqualizerDisplay_HasPendingJob() != 0,
+                                      "mask-zero transition was not observable");
+    failures += EQ_DisplayTestRequire(EqualizerDisplay_ServiceOneJob() ==
+                                      EQ_LCD_JOB_NONE,
+                                      "mask-zero transition drew a job");
     EqualizerDisplay_RequestGains(&st);
     EqualizerDisplay_RequestStatus(27UL, 1.4f, 3.6f, 9UL,
                                    EQ_PRESET_VOCAL, EQ_PRESET_NONE,
@@ -1879,6 +1885,73 @@ int main(void)
                                       "falling-edge service did not cancel jobs");
     failures += EQ_DisplayTestRequire(s_applied_runtime_mask == 0U,
                                       "falling-edge service did not sync mask");
+
+    /* Re-enabling a disabled class must force its latest snapshot dirty. */
+    EQ_LcdRuntimeMask = EQ_LCD_RUNTIME_STATUS | EQ_LCD_RUNTIME_GAINS;
+    EqualizerDisplay_RequestGains(&st);
+    EqualizerDisplay_RequestStatus(60UL, 2.0f, 4.2f, 15UL,
+                                   EQ_PRESET_FLAT, EQ_PRESET_NONE,
+                                   EQ_PRESET_FLAT);
+    while (EqualizerDisplay_HasPendingJob() != 0)
+    {
+        (void)EqualizerDisplay_ServiceOneJob();
+    }
+    EqualizerDisplay_AutoDisable(EQ_LCD_AUTO_DISABLE_LATENCY_MISS);
+    failures += EQ_DisplayTestRequire(s_applied_runtime_mask == 0U,
+                                      "auto-disable did not clear applied mask");
+    EQ_LcdRuntimeMask = EQ_LCD_RUNTIME_STATUS | EQ_LCD_RUNTIME_GAINS;
+    failures += EQ_DisplayTestRequire(EqualizerDisplay_HasPendingJob() != 0,
+                                      "BOTH re-enable exposed no pending work");
+    job_count = 0;
+    while (EqualizerDisplay_HasPendingJob() != 0)
+    {
+        if (EqualizerDisplay_ServiceOneJob() != EQ_LCD_JOB_NONE)
+        {
+            job_count++;
+        }
+    }
+    failures += EQ_DisplayTestRequire(job_count == EQ_LCD_JOB_COUNT,
+                                      "BOTH re-enable did not refresh all jobs");
+
+    EQ_LcdRuntimeMask = EQ_LCD_RUNTIME_GAINS;
+    (void)EqualizerDisplay_ServiceOneJob();
+    EQ_LcdRuntimeMask = 0U;
+    failures += EQ_DisplayTestRequire(EqualizerDisplay_HasPendingJob() != 0,
+                                      "GAINS disable transition was hidden");
+    (void)EqualizerDisplay_ServiceOneJob();
+    EQ_LcdRuntimeMask = EQ_LCD_RUNTIME_GAINS;
+    failures += EQ_DisplayTestRequire(EqualizerDisplay_HasPendingJob() != 0,
+                                      "GAINS re-enable exposed no pending work");
+    job_count = 0;
+    while (EqualizerDisplay_HasPendingJob() != 0)
+    {
+        if (EqualizerDisplay_ServiceOneJob() != EQ_LCD_JOB_NONE)
+        {
+            job_count++;
+        }
+    }
+    failures += EQ_DisplayTestRequire(job_count == EQ_NUM_BANDS,
+                                      "GAINS re-enable did not refresh ten bands");
+
+    EQ_LcdRuntimeMask = EQ_LCD_RUNTIME_STATUS;
+    (void)EqualizerDisplay_ServiceOneJob();
+    EQ_LcdRuntimeMask = 0U;
+    failures += EQ_DisplayTestRequire(EqualizerDisplay_HasPendingJob() != 0,
+                                      "STATUS disable transition was hidden");
+    (void)EqualizerDisplay_ServiceOneJob();
+    EQ_LcdRuntimeMask = EQ_LCD_RUNTIME_STATUS;
+    failures += EQ_DisplayTestRequire(EqualizerDisplay_HasPendingJob() != 0,
+                                      "STATUS re-enable exposed no pending work");
+    job_count = 0;
+    while (EqualizerDisplay_HasPendingJob() != 0)
+    {
+        if (EqualizerDisplay_ServiceOneJob() != EQ_LCD_JOB_NONE)
+        {
+            job_count++;
+        }
+    }
+    failures += EQ_DisplayTestRequire(job_count == 5,
+                                      "STATUS re-enable did not refresh five fields");
 
     EQ_LcdRuntimeMask = EQ_LCD_RUNTIME_STATUS | EQ_LCD_RUNTIME_GAINS;
     Equalizer_SetBandGainDb(&st, 0, -6.0f);

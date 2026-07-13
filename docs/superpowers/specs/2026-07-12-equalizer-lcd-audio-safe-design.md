@@ -252,7 +252,9 @@ memory. The expected storage is 32 KiB for the manual input/output pair and
 48 KiB for the twelve-frame triggered input/output pair, excluding small
 control metadata.
 
-CCS/DSS exports signed little-endian 16-bit data. A host tool converts it to
+CCS/DSS debug capture exports signed little-endian 16-bit data after a bounded
+run and one halt. It is labeled `DEBUG_CAPTURE` and cannot establish real-time
+latency or frame-boundary continuity. A host tool converts it to
 mono 50 kHz PCM WAV and reports RAW_COPY mismatch, peaks, clipping, correlation,
 SNR, frame-boundary discontinuity, and spectrum. These results validate the
 digital algorithm path only.
@@ -279,16 +281,17 @@ Test-driven implementation starts with failing host/mock contracts for:
 
 Regression includes the complete equalizer host suite, independent Python
 reference, WAV A/B, Project 32 build, Project 33 LCD-off build, and Project 33
-LCD-on build. `link_errors` must be zero and the default source selection
-remains Project 32; the user's current local Project 33 selector is preserved
-as an uncommitted hardware-test choice unless explicitly requested otherwise.
+LCD-on build. `link_errors` must be zero and the source default remains Project
+32. Project 3.3 is selected only through the build define
+`DSP_LAB_PROJECT_SELECT=33`.
 
 ## Board Validation
 
-The board matrix runs LCD runtime mask 0, status only, gains only, and combined
+The board matrix remains `PENDING_HARDWARE`. It runs LCD runtime mask 0, status only, gains only, and combined
 status plus gains. Tests use a PC-generated 1 kHz -18 dBFS signal and music on
 ADC CH1, with loudspeaker observation. Mode changes run at 5-second and
-2-second intervals. Each matrix row runs for 60 seconds; a passing combined
+2-second intervals. Switching is manual or board-timed; debugger halt/run is
+not used as a real-time switching method. Each matrix row runs for 60 seconds; a passing combined
 fixed-mode row then runs for five minutes.
 
 Passing requires zero active-service and frame-latency deadline misses, zero

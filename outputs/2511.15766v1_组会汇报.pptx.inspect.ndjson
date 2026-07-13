@@ -1,0 +1,208 @@
+{"kind":"deck","id":"pr/owttw1","name":"Deck"}
+{"kind":"layout","layoutId":"/ppt/slideMasters/slideMaster1.xml","name":"","type":"master","placeholders":[{"name":"title","type":"title","textPreview":"单击此处编辑母版标题样式"},{"name":"body","type":"body","textPreview":"单击此处编辑母版文本样式 | 二级 | 三级 | 四级 | 五级"},{"name":"dateTime","type":"dateTime","textPreview":"2026/1/9"},{"name":"footer","type":"footer"},{"name":"slideNumber","type":"slideNumber","textPreview":"‹#›"}]}
+{"kind":"layout","layoutId":"/ppt/slideLayouts/slideLayout1.xml","name":"标题幻灯片","type":"title","placeholders":[{"name":"title","type":"title","textPreview":"单击此处编辑母版标题样式"},{"name":"subtitle","type":"subtitle","textPreview":"单击此处编辑母版副标题样式"},{"name":"dateTime","type":"dateTime","textPreview":"2026/1/9"},{"name":"footer","type":"footer"},{"name":"slideNumber","type":"slideNumber","textPreview":"‹#›"}]}
+{"kind":"layout","layoutId":"/ppt/slideLayouts/slideLayout2.xml","name":"标题和内容","type":"obj","placeholders":[{"name":"title","type":"title","textPreview":"单击此处编辑母版标题样式"},{"name":"2","textPreview":"单击此处编辑母版文本样式 | 二级 | 三级 | 四级 | 五级"},{"name":"dateTime","type":"dateTime","textPreview":"2026/1/9"},{"name":"footer","type":"footer"},{"name":"slideNumber","type":"slideNumber","textPreview":"‹#›"}]}
+{"kind":"layout","layoutId":"/ppt/slideLayouts/slideLayout3.xml","name":"节标题","type":"secHead","placeholders":[{"name":"title","type":"title","textPreview":"单击此处编辑母版标题样式"},{"name":"body","type":"body","textPreview":"单击此处编辑母版文本样式"},{"name":"dateTime","type":"dateTime","textPreview":"2026/1/9"},{"name":"footer","type":"footer"},{"name":"slideNumber","type":"slideNumber","textPreview":"‹#›"}]}
+{"kind":"layout","layoutId":"/ppt/slideLayouts/slideLayout4.xml","name":"两栏内容","type":"twoObj","placeholders":[{"name":"title","type":"title","textPreview":"单击此处编辑母版标题样式"},{"name":"2","textPreview":"单击此处编辑母版文本样式 | 二级 | 三级 | 四级 | 五级"},{"name":"3","textPreview":"单击此处编辑母版文本样式 | 二级 | 三级 | 四级 | 五级"},{"name":"dateTime","type":"dateTime","textPreview":"2026/1/9"},{"name":"footer","type":"footer"},{"name":"slideNumber","type":"slideNumber","textPreview":"‹#›"}]}
+{"kind":"layout","layoutId":"/ppt/slideLayouts/slideLayout5.xml","name":"比较","type":"twoTxTwoObj","placeholders":[{"name":"title","type":"title","textPreview":"单击此处编辑母版标题样式"},{"name":"body","type":"body","textPreview":"单击此处编辑母版文本样式"},{"name":"3","textPreview":"单击此处编辑母版文本样式 | 二级 | 三级 | 四级 | 五级"},{"name":"body","type":"body","textPreview":"单击此处编辑母版文本样式"},{"name":"5","textPreview":"单击此处编辑母版文本样式 | 二级 | 三级 | 四级 | 五级"},{"name":"dateTime","type":"dateTime","textPreview":"2026/1/9"},{"name":"footer","type":"footer"},{"name":"slideNumber","type":"slideNumber","textPreview":"‹#›"}]}
+{"kind":"layout","layoutId":"/ppt/slideLayouts/slideLayout6.xml","name":"仅标题","type":"titleOnly","placeholders":[{"name":"title","type":"title","textPreview":"单击此处编辑母版标题样式"},{"name":"dateTime","type":"dateTime","textPreview":"2026/1/9"},{"name":"footer","type":"footer"},{"name":"slideNumber","type":"slideNumber","textPreview":"‹#›"}]}
+{"kind":"layout","layoutId":"/ppt/slideLayouts/slideLayout7.xml","name":"空白","type":"blank","placeholders":[{"name":"dateTime","type":"dateTime","textPreview":"2026/1/9"},{"name":"footer","type":"footer"},{"name":"slideNumber","type":"slideNumber","textPreview":"‹#›"}]}
+{"kind":"layout","layoutId":"/ppt/slideLayouts/slideLayout8.xml","name":"内容与标题","type":"objTx","placeholders":[{"name":"title","type":"title","textPreview":"单击此处编辑母版标题样式"},{"name":"2","textPreview":"单击此处编辑母版文本样式 | 二级 | 三级 | 四级 | 五级"},{"name":"body","type":"body","textPreview":"单击此处编辑母版文本样式"},{"name":"dateTime","type":"dateTime","textPreview":"2026/1/9"},{"name":"footer","type":"footer"},{"name":"slideNumber","type":"slideNumber","textPreview":"‹#›"}]}
+{"kind":"layout","layoutId":"/ppt/slideLayouts/slideLayout9.xml","name":"图片与标题","type":"picTx","placeholders":[{"name":"title","type":"title","textPreview":"单击此处编辑母版标题样式"},{"name":"picture","type":"picture"},{"name":"body","type":"body","textPreview":"单击此处编辑母版文本样式"},{"name":"dateTime","type":"dateTime","textPreview":"2026/1/9"},{"name":"footer","type":"footer"},{"name":"slideNumber","type":"slideNumber","textPreview":"‹#›"}]}
+{"kind":"layout","layoutId":"/ppt/slideLayouts/slideLayout10.xml","name":"标题和竖排文字","type":"vertTx","placeholders":[{"name":"title","type":"title","textPreview":"单击此处编辑母版标题样式"},{"name":"body","type":"body","textPreview":"单击此处编辑母版文本样式 | 二级 | 三级 | 四级 | 五级"},{"name":"dateTime","type":"dateTime","textPreview":"2026/1/9"},{"name":"footer","type":"footer"},{"name":"slideNumber","type":"slideNumber","textPreview":"‹#›"}]}
+{"kind":"layout","layoutId":"/ppt/slideLayouts/slideLayout11.xml","name":"竖排标题与文本","type":"vertTitleAndTx","placeholders":[{"name":"title","type":"title","textPreview":"单击此处编辑母版标题样式"},{"name":"body","type":"body","textPreview":"单击此处编辑母版文本样式 | 二级 | 三级 | 四级 | 五级"},{"name":"dateTime","type":"dateTime","textPreview":"2026/1/9"},{"name":"footer","type":"footer"},{"name":"slideNumber","type":"slideNumber","textPreview":"‹#›"}]}
+{"kind":"slide","id":"sl/y90nupkv","slide":1,"title":"广义 WOLA 滤波器组","textShapes":2}
+{"kind":"shape","id":"sh/65g3298r","slide":1,"name":"矩形 4","bbox":[-3.36,0,1284.97,721.47]}
+{"kind":"textbox","id":"sh/0bmd476t","slide":1,"name":"PA_文本框 14","text":"广义 WOLA 滤波器组\n提升子带系统辨识","textPreview":"广义 WOLA 滤波器组 | 提升子带系统辨识","textChars":21,"textLines":2,"bbox":[6.03,170.49,830.54,222.96]}
+{"kind":"shape","id":"sh/ipovexwn","slide":1,"name":"直接连接符 15","bbox":[34.48,531.05,773.65,0]}
+{"kind":"textbox","id":"sh/90ve1w7q","slide":1,"name":"文本框 23","text":"Sharma 等  ·  2511.15766","textPreview":"Sharma 等  ·  2511.15766","textChars":23,"textLines":1,"bbox":[142.73,563.94,469.19,67.2]}
+{"kind":"image","id":"im/zidgfixg","slide":1,"name":"Picture 2","bbox":[740.67,0,540.93,721.47]}
+{"kind":"image","id":"im/0jmxony1","slide":1,"name":"图片 1","bbox":[22.24,1.12,589.68,125.24]}
+{"kind":"notes","id":"nt/y90nupkv","slide":1,"text":"开场先给结论：这篇论文不是单纯增加滤波器阶数，而是重新安排子带滤波器的位置，使满带建模自由度恢复。来源：论文摘要与引言。"}
+{"kind":"slide","id":"sl/hwbqtkby","slide":2,"title":"PART 01","textShapes":3}
+{"kind":"shape","id":"sh/q5wjelsz","slide":2,"name":"矩形 8","bbox":[0,182,1280,405.93]}
+{"kind":"shape","id":"sh/a10jqpsj","slide":2,"name":"椭圆 4","bbox":[528,32.47,224,224]}
+{"kind":"textbox","id":"sh/wjy9sry9","slide":2,"name":"文本框 13","text":"PART 01","textPreview":"PART 01","textChars":7,"textLines":1,"bbox":[254.67,329.41,360.98,116.33]}
+{"kind":"textbox","id":"sh/xk7qlczu","slide":2,"name":"文本框 14","text":"研究问题","textPreview":"研究问题","textChars":4,"textLines":1,"bbox":[682.82,353.84,374.82,80.78]}
+{"kind":"textbox","id":"sh/ahwrqhgj","slide":2,"name":"文本框 15","text":"|","textPreview":"|","textChars":1,"textLines":1,"bbox":[622.42,314.8,46.31,126.02]}
+{"kind":"image","id":"im/wved8fit","slide":2,"name":"图片 6","bbox":[0.17,182,1279.67,405.93]}
+{"kind":"image","id":"im/nqlwvq1w","slide":2,"name":"图片 17","bbox":[484.58,38.19,310.84,226.64]}
+{"kind":"notes","id":"nt/hwbqtkby","slide":2,"text":"这一节提出组会需要回答的问题：传统 WOLA 为什么有效率但不够准确？"}
+{"kind":"slide","id":"sl/ofy9wn61","slide":3,"title":"一","textShapes":4}
+{"kind":"shape","id":"sh/x8nml0ra","slide":3,"name":"等腰三角形 15","bbox":[102.74,6.4,29.19,25.64]}
+{"kind":"shape","id":"sh/w7ulsvqp","slide":3,"name":"等腰三角形 16","bbox":[28.25,6.8,29.19,25.64]}
+{"kind":"shape","id":"sh/v6l4jq94","slide":3,"name":"箭头: 五边形 13","bbox":[0,19.22,1019.58,50.67]}
+{"kind":"shape","id":"sh/a5c3ql8z","slide":3,"name":"等腰三角形 14","bbox":[41.33,6.92,76,72.61]}
+{"kind":"shape","id":"sh/i9w3u58v","slide":3,"name":"箭头: V 形 18","bbox":[1026.98,19.22,45.3,50.67]}
+{"kind":"shape","id":"sh/e10f2twf","slide":3,"name":"箭头: V 形 19","bbox":[1066.18,19.22,45.3,50.67]}
+{"kind":"textbox","id":"sh/f29gbyx0","slide":3,"name":"文本框 20","text":"一","textPreview":"一","textChars":1,"textLines":1,"bbox":[54.37,11.64,55.05,48.47]}
+{"kind":"textbox","id":"sh/03ix43e5","slide":3,"name":"文本框 21","text":"传统 WOLA 的效率来自一个硬约束","textPreview":"传统 WOLA 的效率来自一个硬约束","textChars":18,"textLines":1,"bbox":[127.28,16.89,213.26,48.47]}
+{"kind":"shape","id":"sh/3ah8rqlg","slide":3,"name":"矩形: 圆角 4","bbox":[602.11,117.33,601.48,524]}
+{"kind":"shape","id":"sh/m5cra54z","slide":3,"name":"平行四边形 7","bbox":[-18.32,697.85,825.71,22.15]}
+{"kind":"shape","id":"sh/n6ls3alk","slide":3,"name":"平行四边形 8","bbox":[807.38,659.01,43.08,62.41]}
+{"kind":"textbox","id":"sh/n2l4fq98","slide":3,"name":"平行四边形 9","text":"Sharma 等  ·  2511.15766","textPreview":"Sharma 等  ·  2511.15766","textChars":23,"textLines":1,"bbox":[842.65,660.69,469.35,59.31]}
+{"kind":"shape","id":"sh/po3ilcvm","slide":3,"name":"Rectangle 6","bbox":[0,0,1280,48]}
+{"kind":"shape","id":"sh/21szqxcb","slide":3,"name":"文本框 1","bbox":[265.53,1003.07,277.2,19]}
+{"kind":"textbox","id":"sh/ds3ipcvy","slide":3,"name":"Rectangle 8","text":"传统 WOLA 以低复杂度换取可实现性。\n\n• 子带滤波在降采样率执行，适合长脉冲响应系统。\n• 多速率变换后，满速率滤波器被限制为 Cₖ(zᴰ)：系数之间插入 D−1 个零。\n• 稀疏结构锁死了跨帧建模自由度，难以准确逼近真实系统。\n\n关键矛盾：精度需要更多自由度，而更多自由度又会推高计算量。","textPreview":"传统 WOLA 以低复杂度换取可实现性。 |  | • 子带滤波在降采样率执行，适合长脉冲响应系统。 | • 多速率变换后，满速率滤波器被限制为 Cₖ(zᴰ)：系数之间插入 D−1 个零。 | • 稀疏结构锁死了跨帧建模自由度，难以准确逼近真实系统。 |  | 关键矛盾：精...","textChars":148,"textLines":7,"bbox":[626.72,129.33,535.37,465.3]}
+{"kind":"image","id":"im/x076tg3u","slide":3,"name":"图片 10","alt":"Fig. 1 conventional WOLA system identification","bbox":[75.55,75.84,408.97,243.83]}
+{"kind":"image","id":"im/czep0bm9","slide":3,"name":"图片 12","alt":"Fig. 4 prototype analysis filters","bbox":[54.37,318.47,451.34,359.96]}
+{"kind":"notes","id":"nt/ofy9wn61","slide":3,"text":"讲 Fig. 1：传统 WOLA 把子带滤波放在降采样率。强调稀疏 Cₖ(zᴰ) 结构带来的零系数。图中原型滤波器来自论文 Fig. 4。"}
+{"kind":"slide","id":"sl/jyx0ra1s","slide":4,"title":"一","textShapes":4}
+{"kind":"shape","id":"sh/a5kr2xg3","slide":4,"name":"等腰三角形 15","bbox":[102.74,6.4,29.19,25.64]}
+{"kind":"shape","id":"sh/v6tsv2xo","slide":4,"name":"等腰三角形 16","bbox":[28.25,6.8,29.19,25.64]}
+{"kind":"shape","id":"sh/w72947yt","slide":4,"name":"箭头: 五边形 13","bbox":[0,19.22,1019.58,50.67]}
+{"kind":"shape","id":"sh/x8vaxsfe","slide":4,"name":"等腰三角形 14","bbox":[41.33,6.92,76,72.61]}
+{"kind":"shape","id":"sh/h4fa9wfy","slide":4,"name":"箭头: V 形 18","bbox":[1026.98,19.22,45.3,50.67]}
+{"kind":"shape","id":"sh/p0batw72","slide":4,"name":"箭头: V 形 19","bbox":[1066.18,19.22,45.3,50.67]}
+{"kind":"textbox","id":"sh/oz29krqh","slide":4,"name":"文本框 20","text":"一","textPreview":"一","textChars":1,"textLines":1,"bbox":[54.37,11.64,55.05,48.47]}
+{"kind":"textbox","id":"sh/3ytsrmpw","slide":4,"name":"文本框 21","text":"问题不只是实现，而是两类误差叠加","textPreview":"问题不只是实现，而是两类误差叠加","textChars":16,"textLines":1,"bbox":[127.28,16.89,213.26,48.47]}
+{"kind":"shape","id":"sh/ql8jytsj","slide":4,"name":"矩形: 圆角 4","bbox":[602.11,117.33,601.48,524]}
+{"kind":"shape","id":"sh/3ihk3et8","slide":4,"name":"平行四边形 7","bbox":[-18.32,697.85,825.71,22.15]}
+{"kind":"shape","id":"sh/ih8ju9sn","slide":4,"name":"平行四边形 8","bbox":[807.38,659.01,43.08,62.41]}
+{"kind":"textbox","id":"sh/kbm987y5","slide":4,"name":"平行四边形 9","text":"失真 / 混叠","textPreview":"失真 / 混叠","textChars":7,"textLines":1,"bbox":[842.65,660.69,469.35,59.31]}
+{"kind":"shape","id":"sh/elwba54j","slide":4,"name":"Rectangle 6","bbox":[0,0,1280,48]}
+{"kind":"shape","id":"sh/18nu50nu","slide":4,"name":"文本框 1","bbox":[265.53,1003.07,277.2,19]}
+{"kind":"textbox","id":"sh/qhcb6l47","slide":4,"name":"Rectangle 8","text":"论文把传统方案的瓶颈拆成两类误差：\n\n• 失真误差：STFT 与循环卷积使估计的满带响应偏离真实系统。\n• 子带混叠：分析/合成原型滤波器与降采样共同引入别名项。\n\n已有工作往往只减少混叠，或用额外约束补偿循环失真；但缺少从时域系统辨识角度对 T、L、D 与原型滤波器的统一分析。\n\n论文目标：同时释放建模自由度，并量化 MSE/ERLE。","textPreview":"论文把传统方案的瓶颈拆成两类误差： |  | • 失真误差：STFT 与循环卷积使估计的满带响应偏离真实系统。 | • 子带混叠：分析/合成原型滤波器与降采样共同引入别名项。 |  | 已有工作往往只减少混叠，或用额外约束补偿循环失真；但缺少从时域系统辨识角度对 T、L、D...","textChars":170,"textLines":8,"bbox":[626.72,129.33,535.37,465.3]}
+{"kind":"image","id":"im/ql0v61or","slide":4,"name":"图片 10","alt":"Fig. 6 prototype-filter convolution","bbox":[75.55,75.84,408.97,243.83]}
+{"kind":"image","id":"im/bm9wf65c","slide":4,"name":"图片 12","alt":"Fig. 7 periodic subband-filter coefficients","bbox":[54.37,318.47,451.34,359.96]}
+{"kind":"notes","id":"nt/jyx0ra1s","slide":4,"text":"这里把瓶颈归纳为失真和混叠两类，并说明论文的理论分析要把 T、L、D 和原型滤波器放在同一框架中。"}
+{"kind":"slide","id":"sl/i107q5of","slide":5,"title":"PART 02","textShapes":3}
+{"kind":"shape","id":"sh/m5kbi1oj","slide":5,"name":"矩形 8","bbox":[0,182,1280,405.93]}
+{"kind":"shape","id":"sh/yhkbe1o7","slide":5,"name":"椭圆 4","bbox":[528,32.47,224,224]}
+{"kind":"textbox","id":"sh/k7mxovud","slide":5,"name":"文本框 13","text":"PART 02","textPreview":"PART 02","textChars":7,"textLines":1,"bbox":[254.67,329.41,360.98,116.33]}
+{"kind":"textbox","id":"sh/58vehgvy","slide":5,"name":"文本框 14","text":"广义 WOLA","textPreview":"广义 WOLA","textChars":7,"textLines":1,"bbox":[682.82,353.84,374.82,80.78]}
+{"kind":"textbox","id":"sh/i54fmlc7","slide":5,"name":"文本框 15","text":"|","textPreview":"|","textChars":1,"textLines":1,"bbox":[622.42,314.8,46.31,126.02]}
+{"kind":"image","id":"im/4nmdwbm1","slide":5,"name":"图片 6","bbox":[0.17,182,1279.67,405.93]}
+{"kind":"image","id":"im/vitwz65k","slide":5,"name":"图片 17","bbox":[484.58,38.19,310.84,226.64]}
+{"kind":"notes","id":"nt/i107q5of","slide":5,"text":"过渡到方法：论文的贡献不是另加一个补丁，而是把滤波器重新放回满速率路径。"}
+{"kind":"slide","id":"sl/x8f69ofe","slide":6,"title":"二","textShapes":4}
+{"kind":"shape","id":"sh/j6dcr65c","slide":6,"name":"等腰三角形 15","bbox":[102.74,6.4,29.19,25.64]}
+{"kind":"shape","id":"sh/i54bylor","slide":6,"name":"等腰三角形 16","bbox":[28.25,6.8,29.19,25.64]}
+{"kind":"shape","id":"sh/5svutgni","slide":6,"name":"箭头: 五边形 13","bbox":[0,19.22,1019.58,50.67]}
+{"kind":"shape","id":"sh/47mt0b6x","slide":6,"name":"等腰三角形 14","bbox":[41.33,6.92,76,72.61]}
+{"kind":"shape","id":"sh/svmt4v6t","slide":6,"name":"箭头: V 形 18","bbox":[1026.98,19.22,45.3,50.67]}
+{"kind":"shape","id":"sh/cbe5g3ih","slide":6,"name":"箭头: V 形 19","bbox":[1066.18,19.22,45.3,50.67]}
+{"kind":"textbox","id":"sh/dcnm98zm","slide":6,"name":"文本框 20","text":"二","textPreview":"二","textChars":1,"textLines":1,"bbox":[54.37,11.64,55.05,48.47]}
+{"kind":"textbox","id":"sh/qpwnet0b","slide":6,"name":"文本框 21","text":"广义 WOLA：释放满带自由度","textPreview":"广义 WOLA：释放满带自由度","textChars":15,"textLines":1,"bbox":[127.28,16.89,213.26,48.47]}
+{"kind":"shape","id":"sh/98rqt4r6","slide":6,"name":"矩形: 圆角 4","bbox":[602.11,117.33,601.48,524]}
+{"kind":"shape","id":"sh/oryp8fah","slide":6,"name":"平行四边形 7","bbox":[-18.32,697.85,825.71,22.15]}
+{"kind":"shape","id":"sh/pc76hkr2","slide":6,"name":"平行四边形 8","bbox":[807.38,659.01,43.08,62.41]}
+{"kind":"textbox","id":"sh/h4bupgn6","slide":6,"name":"平行四边形 9","text":"广义 WOLA  ·  Cₖ(z)","textPreview":"广义 WOLA  ·  Cₖ(z)","textChars":17,"textLines":1,"bbox":[842.65,660.69,469.35,59.31]}
+{"kind":"shape","id":"sh/netcjqxo","slide":6,"name":"Rectangle 6","bbox":[0,0,1280,48]}
+{"kind":"shape","id":"sh/of2tcvy9","slide":6,"name":"文本框 1","bbox":[265.53,1003.07,277.2,19]}
+{"kind":"textbox","id":"sh/fq9cfqxc","slide":6,"name":"Rectangle 8","text":"核心改动只有一个：把子带滤波器移到降采样之前。\n\n传统：Cₖ(zᴰ)（稀疏）\n广义：Cₖ(z)（不再受零点约束）\n\n每个子带因此拥有完整的 T 阶 FIR 自由度，同时通过完美重构的分析/合成滤波器保持整体框架。\n\n代价也很明确：满速率处理需要 T 次窗口化 IDFT，复杂度从“可接受”变成“难以直接部署”。","textPreview":"核心改动只有一个：把子带滤波器移到降采样之前。 |  | 传统：Cₖ(zᴰ)（稀疏） | 广义：Cₖ(z)（不再受零点约束） |  | 每个子带因此拥有完整的 T 阶 FIR 自由度，同时通过完美重构的分析/合成滤波器保持整体框架。 |  | 代价也很明确：满速率处理需要 ...","textChars":155,"textLines":8,"bbox":[626.72,129.33,535.37,465.3]}
+{"kind":"image","id":"im/nm5kny5k","slide":6,"name":"图片 10","alt":"Fig. 2 generalized WOLA architecture","bbox":[75.55,75.84,408.97,243.83]}
+{"kind":"image","id":"im/mlw3etoz","slide":6,"name":"图片 12","alt":"Fig. 5 prototype synthesis filters","bbox":[54.37,318.47,451.34,359.96]}
+{"kind":"notes","id":"nt/x8f69ofe","slide":6,"text":"讲 Fig. 2：广义 WOLA 的核心是 Cₖ(z) 不再被稀疏化。然后立刻指出计算代价是每帧 T 次窗口化 IDFT。"}
+{"kind":"slide","id":"sl/gnmp4jqx","slide":7,"title":"二","textShapes":4}
+{"kind":"shape","id":"sh/p8fih03e","slide":7,"name":"等腰三角形 15","bbox":[102.74,6.4,29.19,25.64]}
+{"kind":"shape","id":"sh/o761ov2t","slide":7,"name":"等腰三角形 16","bbox":[28.25,6.8,29.19,25.64]}
+{"kind":"shape","id":"sh/n6x0fqlo","slide":7,"name":"箭头: 五边形 13","bbox":[0,19.22,1019.58,50.67]}
+{"kind":"shape","id":"sh/25ojml43","slide":7,"name":"等腰三角形 14","bbox":[41.33,6.92,76,72.61]}
+{"kind":"shape","id":"sh/eh4jil4r","slide":7,"name":"箭头: V 形 18","bbox":[1026.98,19.22,45.3,50.67]}
+{"kind":"shape","id":"sh/id4ju1oz","slide":7,"name":"箭头: V 形 19","bbox":[1066.18,19.22,45.3,50.67]}
+{"kind":"textbox","id":"sh/jedkn654","slide":7,"name":"文本框 20","text":"二","textPreview":"二","textChars":1,"textLines":1,"bbox":[54.37,11.64,55.05,48.47]}
+{"kind":"textbox","id":"sh/4fm1wb6p","slide":7,"name":"文本框 21","text":"MSE / ERLE 由四个设计变量共同决定","textPreview":"MSE / ERLE 由四个设计变量共同决定","textChars":22,"textLines":1,"bbox":[127.28,16.89,213.26,48.47]}
+{"kind":"shape","id":"sh/zedcfa9g","slide":7,"name":"矩形: 圆角 4","bbox":[602.11,117.33,601.48,524]}
+{"kind":"shape","id":"sh/eh0ba1sr","slide":7,"name":"平行四边形 7","bbox":[-18.32,697.85,825.71,22.15]}
+{"kind":"shape","id":"sh/fi9c369c","slide":7,"name":"平行四边形 8","bbox":[807.38,659.01,43.08,62.41]}
+{"kind":"textbox","id":"sh/baxkjqlk","slide":7,"name":"平行四边形 9","text":"理论变量  ·  T、L、D","textPreview":"理论变量  ·  T、L、D","textChars":14,"textLines":1,"bbox":[842.65,660.69,469.35,59.31]}
+{"kind":"shape","id":"sh/honq18ru","slide":7,"name":"Rectangle 6","bbox":[0,0,1280,48]}
+{"kind":"shape","id":"sh/ulc7qdsj","slide":7,"name":"文本框 1","bbox":[265.53,1003.07,277.2,19]}
+{"kind":"textbox","id":"sh/9k3qx8ry","slide":7,"name":"Rectangle 8","text":"广义 WOLA 的稳态性能不是单一参数决定的：\n\n• 子带阶数 T：增大 T，满带建模误差下降。\n• 系统长度 L：L 越长，低阶子带滤波器越难覆盖。\n• 抽取因子 D：改变混叠项数量与整体延迟。\n• 原型分析/合成滤波器：决定频率选择性与循环卷积失真。\n\n结论不是“阶数越大越好”，而是在失真与混叠之间寻找平衡。","textPreview":"广义 WOLA 的稳态性能不是单一参数决定的： |  | • 子带阶数 T：增大 T，满带建模误差下降。 | • 系统长度 L：L 越长，低阶子带滤波器越难覆盖。 | • 抽取因子 D：改变混叠项数量与整体延迟。 | • 原型分析/合成滤波器：决定频率选择性与循环卷积失真。...","textChars":157,"textLines":8,"bbox":[626.72,129.33,535.37,465.3]}
+{"kind":"image","id":"im/p4zitwv2","slide":7,"name":"图片 10","alt":"Fig. 6 prototype-filter convolution","bbox":[75.55,75.84,408.97,243.83]}
+{"kind":"image","id":"im/o3qhkreh","slide":7,"name":"图片 12","alt":"Fig. 7 subband-filter periodicity","bbox":[54.37,318.47,451.34,359.96]}
+{"kind":"notes","id":"nt/gnmp4jqx","slide":7,"text":"解释理论结论时只需抓住四个变量。重点不是记公式，而是理解性能由建模自由度、系统长度、抽取和原型滤波器共同塑造。"}
+{"kind":"slide","id":"sl/fu1gfa1s","slide":8,"title":"二","textShapes":4}
+{"kind":"shape","id":"sh/ehgvihwr","slide":8,"name":"等腰三角形 15","bbox":[102.74,6.4,29.19,25.64]}
+{"kind":"shape","id":"sh/zipwbmdc","slide":8,"name":"等腰三角形 16","bbox":[28.25,6.8,29.19,25.64]}
+{"kind":"shape","id":"sh/0jydkreh","slide":8,"name":"箭头: 五边形 13","bbox":[0,19.22,1019.58,50.67]}
+{"kind":"shape","id":"sh/1k7edwv2","slide":8,"name":"等腰三角形 14","bbox":[41.33,6.92,76,72.61]}
+{"kind":"shape","id":"sh/lgbepgvm","slide":8,"name":"箭头: V 形 18","bbox":[1026.98,19.22,45.3,50.67]}
+{"kind":"shape","id":"sh/tw7e9gnq","slide":8,"name":"箭头: V 形 19","bbox":[1066.18,19.22,45.3,50.67]}
+{"kind":"textbox","id":"sh/svydgb65","slide":8,"name":"文本框 20","text":"二","textPreview":"二","textChars":1,"textLines":1,"bbox":[54.37,11.64,55.05,48.47]}
+{"kind":"textbox","id":"sh/7u5w765k","slide":8,"name":"文本框 21","text":"PT-WOLA：用结构化近似把复杂度拉回可部署范围","textPreview":"PT-WOLA：用结构化近似把复杂度拉回可部署范围","textChars":25,"textLines":1,"bbox":[127.28,16.89,213.26,48.47]}
+{"kind":"shape","id":"sh/6h0fypgb","slide":8,"name":"矩形: 圆角 4","bbox":[602.11,117.33,601.48,524]}
+{"kind":"shape","id":"sh/je9g3ahk","slide":8,"name":"平行四边形 7","bbox":[-18.32,697.85,825.71,22.15]}
+{"kind":"shape","id":"sh/id0fu50z","slide":8,"name":"平行四边形 8","bbox":[807.38,659.01,43.08,62.41]}
+{"kind":"textbox","id":"sh/o7ydoret","slide":8,"name":"平行四边形 9","text":"PT-WOLA  ·  低复杂度","textPreview":"PT-WOLA  ·  低复杂度","textChars":16,"textLines":1,"bbox":[842.65,660.69,469.35,59.31]}
+{"kind":"shape","id":"sh/2ts769o3","slide":8,"name":"Rectangle 6","bbox":[0,0,1280,48]}
+{"kind":"shape","id":"sh/pwjqho7u","slide":8,"name":"文本框 1","bbox":[265.53,1003.07,277.2,19]}
+{"kind":"textbox","id":"sh/up872987","slide":8,"name":"Rectangle 8","text":"PT-WOLA 将广义 WOLA 的计算拆成更便宜的组合：\n\n• 广义 WOLA：每帧 T 次窗口化 IDFT。\n• PT-WOLA：1 次非窗口化 IDFT + T−1 个差分项 + 2R 个跨子带项。\n• 典型 N ≫ T 时，复杂度近似 O(N log₂N)，与传统 WOLA 同阶。\n\nR 由原型分析窗决定：矩形窗 R=0、余弦窗 R=1、root-Hann 需要更多项。","textPreview":"PT-WOLA 将广义 WOLA 的计算拆成更便宜的组合： |  | • 广义 WOLA：每帧 T 次窗口化 IDFT。 | • PT-WOLA：1 次非窗口化 IDFT + T−1 个差分项 + 2R 个跨子带项。 | • 典型 N ≫ T 时，复杂度近似 O(N log...","textChars":190,"textLines":7,"bbox":[626.72,129.33,535.37,465.3]}
+{"kind":"image","id":"im/upk3q54b","slide":8,"name":"图片 10","alt":"Fig. 3 PT-WOLA structure","bbox":[75.55,75.84,408.97,243.83]}
+{"kind":"image","id":"im/vqd4ja5w","slide":8,"name":"图片 12","alt":"Fig. 4 analysis-window spectra","bbox":[54.37,318.47,451.34,359.96]}
+{"kind":"notes","id":"nt/fu1gfa1s","slide":8,"text":"讲 Fig. 3：PT-WOLA 用一次 IDFT、差分项和 cross-terms 近似窗口化输入。R 是可调旋钮，决定 aliasing 与 distortion 的折中。"}
+{"kind":"slide","id":"sl/udsvah03","slide":9,"title":"PART 03","textShapes":3}
+{"kind":"shape","id":"sh/ah8nu54b","slide":9,"name":"矩形 8","bbox":[0,182,1280,405.93]}
+{"kind":"shape","id":"sh/mdonql4z","slide":9,"name":"椭圆 4","bbox":[528,32.47,224,224]}
+{"kind":"textbox","id":"sh/cnu1kzyd","slide":9,"name":"文本框 13","text":"PART 03","textPreview":"PART 03","textChars":7,"textLines":1,"bbox":[254.67,329.41,360.98,116.33]}
+{"kind":"textbox","id":"sh/do3id4fy","slide":9,"name":"文本框 14","text":"AEC 仿真与结果","textPreview":"AEC 仿真与结果","textChars":9,"textLines":1,"bbox":[682.82,353.84,256.35,80.78]}
+{"kind":"textbox","id":"sh/qlcjipgn","slide":9,"name":"文本框 15","text":"|","textPreview":"|","textChars":1,"textLines":1,"bbox":[622.42,314.8,46.31,126.02]}
+{"kind":"image","id":"im/s76psvu9","slide":9,"name":"图片 6","bbox":[0.17,182,1279.67,405.93]}
+{"kind":"image","id":"im/jixovqds","slide":9,"name":"图片 17","bbox":[484.58,38.19,310.84,226.64]}
+{"kind":"notes","id":"nt/udsvah03","slide":9,"text":"实验部分先说明评价环境：AEC 是一个具有长 RIR 的实际系统辨识场景。"}
+{"kind":"slide","id":"sl/m90b6t0r","slide":10,"title":"实验设置：用单通道 AEC 检验系统辨识","textShapes":4}
+{"kind":"shape","id":"sh/e9gb61k7","slide":10,"name":"等腰三角形 15","bbox":[102.74,6.4,29.19,25.64]}
+{"kind":"shape","id":"sh/fapcz6ls","slide":10,"name":"等腰三角形 16","bbox":[28.25,6.8,29.19,25.64]}
+{"kind":"shape","id":"sh/0bit8b2d","slide":10,"name":"箭头: 五边形 13","bbox":[0,19.22,1019.58,50.67]}
+{"kind":"shape","id":"sh/1cru1g3y","slide":10,"name":"等腰三角形 14","bbox":[41.33,6.92,76,72.61]}
+{"kind":"shape","id":"sh/p0ru503u","slide":10,"name":"箭头: V 形 18","bbox":[1026.98,19.22,45.3,50.67]}
+{"kind":"shape","id":"sh/xwnupgvy","slide":10,"name":"箭头: V 形 19","bbox":[1066.18,19.22,45.3,50.67]}
+{"kind":"textbox","id":"sh/bu5cnqd8","slide":10,"name":"文本框 21","text":"实验设置：用单通道 AEC 检验系统辨识","textPreview":"实验设置：用单通道 AEC 检验系统辨识","textChars":20,"textLines":1,"bbox":[127.28,16.89,148.64,48.47]}
+{"kind":"shape","id":"sh/ydcnatkn","slide":10,"name":"矩形: 圆角 4","bbox":[595.33,193.26,588.92,359.33]}
+{"kind":"shape","id":"sh/725onyl4","slide":10,"name":"平行四边形 7","bbox":[-18.32,697.85,825.71,22.15]}
+{"kind":"shape","id":"sh/m1cnetkj","slide":10,"name":"平行四边形 8","bbox":[807.38,659.01,43.08,62.41]}
+{"kind":"textbox","id":"sh/s7yt4b21","slide":10,"name":"平行四边形 9","text":"AEC  ·  L=512","textPreview":"AEC  ·  L=512","textChars":13,"textLines":1,"bbox":[842.65,660.69,469.35,59.31]}
+{"kind":"shape","id":"sh/algfy50n","slide":10,"name":"Rectangle 6","bbox":[0,0,1280,48]}
+{"kind":"shape","id":"sh/xo7ytkzy","slide":10,"name":"文本框 1","bbox":[265.53,1003.07,277.2,19]}
+{"kind":"textbox","id":"sh/ip0f2p0j","slide":10,"name":"Rectangle 8","text":"AEC 作为系统辨识用例：\n\n• L=512，fs=16 kHz；N=1024，50% overlap。\n• RLS：λ=0.999，EBR=20 dB。\n• 三种分析窗：rectangular / cosine / root-Hann。\n• 两类合成窗：minimum-norm / minimum-distortion。\n\n评价：system distance + ERLE。","textPreview":"AEC 作为系统辨识用例： |  | • L=512，fs=16 kHz；N=1024，50% overlap。 | • RLS：λ=0.999，EBR=20 dB。 | • 三种分析窗：rectangular / cosine / root-Hann。 | • 两类合成窗...","textChars":190,"textLines":8,"bbox":[611.33,228.01,531.43,432]}
+{"kind":"textbox","id":"sh/xc3mho32","slide":10,"name":"文本框 1","text":"三","textPreview":"三","textChars":1,"textLines":1,"bbox":[54.37,11.64,55.05,48.47]}
+{"kind":"image","id":"im/q1czetcr","slide":10,"name":"图片 10","alt":"Fig. 4 prototype analysis windows","bbox":[57.44,77.78,404.18,312.83]}
+{"kind":"image","id":"im/b2l0nytc","slide":10,"name":"图片 12","alt":"Fig. 5 prototype synthesis filters","bbox":[57.44,389.03,404.18,286.93]}
+{"kind":"notes","id":"nt/m90b6t0r","slide":10,"text":"讲参数与评价指标，说明为什么同时看 system distance 和 ERLE：前者看模型像不像真实 RIR，后者看回声压制效果。"}
+{"kind":"slide","id":"sl/jetc3ut0","slide":11,"title":"三","textShapes":4}
+{"kind":"shape","id":"sh/epobatgr","slide":11,"name":"等腰三角形 15","bbox":[102.74,6.4,29.19,25.64]}
+{"kind":"shape","id":"sh/zaxs3yhc","slide":11,"name":"等腰三角形 16","bbox":[28.25,6.8,29.19,25.64]}
+{"kind":"shape","id":"sh/0b6tc3yx","slide":11,"name":"箭头: 五边形 13","bbox":[0,19.22,1019.58,50.67]}
+{"kind":"shape","id":"sh/1cfa58zi","slide":11,"name":"等腰三角形 14","bbox":[41.33,6.92,76,72.61]}
+{"kind":"shape","id":"sh/dofa18z6","slide":11,"name":"箭头: V 形 18","bbox":[1026.98,19.22,45.3,50.67]}
+{"kind":"shape","id":"sh/tsnip0ny","slide":11,"name":"箭头: V 形 19","bbox":[1066.18,19.22,45.3,50.67]}
+{"kind":"textbox","id":"sh/87ehgv6d","slide":11,"name":"文本框 20","text":"三","textPreview":"三","textChars":1,"textLines":1,"bbox":[54.37,11.64,55.05,48.47]}
+{"kind":"textbox","id":"sh/7650nq5s","slide":11,"name":"文本框 21","text":"广义 WOLA 的性能随阶数上升而改善","textPreview":"广义 WOLA 的性能随阶数上升而改善","textChars":19,"textLines":1,"bbox":[127.28,16.89,213.26,48.47]}
+{"kind":"shape","id":"sh/250zy18b","slide":11,"name":"矩形: 圆角 4","bbox":[602.11,117.33,601.48,524]}
+{"kind":"shape","id":"sh/72t03qp0","slide":11,"name":"平行四边形 7","bbox":[-18.32,697.85,825.71,22.15]}
+{"kind":"shape","id":"sh/61kzalof","slide":11,"name":"平行四边形 8","bbox":[807.38,659.01,43.08,62.41]}
+{"kind":"textbox","id":"sh/ofqtgnyt","slide":11,"name":"平行四边形 9","text":"Evidence  ·  larger T","textPreview":"Evidence  ·  larger T","textChars":21,"textLines":1,"bbox":[842.65,660.69,469.35,59.31]}
+{"kind":"shape","id":"sh/ip8bmtor","slide":11,"name":"Rectangle 6","bbox":[0,0,1280,48]}
+{"kind":"shape","id":"sh/5sjah872","slide":11,"name":"文本框 1","bbox":[265.53,1003.07,277.2,19]}
+{"kind":"textbox","id":"sh/u18bit8f","slide":11,"name":"Rectangle 8","text":"实验支持理论分析：\n\n• T 增大 → system distance 下降、ERLE 上升。\n• minimum-distortion 在各窗、各阶数下优于 minimum-norm。\n• 矩形窗频率选择性弱，更易受混叠与收敛影响。\n\n要点：合成滤波器设计也是性能变量。","textPreview":"实验支持理论分析： |  | • T 增大 → system distance 下降、ERLE 上升。 | • minimum-distortion 在各窗、各阶数下优于 minimum-norm。 | • 矩形窗频率选择性弱，更易受混叠与收敛影响。 |  | 要点：合成滤...","textChars":136,"textLines":7,"bbox":[626.72,129.33,535.37,465.3]}
+{"kind":"image","id":"im/m9cna1cr","slide":11,"name":"图片 10","alt":"Fig. 10 PT-WOLA versus generalized WOLA","bbox":[75.55,75.84,408.97,243.83]}
+{"kind":"image","id":"im/7alo36dc","slide":11,"name":"图片 12","alt":"Fig. 11 fixed-difference-term comparison","bbox":[54.37,318.47,451.34,359.96]}
+{"kind":"notes","id":"nt/jetc3ut0","slide":11,"text":"先看 generalized WOLA：T 增大带来更好的 system distance / ERLE，minimum-distortion synthesis 更稳定。"}
+{"kind":"slide","id":"sl/8f2psfyx","slide":12,"title":"三","textShapes":4}
+{"kind":"shape","id":"sh/mps7a5or","slide":12,"name":"等腰三角形 15","bbox":[102.74,6.4,29.19,25.64]}
+{"kind":"shape","id":"sh/nq1o3a5w","slide":12,"name":"等腰三角形 16","bbox":[28.25,6.8,29.19,25.64]}
+{"kind":"shape","id":"sh/orapcf6h","slide":12,"name":"箭头: 五边形 13","bbox":[0,19.22,1019.58,50.67]}
+{"kind":"shape","id":"sh/9sj65kn2","slide":12,"name":"等腰三角形 14","bbox":[41.33,6.92,76,72.61]}
+{"kind":"shape","id":"sh/1oj61kn6","slide":12,"name":"箭头: V 形 18","bbox":[1026.98,19.22,45.3,50.67]}
+{"kind":"shape","id":"sh/hkbm5wzu","slide":12,"name":"箭头: V 形 19","bbox":[1066.18,19.22,45.3,50.67]}
+{"kind":"textbox","id":"sh/gj25cry9","slide":12,"name":"文本框 20","text":"三","textPreview":"三","textChars":1,"textLines":1,"bbox":[54.37,11.64,55.05,48.47]}
+{"kind":"textbox","id":"sh/fit436ho","slide":12,"name":"文本框 21","text":"PT-WOLA 把性能—复杂度变成可调旋钮","textPreview":"PT-WOLA 把性能—复杂度变成可调旋钮","textChars":21,"textLines":1,"bbox":[127.28,16.89,213.26,48.47]}
+{"kind":"shape","id":"sh/q903ad4n","slide":12,"name":"矩形: 圆角 4","bbox":[602.11,117.33,601.48,524]}
+{"kind":"shape","id":"sh/b6d4f2lc","slide":12,"name":"平行四边形 7","bbox":[-18.32,697.85,825.71,22.15]}
+{"kind":"shape","id":"sh/a543mx4r","slide":12,"name":"平行四边形 8","bbox":[807.38,659.01,43.08,62.41]}
+{"kind":"textbox","id":"sh/wvupgz6t","slide":12,"name":"平行四边形 9","text":"性能 / 复杂度","textPreview":"性能 / 复杂度","textChars":8,"textLines":1,"bbox":[842.65,660.69,469.35,59.31]}
+{"kind":"shape","id":"sh/q5c7m5wb","slide":12,"name":"Rectangle 6","bbox":[0,0,1280,48]}
+{"kind":"shape","id":"sh/d8nqxkf2","slide":12,"name":"文本框 1","bbox":[265.53,1003.07,277.2,19]}
+{"kind":"textbox","id":"sh/i1c7i5wf","slide":12,"name":"Rectangle 8","text":"相同总滤波器长度下，PT-WOLA 可逼近 generalized WOLA。\n\n• cosine：少量 cross-terms 即可。\n• rectangular：增加 cross-terms 能压低混叠，但受失真瓶颈限制。\n• root-Hann：minimum-distortion 更易逼近广义方案。\n\n结论：性能—复杂度可调。","textPreview":"相同总滤波器长度下，PT-WOLA 可逼近 generalized WOLA。 |  | • cosine：少量 cross-terms 即可。 | • rectangular：增加 cross-terms 能压低混叠，但受失真瓶颈限制。 | • root-Hann：min...","textChars":168,"textLines":7,"bbox":[626.72,129.33,535.37,465.3]}
+{"kind":"image","id":"im/ad436h8r","slide":12,"name":"图片 10","alt":"Fig. 10 PT-WOLA performance","bbox":[75.55,75.84,408.97,243.83]}
+{"kind":"image","id":"im/vedkzmpc","slide":12,"name":"图片 12","alt":"Fig. 11 cross-term trade-off","bbox":[54.37,318.47,451.34,359.96]}
+{"kind":"notes","id":"nt/8f2psfyx","slide":12,"text":"最后比较 PT-WOLA：合适的 cross-terms 可以在接近传统复杂度下追平 generalized WOLA；原型窗决定需要多少项。"}
+{"kind":"slide","id":"sl/hgzapcr6","slide":13,"title":"谢谢聆听！","textShapes":2}
+{"kind":"shape","id":"sh/p4r6p8by","slide":13,"name":"矩形 4","bbox":[-3.36,0,1284.97,721.47]}
+{"kind":"textbox","id":"sh/xozyhkbi","slide":13,"name":"PA_文本框 14","text":"谢谢聆听！","textPreview":"谢谢聆听！","textChars":5,"textLines":1,"bbox":[27.65,240.49,830.54,126.02]}
+{"kind":"shape","id":"sh/q50nydsj","slide":13,"name":"直接连接符 1","bbox":[34.48,531.05,773.65,0]}
+{"kind":"textbox","id":"sh/bq9orito","slide":13,"name":"文本框 2","text":"组会论文汇报  ·  欢迎讨论","textPreview":"组会论文汇报  ·  欢迎讨论","textChars":15,"textLines":1,"bbox":[142.73,563.94,469.19,67.2]}
+{"kind":"image","id":"im/pcvy1cr2","slide":13,"name":"Picture 2","bbox":[740.67,0,540.93,721.47]}
+{"kind":"image","id":"im/obmxs7ah","slide":13,"name":"图片 3","bbox":[22.24,1.12,589.68,125.24]}
+{"kind":"notes","id":"nt/hgzapcr6","slide":13,"text":"收束到三句话：释放自由度、量化误差来源、用 PT-WOLA 重新获得可部署性。最后可引出多通道空间滤波的后续方向。"}

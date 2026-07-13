@@ -161,6 +161,30 @@ class EqualizerCaptureAnalyzerTests(unittest.TestCase):
             )
             self.assertNotEqual(clipping.returncode, 0)
 
+    def test_processed_capture_rejects_silence_and_output_clipping(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            silence = [0] * 8 * 4
+            write_i16(output / "input.raw", silence)
+            write_i16(output / "output.raw", silence)
+            silent = self.run_analyzer(
+                "manual", "--input", str(output / "input.raw"), "--output",
+                str(output / "output.raw"), "--out-dir", str(output / "silent"),
+                "--mode", "processed", "--frame-len", "4",
+            )
+            self.assertNotEqual(silent.returncode, 0)
+            signal = [100] * 8 * 4
+            clipped = signal.copy()
+            clipped[5] = -32768
+            write_i16(output / "input.raw", signal)
+            write_i16(output / "output.raw", clipped)
+            clipping = self.run_analyzer(
+                "manual", "--input", str(output / "input.raw"), "--output",
+                str(output / "output.raw"), "--out-dir", str(output / "processed_clip"),
+                "--mode", "processed", "--frame-len", "4",
+            )
+            self.assertNotEqual(clipping.returncode, 0)
+
 
 class EqualizerDssContractTests(unittest.TestCase):
     def test_dss_has_masks_diagnostics_provenance_and_timeout(self) -> None:
@@ -173,7 +197,7 @@ class EqualizerDssContractTests(unittest.TestCase):
             "EQ_DebugLcdAutoDisableCount", "EQ_DebugLcdAutoDisableReason",
             "EQ_DebugClipCount", "commit_sha", "build_config", "dirty_state",
             "measurement_status", "NOT_OBSERVED", "MEASURED_DSS_WATCH_PLUS_OPERATOR",
-            "timeout", "60000", "300000",
+            "DEBUG_CAPTURE", "60000", "300000",
         ):
             self.assertIn(token, source)
 
@@ -192,9 +216,11 @@ class EqualizerDssContractTests(unittest.TestCase):
 
     def test_dss_rows_are_full_duration_and_track_baseline_deltas(self) -> None:
         source = DSS.read_text(encoding="utf-8")
-        self.assertIn('measureSwitchingRow("mode_switch_5s", MASK_BOTH, measurementMs, 5000)', source)
-        self.assertIn('measureSwitchingRow("mode_switch_2s", MASK_BOTH, measurementMs, 2000)', source)
-        self.assertNotIn('measureRow("operator_mode_switch_5s", MASK_BOTH, 5000', source)
+        self.assertIn('recordManualSwitchingTest("mode_switch_5s", measurementMs, 5000)', source)
+        self.assertIn('recordManualSwitchingTest("mode_switch_2s", measurementMs, 2000)', source)
+        self.assertIn('mode = (mode + 1) % EQ_PRESET_COUNT', source)
+        self.assertIn('"MANUAL_HARDWARE_TEST"', source)
+        self.assertNotIn("function measureSwitchingRow", source)
         for token in (
             "EQ_DebugDeadlineMissCount", "EQ_DebugLcdUnexpectedFullRedrawCount",
             "baseline_", "delta_", "actual_runtime_mask", "INCOMPLETE_READ_ERROR",
@@ -252,11 +278,22 @@ class EqualizerDssContractTests(unittest.TestCase):
             "EQ_DebugLcdPendingMask", "NOT_OBSERVED",
         ):
             self.assertIn(token, body)
-        armed_wait = body.index('waitFor("EQ_TriggerCaptureArmedReady"')
+        armed_wait = body.index('read("EQ_TriggerCaptureArmedReady"')
         mode_write = body.index('write("EQ_DebugMode = 1"')
-        ready_wait = body.index('waitFor("EQ_TriggerCaptureReady"')
+        ready_wait = body.index('read("EQ_TriggerCaptureReady"')
         self.assertLess(armed_wait, mode_write)
         self.assertLess(mode_write, ready_wait)
+
+    def test_debug_capture_does_not_poll_or_fail_unobserved_audio_event(self) -> None:
+        source = DSS.read_text(encoding="utf-8")
+        self.assertNotIn("function waitFor", source)
+        self.assertNotIn("pollMs", source)
+        self.assertIn('capture_scope: "DEBUG_CAPTURE"', source)
+        trigger_start = source.index("function captureTrigger")
+        trigger_end = source.index("try {", trigger_start)
+        body = source[trigger_start:trigger_end]
+        self.assertIn("if (source != 4) captureOverallPass = false", body)
+        self.assertIn('source == 4 ? "NOT_OBSERVED"', body)
 
     def test_dss_matrix_sets_diag_path_and_gates_stability(self) -> None:
         source = DSS.read_text(encoding="utf-8")
@@ -278,12 +315,7 @@ class EqualizerDssContractTests(unittest.TestCase):
         ):
             self.assertIn(token, source)
         self.assertNotIn('operatorMode ? "MEASURED_DSS_WATCH_PLUS_OPERATOR"', source)
-        switching_start = source.index("function measureSwitchingRow")
-        switching_end = source.index("function waitFor", switching_start)
-        self.assertIn(
-            'snapshot(name, mask, duration, true, "MEASURED_DSS_WATCH"',
-            source[switching_start:switching_end],
-        )
+        self.assertIn('measurement_status = "MANUAL_HARDWARE_TEST"', source)
 
     def test_dss_exports_only_ch1_after_halt_with_metadata(self) -> None:
         source = DSS.read_text(encoding="utf-8")
@@ -291,7 +323,8 @@ class EqualizerDssContractTests(unittest.TestCase):
             "EQ_CaptureInput", "EQ_CaptureOutput", "EQ_TriggerCaptureInput",
             "EQ_TriggerCaptureOutput", "pre_write_index", "frame_count",
             "trigger_source", "trigger_post_count", "armed_ready", "ready",
-            "target.halt", "saveRawI16LE", "EqualizerCapture_AcknowledgeManual",
+            "target.halt", "saveRawI16LE", "DEBUG_CAPTURE",
+            "EqualizerCapture_AcknowledgeManual",
             "EqualizerCapture_AcknowledgeTrigger", "EqualizerCapture_Reset",
         ):
             self.assertIn(token, source)
@@ -307,8 +340,9 @@ class EqualizerPowerShellContractTests(unittest.TestCase):
         lowered = source.lower()
         for token in (
             "50000", "1000", "-18", "music-like", "default pc line-output",
-            "finally", "stop", "Code/main.c", "actual_project_macro",
-            "DSP_LAB_PROJECT_SELECT", "subjective", "60", "300",
+            "finally", "stop", "actual_project_macro", "DSP_LAB_PROJECT_SELECT",
+            "subjective", "60", "300", "DssTimeoutMinutes", "TIMEOUT",
+            "Start-Process", "WaitForExit", "taskkill.exe",
         ):
             self.assertIn(token.lower(), lowered)
         for forbidden in (
@@ -320,16 +354,28 @@ class EqualizerPowerShellContractTests(unittest.TestCase):
     def test_wrapper_builds_and_validates_project33_lcd_artifacts_before_dss(self) -> None:
         source = WRAPPER.read_text(encoding="utf-8")
         for token in (
-            "gmake.exe", "-B", "GEN_OPTS__FLAG", "--define=DSP_LAB_PROJECT_SELECT=33",
+            "GmakePath", "-B", "GEN_OPTS__FLAG", "--define=DSP_LAB_PROJECT_SELECT=33",
             "--define=EQ_ENABLE_LCD_DISPLAY=1",
             "DSP_LAB_0507_linkInfo.xml", "<link_errors>0x0</link_errors>",
-            "DSP_LAB_0507.out", "DSP_LAB_0507.map", "LastWriteTimeUtc", "ccsObjs.opt",
+            "DSP_LAB_0507.out", "DSP_LAB_0507.map", "LastWriteTimeUtc",
+            "project33_lcd_on_commands.log", "Expanded compiler commands",
             "--define=DSP_LAB_PROJECT_SELECT=33", "--define=EQ_ENABLE_LCD_DISPLAY=1",
             "OperatorStatus", "OperatorNotes", "DSP_TEST_OPERATOR_STATUS",
             "DSP_TEST_OPERATOR_NOTES",
         ):
             self.assertIn(token, source)
         self.assertLess(source.index("& $gmake"), source.index("$player.PlayLooping()"))
+
+    def test_paths_are_parameterized_and_main_source_is_not_required_to_be_33(self) -> None:
+        dss_source = DSS.read_text(encoding="utf-8")
+        wrapper = WRAPPER.read_text(encoding="utf-8")
+        for forbidden in ("C:/Users/", "D:/SoftwareDownload/"):
+            self.assertNotIn(forbidden, dss_source)
+            self.assertNotIn(forbidden, wrapper)
+        for token in ("RepoRoot", "CcsRoot", "PythonPath", "DssPath", "GmakePath"):
+            self.assertIn(token, wrapper)
+        self.assertNotIn("Code/main.c must select Project 33", wrapper)
+        self.assertNotIn("Get-Content -Raw (Join-Path $root \"Code\\main.c\")", wrapper)
 
 
 if __name__ == "__main__":

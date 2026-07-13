@@ -1,17 +1,38 @@
 param(
+    [string]$RepoRoot = "",
+    [string]$CcsRoot = $env:CCS_ROOT,
+    [string]$PythonPath = $env:DSP_TEST_PYTHON,
+    [string]$DssPath = "",
+    [string]$GmakePath = "",
     [ValidateSet("Tone", "MusicLike")]
     [string]$AudioKind = "MusicLike",
     [int]$RowSeconds = 60,
     [int]$StabilitySeconds = 300,
     [ValidateSet("PASS", "FAIL", "NOT_OBSERVED")]
     [string]$OperatorStatus = "NOT_OBSERVED",
-    [string]$OperatorNotes = ""
+    [string]$OperatorNotes = "",
+    [ValidateRange(1, 120)]
+    [int]$DssTimeoutMinutes = 20
 )
 
 $ErrorActionPreference = "Stop"
-$root = Split-Path -Parent $PSScriptRoot
-$dss = "D:\SoftwareDownload\CCS_20.5.0.00028_win\ccs\ccs_base\scripting\bin\dss.bat"
-$gmake = "D:\SoftwareDownload\CCS_20.5.0.00028_win\ccs\utils\bin\gmake.exe"
+$root = if ($RepoRoot) { (Resolve-Path $RepoRoot).Path } else { Split-Path -Parent $PSScriptRoot }
+if (-not $CcsRoot -and (-not $DssPath -or -not $GmakePath)) {
+    throw "Set -CcsRoot or CCS_ROOT, or pass both -DssPath and -GmakePath."
+}
+$dss = if ($DssPath) { $DssPath } else {
+    Join-Path $CcsRoot "ccs_base\scripting\bin\dss.bat"
+}
+$gmake = if ($GmakePath) { $GmakePath } else {
+    Join-Path $CcsRoot "utils\bin\gmake.exe"
+}
+if (-not $PythonPath) {
+    $pythonCommand = Get-Command python.exe -ErrorAction SilentlyContinue
+    if ($null -eq $pythonCommand) {
+        throw "Pass -PythonPath, set DSP_TEST_PYTHON, or add python.exe to PATH."
+    }
+    $PythonPath = $pythonCommand.Source
+}
 $script = Join-Path $PSScriptRoot "dss\dss_equalizer_lcd_audio_safe.js"
 $outputDirectory = Join-Path $root "docs\eval_outputs\equalizer_lcd_audio_safe"
 $tonePath = Join-Path $outputDirectory "1khz_-18dbfs_50khz.wav"
@@ -19,6 +40,8 @@ $musicPath = Join-Path $outputDirectory "music-like_50khz.wav"
 $sampleRate = 50000
 $durationSeconds = 10 # Looping keeps playback active through every 60 s / 300 s window.
 $player = $null
+$dssProcess = $null
+$timedOut = $false
 
 function Write-MonoWave {
     param([string]$Path, [int]$Seconds, [scriptblock]$Sample)
@@ -60,19 +83,15 @@ $audioPath = if ($AudioKind -eq "Tone") { $tonePath } else { $musicPath }
 $sha = (& git -C $root rev-parse HEAD).Trim()
 $dirtyLines = @(& git -C $root status --porcelain)
 $dirtyState = if ($dirtyLines.Count -eq 0) { "clean" } else { $dirtyLines -join ";" }
-$mainSource = Get-Content -Raw (Join-Path $root "Code\main.c")
-$macroMatch = [regex]::Match($mainSource, "(?m)^\s*#\s*define\s+DSP_LAB_PROJECT_SELECT\s+(\d+)")
-if (-not $macroMatch.Success) {
-    $macroMatch = [regex]::Match($mainSource, "(?m)^\s*#\s*define\s+(?:SELECTED_PROJECT|PROJECT_SELECT)\s+(\d+)")
-}
-$actualProjectMacro = if ($macroMatch.Success) { $macroMatch.Groups[1].Value } else { "NOT_FOUND" }
-if ($actualProjectMacro -ne "33") { throw "Code/main.c must select Project 33; actual=$actualProjectMacro" }
+$actualProjectMacro = "33 (build parameter)"
 
 $buildStart = [DateTime]::UtcNow
 if (-not (Test-Path $gmake)) { throw "CCS gmake not found: $gmake" }
 # Force a complete Project 33 build with the LCD implementation enabled.
+$buildLogPath = Join-Path $outputDirectory "project33_lcd_on_build.log"
 & $gmake -C (Join-Path $root "Debug") -B all `
-    "GEN_OPTS__FLAG=--define=DSP_LAB_PROJECT_SELECT=33 --define=EQ_ENABLE_LCD_DISPLAY=1"
+    "GEN_OPTS__FLAG=--define=DSP_LAB_PROJECT_SELECT=33 --define=EQ_ENABLE_LCD_DISPLAY=1" `
+    2>&1 | Tee-Object -FilePath $buildLogPath
 if ($LASTEXITCODE -ne 0) { throw "Project 33 LCD build failed." }
 $linkInfoPath = Join-Path $root "Debug\DSP_LAB_0507_linkInfo.xml"
 $outPath = Join-Path $root "Debug\DSP_LAB_0507.out"
@@ -87,10 +106,14 @@ $linkInfo = Get-Content -Raw $linkInfoPath
 if ($linkInfo -notmatch "<link_errors>0x0</link_errors>") {
     throw "CCS link_errors is nonzero."
 }
-$objectOptions = Get-Content -Raw (Join-Path $root "Debug\ccsObjs.opt")
-if (($objectOptions -notmatch "--define=DSP_LAB_PROJECT_SELECT=33") -or
-    ($objectOptions -notmatch "--define=EQ_ENABLE_LCD_DISPLAY=1")) {
-    throw "Build options do not prove Project 33 with LCD enabled."
+$expandedBuildPath = Join-Path $outputDirectory "project33_lcd_on_commands.log"
+$expandedBuild = (& $gmake -C (Join-Path $root "Debug") -n -B all `
+    "GEN_OPTS__FLAG=--define=DSP_LAB_PROJECT_SELECT=33 --define=EQ_ENABLE_LCD_DISPLAY=1" `
+    2>&1 | Out-String)
+$expandedBuild | Set-Content -Encoding utf8 $expandedBuildPath
+if (($expandedBuild -notmatch "DSP_LAB_PROJECT_SELECT=33") -or
+    ($expandedBuild -notmatch "EQ_ENABLE_LCD_DISPLAY=1")) {
+    throw "Expanded compiler commands do not prove Project 33 with LCD enabled."
 }
 
 $provenance = [ordered]@{
@@ -105,6 +128,7 @@ $provenance = [ordered]@{
     loudspeaker_observation = "subjective operator observation only"
     operator_status = $OperatorStatus
     operator_notes = $OperatorNotes
+    dss_timeout_minutes = $DssTimeoutMinutes
 }
 $provenance | ConvertTo-Json | Set-Content -Encoding utf8 (Join-Path $outputDirectory "run_provenance.json")
 
@@ -120,16 +144,38 @@ try {
     $env:DSP_TEST_BUILD_CONFIG = "C6748;Project=$actualProjectMacro;Fs=50k;Frame=1024;CH1"
     $env:DSP_TEST_ROW_MS = [string]($RowSeconds * 1000)
     $env:DSP_TEST_STABILITY_MS = [string]($StabilitySeconds * 1000)
-    $env:DSP_TEST_PYTHON = "D:/SoftwareDownload/python.exe"
+    $env:DSP_TEST_ROOT = ($root -replace '\\', '/')
+    $env:DSP_TEST_CCXML = ((Join-Path $root "TargetConfig\C6748.ccxml") -replace '\\', '/')
+    $env:DSP_TEST_PROGRAM = ($outPath -replace '\\', '/')
+    $env:DSP_TEST_RESULT_DIR = ($outputDirectory -replace '\\', '/')
+    $env:DSP_TEST_PYTHON = ($PythonPath -replace '\\', '/')
     $env:DSP_TEST_OPERATOR_STATUS = $OperatorStatus
     $env:DSP_TEST_OPERATOR_NOTES = $OperatorNotes
-    & $dss $script
-    if ($LASTEXITCODE -ne 0) { throw "Project 3.3 DSS test failed with exit code $LASTEXITCODE" }
+    $dssProcess = Start-Process -FilePath $dss -ArgumentList @($script) `
+        -PassThru -WindowStyle Hidden
+    if (-not $dssProcess.WaitForExit($DssTimeoutMinutes * 60 * 1000)) {
+        $timedOut = $true
+        & taskkill.exe /PID $dssProcess.Id /T /F | Out-Null
+        [ordered]@{
+            measurement_status = "TIMEOUT"
+            timeout_minutes = $DssTimeoutMinutes
+            commit_sha = $sha
+        } | ConvertTo-Json | Set-Content -Encoding utf8 `
+            (Join-Path $outputDirectory "run_timeout.json")
+        throw "Project 3.3 DSS exceeded the external timeout."
+    }
+    if ($dssProcess.ExitCode -ne 0) {
+        throw "Project 3.3 DSS test failed with exit code $($dssProcess.ExitCode)"
+    }
 }
 finally {
+    if (($null -ne $dssProcess) -and (-not $dssProcess.HasExited) -and (-not $timedOut)) {
+        & taskkill.exe /PID $dssProcess.Id /T /F | Out-Null
+    }
     if ($null -ne $player) { $player.Stop(); $player.Dispose() }
     Remove-Item Env:DSP_TEST_COMMIT_SHA, Env:DSP_TEST_DIRTY_STATE,
-        Env:DSP_TEST_BUILD_CONFIG, Env:DSP_TEST_ROW_MS,
+        Env:DSP_TEST_BUILD_CONFIG, Env:DSP_TEST_ROOT, Env:DSP_TEST_CCXML,
+        Env:DSP_TEST_PROGRAM, Env:DSP_TEST_RESULT_DIR, Env:DSP_TEST_ROW_MS,
         Env:DSP_TEST_STABILITY_MS, Env:DSP_TEST_PYTHON,
         Env:DSP_TEST_OPERATOR_STATUS, Env:DSP_TEST_OPERATOR_NOTES -ErrorAction SilentlyContinue
 }
