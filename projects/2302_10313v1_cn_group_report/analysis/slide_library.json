@@ -1,0 +1,2429 @@
+{
+  "schema": "template_fill_pptx_library.v1",
+  "source_pptx": "C:\\Users\\zhangyueqian\\lab8\\DSP_LAB_0507\\projects\\2302_10313v1_cn_group_report\\sources\\2511.15766v1_组会汇报.pptx",
+  "slide_count": 13,
+  "canvas_px": {
+    "width": 1280,
+    "height": 720
+  },
+  "slides": [
+    {
+      "slide_index": 1,
+      "page_type": "cover_candidate",
+      "text_summary": "广义 WOLA 滤波器组\n提升子带系统辨识\nSharma 等  ·  2511.15766",
+      "slots": [
+        {
+          "slot_id": "s01_sh5",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": -3,
+            "y": 0,
+            "width": 1285,
+            "height": 721
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s01_sh21",
+          "role": "body_candidate",
+          "text": "广义 WOLA 滤波器组\n提升子带系统辨识",
+          "paragraph_count": 2,
+          "geometry": {
+            "x": 6,
+            "y": 170,
+            "width": 831,
+            "height": 223
+          },
+          "text_metrics": {
+            "font_size_px": 88.0,
+            "paragraph_count": 2
+          }
+        },
+        {
+          "slot_id": "s01_sh24",
+          "role": "label_candidate",
+          "text": "Sharma 等  ·  2511.15766",
+          "paragraph_count": 1,
+          "geometry": {
+            "x": 143,
+            "y": 564,
+            "width": 469,
+            "height": 67
+          },
+          "text_metrics": {
+            "font_size_px": 32.0,
+            "paragraph_count": 1
+          }
+        }
+      ],
+      "tables": [],
+      "charts": []
+    },
+    {
+      "slide_index": 2,
+      "page_type": "chapter_candidate",
+      "text_summary": "PART 01\n研究问题\n|",
+      "slots": [
+        {
+          "slot_id": "s02_sh9",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 0,
+            "y": 182,
+            "width": 1280,
+            "height": 406
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s02_sh5",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 528,
+            "y": 32,
+            "width": 224,
+            "height": 224
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s02_sh14",
+          "role": "label_candidate",
+          "text": "PART 01",
+          "paragraph_count": 1,
+          "geometry": {
+            "x": 255,
+            "y": 329,
+            "width": 361,
+            "height": 116
+          },
+          "text_metrics": {
+            "font_size_px": 88.0,
+            "paragraph_count": 1
+          }
+        },
+        {
+          "slot_id": "s02_sh15",
+          "role": "label_candidate",
+          "text": "研究问题",
+          "paragraph_count": 1,
+          "geometry": {
+            "x": 683,
+            "y": 354,
+            "width": 375,
+            "height": 81
+          },
+          "text_metrics": {
+            "font_size_px": 58.67,
+            "paragraph_count": 1
+          }
+        },
+        {
+          "slot_id": "s02_sh16",
+          "role": "label_candidate",
+          "text": "|",
+          "paragraph_count": 1,
+          "geometry": {
+            "x": 622,
+            "y": 315,
+            "width": 46,
+            "height": 126
+          },
+          "text_metrics": {
+            "font_size_px": 96.0,
+            "paragraph_count": 1
+          }
+        }
+      ],
+      "tables": [],
+      "charts": []
+    },
+    {
+      "slide_index": 3,
+      "page_type": "content_candidate",
+      "text_summary": "一\n传统 WOLA 的效率来自一个硬约束\nSharma 等  ·  2511.15766\n传统 WOLA 以低复杂度换取可实现性。\n• 子带滤波在降采样率执行，适合长脉冲响应系统。\n• 多速率变换后，满速率滤波器被限制为 Cₖ(zᴰ)：系数之间插入 D−1 个零。\n• 稀疏结构锁死了跨帧建模自由度，难以准确逼近真实系统。\n关键矛盾：精度需要更多自由度，而更多自由度又会推高计算量。",
+      "slots": [
+        {
+          "slot_id": "s03_sh16",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 103,
+            "y": 6,
+            "width": 29,
+            "height": 26
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s03_sh17",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 28,
+            "y": 7,
+            "width": 29,
+            "height": 26
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s03_sh14",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 0,
+            "y": 19,
+            "width": 1020,
+            "height": 51
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s03_sh15",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 41,
+            "y": 7,
+            "width": 76,
+            "height": 73
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s03_sh19",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 1027,
+            "y": 19,
+            "width": 45,
+            "height": 51
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s03_sh20",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 1066,
+            "y": 19,
+            "width": 45,
+            "height": 51
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s03_sh21",
+          "role": "title_candidate",
+          "text": "一",
+          "paragraph_count": 1,
+          "geometry": {
+            "x": 54,
+            "y": 12,
+            "width": 55,
+            "height": 48
+          },
+          "text_metrics": {
+            "font_size_px": 32.0,
+            "paragraph_count": 1
+          }
+        },
+        {
+          "slot_id": "s03_sh22",
+          "role": "title_candidate",
+          "text": "传统 WOLA 的效率来自一个硬约束",
+          "paragraph_count": 1,
+          "geometry": {
+            "x": 127,
+            "y": 17,
+            "width": 213,
+            "height": 48
+          },
+          "text_metrics": {
+            "font_size_px": 32.0,
+            "paragraph_count": 1
+          }
+        },
+        {
+          "slot_id": "s03_sh5",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 602,
+            "y": 117,
+            "width": 601,
+            "height": 524
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s03_sh8",
+          "role": "label_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": -18,
+            "y": 698,
+            "width": 826,
+            "height": 22
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s03_sh9",
+          "role": "label_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 807,
+            "y": 659,
+            "width": 43,
+            "height": 62
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s03_sh10",
+          "role": "label_candidate",
+          "text": "Sharma 等  ·  2511.15766",
+          "paragraph_count": 1,
+          "geometry": {
+            "x": 843,
+            "y": 661,
+            "width": 469,
+            "height": 59
+          },
+          "text_metrics": {
+            "font_size_px": 32.0,
+            "paragraph_count": 1
+          }
+        },
+        {
+          "slot_id": "s03_sh41",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 0,
+            "y": 0,
+            "width": 1280,
+            "height": 48
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s03_sh42",
+          "role": "label_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 266,
+            "y": 1003,
+            "width": 277,
+            "height": 19
+          },
+          "text_metrics": {
+            "font_size_px": 14.67,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s03_sh45",
+          "role": "body_candidate",
+          "text": "传统 WOLA 以低复杂度换取可实现性。\n• 子带滤波在降采样率执行，适合长脉冲响应系统。\n• 多速率变换后，满速率滤波器被限制为 Cₖ(zᴰ)：系数之间插入 D−1 个零。\n• 稀疏结构锁死了跨帧建模自由度，难以准确逼近真实系统。\n关键矛盾：精度需要更多自由度，而更多自由度又会推高计算量。",
+          "paragraph_count": 5,
+          "geometry": {
+            "x": 627,
+            "y": 129,
+            "width": 535,
+            "height": 465
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 5
+          }
+        }
+      ],
+      "tables": [],
+      "charts": []
+    },
+    {
+      "slide_index": 4,
+      "page_type": "content_candidate",
+      "text_summary": "一\n问题不只是实现，而是两类误差叠加\n失真 / 混叠\n论文把传统方案的瓶颈拆成两类误差：\n• 失真误差：STFT 与循环卷积使估计的满带响应偏离真实系统。\n• 子带混叠：分析/合成原型滤波器与降采样共同引入别名项。\n已有工作往往只减少混叠，或用额外约束补偿循环失真；但缺少从时域系统辨识角度对 T、L、D 与原型滤波器的统一分析。\n论文目标：同时释放建模自由度，并量化 MSE/ERLE。",
+      "slots": [
+        {
+          "slot_id": "s04_sh16",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 103,
+            "y": 6,
+            "width": 29,
+            "height": 26
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s04_sh17",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 28,
+            "y": 7,
+            "width": 29,
+            "height": 26
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s04_sh14",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 0,
+            "y": 19,
+            "width": 1020,
+            "height": 51
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s04_sh15",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 41,
+            "y": 7,
+            "width": 76,
+            "height": 73
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s04_sh19",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 1027,
+            "y": 19,
+            "width": 45,
+            "height": 51
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s04_sh20",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 1066,
+            "y": 19,
+            "width": 45,
+            "height": 51
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s04_sh21",
+          "role": "title_candidate",
+          "text": "一",
+          "paragraph_count": 1,
+          "geometry": {
+            "x": 54,
+            "y": 12,
+            "width": 55,
+            "height": 48
+          },
+          "text_metrics": {
+            "font_size_px": 32.0,
+            "paragraph_count": 1
+          }
+        },
+        {
+          "slot_id": "s04_sh22",
+          "role": "title_candidate",
+          "text": "问题不只是实现，而是两类误差叠加",
+          "paragraph_count": 1,
+          "geometry": {
+            "x": 127,
+            "y": 17,
+            "width": 213,
+            "height": 48
+          },
+          "text_metrics": {
+            "font_size_px": 32.0,
+            "paragraph_count": 1
+          }
+        },
+        {
+          "slot_id": "s04_sh5",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 602,
+            "y": 117,
+            "width": 601,
+            "height": 524
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s04_sh8",
+          "role": "label_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": -18,
+            "y": 698,
+            "width": 826,
+            "height": 22
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s04_sh9",
+          "role": "label_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 807,
+            "y": 659,
+            "width": 43,
+            "height": 62
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s04_sh10",
+          "role": "label_candidate",
+          "text": "失真 / 混叠",
+          "paragraph_count": 1,
+          "geometry": {
+            "x": 843,
+            "y": 661,
+            "width": 469,
+            "height": 59
+          },
+          "text_metrics": {
+            "font_size_px": 32.0,
+            "paragraph_count": 1
+          }
+        },
+        {
+          "slot_id": "s04_sh41",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 0,
+            "y": 0,
+            "width": 1280,
+            "height": 48
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s04_sh42",
+          "role": "label_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 266,
+            "y": 1003,
+            "width": 277,
+            "height": 19
+          },
+          "text_metrics": {
+            "font_size_px": 14.67,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s04_sh45",
+          "role": "body_candidate",
+          "text": "论文把传统方案的瓶颈拆成两类误差：\n• 失真误差：STFT 与循环卷积使估计的满带响应偏离真实系统。\n• 子带混叠：分析/合成原型滤波器与降采样共同引入别名项。\n已有工作往往只减少混叠，或用额外约束补偿循环失真；但缺少从时域系统辨识角度对 T、L、D 与原型滤波器的统一分析。\n论文目标：同时释放建模自由度，并量化 MSE/ERLE。",
+          "paragraph_count": 5,
+          "geometry": {
+            "x": 627,
+            "y": 129,
+            "width": 535,
+            "height": 465
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 5
+          }
+        }
+      ],
+      "tables": [],
+      "charts": []
+    },
+    {
+      "slide_index": 5,
+      "page_type": "chapter_candidate",
+      "text_summary": "PART 02\n广义 WOLA\n|",
+      "slots": [
+        {
+          "slot_id": "s05_sh9",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 0,
+            "y": 182,
+            "width": 1280,
+            "height": 406
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s05_sh5",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 528,
+            "y": 32,
+            "width": 224,
+            "height": 224
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s05_sh14",
+          "role": "label_candidate",
+          "text": "PART 02",
+          "paragraph_count": 1,
+          "geometry": {
+            "x": 255,
+            "y": 329,
+            "width": 361,
+            "height": 116
+          },
+          "text_metrics": {
+            "font_size_px": 88.0,
+            "paragraph_count": 1
+          }
+        },
+        {
+          "slot_id": "s05_sh15",
+          "role": "label_candidate",
+          "text": "广义 WOLA",
+          "paragraph_count": 1,
+          "geometry": {
+            "x": 683,
+            "y": 354,
+            "width": 375,
+            "height": 81
+          },
+          "text_metrics": {
+            "font_size_px": 58.67,
+            "paragraph_count": 1
+          }
+        },
+        {
+          "slot_id": "s05_sh16",
+          "role": "label_candidate",
+          "text": "|",
+          "paragraph_count": 1,
+          "geometry": {
+            "x": 622,
+            "y": 315,
+            "width": 46,
+            "height": 126
+          },
+          "text_metrics": {
+            "font_size_px": 96.0,
+            "paragraph_count": 1
+          }
+        }
+      ],
+      "tables": [],
+      "charts": []
+    },
+    {
+      "slide_index": 6,
+      "page_type": "content_candidate",
+      "text_summary": "二\n广义 WOLA：释放满带自由度\n广义 WOLA  ·  Cₖ(z)\n核心改动只有一个：把子带滤波器移到降采样之前。\n传统：Cₖ(zᴰ)（稀疏）\n广义：Cₖ(z)（不再受零点约束）\n每个子带因此拥有完整的 T 阶 FIR 自由度，同时通过完美重构的分析/合成滤波器保持整体框架。\n代价也很明确：满速率处理需要 T 次窗口化 IDFT，复杂度从“可接受”变成“难以直接部署”。",
+      "slots": [
+        {
+          "slot_id": "s06_sh16",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 103,
+            "y": 6,
+            "width": 29,
+            "height": 26
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s06_sh17",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 28,
+            "y": 7,
+            "width": 29,
+            "height": 26
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s06_sh14",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 0,
+            "y": 19,
+            "width": 1020,
+            "height": 51
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s06_sh15",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 41,
+            "y": 7,
+            "width": 76,
+            "height": 73
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s06_sh19",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 1027,
+            "y": 19,
+            "width": 45,
+            "height": 51
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s06_sh20",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 1066,
+            "y": 19,
+            "width": 45,
+            "height": 51
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s06_sh21",
+          "role": "title_candidate",
+          "text": "二",
+          "paragraph_count": 1,
+          "geometry": {
+            "x": 54,
+            "y": 12,
+            "width": 55,
+            "height": 48
+          },
+          "text_metrics": {
+            "font_size_px": 32.0,
+            "paragraph_count": 1
+          }
+        },
+        {
+          "slot_id": "s06_sh22",
+          "role": "title_candidate",
+          "text": "广义 WOLA：释放满带自由度",
+          "paragraph_count": 1,
+          "geometry": {
+            "x": 127,
+            "y": 17,
+            "width": 213,
+            "height": 48
+          },
+          "text_metrics": {
+            "font_size_px": 32.0,
+            "paragraph_count": 1
+          }
+        },
+        {
+          "slot_id": "s06_sh5",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 602,
+            "y": 117,
+            "width": 601,
+            "height": 524
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s06_sh8",
+          "role": "label_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": -18,
+            "y": 698,
+            "width": 826,
+            "height": 22
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s06_sh9",
+          "role": "label_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 807,
+            "y": 659,
+            "width": 43,
+            "height": 62
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s06_sh10",
+          "role": "label_candidate",
+          "text": "广义 WOLA  ·  Cₖ(z)",
+          "paragraph_count": 1,
+          "geometry": {
+            "x": 843,
+            "y": 661,
+            "width": 469,
+            "height": 59
+          },
+          "text_metrics": {
+            "font_size_px": 32.0,
+            "paragraph_count": 1
+          }
+        },
+        {
+          "slot_id": "s06_sh41",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 0,
+            "y": 0,
+            "width": 1280,
+            "height": 48
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s06_sh42",
+          "role": "label_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 266,
+            "y": 1003,
+            "width": 277,
+            "height": 19
+          },
+          "text_metrics": {
+            "font_size_px": 14.67,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s06_sh45",
+          "role": "body_candidate",
+          "text": "核心改动只有一个：把子带滤波器移到降采样之前。\n传统：Cₖ(zᴰ)（稀疏）\n广义：Cₖ(z)（不再受零点约束）\n每个子带因此拥有完整的 T 阶 FIR 自由度，同时通过完美重构的分析/合成滤波器保持整体框架。\n代价也很明确：满速率处理需要 T 次窗口化 IDFT，复杂度从“可接受”变成“难以直接部署”。",
+          "paragraph_count": 5,
+          "geometry": {
+            "x": 627,
+            "y": 129,
+            "width": 535,
+            "height": 465
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 5
+          }
+        }
+      ],
+      "tables": [],
+      "charts": []
+    },
+    {
+      "slide_index": 7,
+      "page_type": "content_candidate",
+      "text_summary": "二\nMSE / ERLE 由四个设计变量共同决定\n理论变量  ·  T、L、D\n广义 WOLA 的稳态性能不是单一参数决定的：\n• 子带阶数 T：增大 T，满带建模误差下降。\n• 系统长度 L：L 越长，低阶子带滤波器越难覆盖。\n• 抽取因子 D：改变混叠项数量与整体延迟。\n• 原型分析/合成滤波器：决定频率选择性与循环卷积失真。\n结论不是“阶数越大越好”，而是在失真与混叠之间寻找平衡。",
+      "slots": [
+        {
+          "slot_id": "s07_sh16",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 103,
+            "y": 6,
+            "width": 29,
+            "height": 26
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s07_sh17",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 28,
+            "y": 7,
+            "width": 29,
+            "height": 26
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s07_sh14",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 0,
+            "y": 19,
+            "width": 1020,
+            "height": 51
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s07_sh15",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 41,
+            "y": 7,
+            "width": 76,
+            "height": 73
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s07_sh19",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 1027,
+            "y": 19,
+            "width": 45,
+            "height": 51
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s07_sh20",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 1066,
+            "y": 19,
+            "width": 45,
+            "height": 51
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s07_sh21",
+          "role": "title_candidate",
+          "text": "二",
+          "paragraph_count": 1,
+          "geometry": {
+            "x": 54,
+            "y": 12,
+            "width": 55,
+            "height": 48
+          },
+          "text_metrics": {
+            "font_size_px": 32.0,
+            "paragraph_count": 1
+          }
+        },
+        {
+          "slot_id": "s07_sh22",
+          "role": "title_candidate",
+          "text": "MSE / ERLE 由四个设计变量共同决定",
+          "paragraph_count": 1,
+          "geometry": {
+            "x": 127,
+            "y": 17,
+            "width": 213,
+            "height": 48
+          },
+          "text_metrics": {
+            "font_size_px": 32.0,
+            "paragraph_count": 1
+          }
+        },
+        {
+          "slot_id": "s07_sh5",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 602,
+            "y": 117,
+            "width": 601,
+            "height": 524
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s07_sh8",
+          "role": "label_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": -18,
+            "y": 698,
+            "width": 826,
+            "height": 22
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s07_sh9",
+          "role": "label_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 807,
+            "y": 659,
+            "width": 43,
+            "height": 62
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s07_sh10",
+          "role": "label_candidate",
+          "text": "理论变量  ·  T、L、D",
+          "paragraph_count": 1,
+          "geometry": {
+            "x": 843,
+            "y": 661,
+            "width": 469,
+            "height": 59
+          },
+          "text_metrics": {
+            "font_size_px": 32.0,
+            "paragraph_count": 1
+          }
+        },
+        {
+          "slot_id": "s07_sh41",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 0,
+            "y": 0,
+            "width": 1280,
+            "height": 48
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s07_sh42",
+          "role": "label_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 266,
+            "y": 1003,
+            "width": 277,
+            "height": 19
+          },
+          "text_metrics": {
+            "font_size_px": 14.67,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s07_sh45",
+          "role": "body_candidate",
+          "text": "广义 WOLA 的稳态性能不是单一参数决定的：\n• 子带阶数 T：增大 T，满带建模误差下降。\n• 系统长度 L：L 越长，低阶子带滤波器越难覆盖。\n• 抽取因子 D：改变混叠项数量与整体延迟。\n• 原型分析/合成滤波器：决定频率选择性与循环卷积失真。\n结论不是“阶数越大越好”，而是在失真与混叠之间寻找平衡。",
+          "paragraph_count": 6,
+          "geometry": {
+            "x": 627,
+            "y": 129,
+            "width": 535,
+            "height": 465
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 6
+          }
+        }
+      ],
+      "tables": [],
+      "charts": []
+    },
+    {
+      "slide_index": 8,
+      "page_type": "content_candidate",
+      "text_summary": "二\nPT-WOLA：用结构化近似把复杂度拉回可部署范围\nPT-WOLA  ·  低复杂度\nPT-WOLA 将广义 WOLA 的计算拆成更便宜的组合：\n• 广义 WOLA：每帧 T 次窗口化 IDFT。\n• PT-WOLA：1 次非窗口化 IDFT + T−1 个差分项 + 2R 个跨子带项。\n• 典型 N ≫ T 时，复杂度近似 O(N log₂N)，与传统 WOLA 同阶。\nR 由原型分析窗决定：矩形窗 R=0、余弦窗 R=1、root-Hann 需要更多项。",
+      "slots": [
+        {
+          "slot_id": "s08_sh16",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 103,
+            "y": 6,
+            "width": 29,
+            "height": 26
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s08_sh17",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 28,
+            "y": 7,
+            "width": 29,
+            "height": 26
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s08_sh14",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 0,
+            "y": 19,
+            "width": 1020,
+            "height": 51
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s08_sh15",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 41,
+            "y": 7,
+            "width": 76,
+            "height": 73
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s08_sh19",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 1027,
+            "y": 19,
+            "width": 45,
+            "height": 51
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s08_sh20",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 1066,
+            "y": 19,
+            "width": 45,
+            "height": 51
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s08_sh21",
+          "role": "title_candidate",
+          "text": "二",
+          "paragraph_count": 1,
+          "geometry": {
+            "x": 54,
+            "y": 12,
+            "width": 55,
+            "height": 48
+          },
+          "text_metrics": {
+            "font_size_px": 32.0,
+            "paragraph_count": 1
+          }
+        },
+        {
+          "slot_id": "s08_sh22",
+          "role": "title_candidate",
+          "text": "PT-WOLA：用结构化近似把复杂度拉回可部署范围",
+          "paragraph_count": 1,
+          "geometry": {
+            "x": 127,
+            "y": 17,
+            "width": 213,
+            "height": 48
+          },
+          "text_metrics": {
+            "font_size_px": 32.0,
+            "paragraph_count": 1
+          }
+        },
+        {
+          "slot_id": "s08_sh5",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 602,
+            "y": 117,
+            "width": 601,
+            "height": 524
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s08_sh8",
+          "role": "label_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": -18,
+            "y": 698,
+            "width": 826,
+            "height": 22
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s08_sh9",
+          "role": "label_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 807,
+            "y": 659,
+            "width": 43,
+            "height": 62
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s08_sh10",
+          "role": "label_candidate",
+          "text": "PT-WOLA  ·  低复杂度",
+          "paragraph_count": 1,
+          "geometry": {
+            "x": 843,
+            "y": 661,
+            "width": 469,
+            "height": 59
+          },
+          "text_metrics": {
+            "font_size_px": 32.0,
+            "paragraph_count": 1
+          }
+        },
+        {
+          "slot_id": "s08_sh41",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 0,
+            "y": 0,
+            "width": 1280,
+            "height": 48
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s08_sh42",
+          "role": "label_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 266,
+            "y": 1003,
+            "width": 277,
+            "height": 19
+          },
+          "text_metrics": {
+            "font_size_px": 14.67,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s08_sh45",
+          "role": "body_candidate",
+          "text": "PT-WOLA 将广义 WOLA 的计算拆成更便宜的组合：\n• 广义 WOLA：每帧 T 次窗口化 IDFT。\n• PT-WOLA：1 次非窗口化 IDFT + T−1 个差分项 + 2R 个跨子带项。\n• 典型 N ≫ T 时，复杂度近似 O(N log₂N)，与传统 WOLA 同阶。\nR 由原型分析窗决定：矩形窗 R=0、余弦窗 R=1、root-Hann 需要更多项。",
+          "paragraph_count": 5,
+          "geometry": {
+            "x": 627,
+            "y": 129,
+            "width": 535,
+            "height": 465
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 5
+          }
+        }
+      ],
+      "tables": [],
+      "charts": []
+    },
+    {
+      "slide_index": 9,
+      "page_type": "chapter_candidate",
+      "text_summary": "PART 03\nAEC 仿真与结果\n|",
+      "slots": [
+        {
+          "slot_id": "s09_sh9",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 0,
+            "y": 182,
+            "width": 1280,
+            "height": 406
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s09_sh5",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 528,
+            "y": 32,
+            "width": 224,
+            "height": 224
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s09_sh14",
+          "role": "label_candidate",
+          "text": "PART 03",
+          "paragraph_count": 1,
+          "geometry": {
+            "x": 255,
+            "y": 329,
+            "width": 361,
+            "height": 116
+          },
+          "text_metrics": {
+            "font_size_px": 88.0,
+            "paragraph_count": 1
+          }
+        },
+        {
+          "slot_id": "s09_sh15",
+          "role": "label_candidate",
+          "text": "AEC 仿真与结果",
+          "paragraph_count": 1,
+          "geometry": {
+            "x": 683,
+            "y": 354,
+            "width": 256,
+            "height": 81
+          },
+          "text_metrics": {
+            "font_size_px": 58.67,
+            "paragraph_count": 1
+          }
+        },
+        {
+          "slot_id": "s09_sh16",
+          "role": "label_candidate",
+          "text": "|",
+          "paragraph_count": 1,
+          "geometry": {
+            "x": 622,
+            "y": 315,
+            "width": 46,
+            "height": 126
+          },
+          "text_metrics": {
+            "font_size_px": 96.0,
+            "paragraph_count": 1
+          }
+        }
+      ],
+      "tables": [],
+      "charts": []
+    },
+    {
+      "slide_index": 10,
+      "page_type": "content_candidate",
+      "text_summary": "实验设置：用单通道 AEC 检验系统辨识\nAEC  ·  L=512\nAEC 作为系统辨识用例：\n• L=512，fs=16 kHz；N=1024，50% overlap。\n• RLS：λ=0.999，EBR=20 dB。\n• 三种分析窗：rectangular / cosine / root-Hann。\n• 两类合成窗：minimum-norm / minimum-distortion。\n评价：system distance + ERLE。\n三",
+      "slots": [
+        {
+          "slot_id": "s10_sh16",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 103,
+            "y": 6,
+            "width": 29,
+            "height": 26
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s10_sh17",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 28,
+            "y": 7,
+            "width": 29,
+            "height": 26
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s10_sh14",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 0,
+            "y": 19,
+            "width": 1020,
+            "height": 51
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s10_sh15",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 41,
+            "y": 7,
+            "width": 76,
+            "height": 73
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s10_sh19",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 1027,
+            "y": 19,
+            "width": 45,
+            "height": 51
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s10_sh20",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 1066,
+            "y": 19,
+            "width": 45,
+            "height": 51
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s10_sh22",
+          "role": "title_candidate",
+          "text": "实验设置：用单通道 AEC 检验系统辨识",
+          "paragraph_count": 1,
+          "geometry": {
+            "x": 127,
+            "y": 17,
+            "width": 149,
+            "height": 48
+          },
+          "text_metrics": {
+            "font_size_px": 32.0,
+            "paragraph_count": 1
+          }
+        },
+        {
+          "slot_id": "s10_sh5",
+          "role": "label_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 595,
+            "y": 193,
+            "width": 589,
+            "height": 359
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s10_sh8",
+          "role": "label_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": -18,
+            "y": 698,
+            "width": 826,
+            "height": 22
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s10_sh9",
+          "role": "label_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 807,
+            "y": 659,
+            "width": 43,
+            "height": 62
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s10_sh10",
+          "role": "label_candidate",
+          "text": "AEC  ·  L=512",
+          "paragraph_count": 1,
+          "geometry": {
+            "x": 843,
+            "y": 661,
+            "width": 469,
+            "height": 59
+          },
+          "text_metrics": {
+            "font_size_px": 32.0,
+            "paragraph_count": 1
+          }
+        },
+        {
+          "slot_id": "s10_sh41",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 0,
+            "y": 0,
+            "width": 1280,
+            "height": 48
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s10_sh42",
+          "role": "label_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 266,
+            "y": 1003,
+            "width": 277,
+            "height": 19
+          },
+          "text_metrics": {
+            "font_size_px": 14.67,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s10_sh45",
+          "role": "body_candidate",
+          "text": "AEC 作为系统辨识用例：\n• L=512，fs=16 kHz；N=1024，50% overlap。\n• RLS：λ=0.999，EBR=20 dB。\n• 三种分析窗：rectangular / cosine / root-Hann。\n• 两类合成窗：minimum-norm / minimum-distortion。\n评价：system distance + ERLE。",
+          "paragraph_count": 6,
+          "geometry": {
+            "x": 611,
+            "y": 228,
+            "width": 531,
+            "height": 432
+          },
+          "text_metrics": {
+            "font_size_px": 32.0,
+            "paragraph_count": 6
+          }
+        },
+        {
+          "slot_id": "s10_sh2",
+          "role": "title_candidate",
+          "text": "三",
+          "paragraph_count": 1,
+          "geometry": {
+            "x": 54,
+            "y": 12,
+            "width": 55,
+            "height": 48
+          },
+          "text_metrics": {
+            "font_size_px": 32.0,
+            "paragraph_count": 1
+          }
+        }
+      ],
+      "tables": [],
+      "charts": []
+    },
+    {
+      "slide_index": 11,
+      "page_type": "content_candidate",
+      "text_summary": "三\n广义 WOLA 的性能随阶数上升而改善\nEvidence  ·  larger T\n实验支持理论分析：\n• T 增大 → system distance 下降、ERLE 上升。\n• minimum-distortion 在各窗、各阶数下优于 minimum-norm。\n• 矩形窗频率选择性弱，更易受混叠与收敛影响。\n要点：合成滤波器设计也是性能变量。",
+      "slots": [
+        {
+          "slot_id": "s11_sh16",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 103,
+            "y": 6,
+            "width": 29,
+            "height": 26
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s11_sh17",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 28,
+            "y": 7,
+            "width": 29,
+            "height": 26
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s11_sh14",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 0,
+            "y": 19,
+            "width": 1020,
+            "height": 51
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s11_sh15",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 41,
+            "y": 7,
+            "width": 76,
+            "height": 73
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s11_sh19",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 1027,
+            "y": 19,
+            "width": 45,
+            "height": 51
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s11_sh20",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 1066,
+            "y": 19,
+            "width": 45,
+            "height": 51
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s11_sh21",
+          "role": "title_candidate",
+          "text": "三",
+          "paragraph_count": 1,
+          "geometry": {
+            "x": 54,
+            "y": 12,
+            "width": 55,
+            "height": 48
+          },
+          "text_metrics": {
+            "font_size_px": 32.0,
+            "paragraph_count": 1
+          }
+        },
+        {
+          "slot_id": "s11_sh22",
+          "role": "title_candidate",
+          "text": "广义 WOLA 的性能随阶数上升而改善",
+          "paragraph_count": 1,
+          "geometry": {
+            "x": 127,
+            "y": 17,
+            "width": 213,
+            "height": 48
+          },
+          "text_metrics": {
+            "font_size_px": 32.0,
+            "paragraph_count": 1
+          }
+        },
+        {
+          "slot_id": "s11_sh5",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 602,
+            "y": 117,
+            "width": 601,
+            "height": 524
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s11_sh8",
+          "role": "label_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": -18,
+            "y": 698,
+            "width": 826,
+            "height": 22
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s11_sh9",
+          "role": "label_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 807,
+            "y": 659,
+            "width": 43,
+            "height": 62
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s11_sh10",
+          "role": "label_candidate",
+          "text": "Evidence  ·  larger T",
+          "paragraph_count": 1,
+          "geometry": {
+            "x": 843,
+            "y": 661,
+            "width": 469,
+            "height": 59
+          },
+          "text_metrics": {
+            "font_size_px": 32.0,
+            "paragraph_count": 1
+          }
+        },
+        {
+          "slot_id": "s11_sh41",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 0,
+            "y": 0,
+            "width": 1280,
+            "height": 48
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s11_sh42",
+          "role": "label_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 266,
+            "y": 1003,
+            "width": 277,
+            "height": 19
+          },
+          "text_metrics": {
+            "font_size_px": 14.67,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s11_sh45",
+          "role": "body_candidate",
+          "text": "实验支持理论分析：\n• T 增大 → system distance 下降、ERLE 上升。\n• minimum-distortion 在各窗、各阶数下优于 minimum-norm。\n• 矩形窗频率选择性弱，更易受混叠与收敛影响。\n要点：合成滤波器设计也是性能变量。",
+          "paragraph_count": 5,
+          "geometry": {
+            "x": 627,
+            "y": 129,
+            "width": 535,
+            "height": 465
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 5
+          }
+        }
+      ],
+      "tables": [],
+      "charts": []
+    },
+    {
+      "slide_index": 12,
+      "page_type": "content_candidate",
+      "text_summary": "三\nPT-WOLA 把性能—复杂度变成可调旋钮\n性能 / 复杂度\n相同总滤波器长度下，PT-WOLA 可逼近 generalized WOLA。\n• cosine：少量 cross-terms 即可。\n• rectangular：增加 cross-terms 能压低混叠，但受失真瓶颈限制。\n• root-Hann：minimum-distortion 更易逼近广义方案。\n结论：性能—复杂度可调。",
+      "slots": [
+        {
+          "slot_id": "s12_sh16",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 103,
+            "y": 6,
+            "width": 29,
+            "height": 26
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s12_sh17",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 28,
+            "y": 7,
+            "width": 29,
+            "height": 26
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s12_sh14",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 0,
+            "y": 19,
+            "width": 1020,
+            "height": 51
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s12_sh15",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 41,
+            "y": 7,
+            "width": 76,
+            "height": 73
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s12_sh19",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 1027,
+            "y": 19,
+            "width": 45,
+            "height": 51
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s12_sh20",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 1066,
+            "y": 19,
+            "width": 45,
+            "height": 51
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s12_sh21",
+          "role": "title_candidate",
+          "text": "三",
+          "paragraph_count": 1,
+          "geometry": {
+            "x": 54,
+            "y": 12,
+            "width": 55,
+            "height": 48
+          },
+          "text_metrics": {
+            "font_size_px": 32.0,
+            "paragraph_count": 1
+          }
+        },
+        {
+          "slot_id": "s12_sh22",
+          "role": "title_candidate",
+          "text": "PT-WOLA 把性能—复杂度变成可调旋钮",
+          "paragraph_count": 1,
+          "geometry": {
+            "x": 127,
+            "y": 17,
+            "width": 213,
+            "height": 48
+          },
+          "text_metrics": {
+            "font_size_px": 32.0,
+            "paragraph_count": 1
+          }
+        },
+        {
+          "slot_id": "s12_sh5",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 602,
+            "y": 117,
+            "width": 601,
+            "height": 524
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s12_sh8",
+          "role": "label_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": -18,
+            "y": 698,
+            "width": 826,
+            "height": 22
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s12_sh9",
+          "role": "label_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 807,
+            "y": 659,
+            "width": 43,
+            "height": 62
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s12_sh10",
+          "role": "label_candidate",
+          "text": "性能 / 复杂度",
+          "paragraph_count": 1,
+          "geometry": {
+            "x": 843,
+            "y": 661,
+            "width": 469,
+            "height": 59
+          },
+          "text_metrics": {
+            "font_size_px": 32.0,
+            "paragraph_count": 1
+          }
+        },
+        {
+          "slot_id": "s12_sh41",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 0,
+            "y": 0,
+            "width": 1280,
+            "height": 48
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s12_sh42",
+          "role": "label_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": 266,
+            "y": 1003,
+            "width": 277,
+            "height": 19
+          },
+          "text_metrics": {
+            "font_size_px": 14.67,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s12_sh45",
+          "role": "body_candidate",
+          "text": "相同总滤波器长度下，PT-WOLA 可逼近 generalized WOLA。\n• cosine：少量 cross-terms 即可。\n• rectangular：增加 cross-terms 能压低混叠，但受失真瓶颈限制。\n• root-Hann：minimum-distortion 更易逼近广义方案。\n结论：性能—复杂度可调。",
+          "paragraph_count": 5,
+          "geometry": {
+            "x": 627,
+            "y": 129,
+            "width": 535,
+            "height": 465
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 5
+          }
+        }
+      ],
+      "tables": [],
+      "charts": []
+    },
+    {
+      "slide_index": 13,
+      "page_type": "ending_candidate",
+      "text_summary": "谢谢聆听！\n组会论文汇报  ·  欢迎讨论",
+      "slots": [
+        {
+          "slot_id": "s13_sh5",
+          "role": "title_candidate",
+          "text": "",
+          "paragraph_count": 0,
+          "geometry": {
+            "x": -3,
+            "y": 0,
+            "width": 1285,
+            "height": 721
+          },
+          "text_metrics": {
+            "font_size_px": null,
+            "paragraph_count": 0
+          }
+        },
+        {
+          "slot_id": "s13_sh21",
+          "role": "label_candidate",
+          "text": "谢谢聆听！",
+          "paragraph_count": 1,
+          "geometry": {
+            "x": 28,
+            "y": 240,
+            "width": 831,
+            "height": 126
+          },
+          "text_metrics": {
+            "font_size_px": 96.0,
+            "paragraph_count": 1
+          }
+        },
+        {
+          "slot_id": "s13_sh3",
+          "role": "label_candidate",
+          "text": "组会论文汇报  ·  欢迎讨论",
+          "paragraph_count": 1,
+          "geometry": {
+            "x": 143,
+            "y": 564,
+            "width": 469,
+            "height": 67
+          },
+          "text_metrics": {
+            "font_size_px": 32.0,
+            "paragraph_count": 1
+          }
+        }
+      ],
+      "tables": [],
+      "charts": []
+    }
+  ],
+  "plan_contract": {
+    "schema": "template_fill_pptx_plan.v1",
+    "slides": [
+      {
+        "source_slide": 1,
+        "purpose": "封面 / 章节 / 内容 / 结尾",
+        "replacements": [
+          {
+            "slot_id": "s01_sh2",
+            "text": "替换后的文字"
+          }
+        ],
+        "table_edits": [
+          {
+            "table_id": "s01_tbl3",
+            "cells": [
+              {
+                "row": 0,
+                "col": 0,
+                "text": "替换后的单元格"
+              }
+            ]
+          }
+        ],
+        "chart_edits": [
+          {
+            "chart_id": "s01_ch4",
+            "categories": [
+              "A",
+              "B"
+            ],
+            "series": [
+              {
+                "name": "系列1",
+                "values": [
+                  1,
+                  2
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

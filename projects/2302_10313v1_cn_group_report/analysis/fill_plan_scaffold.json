@@ -1,0 +1,167 @@
+{
+  "schema": "template_fill_pptx_plan.v1",
+  "source_pptx": "C:\\Users\\zhangyueqian\\lab8\\DSP_LAB_0507\\projects\\2302_10313v1_cn_group_report\\sources\\2511.15766v1_组会汇报.pptx",
+  "slides": [
+    {
+      "source_slide": 1,
+      "purpose": "cover_candidate",
+      "replacements": [
+        {
+          "slot_id": "s01_sh21",
+          "old_text": "广义 WOLA 滤波器组\n提升子带系统辨识",
+          "text": "广义 WOLA 滤波器组\n提升子带系统辨识"
+        },
+        {
+          "slot_id": "s01_sh24",
+          "old_text": "Sharma 等  ·  2511.15766",
+          "text": "Sharma 等  ·  2511.15766"
+        }
+      ],
+      "table_edits": [],
+      "chart_edits": []
+    },
+    {
+      "source_slide": 2,
+      "purpose": "chapter_candidate",
+      "replacements": [
+        {
+          "slot_id": "s02_sh14",
+          "old_text": "PART 01",
+          "text": "PART 01"
+        },
+        {
+          "slot_id": "s02_sh15",
+          "old_text": "研究问题",
+          "text": "研究问题"
+        },
+        {
+          "slot_id": "s02_sh16",
+          "old_text": "|",
+          "text": "|"
+        }
+      ],
+      "table_edits": [],
+      "chart_edits": []
+    },
+    {
+      "source_slide": 3,
+      "purpose": "content_candidate",
+      "replacements": [
+        {
+          "slot_id": "s03_sh21",
+          "old_text": "一",
+          "text": "一"
+        },
+        {
+          "slot_id": "s03_sh22",
+          "old_text": "传统 WOLA 的效率来自一个硬约束",
+          "text": "传统 WOLA 的效率来自一个硬约束"
+        },
+        {
+          "slot_id": "s03_sh10",
+          "old_text": "Sharma 等  ·  2511.15766",
+          "text": "Sharma 等  ·  2511.15766"
+        },
+        {
+          "slot_id": "s03_sh45",
+          "old_text": "传统 WOLA 以低复杂度换取可实现性。\n• 子带滤波在降采样率执行，适合长脉冲响应系统。\n• 多速率变换后，满速率滤波器被限制为 Cₖ(zᴰ)：系数之间插入 D−1 个零。\n• 稀疏结构锁死了跨帧建模自由度，难以准确逼近真实系统。\n关键矛盾：精度需要更多自由度，而更多自由度又会推高计算量。",
+          "text": "传统 WOLA 以低复杂度换取可实现性。\n• 子带滤波在降采样率执行，适合长脉冲响应系统。\n• 多速率变换后，满速率滤波器被限制为 Cₖ(zᴰ)：系数之间插入 D−1 个零。\n• 稀疏结构锁死了跨帧建模自由度，难以准确逼近真实系统。\n关键矛盾：精度需要更多自由度，而更多自由度又会推高计算量。"
+        }
+      ],
+      "table_edits": [],
+      "chart_edits": []
+    },
+    {
+      "source_slide": 5,
+      "purpose": "chapter_candidate",
+      "replacements": [
+        {
+          "slot_id": "s05_sh14",
+          "old_text": "PART 02",
+          "text": "PART 02"
+        },
+        {
+          "slot_id": "s05_sh15",
+          "old_text": "广义 WOLA",
+          "text": "广义 WOLA"
+        },
+        {
+          "slot_id": "s05_sh16",
+          "old_text": "|",
+          "text": "|"
+        }
+      ],
+      "table_edits": [],
+      "chart_edits": []
+    },
+    {
+      "source_slide": 9,
+      "purpose": "chapter_candidate",
+      "replacements": [
+        {
+          "slot_id": "s09_sh14",
+          "old_text": "PART 03",
+          "text": "PART 03"
+        },
+        {
+          "slot_id": "s09_sh15",
+          "old_text": "AEC 仿真与结果",
+          "text": "AEC 仿真与结果"
+        },
+        {
+          "slot_id": "s09_sh16",
+          "old_text": "|",
+          "text": "|"
+        }
+      ],
+      "table_edits": [],
+      "chart_edits": []
+    },
+    {
+      "source_slide": 10,
+      "purpose": "content_candidate",
+      "replacements": [
+        {
+          "slot_id": "s10_sh22",
+          "old_text": "实验设置：用单通道 AEC 检验系统辨识",
+          "text": "实验设置：用单通道 AEC 检验系统辨识"
+        },
+        {
+          "slot_id": "s10_sh10",
+          "old_text": "AEC  ·  L=512",
+          "text": "AEC  ·  L=512"
+        },
+        {
+          "slot_id": "s10_sh45",
+          "old_text": "AEC 作为系统辨识用例：\n• L=512，fs=16 kHz；N=1024，50% overlap。\n• RLS：λ=0.999，EBR=20 dB。\n• 三种分析窗：rectangular / cosine / root-Hann。\n• 两类合成窗：minimum-norm / minimum-distortion。\n评价：system distance + ERLE。",
+          "text": "AEC 作为系统辨识用例：\n• L=512，fs=16 kHz；N=1024，50% overlap。\n• RLS：λ=0.999，EBR=20 dB。\n• 三种分析窗：rectangular / cosine / root-Hann。\n• 两类合成窗：minimum-norm / minimum-distortion。\n评价：system distance + ERLE。"
+        },
+        {
+          "slot_id": "s10_sh2",
+          "old_text": "三",
+          "text": "三"
+        }
+      ],
+      "table_edits": [],
+      "chart_edits": []
+    },
+    {
+      "source_slide": 13,
+      "purpose": "ending_candidate",
+      "replacements": [
+        {
+          "slot_id": "s13_sh21",
+          "old_text": "谢谢聆听！",
+          "text": "谢谢聆听！"
+        },
+        {
+          "slot_id": "s13_sh3",
+          "old_text": "组会论文汇报  ·  欢迎讨论",
+          "text": "组会论文汇报  ·  欢迎讨论"
+        }
+      ],
+      "table_edits": [],
+      "chart_edits": []
+    }
+  ]
+}

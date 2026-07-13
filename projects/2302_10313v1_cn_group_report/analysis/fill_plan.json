@@ -1,0 +1,323 @@
+{
+  "schema": "template_fill_pptx_plan.v1",
+  "source_pptx": "C:\\Users\\zhangyueqian\\lab8\\DSP_LAB_0507\\projects\\2302_10313v1_cn_group_report\\sources\\2511.15766v1_组会汇报.pptx",
+  "slides": [
+    {
+      "source_slide": 1,
+      "purpose": "cover",
+      "notes": "今天汇报的论文讨论一种面向实时硬件的经典语音增强方案。核心不是复杂模型，而是如何把最小统计噪声估计、谱减增益和谱下限组合起来，在降噪、音乐噪声和语音可懂度之间取得平衡。",
+      "replacements": [
+        {"slot_id": "s01_sh21", "text": "最小统计谱减法\n实时语音增强"},
+        {"slot_id": "s01_sh24", "text": "Ioannides 等  ·  2302.10313"}
+      ],
+      "table_edits": [],
+      "chart_edits": []
+    },
+    {
+      "source_slide": 2,
+      "purpose": "chapter",
+      "notes": "第一部分先建立问题和算法的基本模型。重点是理解谱减法究竟在频域里做了什么，以及实时实现为什么必须采用帧化和重叠相加。",
+      "replacements": [
+        {"slot_id": "s02_sh14", "text": "PART 01"},
+        {"slot_id": "s02_sh15", "text": "问题与原理"},
+        {"slot_id": "s02_sh16", "text": "|"}
+      ],
+      "table_edits": [],
+      "chart_edits": []
+    },
+    {
+      "source_slide": 3,
+      "purpose": "paper_overview",
+      "notes": "论文面向车辆、工厂和机场等加性噪声环境，目标是在 DSK6713 一类实时平台上降低背景噪声。它用最小统计避免依赖语音活动检测器，但论文并没有给出严格的处理时延、CPU 占用或正式可懂度测试，因此这里把它理解为工程方案而不是完整性能证明。",
+      "replacements": [
+        {"slot_id": "s03_sh21", "text": "一"},
+        {"slot_id": "s03_sh22", "text": "研究目标：无需 VAD 的实时降噪"},
+        {"slot_id": "s03_sh10", "text": "概览  ·  2302.10313"},
+        {"slot_id": "s03_sh45", "text": "论文要解决三个约束同时存在的问题。\n• 加性噪声降低通信与识别系统的可靠性。\n• VAD 在低信噪比下难以稳健工作。\n• 算法必须适合 DSK6713 级实时实现。\n目标：降低噪声，同时尽量保留语音可懂度。"}
+      ],
+      "table_edits": [],
+      "chart_edits": []
+    },
+    {
+      "source_slide": 4,
+      "purpose": "spectral_subtraction_model",
+      "notes": "谱减法并不是把两个未知复数频谱直接相减，因为噪声相位没有估计出来。可实现的理解是估计噪声幅度，得到一个非负增益，再把这个增益乘到含噪复数频谱上，因此输出仍保留含噪信号的相位。",
+      "replacements": [
+        {"slot_id": "s04_sh21", "text": "一"},
+        {"slot_id": "s04_sh22", "text": "谱减法本质是幅度增益设计"},
+        {"slot_id": "s04_sh10", "text": "模型  ·  谱减增益"},
+        {"slot_id": "s04_sh45", "text": "核心假设：语音与噪声以加性方式叠加。\n• 估计噪声幅度，而不是噪声相位。\n• 用非负增益避免负增益导致的相位翻转。\n• 输出复数谱保留含噪信号的相位。\n目标：使输出幅度谱尽量接近干净语音。"}
+      ],
+      "table_edits": [],
+      "chart_edits": []
+    },
+    {
+      "source_slide": 6,
+      "purpose": "frame_processing",
+      "notes": "实时处理以二百五十六点帧为单位，采样率八千赫兹，因此分析帧长是三十二毫秒。四倍重叠使每次只推进六十四个样本，也就是八毫秒帧移；八毫秒不是端到端系统延迟。",
+      "replacements": [
+        {"slot_id": "s06_sh21", "text": "一"},
+        {"slot_id": "s06_sh22", "text": "帧化、加窗与重叠相加"},
+        {"slot_id": "s06_sh10", "text": "Frame  ·  N=256 / hop=64"},
+        {"slot_id": "s06_sh45", "text": "实时链路：分帧 → 加窗 → FFT → 频域处理 → IFFT → 重叠相加。\n• fs = 8 kHz，N = 256，对应 32 ms 分析帧。\n• 4 倍重叠，每次推进 64 点，对应 8 ms 帧移。\n• 输入与输出均使用归一化平方根 Hamming 窗。\n作用：抑制帧边界不连续和频谱泄漏。"}
+      ],
+      "table_edits": [],
+      "chart_edits": []
+    },
+    {
+      "source_slide": 5,
+      "purpose": "chapter",
+      "notes": "第二部分聚焦噪声估计。这里的 MMSE 不是最小均方误差，而是论文自定义的 Minimum Magnitude Spectral Estimate，也就是最小幅度谱估计。",
+      "replacements": [
+        {"slot_id": "s05_sh14", "text": "PART 02"},
+        {"slot_id": "s05_sh15", "text": "最小统计"},
+        {"slot_id": "s05_sh16", "text": "|"}
+      ],
+      "table_edits": [],
+      "chart_edits": []
+    },
+    {
+      "source_slide": 7,
+      "purpose": "minimum_statistics",
+      "notes": "最小统计的出发点是：说话者在十秒左右的窗口里大概率会有短暂停顿，此时每个频点的最小幅度更接近噪声底。这个最小值会系统性低估平均噪声，因此还需要乘以补偿系数阿尔法。",
+      "replacements": [
+        {"slot_id": "s07_sh21", "text": "二"},
+        {"slot_id": "s07_sh22", "text": "最小统计绕开 VAD"},
+        {"slot_id": "s07_sh10", "text": "MMSE  ·  最小幅度谱"},
+        {"slot_id": "s07_sh45", "text": "本文 MMSE 指最小幅度谱估计，不是最小均方误差。\n• 对每个频点，寻找约 10 s 历史中的最小幅度。\n• 假设说话者会在窗口内出现短暂停顿。\n• 最小值接近噪声底，但会低估平均噪声。\n因此引入补偿系数 α 放大噪声估计。"}
+      ],
+      "table_edits": [],
+      "chart_edits": []
+    },
+    {
+      "source_slide": 8,
+      "purpose": "four_bucket_mmse",
+      "notes": "直接保存十秒历史需要一千二百五十帧，超出目标硬件的存储预算。论文把历史划分为四个二点五秒桶，每个桶只保存逐频点最小值；代价是有效记忆长度会在大约七点五零八到十秒之间周期变化。",
+      "replacements": [
+        {"slot_id": "s08_sh21", "text": "二"},
+        {"slot_id": "s08_sh22", "text": "四桶 MMSE 估计流程"},
+        {"slot_id": "s08_sh10", "text": "MMSE  ·  四桶缓存"},
+        {"slot_id": "s08_sh45", "text": "直接方案：10 s × 125 fps ≈ 1250 帧，存储开销过大。\n• 仅保留 4 个逐频点最小值桶 M₁…M₄。\n• 每约 2.5 s 轮换一次桶并清空最旧桶。\n• 全局估计取四桶逐频点最小值。\n代价：有效历史在约 7.508—10 s 之间变化。"}
+      ],
+      "table_edits": [],
+      "chart_edits": []
+    },
+    {
+      "source_slide": 10,
+      "purpose": "alpha_tradeoff",
+      "notes": "这两幅图来自纯随机噪声仿真，而不是语音数据。阿尔法从二十增大到二百后，宽带噪声整体下降，但随机尖峰更显眼；这些尖峰随帧变化，会被听成频率不断跳动的音乐噪声。",
+      "replacements": [
+        {"slot_id": "s10_sh2", "text": "二"},
+        {"slot_id": "s10_sh22", "text": "α 参数对比：降噪与音乐噪声"},
+        {"slot_id": "s10_sh10", "text": "α=20 / 200"},
+        {"slot_id": "s10_sh45", "text": "α 决定噪声估计的放大量。\n• α 较小：宽带残留较多，尖峰被掩蔽。\n• α 较大：宽带噪声更低，随机尖峰更突出。\n• 尖峰每 8 ms 改变位置，形成“音乐噪声”。\n注意：图 6/7 是纯噪声仿真。"}
+      ],
+      "table_edits": [],
+      "chart_edits": []
+    },
+    {
+      "source_slide": 11,
+      "purpose": "spectral_floor",
+      "notes": "谱下限不是额外注入一段新噪声，而是限制增益不能低于兰姆达。这样输出至少保留兰姆达乘以输入谱的宽带残留，用它掩蔽孤立的随机尖峰，从而降低音乐噪声的主观突兀感。",
+      "replacements": [
+        {"slot_id": "s11_sh21", "text": "二"},
+        {"slot_id": "s11_sh22", "text": "谱下限 λ 抑制音乐噪声"},
+        {"slot_id": "s11_sh10", "text": "谱下限  ·  式(8)"},
+        {"slot_id": "s11_sh45", "text": "谱下限限制每个频点的最小增益。\n• 当普通谱减增益过小时，强制取 λ。\n• 输出至少保留 λX 的宽带残留。\n• 宽带残留可掩蔽孤立的随机谱峰。\n结果：减少音乐噪声，但不能无限压低噪声。"}
+      ],
+      "table_edits": [],
+      "chart_edits": []
+    },
+    {
+      "source_slide": 9,
+      "purpose": "chapter",
+      "notes": "第三部分进入实现和增强策略。论文并不是只提出一个公式，而是系统测试多种平滑、自适应和频率加权方法，再根据主观效果和计算复杂度选择组合。",
+      "replacements": [
+        {"slot_id": "s09_sh14", "text": "PART 03"},
+        {"slot_id": "s09_sh15", "text": "实现与改进"},
+        {"slot_id": "s09_sh16", "text": "|"}
+      ],
+      "table_edits": [],
+      "chart_edits": []
+    },
+    {
+      "source_slide": 12,
+      "purpose": "c_implementation",
+      "notes": "代码仍然执行完整的 N 点 FFT，只是在实信号共轭对称条件下，仅对半谱计算幅度、最小统计和增益。直流和奈奎斯特频点需要单独处理，不能简单套用成对共轭关系。",
+      "replacements": [
+        {"slot_id": "s12_sh21", "text": "三"},
+        {"slot_id": "s12_sh22", "text": "完整 FFT，半谱处理"},
+        {"slot_id": "s12_sh10", "text": "C实现  ·  半谱处理"},
+        {"slot_id": "s12_sh45", "text": "实时优化发生在频域处理阶段。\n• 先执行完整 N 点 FFT。\n• 对 k=1…N/2−1 计算幅度、MMSE 和增益。\n• 利用共轭对称恢复另一半频谱。\n• IFFT 后只取实部，再执行输出窗与重叠相加。\nDC 与 Nyquist 频点需单独处理。"}
+      ],
+      "table_edits": [],
+      "chart_edits": []
+    },
+    {
+      "source_slide": 10,
+      "purpose": "baseline_result",
+      "notes": "基础方案用同一段 sailor passage 叠加不同噪声作为测试。car1 的噪声主要集中在低频并带有宽带成分；基础谱减能够降低噪声，但仍存在明显残留，因此它被用作后续增强的基线。",
+      "replacements": [
+        {"slot_id": "s10_sh2", "text": "三"},
+        {"slot_id": "s10_sh22", "text": "基础方案的输入输出谱图"},
+        {"slot_id": "s10_sh10", "text": "Baseline  ·  car1.wav"},
+        {"slot_id": "s10_sh45", "text": "测试语料：同一段 sailor passage 叠加多种噪声。\n• car1 主要表现为低频宽带稳态噪声。\n• 基础参数：α=20，λ=0.05。\n• 处理后噪声下降，但残留仍明显。\n这组结果作为后续增强的基线。"}
+      ],
+      "table_edits": [],
+      "chart_edits": []
+    },
+    {
+      "source_slide": 3,
+      "purpose": "temporal_smoothing",
+      "notes": "第一项增强在相邻帧之间低通平滑幅度。作者认为输出更清晰，但阿尔法也同时从二十改成了二，因此这不是受控消融，只能说明这个组合在作者试听中更好。",
+      "replacements": [
+        {"slot_id": "s03_sh21", "text": "三"},
+        {"slot_id": "s03_sh22", "text": "跨帧平滑改善主观听感"},
+        {"slot_id": "s03_sh10", "text": "Enhancement 1  ·  τ=30 ms"},
+        {"slot_id": "s03_sh45", "text": "对相邻帧的幅度谱做一阶低通平滑。\n• 平滑随机帧间波动，降低尖峰突变。\n• 论文取 τ≈30 ms，并把 α 从 20 改为 2。\n• 作者主观认为更清晰，谱图变化却不显著。\n注意：参数同时变化，不构成受控消融。"}
+      ],
+      "table_edits": [],
+      "chart_edits": []
+    },
+    {
+      "source_slide": 4,
+      "purpose": "smoothing_variants",
+      "notes": "论文继续比较功率平滑、噪声估计平滑和多种增益写法。作者最后偏好式十三，但主要依据仍是试听；需要注意这里的 P 表示平滑后的幅度或功率量，论文符号并不完全统一。",
+      "replacements": [
+        {"slot_id": "s04_sh21", "text": "三"},
+        {"slot_id": "s04_sh22", "text": "多种平滑策略与增益写法"},
+        {"slot_id": "s04_sh10", "text": "平滑策略  ·  式(13)"},
+        {"slot_id": "s04_sh45", "text": "论文继续比较三类稳定化手段。\n• 平滑幅度：直接抑制帧间波动。\n• 平滑功率：更贴近听觉能量，但参数不同。\n• 平滑 MMSE：减弱四桶轮换带来的突变。\n作者偏好式(13)，评价仍主要来自试听。"}
+      ],
+      "table_edits": [],
+      "chart_edits": []
+    },
+    {
+      "source_slide": 10,
+      "purpose": "adaptive_alpha",
+      "notes": "阿尔法不应固定：局部信噪比低时需要更强减法，信噪比高时过强减法会损伤语音。原文式十六存在分段重叠和不连续，汇报中的公式是依据图二十二实线重构，并明确标注这一点。",
+      "replacements": [
+        {"slot_id": "s10_sh2", "text": "三"},
+        {"slot_id": "s10_sh22", "text": "α 随局部 SNR 自适应"},
+        {"slot_id": "s10_sh10", "text": "α(SNR)"},
+        {"slot_id": "s10_sh45", "text": "逐频点局部 SNR 决定减法强度。\n• 低 SNR：增大 α，更强抑噪。\n• 高 SNR：减小 α，避免语音失真。\n• 频点间 SNR 可相差超过 100 dB。\n原文式(16)有矛盾，公式按图 22 重构。"}
+      ],
+      "table_edits": [],
+      "chart_edits": []
+    },
+    {
+      "source_slide": 10,
+      "purpose": "frequency_weighting",
+      "notes": "有色噪声在不同频段的能量不均匀，因此论文再乘一个按频率分段的固定权重德尔塔。它并不是在线学习的自适应机制，而是针对测试噪声手工设定的经验参数；对直升机噪声的改善也主要来自作者试听。",
+      "replacements": [
+        {"slot_id": "s10_sh2", "text": "三"},
+        {"slot_id": "s10_sh22", "text": "有色噪声下的频率加权"},
+        {"slot_id": "s10_sh10", "text": "Multi-band  ·  δ(F)"},
+        {"slot_id": "s10_sh45", "text": "有色噪声对各频段影响不同。\n• 车噪主要集中在 300 Hz 以下。\n• 论文用固定三段 δ(F) 调整减法强度。\n• δ 不是在线自适应，而是经验权重。\n作者称其改善直升机噪声听感。"}
+      ],
+      "table_edits": [],
+      "chart_edits": []
+    },
+    {
+      "source_slide": 10,
+      "purpose": "other_candidates",
+      "notes": "这一页要区分候选策略与最终采用策略。功率域增益开销高，三帧最小值需要下一帧并引入前视延迟，缩短最小统计记忆会把连续语音误当噪声；约二十八毫秒帧长和 Hanning 窗则只是作者主观比较得到的候选。",
+      "replacements": [
+        {"slot_id": "s10_sh2", "text": "三"},
+        {"slot_id": "s10_sh22", "text": "其他候选：效果与复杂度取舍"},
+        {"slot_id": "s10_sh10", "text": "候选策略"},
+        {"slot_id": "s10_sh45", "text": "并非所有候选都进入最终系统。\n• 功率域增益：听感差异小，powf/sqrtf 开销高。\n• 三帧最小值：需下一帧，增加前视延迟。\n• 缩短 MMSE 记忆：易把连续语音当噪声。\n• 约 28 ms 帧长、Hanning 窗为主观候选。"}
+      ],
+      "table_edits": [],
+      "chart_edits": []
+    },
+    {
+      "source_slide": 6,
+      "purpose": "final_pipeline",
+      "notes": "正文声称最终组合保留了功率平滑、噪声平滑、增益变体、局部信噪比阿尔法、频率权重和窗函数调整。但附录默认配置仍关闭部分模块、继续使用 Hamming 窗，动态阿尔法常数也与正文公式不一致，因此复现时必须重新核对代码开关。",
+      "replacements": [
+        {"slot_id": "s06_sh21", "text": "三"},
+        {"slot_id": "s06_sh22", "text": "最终流程与可复现性差异"},
+        {"slot_id": "s06_sh10", "text": "正文 / 附录差异"},
+        {"slot_id": "s06_sh45", "text": "正文声称保留：4.2 / 4.3 / 4.4 / 4.6 / 4.7 / 4.11。\n舍弃：4.5 与 4.9，主要因为计算开销。\n但附录默认配置与正文不完全一致：\n• 部分模块仍关闭，窗函数仍为 Hamming。\n• 动态 α 常数也未完全复现式(16)。\n因此结果可复现性需要额外核查。"}
+      ],
+      "table_edits": [],
+      "chart_edits": []
+    },
+    {
+      "source_slide": 2,
+      "purpose": "chapter",
+      "notes": "最后一部分看证据和结论。这里既总结论文报告的降噪效果，也评估它的实验设计是否足以支持这些结论。",
+      "replacements": [
+        {"slot_id": "s02_sh14", "text": "PART 04"},
+        {"slot_id": "s02_sh15", "text": "结果与评价"},
+        {"slot_id": "s02_sh16", "text": "|"}
+      ],
+      "table_edits": [],
+      "chart_edits": []
+    },
+    {
+      "source_slide": 7,
+      "purpose": "evaluation_evidence",
+      "notes": "论文用主观试听、时频谱图和输入输出信噪比三条证据链评估。但所有文件都来自同一段 sailor passage 的八个加噪版本，试听没有给出听众数、量表和统计方法，信噪比定义也没有说明。",
+      "replacements": [
+        {"slot_id": "s07_sh21", "text": "四"},
+        {"slot_id": "s07_sh22", "text": "三类评价证据仍不充分"},
+        {"slot_id": "s07_sh10", "text": "听感  ·  谱图  ·  SNR"},
+        {"slot_id": "s07_sh45", "text": "论文使用三类证据：\n• 主观试听：判断清晰度与音乐噪声。\n• 谱图：观察噪声残留的时间—频率分布。\n• SNR：比较 8 个加噪文件的输入与输出。\n限制：同一段语音、无听众数/量表/统计方法，SNR 定义未交代。"}
+      ],
+      "table_edits": [],
+      "chart_edits": []
+    },
+    {
+      "source_slide": 10,
+      "purpose": "final_results",
+      "notes": "论文报告所有输入都获得了噪声降低，原始信噪比较高时效果更好。phantom4 的五点九八分贝指输入到输出的信噪比增益，不是最终信噪比等于五点九八分贝；低信噪比仍然是该方法的明显短板。",
+      "replacements": [
+        {"slot_id": "s10_sh2", "text": "四"},
+        {"slot_id": "s10_sh22", "text": "最终结果：低 SNR 仍受限"},
+        {"slot_id": "s10_sh10", "text": "ΔSNR 5.98"},
+        {"slot_id": "s10_sh45", "text": "论文报告所有 8 个输入均实现降噪。\n• 原始 SNR 较高时，输出改善更明显。\n• phantom4 的输入到输出 SNR 增益仅 5.98 dB。\n• 极低 SNR 下仍会出现语音失真和残留噪声。\n结论：有效，但工作区间有限。"}
+      ],
+      "table_edits": [],
+      "chart_edits": []
+    },
+    {
+      "source_slide": 10,
+      "purpose": "critical_review",
+      "notes": "这项工作的价值在于把经典谱减法做成了硬件约束驱动的完整工程实验，并系统比较多个增强方向。局限也很明确：八千赫兹窄带、保留带噪相位、最小统计跟踪偏慢，而且缺少客观语音质量指标、基线消融、显著性分析和实时资源数据。",
+      "replacements": [
+        {"slot_id": "s10_sh2", "text": "四"},
+        {"slot_id": "s10_sh22", "text": "论文贡献与关键局限"},
+        {"slot_id": "s10_sh10", "text": "贡献 / 局限"},
+        {"slot_id": "s10_sh45", "text": "贡献：无需 VAD；面向实时硬件；系统比较多种改进。\n局限：\n• 8 kHz 窄带，输出保留带噪相位。\n• 7.5—10 s 跟踪对非平稳噪声偏慢。\n• 无 PESQ/STOI、基线/消融/显著性比较。\n• 无 CPU、内存、延迟等实时数据。"}
+      ],
+      "table_edits": [],
+      "chart_edits": []
+    },
+    {
+      "source_slide": 8,
+      "purpose": "summary",
+      "notes": "最后把方法压缩成四个协同因素。最小幅度谱估计决定噪声底，跨帧平滑决定稳定性，阿尔法与德尔塔决定抑制强度，兰姆达决定伪影下限；任何一个参数单独调到极端都会牺牲另一项性能。",
+      "replacements": [
+        {"slot_id": "s08_sh21", "text": "四"},
+        {"slot_id": "s08_sh22", "text": "四个因素共同决定输出质量"},
+        {"slot_id": "s08_sh10", "text": "四因素协同"},
+        {"slot_id": "s08_sh45", "text": "一页总结：\n• 最小幅度谱估计决定噪声底是否可靠。\n• 跨帧平滑决定帧间稳定性。\n• α 与 δ 决定抑噪强度及频率选择性。\n• λ 决定宽带残留与音乐噪声的平衡。\n工程关键是联合权衡，而不是单参数最大化。"}
+      ],
+      "table_edits": [],
+      "chart_edits": []
+    },
+    {
+      "source_slide": 13,
+      "purpose": "ending",
+      "notes": "以上是这篇论文的主要方法、结果与可复现性问题。讨论时可以重点关注两个方向：一是如何用更快的噪声跟踪替代十秒最小统计，二是如何用客观指标和实时资源数据重新评估这些增强模块。",
+      "replacements": [
+        {"slot_id": "s13_sh21", "text": "谢谢聆听！"},
+        {"slot_id": "s13_sh3", "text": "组会论文汇报  ·  欢迎讨论"}
+      ],
+      "table_edits": [],
+      "chart_edits": []
+    }
+  ]
+}
