@@ -100,6 +100,8 @@ typedef struct
     int target_bank_id;
     int target_valid;
     int installed_pair_valid;
+    int return_from_identity_pending;
+    int next_install_transition_kind;
     EQ_BANK_BUILDER builder;
     EQ_PREPARED_BANK ready_candidate;
     unsigned long rejected_count;

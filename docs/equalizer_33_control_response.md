@@ -1,18 +1,26 @@
 # Project 3.3 Stage B Control and Response Specification
 
-**Status:** `DESIGN_APPROVED`; specification/TDD review in progress;
-`IMPLEMENTATION_NOT_STARTED`.
+**Status:** `IMPLEMENTATION_COMPLETE_HOST_VERIFIED`; `CCS_BUILD_VERIFIED`.
 
 **Baseline:** `3d9bb2f3c65123761130571c624e82b7d5306c32`
 
-**Planned implementation branch:** `codex/project33-control-response`. Before
-Task 1 it must be fast-forwarded from the local `main` commit containing this
-approved specification.
-
-**Integration target:** local `main` after all automated checks pass. No remote
+**Integration:** implemented and verified directly on local `main`. No remote
 push is authorized by this specification.
 
 **Hardware status:** `PENDING_HARDWARE`
+
+The 2026-07-14 software verification ran the original Host evaluator, the
+control and response C harnesses, the 53 Project 3.3 Python contracts, and CCS
+compile/link for Project 32, Project 33 LCD OFF, and Project 33 LCD ON. The
+response reference measured a maximum C/Python shape error of
+`3.4592468711736046e-07 dB` and total-response error of
+`7.052204793467354e-07 dB`; all 100 cells in the 10 x 10 interaction matrix
+were finite. Generated CSV/PNG evidence was kept in temporary directories.
+
+This verification did not run DSS, download a program, measure builder cycles
+on C6748, run an LCD ON continuity test, or perform a speaker listening test.
+Those properties remain `PENDING_HARDWARE`; this document does not claim
+`MEASURED_ON_CURRENT_BOARD`.
 
 ## 1. Objective
 
@@ -1240,9 +1248,10 @@ untouched and unstaged.
 
 ---
 
-# Project 3.3 Stage B Control and Response Implementation Plan
+# Project 3.3 Stage B Control and Response Implementation Record
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+The task sequence below is retained as the implementation and verification
+record. It is no longer an unstarted implementation gate.
 
 **Goal:** Add a seqlock-controlled ten-band command backend, a bounded custom-bank builder, deterministic sequence/generation state, and immutable Host response evidence without changing the existing RBJ mathematics, display renderer, or LCD request/job implementation.
 
@@ -1250,17 +1259,8 @@ untouched and unstaged.
 
 **Tech Stack:** TI C6000 C89, Host GCC C99, Python `unittest`, NumPy/Matplotlib when available, CCS 20.5 managed build.
 
-**Execution status:** `NOT_STARTED`. This document is the implementation gate.
-
-Before Task 1, start from the committed design gate:
-
-```bash
-git switch codex/project33-control-response
-git merge --ff-only main
-```
-
-If that fast-forward is unavailable, stop and inspect branch ancestry instead
-of rebasing or rewriting either branch.
+**Execution status:** `IMPLEMENTATION_COMPLETE_HOST_VERIFIED`;
+`CCS_BUILD_VERIFIED`; board measurements `PENDING_HARDWARE`.
 
 ## File responsibility map
 
@@ -1995,24 +1995,20 @@ staged.
 Re-run the full Host C suite, Python suite, three CCS builds, link XML check,
 `git diff --check`, and whitelist audit after all edits are complete.
 
-- [ ] **Step 5: Create the final feature commit on the development branch**
+- [ ] **Step 5: Create the final hardening commit on local main**
 
 ```bash
 git add .gitignore Code/User/user_include.h Code/User/user_dsp/user_equalizer.c Code/User/user_dsp/user_equalizer.h Code/User/user_dsp/user_equalizer_control.c Code/User/user_dsp/user_equalizer_control.h Code/User/user_dsp/user_equalizer_response.c Code/User/user_dsp/user_equalizer_response.h Code/User/user_dsp/user_equalizer_flow.c Code/User/user_dsp/user_equalizer_flow.h Code/User/user_dsp/user_equalizer_eval.c Code/User/user_dsp/user_equalizer_eval.h tools/equalizer_33_response_report.py tools/tests/equalizer_control_test.c tools/tests/equalizer_response_test.c tools/tests/test_equalizer_control.py tools/tests/test_equalizer_response.py docs/equalizer_33_control_response.md
-git commit -m "feat: add nonblocking project 3.3 control and response backend"
+git commit -m "fix: harden project 3.3 background control transactions"
 ```
 
-- [ ] **Step 6: Integrate the verified branch into local main**
+- [ ] **Step 6: Confirm the committed local main state**
 
-Require a clean Stage B index, preserve the unrelated untracked `projects/`
-directory, and run:
+Require a clean Stage B index and run:
 
 ```bash
-git switch main
-git merge --ff-only codex/project33-control-response
 git status --short --branch
 ```
 
-If `main` cannot fast-forward, stop and report instead of forcing, rebasing, or
-discarding work. Do not push the remote without a separate user instruction.
+Do not push the remote without a separate user instruction.
 Report all unverified board properties as `PENDING_HARDWARE` and stop.

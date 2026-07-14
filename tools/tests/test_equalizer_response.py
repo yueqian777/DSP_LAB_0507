@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 import pathlib
 import subprocess
+import tempfile
 import unittest
 
 
@@ -56,9 +57,8 @@ class EqualizerResponseTest(unittest.TestCase):
         self.assertIn("failures=0", result.stdout)
 
     def test_snapshot_has_no_runtime_filter_state(self) -> None:
-        start = self.header.index("typedef struct\n{", self.header.index(
-            "EQ_RESPONSE_COMPLEX"))
-        end = self.header.index("} EQ_RESPONSE_SNAPSHOT;", start)
+        end = self.header.index("} EQ_RESPONSE_SNAPSHOT;")
+        start = self.header.rfind("typedef struct\n{", 0, end)
         snapshot = self.header[start:end]
         for forbidden in ("s1", "s2", "clip_count", "audio"):
             self.assertNotIn(forbidden, snapshot)
@@ -67,6 +67,7 @@ class EqualizerResponseTest(unittest.TestCase):
         for name in (
             "IDENTITY_RAW_COPY", "IDENTITY_FLOAT_COPY",
             "IDENTITY_HARD_BYPASS", "IDENTITY_RBJ_FLAT_COPY",
+            "IDENTITY_RETURN_HOLD",
             "DRY_TO_BANK_TRANSITION", "ACTIVE_BANK",
             "BANK_TO_BANK_TRANSITION", "UNSUPPORTED_LEGACY",
             "ROLE_ACTIVE", "ROLE_PENDING", "ROLE_PREPARED_TARGET",
@@ -92,6 +93,69 @@ class EqualizerResponseTest(unittest.TestCase):
             self.assertAlmostEqual(desired_curve(gains, center), gain, places=12)
         self.assertAlmostEqual(desired_curve(gains, math.sqrt(500.0 * 1000.0)),
                                3.0, places=12)
+
+    def test_board_response_module_excludes_host_math(self) -> None:
+        math_include = self.source.index('#include "math.h"')
+        host_guard = self.source.rfind("#ifdef EQ_ALGO_ONLY", 0, math_include)
+        self.assertGreaterEqual(host_guard, 0)
+        magnitude = self.source.index("int EqualizerResponse_GetMagnitudeDb(")
+        host_guard = self.source.rfind("#ifdef EQ_ALGO_ONLY", 0, magnitude)
+        self.assertGreaterEqual(host_guard, 0)
+
+    def test_independent_report_and_c_reference_metrics(self) -> None:
+        compile_result = subprocess.run(
+            [str(BASH), "-lc",
+             "export PATH=/mingw64/bin:/usr/bin:$PATH; "
+             "cd /c/Users/zhangyueqian/lab8/DSP_LAB_0507; "
+             "gcc -std=c99 -Wall -Wextra -Werror -DEQ_ALGO_ONLY "
+             "-ICode/User/user_dsp Code/User/user_dsp/user_equalizer.c "
+             "Code/User/user_dsp/user_equalizer_control.c "
+             "Code/User/user_dsp/user_equalizer_response.c "
+             "tools/tests/equalizer_response_test.c -lm "
+             "-o /tmp/equalizer_response_test.exe"],
+            text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            check=False)
+        self.assertEqual(compile_result.returncode, 0, compile_result.stdout)
+        with tempfile.TemporaryDirectory(prefix="equalizer_33_response_") as temp:
+            root = pathlib.Path(temp)
+            output = root / "report"
+            export_result = subprocess.run(
+                [r"C:\msys64\tmp\equalizer_response_test.exe",
+                 "--export", str(root)],
+                text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                check=False)
+            self.assertEqual(export_result.returncode, 0, export_result.stdout)
+            report_result = subprocess.run(
+                [r"D:\SoftwareDownload\python.exe", "-B",
+                 str(ROOT / "tools/equalizer_33_response_report.py"),
+                 "--output-dir", str(output),
+                 "--c-reference-dir", str(root)],
+                text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                check=False)
+            self.assertEqual(report_result.returncode, 0, report_result.stdout)
+            metrics = __import__("json").loads(report_result.stdout.strip())
+            self.assertLess(metrics["c_python_shape_max_error_db"], 0.01)
+            self.assertLess(metrics["c_python_total_max_error_db"], 0.01)
+            self.assertLess(metrics["builder_sync_coefficient_max_diff"], 1e-6)
+            self.assertLess(metrics["builder_sync_peak_diff_db"], 1e-4)
+            self.assertLess(metrics["builder_sync_preamp_diff_db"], 1e-4)
+            self.assertEqual(metrics["interaction_rows"], 10.0)
+            self.assertEqual(metrics["interaction_columns"], 10.0)
+            self.assertEqual(metrics["interaction_finite_count"], 100.0)
+            expected_png = {
+                "target_vs_actual_flat.png", "target_vs_actual_bass.png",
+                "target_vs_actual_vocal.png", "target_vs_actual_treble.png",
+                "target_vs_actual_v_shape.png", "target_vs_actual_custom.png",
+                "rbj_individual_sections.png",
+                "interaction_matrix_heatmap.png",
+                "group_delay_comparison.png",
+            }
+            self.assertEqual({path.name for path in output.glob("*.png")},
+                             expected_png)
+            for name in ("response_curves.csv", "section_response.csv",
+                         "group_delay.csv", "interaction_matrix.csv",
+                         "metrics.csv"):
+                self.assertTrue((output / name).is_file(), name)
 
 
 if __name__ == "__main__":

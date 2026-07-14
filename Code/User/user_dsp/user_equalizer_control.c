@@ -150,6 +150,7 @@ void EqualizerControl_Init(EQ_CONTROL_STATE *control,
     control->builder.state = EQ_BUILDER_IDLE;
     control->target_preset = EQ_PRESET_NONE;
     control->target_bank_id = EQ_RBJ_BANK_CUSTOM;
+    control->next_install_transition_kind = EQ_TRANSITION_BANK_TO_BANK;
     if (equalizer == 0)
     {
         return;
@@ -314,15 +315,28 @@ static int EQ_ControlPublishTarget(EQ_CONTROL_STATE *control,
                                    int preset)
 {
     unsigned long generation;
+    EQ_PREPARED_BANK prepared;
     int bank_id;
     int band;
 
-    if (Equalizer_PublishLogicalTarget(equalizer, gains_db, preset,
+    memset(&prepared, 0, sizeof(prepared));
+    if (Equalizer_PreviewLogicalTarget(equalizer, gains_db, preset,
                                        &generation, &bank_id) == 0)
     {
         control->last_error = EQ_CONTROL_ERROR_CORE;
         return 0;
     }
+    if ((bank_id != EQ_RBJ_BANK_CUSTOM) &&
+        (Equalizer_CopyCachedPreparedBank(
+            bank_id, preset, generation, request->sequence,
+            &prepared) == 0))
+    {
+        control->last_error = EQ_CONTROL_ERROR_CORE;
+        return 0;
+    }
+
+    Equalizer_CommitLogicalTarget(
+        equalizer, gains_db, preset, generation, bank_id);
     control->target_sequence = request->sequence;
     control->target_generation = generation;
     control->target_preset = preset;
@@ -336,13 +350,7 @@ static int EQ_ControlPublishTarget(EQ_CONTROL_STATE *control,
     if (bank_id != EQ_RBJ_BANK_CUSTOM)
     {
         EQ_ControlCancelUninstalled(control);
-        if (Equalizer_CopyCachedPreparedBank(
-                bank_id, preset, generation, request->sequence,
-                &control->ready_candidate) == 0)
-        {
-            control->last_error = EQ_CONTROL_ERROR_CORE;
-            return 0;
-        }
+        control->ready_candidate = prepared;
         control->prepared_sequence = request->sequence;
         control->builder.state = EQ_BUILDER_IDLE;
     }
@@ -411,7 +419,6 @@ int EqualizerControl_ServiceMailbox(EQ_CONTROL_STATE *control,
         return EQ_CONTROL_REJECTED;
     }
     control->observed_sequence = seq_after;
-    control->accepted_sequence = seq_after;
     control->last_error = EQ_CONTROL_ERROR_NONE;
     if (request.command == EQ_CONTROL_COPY_ACTIVE_TO_SHADOW)
     {
@@ -419,6 +426,7 @@ int EqualizerControl_ServiceMailbox(EQ_CONTROL_STATE *control,
         {
             control->shadow_gain_db[band] = equalizer->active_gain_db[band];
         }
+        control->accepted_sequence = seq_after;
         return EQ_CONTROL_ACCEPTED;
     }
     if (request.command == EQ_CONTROL_CANCEL_PENDING)
@@ -430,10 +438,12 @@ int EqualizerControl_ServiceMailbox(EQ_CONTROL_STATE *control,
             control->target_valid = 0;
             EQ_ControlCancelUninstalled(control);
         }
+        control->accepted_sequence = seq_after;
         return EQ_CONTROL_ACCEPTED;
     }
     if (target_bearing == 0)
     {
+        control->accepted_sequence = seq_after;
         return EQ_CONTROL_ACCEPTED;
     }
     if (EQ_ControlPublishTarget(control, equalizer, &request,
@@ -442,6 +452,7 @@ int EqualizerControl_ServiceMailbox(EQ_CONTROL_STATE *control,
         control->rejected_count++;
         return EQ_CONTROL_REJECTED;
     }
+    control->accepted_sequence = seq_after;
     return EQ_CONTROL_ACCEPTED;
 }
 
@@ -614,7 +625,7 @@ int EqualizerControl_TryInstallReady(EQ_CONTROL_STATE *control,
     }
     result = Equalizer_InstallPreparedBank(
         equalizer, &control->ready_candidate,
-        EQ_TRANSITION_BANK_TO_BANK);
+        control->next_install_transition_kind);
     if (result == EQ_INSTALL_INSTALLED)
     {
         control->installed_sequence = control->target_sequence;
@@ -622,6 +633,9 @@ int EqualizerControl_TryInstallReady(EQ_CONTROL_STATE *control,
         control->installed_pair_valid = 1;
         control->ready_candidate.valid = 0;
         control->builder.state = EQ_BUILDER_IDLE;
+        control->return_from_identity_pending = 0;
+        control->next_install_transition_kind =
+            EQ_TRANSITION_BANK_TO_BANK;
     }
     else if (result == EQ_INSTALL_STALE)
     {
@@ -662,6 +676,13 @@ void EqualizerControl_RebaseAfterDirectPathChange(
     control->installed_pair_valid = 0;
     control->installed_generation = 0UL;
     control->builder.state = EQ_BUILDER_IDLE;
+    control->return_from_identity_pending =
+        ((Equalizer_GetCoreMode(equalizer) == EQ_CORE_RAW_COPY) ||
+         (Equalizer_GetCoreMode(equalizer) == EQ_CORE_FLOAT_COPY) ||
+         (Equalizer_GetBypass(equalizer) != 0)) ? 1 : 0;
+    control->next_install_transition_kind =
+        (control->return_from_identity_pending != 0) ?
+        EQ_TRANSITION_DRY_TO_BANK : EQ_TRANSITION_BANK_TO_BANK;
     for (band = 0; band < EQ_NUM_BANDS; band++)
     {
         control->shadow_gain_db[band] = equalizer->active_gain_db[band];

@@ -69,6 +69,30 @@ class EqualizerControlTest(unittest.TestCase):
         self.assertNotIn("while (", builder)
         self.assertEqual(builder.count("payload_slice_count++"), 3)
 
+    def test_final_audio_state_is_rechecked_by_shared_decision(self) -> None:
+        header = (ROOT / "Code/User/user_dsp/user_equalizer_flow.h").read_text(
+            encoding="utf-8")
+        signature = header[header.index("int EqualizerBackgroundService_Decide("):]
+        for field in (
+            "int final_flag_ad",
+            "int final_flag_da",
+            "int final_flag_ad_done",
+            "int final_frame_service_pending",
+        ):
+            self.assertIn(field, signature)
+        loop = self.flow[self.flow.index("while (1)"):]
+        decide = loop.index("EqualizerBackgroundService_Decide(")
+        builder = loop.index("EqualizerControl_ServiceOneBuilderSlice(", decide)
+        lcd = loop.index("EqualizerDisplay_ServiceOneJob();", decide)
+        decision_call = loop[decide:builder]
+        for field in ("FLAG_AD", "FLAG_DA", "flag_ad_done",
+                      "EQ_FrameServicePending"):
+            self.assertIn(field, decision_call)
+        self.assertLess(decide, builder)
+        self.assertLess(decide, lcd)
+        self.assertIn("EQ_DebugBuilderDeferredAudioCount++", loop)
+        self.assertIn("EQ_DebugBuilderAudioArrivedDuringSliceCount++", loop)
+
     def test_sample_path_cannot_start_or_build_target(self) -> None:
         start = self.core.index("static float EQ_ProcessRbjSample(")
         end = self.core.index("static short EQ_SaturateToShort", start)

@@ -154,6 +154,7 @@ typedef struct
     int pending_bank_id;
     int transition_kind;
     int latest_preset_valid;
+    int identity_hold;
     unsigned long target_generation;
     unsigned long active_generation;
     unsigned long pending_generation;
@@ -175,6 +176,8 @@ void Equalizer_SetBypass(EQ_STATE *st, int enable);
 int Equalizer_GetBypass(const EQ_STATE *st);
 void Equalizer_SetCoreMode(EQ_STATE *st, int mode);
 int Equalizer_GetCoreMode(const EQ_STATE *st);
+void Equalizer_SetIdentityHold(EQ_STATE *st, int enable);
+int Equalizer_GetIdentityHold(const EQ_STATE *st);
 void Equalizer_SetBandGainDb(EQ_STATE *st, int band, float gain_db);
 void Equalizer_SetAllGainsDb(EQ_STATE *st,
                              const float gains_db[EQ_NUM_BANDS]);
@@ -190,6 +193,18 @@ int Equalizer_PublishLogicalTarget(
     int preset,
     unsigned long *generation_out,
     int *bank_id_out);
+int Equalizer_PreviewLogicalTarget(
+    const EQ_STATE *st,
+    const float gains_db[EQ_NUM_BANDS],
+    int preset,
+    unsigned long *generation_out,
+    int *bank_id_out);
+void Equalizer_CommitLogicalTarget(
+    EQ_STATE *st,
+    const float gains_db[EQ_NUM_BANDS],
+    int preset,
+    unsigned long generation,
+    int bank_id);
 int Equalizer_CopyPresetGainsDb(int preset,
                                 float gains_out[EQ_NUM_BANDS]);
 int Equalizer_CopyCachedPreparedBank(

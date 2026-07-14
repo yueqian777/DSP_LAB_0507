@@ -303,21 +303,148 @@ static void test_background_budget(void)
     EQ_BACKGROUND_SERVICE_STATE state;
 
     EqualizerBackgroundService_Init(&state);
-    CHECK(EqualizerBackgroundService_Decide(&state, 0UL, 1, 1) ==
+    CHECK(EqualizerBackgroundService_Decide(
+        &state, 0UL, 0, 0, 0, 0, 1, 1) ==
           EQ_BACKGROUND_BUILDER);
     EqualizerBackgroundService_Record(
         &state, 0UL, EQ_BACKGROUND_BUILDER);
-    CHECK(EqualizerBackgroundService_Decide(&state, 0UL, 1, 1) ==
+    CHECK(EqualizerBackgroundService_Decide(
+        &state, 0UL, 0, 0, 0, 0, 1, 1) ==
           EQ_BACKGROUND_NONE);
-    CHECK(EqualizerBackgroundService_Decide(&state, 1UL, 1, 1) ==
+    CHECK(EqualizerBackgroundService_Decide(
+        &state, 1UL, 0, 0, 0, 0, 1, 1) ==
           EQ_BACKGROUND_LCD);
     EqualizerBackgroundService_Record(&state, 1UL, EQ_BACKGROUND_LCD);
-    CHECK(EqualizerBackgroundService_Decide(&state, 2UL, 1, 1) ==
+    CHECK(EqualizerBackgroundService_Decide(
+        &state, 2UL, 0, 0, 0, 0, 1, 1) ==
           EQ_BACKGROUND_BUILDER);
-    CHECK(EqualizerBackgroundService_Decide(&state, 2UL, 0, 1) ==
+    CHECK(EqualizerBackgroundService_Decide(
+        &state, 2UL, 0, 0, 0, 0, 0, 1) ==
           EQ_BACKGROUND_LCD);
-    CHECK(EqualizerBackgroundService_Decide(&state, 2UL, 1, 0) ==
+    CHECK(EqualizerBackgroundService_Decide(
+        &state, 2UL, 0, 0, 0, 0, 1, 0) ==
           EQ_BACKGROUND_BUILDER);
+    CHECK(EqualizerBackgroundService_Decide(
+        &state, 3UL, 1, 0, 0, 0, 1, 1) ==
+          EQ_BACKGROUND_NONE);
+    CHECK(EqualizerBackgroundService_Decide(
+        &state, 3UL, 0, 1, 0, 0, 1, 1) ==
+          EQ_BACKGROUND_NONE);
+    CHECK(EqualizerBackgroundService_Decide(
+        &state, 3UL, 0, 0, 1, 0, 1, 1) ==
+          EQ_BACKGROUND_NONE);
+    CHECK(EqualizerBackgroundService_Decide(
+        &state, 3UL, 0, 0, 0, 1, 1, 1) ==
+          EQ_BACKGROUND_NONE);
+    CHECK(state.consumed_frame == 1UL);
+}
+
+static void test_target_rejection_is_transactional(void)
+{
+    EQ_STATE equalizer;
+    EQ_CONTROL_STATE control;
+    EQ_CONTROL_MAILBOX mailbox;
+    EQ_CONTROL_REQUEST request;
+    EQ_CONTROL_SEQUENCE accepted_before;
+    EQ_CONTROL_SEQUENCE target_before;
+    unsigned long generation_before;
+    float gains_before[EQ_NUM_BANDS];
+    int target_valid_before;
+    int band;
+
+    Equalizer_Init(&equalizer);
+    EqualizerControl_Init(&control, &equalizer);
+    memset(&mailbox, 0, sizeof(mailbox));
+    Equalizer_SetCoreMode(&equalizer, EQ_CORE_RAW_COPY);
+    accepted_before = control.accepted_sequence;
+    target_before = control.target_sequence;
+    target_valid_before = control.target_valid;
+    generation_before = equalizer.target_generation;
+    memcpy(gains_before, equalizer.band_gain_db, sizeof(gains_before));
+
+    fill_request(&request, EQ_CONTROL_APPLY_PRESET);
+    request.preset = EQ_PRESET_BASS_BOOST;
+    CHECK(EqualizerControl_SubmitRequest(&mailbox, &request) == 2U);
+    CHECK(EqualizerControl_ServiceMailbox(
+        &control, &mailbox, &equalizer) == EQ_CONTROL_REJECTED);
+    CHECK(control.observed_sequence == 2U);
+    CHECK(control.accepted_sequence == accepted_before);
+    CHECK(control.target_sequence == target_before);
+    CHECK(control.target_valid == target_valid_before);
+    CHECK(equalizer.target_generation == generation_before);
+    for (band = 0; band < EQ_NUM_BANDS; band++)
+    {
+        CHECK(equalizer.band_gain_db[band] == gains_before[band]);
+    }
+
+    fill_request(&request, EQ_CONTROL_NONE);
+    CHECK(EqualizerControl_SubmitRequest(&mailbox, &request) == 4U);
+    CHECK(EqualizerControl_ServiceMailbox(
+        &control, &mailbox, &equalizer) == EQ_CONTROL_ACCEPTED);
+    CHECK(control.accepted_sequence == 4U);
+}
+
+static void test_identity_return_waits_for_custom_target(void)
+{
+    static const float custom[EQ_NUM_BANDS] =
+    {
+        -3.0f, -1.0f, 1.0f, 3.0f, 4.0f,
+         2.0f,  0.0f, -2.0f, 1.0f, 3.0f
+    };
+    EQ_STATE equalizer;
+    EQ_CONTROL_STATE control;
+    EQ_CONTROL_MAILBOX mailbox;
+    EQ_CONTROL_REQUEST request;
+    float input[8];
+    float output[8];
+    int slice;
+    int sample;
+
+    Equalizer_Init(&equalizer);
+    EqualizerControl_Init(&control, &equalizer);
+    memset(&mailbox, 0, sizeof(mailbox));
+    Equalizer_SetCoreMode(&equalizer, EQ_CORE_RAW_COPY);
+    EqualizerControl_RebaseAfterDirectPathChange(&control, &equalizer);
+    CHECK(control.return_from_identity_pending == 1);
+    Equalizer_SetCoreMode(&equalizer, EQ_CORE_RBJ_CASCADE);
+    Equalizer_SetIdentityHold(&equalizer, 1);
+
+    fill_request(&request, EQ_CONTROL_SET_ALL);
+    for (sample = 0; sample < EQ_NUM_BANDS; sample++)
+    {
+        request.shadow_gain_db[sample] = custom[sample];
+    }
+    CHECK(EqualizerControl_SubmitRequest(&mailbox, &request) == 2U);
+    CHECK(EqualizerControl_ServiceMailbox(
+        &control, &mailbox, &equalizer) == EQ_CONTROL_ACCEPTED);
+    for (sample = 0; sample < 8; sample++)
+    {
+        input[sample] = ((float)sample - 3.0f) * 0.125f;
+    }
+    for (slice = 0; slice < 43; slice++)
+    {
+        Equalizer_ProcessFrameFloat(&equalizer, input, output, 8);
+        for (sample = 0; sample < 8; sample++)
+        {
+            CHECK(output[sample] == input[sample]);
+        }
+        CHECK(EqualizerControl_ServiceOneBuilderSlice(&control) ==
+              EQ_BUILDER_WORKED);
+    }
+    CHECK(control.ready_candidate.valid == 1);
+    Equalizer_ProcessFrameFloat(&equalizer, input, output, 8);
+    for (sample = 0; sample < 8; sample++)
+    {
+        CHECK(output[sample] == input[sample]);
+    }
+    CHECK(EqualizerControl_TryInstallReady(&control, &equalizer) ==
+          EQ_INSTALL_INSTALLED);
+    CHECK(equalizer.transition_kind == EQ_TRANSITION_DRY_TO_BANK);
+    CHECK(control.return_from_identity_pending == 0);
+    process_until_settled(&equalizer);
+    EqualizerControl_ObserveFrameBoundary(&control, &equalizer);
+    CHECK(control.applied_sequence == control.installed_sequence);
+    CHECK(equalizer.active_preset == EQ_PRESET_CUSTOM);
 }
 
 int main(void)
@@ -327,6 +454,8 @@ int main(void)
     test_latest_wins_and_cache();
     test_direct_setter_rejection();
     test_background_budget();
+    test_target_rejection_is_transactional();
+    test_identity_return_waits_for_custom_target();
     printf("equalizer_control_test failures=%d\n", failures);
     return (failures == 0) ? 0 : 1;
 }

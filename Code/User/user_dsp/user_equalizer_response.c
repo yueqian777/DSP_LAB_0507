@@ -6,8 +6,10 @@
  */
 
 #include "user_equalizer_response.h"
-#include "math.h"
 #include "string.h"
+
+#ifdef EQ_ALGO_ONLY
+#include "math.h"
 
 #define EQ_RESPONSE_EPS 1.0e-20
 
@@ -16,6 +18,7 @@ static const float EQ_ResponseCentersHz[EQ_NUM_BANDS] =
     31.25f, 62.5f, 125.0f, 250.0f, 500.0f,
     1000.0f, 2000.0f, 4000.0f, 8000.0f, 16000.0f
 };
+#endif
 
 static int EQ_ResponseGainsAreFlat(const float gains_db[EQ_NUM_BANDS])
 {
@@ -135,6 +138,13 @@ int EqualizerResponse_CopyActive(const EQ_STATE *st,
         out->role = EQ_RESPONSE_ROLE_ACTIVE;
         out->valid = 0;
         return 0;
+    }
+    if (Equalizer_GetIdentityHold(st) != 0)
+    {
+        EQ_ResponseMakeIdentity(out,
+            EQ_RESPONSE_PATH_IDENTITY_RETURN_HOLD,
+            EQ_RESPONSE_ROLE_ACTIVE);
+        return 1;
     }
     if ((st->pending_bank_valid != 0) &&
         (st->transition_kind == EQ_TRANSITION_DRY_TO_BANK))
@@ -299,6 +309,7 @@ int EqualizerResponse_CopyTarget(const EQ_STATE *st,
     return 0;
 }
 
+#ifdef EQ_ALGO_ONLY
 int EqualizerResponse_GetSectionComplex(const EQ_RESPONSE_SNAPSHOT *snapshot,
                                         int section,
                                         float frequency_hz,
@@ -435,3 +446,4 @@ int EqualizerResponse_GetDesiredVisualDb(
     }
     return 0;
 }
+#endif

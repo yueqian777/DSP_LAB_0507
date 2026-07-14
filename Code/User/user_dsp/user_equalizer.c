@@ -680,8 +680,8 @@ int Equalizer_CopyCachedPreparedBank(
     return 1;
 }
 
-int Equalizer_PublishLogicalTarget(
-    EQ_STATE *st,
+int Equalizer_PreviewLogicalTarget(
+    const EQ_STATE *st,
     const float gains_db[EQ_NUM_BANDS],
     int preset,
     unsigned long *generation_out,
@@ -691,6 +691,7 @@ int Equalizer_PublishLogicalTarget(
     int bank_id;
 
     if ((st == 0) || (gains_db == 0) ||
+        (generation_out == 0) || (bank_id_out == 0) ||
         (st->core_mode != EQ_CORE_RBJ_CASCADE) ||
         (preset < EQ_PRESET_FLAT) || (preset > EQ_PRESET_CUSTOM))
     {
@@ -706,11 +707,25 @@ int Equalizer_PublishLogicalTarget(
         }
     }
     bank_id = EQ_FindRbjCachedBank(gains_db);
-    st->target_generation++;
-    if (st->target_generation == 0UL)
+    *generation_out = st->target_generation + 1UL;
+    if (*generation_out == 0UL)
     {
-        st->target_generation = 1UL;
+        *generation_out = 1UL;
     }
+    *bank_id_out = bank_id;
+    return 1;
+}
+
+void Equalizer_CommitLogicalTarget(
+    EQ_STATE *st,
+    const float gains_db[EQ_NUM_BANDS],
+    int preset,
+    unsigned long generation,
+    int bank_id)
+{
+    int band;
+
+    st->target_generation = generation;
     for (band = 0; band < EQ_NUM_BANDS; band++)
     {
         st->band_gain_db[band] = gains_db[band];
@@ -721,14 +736,28 @@ int Equalizer_PublishLogicalTarget(
     st->latest_preset_valid =
         ((st->pending_bank_valid != 0) &&
          (st->pending_generation != st->target_generation)) ? 1 : 0;
-    if (generation_out != 0)
+}
+
+int Equalizer_PublishLogicalTarget(
+    EQ_STATE *st,
+    const float gains_db[EQ_NUM_BANDS],
+    int preset,
+    unsigned long *generation_out,
+    int *bank_id_out)
+{
+    unsigned long generation;
+    int bank_id;
+
+    if ((generation_out == 0) || (bank_id_out == 0) ||
+        (Equalizer_PreviewLogicalTarget(
+            st, gains_db, preset, &generation, &bank_id) == 0))
     {
-        *generation_out = st->target_generation;
+        return 0;
     }
-    if (bank_id_out != 0)
-    {
-        *bank_id_out = bank_id;
-    }
+    Equalizer_CommitLogicalTarget(
+        st, gains_db, preset, generation, bank_id);
+    *generation_out = generation;
+    *bank_id_out = bank_id;
     return 1;
 }
 
@@ -952,6 +981,7 @@ int Equalizer_InstallPreparedBank(EQ_STATE *st,
     }
     EQ_InstallRbjCandidate(st, &prepared->bank, prepared->bank_id,
                            prepared->preset, 0, transition_kind);
+    st->identity_hold = 0;
     return EQ_INSTALL_INSTALLED;
 }
 
@@ -1206,6 +1236,10 @@ static int EQ_UsesTransparentPath(const EQ_STATE *st)
     {
         return 0;
     }
+    if (st->identity_hold != 0)
+    {
+        return 1;
+    }
     if (st->pending_bank_valid != 0)
     {
         return 0;
@@ -1378,6 +1412,7 @@ void Equalizer_SetBypass(EQ_STATE *st, int enable)
     if (requested_enable != 0)
     {
         st->bypass = 1;
+        st->identity_hold = 0;
         EQ_CancelTransition(st);
         EQ_UpdateDebugHeadroom(st);
         return;
@@ -1409,6 +1444,7 @@ void Equalizer_SetCoreMode(EQ_STATE *st, int mode)
     if ((mode == EQ_CORE_RAW_COPY) || (mode == EQ_CORE_FLOAT_COPY))
     {
         EQ_CancelTransition(st);
+        st->identity_hold = 0;
     }
     if (st->core_mode == mode)
     {
@@ -1470,6 +1506,28 @@ void Equalizer_SetBandGainDb(EQ_STATE *st, int band, float gain_db)
     {
         EQ_QueueOrStartCurrentTarget(st);
     }
+}
+
+void Equalizer_SetIdentityHold(EQ_STATE *st, int enable)
+{
+    if (st == 0)
+    {
+        return;
+    }
+    if ((enable != 0) && (st->core_mode == EQ_CORE_RBJ_CASCADE))
+    {
+        EQ_CancelTransition(st);
+        st->identity_hold = 1;
+    }
+    else
+    {
+        st->identity_hold = 0;
+    }
+}
+
+int Equalizer_GetIdentityHold(const EQ_STATE *st)
+{
+    return ((st != 0) && (st->identity_hold != 0)) ? 1 : 0;
 }
 
 void Equalizer_SetAllGainsDb(EQ_STATE *st,

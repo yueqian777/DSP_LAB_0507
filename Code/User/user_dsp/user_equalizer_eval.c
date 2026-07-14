@@ -10,6 +10,7 @@
 #ifdef EQ_ALGO_ONLY
 
 #include "user_equalizer.h"
+#include "user_equalizer_control.h"
 #include "user_equalizer_flow.h"
 #include "math.h"
 #include "stdio.h"
@@ -636,6 +637,83 @@ static short EQ_EvalStressTone(int sample_index, float level_dbfs)
     return (short)((sample >= 0.0f) ? (sample + 0.5f) : (sample - 0.5f));
 }
 
+typedef struct
+{
+    EQ_CONTROL_STATE control;
+    EQ_CONTROL_MAILBOX mailbox;
+} EQ_EVAL_CONTROL_PATH;
+
+static void EQ_EvalControlInit(EQ_EVAL_CONTROL_PATH *path,
+                               const EQ_STATE *st)
+{
+    memset(path, 0, sizeof(*path));
+    EqualizerControl_Init(&path->control, st);
+}
+
+static EQ_CONTROL_SEQUENCE EQ_EvalControlSubmitPreset(
+    EQ_EVAL_CONTROL_PATH *path, int preset)
+{
+    EQ_CONTROL_REQUEST request;
+
+    memset(&request, 0, sizeof(request));
+    request.command = EQ_CONTROL_APPLY_PRESET;
+    request.preset = preset;
+    return EqualizerControl_SubmitRequest(&path->mailbox, &request);
+}
+
+static EQ_CONTROL_SEQUENCE EQ_EvalControlSubmitAll(
+    EQ_EVAL_CONTROL_PATH *path, const float gains_db[EQ_NUM_BANDS])
+{
+    EQ_CONTROL_REQUEST request;
+    int band;
+
+    memset(&request, 0, sizeof(request));
+    request.command = EQ_CONTROL_SET_ALL;
+    for (band = 0; band < EQ_NUM_BANDS; band++)
+    {
+        request.shadow_gain_db[band] = gains_db[band];
+    }
+    return EqualizerControl_SubmitRequest(&path->mailbox, &request);
+}
+
+static void EQ_EvalControlService(EQ_EVAL_CONTROL_PATH *path, EQ_STATE *st)
+{
+    EqualizerControl_ObserveFrameBoundary(&path->control, st);
+    (void)EqualizerControl_ServiceMailbox(&path->control, &path->mailbox, st);
+    EqualizerControl_InvalidateStaleWork(&path->control);
+    (void)EqualizerControl_TryInstallReady(&path->control, st);
+    if (EqualizerControl_BuilderEligible(&path->control, st) != 0)
+    {
+        (void)EqualizerControl_ServiceOneBuilderSlice(&path->control);
+        (void)EqualizerControl_TryInstallReady(&path->control, st);
+    }
+    EqualizerControl_ObserveFrameBoundary(&path->control, st);
+}
+
+static void EQ_EvalControlSettle(EQ_EVAL_CONTROL_PATH *path, EQ_STATE *st)
+{
+    int frame;
+
+    memset(EQ_EvalFloatIn, 0,
+           EQ_EVAL_FRAME_SAMPLES * sizeof(EQ_EvalFloatIn[0]));
+    for (frame = 0; frame < 96; frame++)
+    {
+        EQ_EvalControlService(path, st);
+        if ((path->control.target_valid != 0) &&
+            (path->control.applied_sequence ==
+             path->control.target_sequence) &&
+            (Equalizer_HasPendingTransition(st) == 0) &&
+            (path->control.ready_candidate.valid == 0) &&
+            (path->control.builder.state == EQ_BUILDER_IDLE))
+        {
+            return;
+        }
+        Equalizer_ProcessFrameFloat(st, EQ_EvalFloatIn, EQ_EvalFloatOut,
+                                    EQ_EVAL_FRAME_SAMPLES);
+    }
+    EQ_EvalControlService(path, st);
+}
+
 static int EQ_EvalWritePresetCacheReport(void)
 {
     FILE *file;
@@ -1152,6 +1230,7 @@ static int EQ_EvalWriteLatestPresetReport(void)
 {
     FILE *file;
     EQ_STATE st;
+    EQ_EVAL_CONTROL_PATH path;
     const float treble_gains[EQ_NUM_BANDS] =
     {
         -1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
@@ -1173,6 +1252,7 @@ static int EQ_EvalWriteLatestPresetReport(void)
         return 1;
     }
     EQ_EvalConfigure(&st, EQ_CORE_RBJ_CASCADE, EQ_PRESET_BASS_BOOST);
+    EQ_EvalControlInit(&path, &st);
     for (index = 0; index < 5000; index++)
     {
         float input = 0.10f * sinf(2.0f * (float)EQ_EVAL_PI * 1000.0f *
@@ -1187,7 +1267,8 @@ static int EQ_EvalWriteLatestPresetReport(void)
         previous = output;
         first = 0;
     }
-    Equalizer_ApplyPreset(&st, EQ_PRESET_VOCAL);
+    (void)EQ_EvalControlSubmitPreset(&path, EQ_PRESET_VOCAL);
+    EQ_EvalControlService(&path, &st);
     for (index = 0; index < 2000; index++)
     {
         float input = 0.10f * sinf(2.0f * (float)EQ_EVAL_PI * 1000.0f *
@@ -1200,11 +1281,18 @@ static int EQ_EvalWriteLatestPresetReport(void)
             switch_delta = EQ_EvalAbs(output - previous);
         }
         previous = output;
+        if (((index + 1) % EQ_EVAL_FRAME_SAMPLES) == 0)
+        {
+            EQ_EvalControlService(&path, &st);
+        }
     }
-    Equalizer_ApplyPreset(&st, EQ_PRESET_TREBLE_BOOST);
+    (void)EQ_EvalControlSubmitPreset(&path, EQ_PRESET_TREBLE_BOOST);
+    EQ_EvalControlService(&path, &st);
     target_not_overwritten =
         ((Equalizer_GetTransitionTargetPreset(&st) == EQ_PRESET_VOCAL) &&
-         (Equalizer_HasPendingTransition(&st) != 0));
+         (Equalizer_HasPendingTransition(&st) != 0) &&
+         (path.control.target_preset == EQ_PRESET_TREBLE_BOOST) &&
+         (path.control.target_sequence == path.control.accepted_sequence));
     for (index = 0; index < 13000; index++)
     {
         float input = 0.10f * sinf(2.0f * (float)EQ_EVAL_PI * 1000.0f *
@@ -1217,7 +1305,12 @@ static int EQ_EvalWriteLatestPresetReport(void)
             switch_delta = EQ_EvalAbs(output - previous);
         }
         previous = output;
+        if (((index + 1) % EQ_EVAL_FRAME_SAMPLES) == 0)
+        {
+            EQ_EvalControlService(&path, &st);
+        }
     }
+    EQ_EvalControlSettle(&path, &st);
     for (band = 0; band < EQ_NUM_BANDS; band++)
     {
         if (EQ_EvalAbs(Equalizer_GetBandTargetGainDb(&st, band) -
@@ -1261,7 +1354,8 @@ static float EQ_EvalMaxResponseErrorDb(const EQ_STATE *actual,
     return max_error;
 }
 
-static void EQ_EvalProcessTransitionTone(EQ_STATE *st, int sample_offset,
+static void EQ_EvalProcessTransitionTone(EQ_EVAL_CONTROL_PATH *path,
+                                         EQ_STATE *st, int sample_offset,
                                          int sample_count, float *previous,
                                          float *max_delta)
 {
@@ -1280,6 +1374,11 @@ static void EQ_EvalProcessTransitionTone(EQ_STATE *st, int sample_offset,
             *max_delta = EQ_EvalAbs(output - *previous);
         }
         *previous = output;
+        if ((path != 0) &&
+            (((index + 1) % EQ_EVAL_FRAME_SAMPLES) == 0))
+        {
+            EQ_EvalControlService(path, st);
+        }
     }
 }
 
@@ -1314,6 +1413,7 @@ static int EQ_EvalWriteBypassRestoreReport(void)
     {
         EQ_STATE st;
         EQ_STATE reference;
+        EQ_EVAL_CONTROL_PATH path;
         float previous = 0.0f;
         float max_delta = 0.0f;
         float max_error;
@@ -1326,6 +1426,7 @@ static int EQ_EvalWriteBypassRestoreReport(void)
         int latest_before;
         int bypass_transparent;
         int bypass_off_target;
+        int restore_bank_preset;
         int expected_preset = expected_presets[case_index];
         int pass;
 
@@ -1341,21 +1442,28 @@ static int EQ_EvalWriteBypassRestoreReport(void)
                              (case_index == 3) ? EQ_PRESET_V_SHAPE :
                                                  EQ_PRESET_BASS_BOOST);
         }
+        EQ_EvalControlInit(&path, &st);
         if ((case_index == 1) || (case_index == 2))
         {
-            Equalizer_ApplyPreset(&st, EQ_PRESET_VOCAL);
-            EQ_EvalProcessTransitionTone(&st, 0, 3000, &previous, &max_delta);
+            (void)EQ_EvalControlSubmitPreset(&path, EQ_PRESET_VOCAL);
+            EQ_EvalControlService(&path, &st);
+            EQ_EvalProcessTransitionTone(&path, &st, 0, 3000,
+                                         &previous, &max_delta);
         }
         if (case_index == 2)
         {
-            Equalizer_ApplyPreset(&st, EQ_PRESET_TREBLE_BOOST);
+            (void)EQ_EvalControlSubmitPreset(&path,
+                                             EQ_PRESET_TREBLE_BOOST);
+            EQ_EvalControlService(&path, &st);
         }
         active_before = Equalizer_GetAppliedPreset(&st);
         target_before = Equalizer_GetRequestedPreset(&st);
         pending_before = Equalizer_GetTransitionTargetPreset(&st);
         latest_before = Equalizer_GetLatestPresetPending(&st);
+        restore_bank_preset = st.active_preset;
 
         Equalizer_SetBypass(&st, 1);
+        EqualizerControl_RebaseAfterDirectPathChange(&path.control, &st);
         EQ_EvalFillTransparencySignal(2, EQ_EVAL_FRAME_SAMPLES);
         Equalizer_ProcessFrame(&st, EQ_EvalShortIn, EQ_EvalShortOut,
                                EQ_EVAL_FRAME_SAMPLES);
@@ -1366,8 +1474,19 @@ static int EQ_EvalWriteBypassRestoreReport(void)
 
         Equalizer_SetBypass(&st, 0);
         bypass_off_target = Equalizer_GetTransitionTargetPreset(&st);
-        EQ_EvalProcessTransitionTone(&st, 3000, EQ_EVAL_SETTLE_SAMPLES,
+        if (expected_preset == EQ_PRESET_CUSTOM)
+        {
+            (void)EQ_EvalControlSubmitAll(&path, custom_gains);
+        }
+        else
+        {
+            (void)EQ_EvalControlSubmitPreset(&path, expected_preset);
+        }
+        EQ_EvalControlService(&path, &st);
+        EQ_EvalProcessTransitionTone(&path, &st, 3000,
+                                     EQ_EVAL_FRAME_SAMPLES * 64,
                                      &previous, &max_delta);
+        EQ_EvalControlSettle(&path, &st);
 
         if (expected_preset == EQ_PRESET_CUSTOM)
         {
@@ -1381,7 +1500,7 @@ static int EQ_EvalWriteBypassRestoreReport(void)
         }
         response_error = EQ_EvalMaxResponseErrorDb(&st, &reference);
         pass = ((bypass_transparent != 0) &&
-                (bypass_off_target == expected_preset) &&
+                (bypass_off_target == restore_bank_preset) &&
                 (Equalizer_GetRequestedPreset(&st) == expected_preset) &&
                 (Equalizer_ActiveBankMatchesTarget(&st) != 0) &&
                 (response_error < 0.01f) && (max_delta < 0.05f) &&
@@ -1429,6 +1548,7 @@ static int EQ_EvalWriteModeStateReport(void)
 {
     FILE *file;
     EQ_STATE st;
+    EQ_EVAL_CONTROL_PATH path;
     const float custom_gains[EQ_NUM_BANDS] =
     {
         1.0f, -0.5f, 0.75f, -1.0f, 0.5f,
@@ -1444,37 +1564,46 @@ static int EQ_EvalWriteModeStateReport(void)
     }
     fprintf(file, "step,requested,transition_target,applied,pending_valid,latest_valid,mode_change_count,pass\n");
     Equalizer_Init(&st);
+    EQ_EvalControlInit(&path, &st);
     failures += EQ_EvalWriteModeStateRow(file, "initial_flat", &st,
         EQ_PRESET_FLAT, EQ_PRESET_NONE, EQ_PRESET_FLAT, 0, 0, 0UL);
-    Equalizer_ApplyPreset(&st, EQ_PRESET_BASS_BOOST);
+    (void)EQ_EvalControlSubmitPreset(&path, EQ_PRESET_BASS_BOOST);
+    EQ_EvalControlService(&path, &st);
     failures += EQ_EvalWriteModeStateRow(file, "flat_to_bass_requested", &st,
         EQ_PRESET_BASS_BOOST, EQ_PRESET_BASS_BOOST, EQ_PRESET_FLAT, 1, 0, 0UL);
-    EQ_EvalSettle(&st);
+    EQ_EvalControlSettle(&path, &st);
     failures += EQ_EvalWriteModeStateRow(file, "bass_applied", &st,
         EQ_PRESET_BASS_BOOST, EQ_PRESET_NONE, EQ_PRESET_BASS_BOOST, 0, 0, 1UL);
-    Equalizer_ApplyPreset(&st, EQ_PRESET_VOCAL);
+    (void)EQ_EvalControlSubmitPreset(&path, EQ_PRESET_VOCAL);
+    EQ_EvalControlService(&path, &st);
     failures += EQ_EvalWriteModeStateRow(file, "bass_to_vocal_requested", &st,
         EQ_PRESET_VOCAL, EQ_PRESET_VOCAL, EQ_PRESET_BASS_BOOST, 1, 0, 1UL);
-    Equalizer_ApplyPreset(&st, EQ_PRESET_TREBLE_BOOST);
+    (void)EQ_EvalControlSubmitPreset(&path, EQ_PRESET_TREBLE_BOOST);
+    EQ_EvalControlService(&path, &st);
     failures += EQ_EvalWriteModeStateRow(file, "treble_latest", &st,
         EQ_PRESET_TREBLE_BOOST, EQ_PRESET_VOCAL, EQ_PRESET_BASS_BOOST, 1, 1, 1UL);
-    EQ_EvalSettle(&st);
-    EQ_EvalSettle(&st);
+    EQ_EvalControlSettle(&path, &st);
     failures += EQ_EvalWriteModeStateRow(file, "treble_applied", &st,
         EQ_PRESET_TREBLE_BOOST, EQ_PRESET_NONE, EQ_PRESET_TREBLE_BOOST, 0, 0,
         3UL);
-    Equalizer_ApplyPreset(&st, EQ_PRESET_VOCAL);
+    (void)EQ_EvalControlSubmitPreset(&path, EQ_PRESET_VOCAL);
+    EQ_EvalControlService(&path, &st);
     Equalizer_SetCoreMode(&st, EQ_CORE_RAW_COPY);
+    EqualizerControl_RebaseAfterDirectPathChange(&path.control, &st);
     failures += EQ_EvalWriteModeStateRow(file, "raw_interrupt", &st,
         EQ_PRESET_VOCAL, EQ_PRESET_NONE, EQ_PRESET_NONE, 0, 0, 3UL);
-    Equalizer_SetCoreMode(&st, EQ_CORE_RBJ_CASCADE);
     Equalizer_SetBypass(&st, 1);
+    EqualizerControl_RebaseAfterDirectPathChange(&path.control, &st);
     failures += EQ_EvalWriteModeStateRow(file, "hard_bypass", &st,
         EQ_PRESET_VOCAL, EQ_PRESET_NONE, EQ_PRESET_NONE, 0, 0, 3UL);
     Equalizer_SetBypass(&st, 0);
+    Equalizer_SetCoreMode(&st, EQ_CORE_RBJ_CASCADE);
+    Equalizer_SetIdentityHold(&st, 1);
+    (void)EQ_EvalControlSubmitPreset(&path, EQ_PRESET_VOCAL);
+    EQ_EvalControlService(&path, &st);
     failures += EQ_EvalWriteModeStateRow(file, "bypass_restore_pending", &st,
         EQ_PRESET_VOCAL, EQ_PRESET_VOCAL, EQ_PRESET_NONE, 1, 0, 3UL);
-    EQ_EvalSettle(&st);
+    EQ_EvalControlSettle(&path, &st);
     failures += EQ_EvalWriteModeStateRow(file, "bypass_restore_applied", &st,
         EQ_PRESET_VOCAL, EQ_PRESET_NONE, EQ_PRESET_VOCAL, 0, 0, 4UL);
     count_before_repeat = Equalizer_GetModeChangeCount(&st);
@@ -1483,14 +1612,16 @@ static int EQ_EvalWriteModeStateReport(void)
         EQ_PRESET_VOCAL, EQ_PRESET_NONE, EQ_PRESET_VOCAL, 0, 0,
         count_before_repeat);
 
-    Equalizer_ApplyPreset(&st, EQ_PRESET_BASS_BOOST);
-    Equalizer_ApplyPreset(&st, EQ_PRESET_TREBLE_BOOST);
-    Equalizer_SetAllGainsDb(&st, custom_gains);
+    (void)EQ_EvalControlSubmitPreset(&path, EQ_PRESET_BASS_BOOST);
+    EQ_EvalControlService(&path, &st);
+    (void)EQ_EvalControlSubmitPreset(&path, EQ_PRESET_TREBLE_BOOST);
+    EQ_EvalControlService(&path, &st);
+    (void)EQ_EvalControlSubmitAll(&path, custom_gains);
+    EQ_EvalControlService(&path, &st);
     failures += EQ_EvalWriteModeStateRow(file, "custom_latest_queued", &st,
         EQ_PRESET_CUSTOM, EQ_PRESET_BASS_BOOST, EQ_PRESET_VOCAL, 1, 1,
         count_before_repeat);
-    EQ_EvalSettle(&st);
-    EQ_EvalSettle(&st);
+    EQ_EvalControlSettle(&path, &st);
     failures += EQ_EvalWriteModeStateRow(file, "custom_latest_applied", &st,
         EQ_PRESET_CUSTOM, EQ_PRESET_NONE, EQ_PRESET_NONE, 0, 0,
         count_before_repeat + 2UL);
@@ -1521,36 +1652,48 @@ static int EQ_EvalWriteModeStateReport(void)
     }
 
     Equalizer_SetBypass(&st, 1);
-    Equalizer_ApplyPreset(&st, EQ_PRESET_BASS_BOOST);
-    Equalizer_ApplyPreset(&st, EQ_PRESET_TREBLE_BOOST);
+    EqualizerControl_RebaseAfterDirectPathChange(&path.control, &st);
+    (void)EQ_EvalControlSubmitPreset(&path, EQ_PRESET_BASS_BOOST);
+    (void)EQ_EvalControlSubmitPreset(&path, EQ_PRESET_TREBLE_BOOST);
+    (void)EqualizerControl_ServiceMailbox(&path.control, &path.mailbox, &st);
     failures += EQ_EvalWriteModeStateRow(file, "bypass_latest_treble", &st,
         EQ_PRESET_TREBLE_BOOST, EQ_PRESET_NONE, EQ_PRESET_NONE, 0, 0,
         count_before_repeat + 2UL);
     Equalizer_SetBypass(&st, 0);
+    EQ_EvalControlService(&path, &st);
     failures += EQ_EvalWriteModeStateRow(file, "bypass_latest_restore", &st,
-        EQ_PRESET_TREBLE_BOOST, EQ_PRESET_TREBLE_BOOST, EQ_PRESET_NONE, 1, 0,
+        EQ_PRESET_TREBLE_BOOST, EQ_PRESET_CUSTOM, EQ_PRESET_NONE, 1, 1,
         count_before_repeat + 2UL);
-    EQ_EvalSettle(&st);
+    EQ_EvalControlSettle(&path, &st);
     failures += EQ_EvalWriteModeStateRow(file, "bypass_latest_applied", &st,
         EQ_PRESET_TREBLE_BOOST, EQ_PRESET_NONE, EQ_PRESET_TREBLE_BOOST, 0, 0,
-        count_before_repeat + 3UL);
+        count_before_repeat + 4UL);
     {
         EQ_STATE generation_st;
+        EQ_EVAL_CONTROL_PATH generation_path;
         unsigned long generation_before_return;
         int generation_pass;
 
         Equalizer_Init(&generation_st);
-        Equalizer_ApplyPreset(&generation_st, EQ_PRESET_VOCAL);
-        Equalizer_ApplyPreset(&generation_st, EQ_PRESET_TREBLE_BOOST);
+        EQ_EvalControlInit(&generation_path, &generation_st);
+        (void)EQ_EvalControlSubmitPreset(&generation_path, EQ_PRESET_VOCAL);
+        EQ_EvalControlService(&generation_path, &generation_st);
+        (void)EQ_EvalControlSubmitPreset(&generation_path,
+                                         EQ_PRESET_TREBLE_BOOST);
+        EQ_EvalControlService(&generation_path, &generation_st);
         generation_before_return = generation_st.target_generation;
-        Equalizer_ApplyPreset(&generation_st, EQ_PRESET_VOCAL);
+        (void)EQ_EvalControlSubmitPreset(&generation_path, EQ_PRESET_VOCAL);
+        EQ_EvalControlService(&generation_path, &generation_st);
         generation_pass =
             ((generation_st.target_generation > generation_before_return) &&
-             (generation_st.pending_generation ==
+             (generation_st.pending_generation !=
               generation_st.target_generation) &&
              (Equalizer_GetTransitionTargetPreset(&generation_st) ==
-              EQ_PRESET_VOCAL) &&
-             (Equalizer_GetLatestPresetPending(&generation_st) == 0));
+               EQ_PRESET_VOCAL) &&
+             (Equalizer_GetLatestPresetPending(&generation_st) != 0) &&
+             (generation_path.control.target_preset == EQ_PRESET_VOCAL) &&
+             (generation_path.control.target_generation ==
+              generation_st.target_generation));
         fprintf(file, "generation_return_to_pending,%d,%d,%d,%d,%d,%lu,%s\n",
                 Equalizer_GetRequestedPreset(&generation_st),
                 Equalizer_GetTransitionTargetPreset(&generation_st),

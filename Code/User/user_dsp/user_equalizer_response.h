@@ -17,18 +17,12 @@
 #define EQ_RESPONSE_PATH_ACTIVE_BANK 5
 #define EQ_RESPONSE_PATH_BANK_TO_BANK_TRANSITION 6
 #define EQ_RESPONSE_PATH_UNSUPPORTED_LEGACY 7
+#define EQ_RESPONSE_PATH_IDENTITY_RETURN_HOLD 8
 
 #define EQ_RESPONSE_ROLE_ACTIVE 0
 #define EQ_RESPONSE_ROLE_PENDING 1
 #define EQ_RESPONSE_ROLE_PREPARED_TARGET 2
 #define EQ_RESPONSE_ROLE_LOGICAL_TARGET 3
-
-typedef struct
-{
-    double real;
-    double imag;
-    int valid;
-} EQ_RESPONSE_COMPLEX;
 
 typedef struct
 {
@@ -70,6 +64,14 @@ int EqualizerResponse_CopyCommand(const EQ_CONTROL_STATE *control,
 int EqualizerResponse_CopyTarget(const EQ_STATE *st,
                                  const EQ_CONTROL_STATE *control,
                                  EQ_RESPONSE_SNAPSHOT *out);
+#ifdef EQ_ALGO_ONLY
+typedef struct
+{
+    double real;
+    double imag;
+    int valid;
+} EQ_RESPONSE_COMPLEX;
+
 int EqualizerResponse_GetSectionComplex(const EQ_RESPONSE_SNAPSHOT *snapshot,
                                         int section,
                                         float frequency_hz,
@@ -86,5 +88,6 @@ int EqualizerResponse_GetDesiredVisualDb(
     const EQ_COMMAND_SNAPSHOT *command,
     float frequency_hz,
     float *desired_db);
+#endif
 
 #endif /* _USER_EQUALIZER_RESPONSE_H_ */

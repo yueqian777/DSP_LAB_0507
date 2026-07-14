@@ -111,6 +111,8 @@ volatile unsigned long EQ_DebugBuilderLastCycles = 0UL;
 volatile unsigned long EQ_DebugBuilderMaxCycles = 0UL;
 volatile float EQ_DebugBuilderLastMs = 0.0f;
 volatile float EQ_DebugBuilderMaxMs = 0.0f;
+volatile unsigned long EQ_DebugBuilderDeferredAudioCount = 0UL;
+volatile unsigned long EQ_DebugBuilderAudioArrivedDuringSliceCount = 0UL;
 volatile unsigned long EQ_DebugResponseActiveGeneration = 0UL;
 volatile unsigned long EQ_DebugResponseTargetGeneration = 0UL;
 volatile int EQ_DebugResponseTransitionActive = 0;
@@ -477,13 +479,34 @@ void EqualizerBackgroundService_Init(EQ_BACKGROUND_SERVICE_STATE *state)
     state->next_preference = EQ_BACKGROUND_BUILDER;
 }
 
+int EqualizerBackgroundService_IsAudioSafeFinalCheck(
+    int final_flag_ad,
+    int final_flag_da,
+    int final_flag_ad_done,
+    int final_frame_service_pending)
+{
+    return ((final_flag_ad == 0) && (final_flag_da == 0) &&
+            (final_flag_ad_done == 0) &&
+            (final_frame_service_pending == 0)) ? 1 : 0;
+}
+
 int EqualizerBackgroundService_Decide(
     const EQ_BACKGROUND_SERVICE_STATE *state,
     unsigned long processed_frame,
+    int final_flag_ad,
+    int final_flag_da,
+    int final_flag_ad_done,
+    int final_frame_service_pending,
     int builder_eligible,
     int lcd_eligible)
 {
     if (state == 0)
+    {
+        return EQ_BACKGROUND_NONE;
+    }
+    if (EqualizerBackgroundService_IsAudioSafeFinalCheck(
+            final_flag_ad, final_flag_da, final_flag_ad_done,
+            final_frame_service_pending) == 0)
     {
         return EQ_BACKGROUND_NONE;
     }
@@ -700,8 +723,7 @@ static int EQ_ServiceMode(void)
         if ((EQ_AppliedDiagPath == EQ_DIAG_RAW_COPY) ||
             (EQ_AppliedDiagPath == EQ_DIAG_FLOAT_COPY))
         {
-            EqualizerControl_RebaseAfterDirectPathChange(
-                &EQ_BoardControl, &EQ_BoardState);
+            Equalizer_SetIdentityHold(&EQ_BoardState, 1);
         }
         EQ_FillControlRequest(&request);
         if (diag_path == EQ_DIAG_FLAT)
@@ -970,6 +992,8 @@ static void EQ_FillDacInactiveBuffer(void)
 void Equalizer_Flow_Example(void)
 {
     unsigned char flag_ad_done;
+    unsigned int builder_audio_before;
+    unsigned int builder_audio_after;
     int background_kind;
     int builder_eligible;
     int builder_result;
@@ -1188,12 +1212,22 @@ void Equalizer_Flow_Example(void)
 #endif
             background_kind = EqualizerBackgroundService_Decide(
                 &EQ_BackgroundService, EQ_DebugProcessFrames,
+                FLAG_AD, FLAG_DA, flag_ad_done,
+                EQ_FrameServicePending,
                 builder_eligible,
 #if EQ_ENABLE_LCD_DISPLAY != 0
                 lcd_eligible);
 #else
                 0);
 #endif
+            if ((background_kind == EQ_BACKGROUND_NONE) &&
+                (builder_eligible != 0) &&
+                (EqualizerBackgroundService_IsAudioSafeFinalCheck(
+                    FLAG_AD, FLAG_DA, flag_ad_done,
+                    EQ_FrameServicePending) == 0))
+            {
+                EQ_DebugBuilderDeferredAudioCount++;
+            }
             if (background_kind == EQ_BACKGROUND_BUILDER)
             {
                 unsigned long builder_cycles;
@@ -1202,8 +1236,30 @@ void Equalizer_Flow_Example(void)
 
                 builder_cycle_start = TSCL;
 #endif
+                if (EqualizerBackgroundService_IsAudioSafeFinalCheck(
+                        FLAG_AD, FLAG_DA, flag_ad_done,
+                        EQ_FrameServicePending) == 0)
+                {
+                    EQ_DebugBuilderDeferredAudioCount++;
+                    continue;
+                }
+                builder_audio_before =
+                    ((FLAG_AD != 0) ? 0x01U : 0U) |
+                    ((FLAG_DA != 0) ? 0x02U : 0U) |
+                    ((flag_ad_done != 0) ? 0x04U : 0U) |
+                    ((EQ_FrameServicePending != 0U) ? 0x08U : 0U);
                 builder_result = EqualizerControl_ServiceOneBuilderSlice(
                     &EQ_BoardControl);
+                builder_audio_after =
+                    ((FLAG_AD != 0) ? 0x01U : 0U) |
+                    ((FLAG_DA != 0) ? 0x02U : 0U) |
+                    ((flag_ad_done != 0) ? 0x04U : 0U) |
+                    ((EQ_FrameServicePending != 0U) ? 0x08U : 0U);
+                if ((builder_audio_before == 0U) &&
+                    (builder_audio_after != 0U))
+                {
+                    EQ_DebugBuilderAudioArrivedDuringSliceCount++;
+                }
 #if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
                 builder_cycles =
                     (unsigned long)(TSCL - builder_cycle_start);
@@ -1223,6 +1279,12 @@ void Equalizer_Flow_Example(void)
 #if EQ_ENABLE_LCD_DISPLAY != 0
             if (background_kind == EQ_BACKGROUND_LCD)
             {
+                if (EqualizerBackgroundService_IsAudioSafeFinalCheck(
+                        FLAG_AD, FLAG_DA, flag_ad_done,
+                        EQ_FrameServicePending) == 0)
+                {
+                    continue;
+                }
                 lcd_job = EqualizerDisplay_ServiceOneJob();
                 lcd_audio_after = ((FLAG_AD != 0) ? 0x01U : 0U) |
                                   ((FLAG_DA != 0) ? 0x02U : 0U) |

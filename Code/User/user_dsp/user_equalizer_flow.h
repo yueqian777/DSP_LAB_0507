@@ -125,6 +125,8 @@ extern volatile unsigned long EQ_DebugBuilderLastCycles;
 extern volatile unsigned long EQ_DebugBuilderMaxCycles;
 extern volatile float EQ_DebugBuilderLastMs;
 extern volatile float EQ_DebugBuilderMaxMs;
+extern volatile unsigned long EQ_DebugBuilderDeferredAudioCount;
+extern volatile unsigned long EQ_DebugBuilderAudioArrivedDuringSliceCount;
 extern volatile unsigned long EQ_DebugResponseActiveGeneration;
 extern volatile unsigned long EQ_DebugResponseTargetGeneration;
 extern volatile int EQ_DebugResponseTransitionActive;
@@ -202,9 +204,18 @@ unsigned long EqualizerLcdFaultPolicy_Monitor(
     unsigned long dropped);
 
 void EqualizerBackgroundService_Init(EQ_BACKGROUND_SERVICE_STATE *state);
+int EqualizerBackgroundService_IsAudioSafeFinalCheck(
+    int final_flag_ad,
+    int final_flag_da,
+    int final_flag_ad_done,
+    int final_frame_service_pending);
 int EqualizerBackgroundService_Decide(
     const EQ_BACKGROUND_SERVICE_STATE *state,
     unsigned long processed_frame,
+    int final_flag_ad,
+    int final_flag_da,
+    int final_flag_ad_done,
+    int final_frame_service_pending,
     int builder_eligible,
     int lcd_eligible);
 void EqualizerBackgroundService_Record(
