@@ -487,8 +487,9 @@ The following identities are maintained:
 - `accepted_sequence`: latest fully copied and validated request;
 - `target_sequence`: latest accepted target-bearing request paired with the
   current logical target generation and immutable gain snapshot;
-- `prepared_sequence`: request whose complete candidate and headroom scan are
-  ready, or whose fixed preset cache entry is already ready;
+- `prepared_sequence`: historical token of the most recent complete candidate
+  publication, paired with `ready_candidate.valid` to determine whether that
+  candidate is still current after cancellation or staleness;
 - `installed_sequence`: retained latch for the most recently successfully
   installed request, kept through pending-to-active promotion until a later
   successful install or an explicit diagnostic rebase;
@@ -885,8 +886,9 @@ progress, not a fabricated single LTI response.
 
 ### 12.4 Command target versus actual target
 
-The latest accepted ten-band command is copied to a separate immutable command
-snapshot. Its 129-point desired visual curve is always available on Host.
+The latest accepted target-bearing ten-band command is copied from the immutable
+target tuple to a separate command snapshot. Its 129-point desired visual curve
+is always available on Host.
 
 ```c
 typedef struct
@@ -909,8 +911,8 @@ If the corresponding coefficients are not prepared, the coefficient target
 snapshot is invalid and reports `target_response_valid = 0`. A partial builder
 candidate is never published as an actual response.
 
-The target convenience API resolves the latest accepted logical target without
-guessing from one mutable bank:
+The target convenience API resolves the immutable target-bearing tuple without
+guessing from one mutable bank or a newer administrative accepted sequence:
 
 ```c
 int EqualizerResponse_CopyTarget(const EQ_STATE *st,
@@ -1049,6 +1051,7 @@ EQ_DebugControlObservedToken
 EQ_DebugControlAcceptedToken
 EQ_DebugControlTargetToken
 EQ_DebugControlPreparedToken
+EQ_DebugControlReadyValid
 EQ_DebugControlInstalledToken
 EQ_DebugControlAppliedToken
 EQ_DebugControlInstalledPairValid
@@ -1189,6 +1192,8 @@ untouched and unstaged.
 ### 18.4 Tokens and transitions
 
 - `prepared_sequence` updates only for a complete candidate/cache entry.
+- Cancellation/staleness clears `ready_candidate.valid`; the historical
+  `prepared_sequence` alone never authorizes installation.
 - Administrative acceptance cannot relabel the immutable target tuple or a
   prepared candidate.
 - The core installer validates core metadata only; the control installer
@@ -1738,8 +1743,11 @@ service for the boundary. Returning to RBJ submits a fresh mailbox target.
 
 - [ ] **Step 4: Add preset-cache Host proof**
 
-After `Equalizer_Init`, capture `EQ_DebugHeadroomScanCount`, apply and settle all
-five presets, and assert no increase and no builder payload/restart count.
+After `Equalizer_Init`, record a simulated audio-start marker, capture
+`EQ_DebugHeadroomScanCount`, submit and settle all five presets through the
+mailbox/control path, and assert no increase and no builder payload/restart
+count. The harness also proves every fixed cache entry was ready before the
+marker.
 
 - [ ] **Step 5: Run GREEN verification and commit**
 
