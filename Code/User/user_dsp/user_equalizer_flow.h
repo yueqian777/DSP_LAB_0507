@@ -7,7 +7,7 @@
 #ifndef _USER_EQUALIZER_FLOW_H_
 #define _USER_EQUALIZER_FLOW_H_
 
-#include "user_equalizer.h"
+#include "user_equalizer_control.h"
 
 #define EQ_DIAG_RAW_COPY       0
 #define EQ_DIAG_FLOAT_COPY     1
@@ -38,6 +38,18 @@
 #define EQ_LCD_POLICY_NONE          0
 #define EQ_LCD_POLICY_DEFER         1
 #define EQ_LCD_POLICY_SERVICE       2
+
+#define EQ_BACKGROUND_NONE          0
+#define EQ_BACKGROUND_BUILDER       1
+#define EQ_BACKGROUND_LCD           2
+
+typedef struct
+{
+    unsigned long consumed_frame;
+    int consumed_frame_valid;
+    int consumed_kind;
+    int next_preference;
+} EQ_BACKGROUND_SERVICE_STATE;
 
 typedef struct
 {
@@ -81,6 +93,44 @@ extern volatile int EQ_DebugTransitionTargetMode;
 extern volatile int EQ_DebugAppliedMode;
 extern volatile unsigned long EQ_DebugModeChangeCount;
 extern volatile float EQ_DebugBandGainDb[EQ_NUM_BANDS];
+extern EQ_CONTROL_MAILBOX EQ_ControlMailbox;
+extern volatile int EQ_DebugControlCommand;
+extern volatile int EQ_DebugControlBand;
+extern volatile int EQ_DebugControlPreset;
+extern volatile float EQ_DebugControlValueDb;
+extern volatile float EQ_DebugControlStepDb;
+extern volatile float EQ_DebugControlShadowGainDb[EQ_NUM_BANDS];
+extern volatile EQ_CONTROL_SEQUENCE EQ_DebugControlRequestToken;
+extern volatile EQ_CONTROL_SEQUENCE EQ_DebugControlObservedToken;
+extern volatile EQ_CONTROL_SEQUENCE EQ_DebugControlAcceptedToken;
+extern volatile EQ_CONTROL_SEQUENCE EQ_DebugControlTargetToken;
+extern volatile EQ_CONTROL_SEQUENCE EQ_DebugControlPreparedToken;
+extern volatile int EQ_DebugControlReadyValid;
+extern volatile EQ_CONTROL_SEQUENCE EQ_DebugControlInstalledToken;
+extern volatile EQ_CONTROL_SEQUENCE EQ_DebugControlAppliedToken;
+extern volatile int EQ_DebugControlInstalledPairValid;
+extern volatile unsigned long EQ_DebugControlRejectedCount;
+extern volatile unsigned long EQ_DebugControlCoalescedCount;
+extern volatile int EQ_DebugControlLastError;
+extern volatile int EQ_DebugBuilderState;
+extern volatile int EQ_DebugBuilderSectionIndex;
+extern volatile int EQ_DebugBuilderScanIndex;
+extern volatile unsigned long EQ_DebugBuilderGeneration;
+extern volatile EQ_CONTROL_SEQUENCE EQ_DebugBuilderRequestToken;
+extern volatile unsigned long EQ_DebugBuilderSliceCount;
+extern volatile unsigned long EQ_DebugBuilderCancelCount;
+extern volatile unsigned long EQ_DebugBuilderRestartCount;
+extern volatile int EQ_DebugBuilderLastError;
+extern volatile unsigned long EQ_DebugBuilderLastCycles;
+extern volatile unsigned long EQ_DebugBuilderMaxCycles;
+extern volatile float EQ_DebugBuilderLastMs;
+extern volatile float EQ_DebugBuilderMaxMs;
+extern volatile unsigned long EQ_DebugResponseActiveGeneration;
+extern volatile unsigned long EQ_DebugResponseTargetGeneration;
+extern volatile int EQ_DebugResponseTransitionActive;
+extern volatile float EQ_DebugResponseTransitionProgress;
+extern volatile int EQ_DebugResponseActivePathType;
+extern volatile int EQ_DebugResponseTargetValid;
 extern volatile const unsigned long EQ_DebugBuildMagic;
 extern volatile const char EQ_DebugBuildId[];
 extern volatile const char EQ_DebugBuildVersion[];
@@ -150,6 +200,17 @@ unsigned long EqualizerLcdFaultPolicy_Monitor(
     unsigned long latency_misses,
     unsigned long overlaps,
     unsigned long dropped);
+
+void EqualizerBackgroundService_Init(EQ_BACKGROUND_SERVICE_STATE *state);
+int EqualizerBackgroundService_Decide(
+    const EQ_BACKGROUND_SERVICE_STATE *state,
+    unsigned long processed_frame,
+    int builder_eligible,
+    int lcd_eligible);
+void EqualizerBackgroundService_Record(
+    EQ_BACKGROUND_SERVICE_STATE *state,
+    unsigned long processed_frame,
+    int completed_kind);
 
 void Equalizer_Flow_Example(void);
 

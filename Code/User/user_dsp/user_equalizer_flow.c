@@ -7,6 +7,7 @@
 
 #include "user_equalizer_flow.h"
 #include "user_equalizer_display.h"
+#include "user_equalizer_response.h"
 #include "equalizer_build_id.h"
 #include "string.h"
 
@@ -31,6 +32,8 @@ static short EQ_AD_Buffer7[ADC_SAMPLE_1024];
 static short EQ_AD_Buffer8[ADC_SAMPLE_1024];
 static short EQ_DA_Buffer1[DAC_SAMPLE_1024];
 static EQ_STATE EQ_BoardState;
+static EQ_CONTROL_STATE EQ_BoardControl;
+static EQ_BACKGROUND_SERVICE_STATE EQ_BackgroundService;
 static int EQ_LastServicedMode = -1;
 static int EQ_AppliedDiagPath = -1;
 static unsigned int EQ_FrameServiceStartCycle = 0U;
@@ -72,6 +75,49 @@ volatile float EQ_DebugBandGainDb[EQ_NUM_BANDS] =
     0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
     0.0f, 0.0f, 0.0f, 0.0f, 0.0f
 };
+EQ_CONTROL_MAILBOX EQ_ControlMailbox;
+volatile int EQ_DebugControlCommand = EQ_CONTROL_NONE;
+volatile int EQ_DebugControlBand = 0;
+volatile int EQ_DebugControlPreset = EQ_PRESET_FLAT;
+volatile float EQ_DebugControlValueDb = 0.0f;
+volatile float EQ_DebugControlStepDb = 0.0f;
+volatile float EQ_DebugControlShadowGainDb[EQ_NUM_BANDS] =
+{
+    0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+    0.0f, 0.0f, 0.0f, 0.0f, 0.0f
+};
+volatile EQ_CONTROL_SEQUENCE EQ_DebugControlRequestToken = 0U;
+volatile EQ_CONTROL_SEQUENCE EQ_DebugControlObservedToken = 0U;
+volatile EQ_CONTROL_SEQUENCE EQ_DebugControlAcceptedToken = 0U;
+volatile EQ_CONTROL_SEQUENCE EQ_DebugControlTargetToken = 0U;
+volatile EQ_CONTROL_SEQUENCE EQ_DebugControlPreparedToken = 0U;
+volatile int EQ_DebugControlReadyValid = 0;
+volatile EQ_CONTROL_SEQUENCE EQ_DebugControlInstalledToken = 0U;
+volatile EQ_CONTROL_SEQUENCE EQ_DebugControlAppliedToken = 0U;
+volatile int EQ_DebugControlInstalledPairValid = 0;
+volatile unsigned long EQ_DebugControlRejectedCount = 0UL;
+volatile unsigned long EQ_DebugControlCoalescedCount = 0UL;
+volatile int EQ_DebugControlLastError = EQ_CONTROL_ERROR_NONE;
+volatile int EQ_DebugBuilderState = EQ_BUILDER_IDLE;
+volatile int EQ_DebugBuilderSectionIndex = 0;
+volatile int EQ_DebugBuilderScanIndex = 0;
+volatile unsigned long EQ_DebugBuilderGeneration = 0UL;
+volatile EQ_CONTROL_SEQUENCE EQ_DebugBuilderRequestToken = 0U;
+volatile unsigned long EQ_DebugBuilderSliceCount = 0UL;
+volatile unsigned long EQ_DebugBuilderCancelCount = 0UL;
+volatile unsigned long EQ_DebugBuilderRestartCount = 0UL;
+volatile int EQ_DebugBuilderLastError = EQ_CONTROL_ERROR_NONE;
+volatile unsigned long EQ_DebugBuilderLastCycles = 0UL;
+volatile unsigned long EQ_DebugBuilderMaxCycles = 0UL;
+volatile float EQ_DebugBuilderLastMs = 0.0f;
+volatile float EQ_DebugBuilderMaxMs = 0.0f;
+volatile unsigned long EQ_DebugResponseActiveGeneration = 0UL;
+volatile unsigned long EQ_DebugResponseTargetGeneration = 0UL;
+volatile int EQ_DebugResponseTransitionActive = 0;
+volatile float EQ_DebugResponseTransitionProgress = 0.0f;
+volatile int EQ_DebugResponseActivePathType =
+    EQ_RESPONSE_PATH_IDENTITY_RBJ_FLAT_COPY;
+volatile int EQ_DebugResponseTargetValid = 0;
 volatile const unsigned long EQ_DebugBuildMagic = 0x33030003UL;
 volatile const char EQ_DebugBuildId[] = EQ_BUILD_VERSION;
 volatile const char EQ_DebugBuildVersion[] = EQ_BUILD_VERSION;
@@ -419,6 +465,67 @@ unsigned long EqualizerLcdFaultPolicy_Monitor(
     return reason;
 }
 
+void EqualizerBackgroundService_Init(EQ_BACKGROUND_SERVICE_STATE *state)
+{
+    if (state == 0)
+    {
+        return;
+    }
+    state->consumed_frame = 0UL;
+    state->consumed_frame_valid = 0;
+    state->consumed_kind = EQ_BACKGROUND_NONE;
+    state->next_preference = EQ_BACKGROUND_BUILDER;
+}
+
+int EqualizerBackgroundService_Decide(
+    const EQ_BACKGROUND_SERVICE_STATE *state,
+    unsigned long processed_frame,
+    int builder_eligible,
+    int lcd_eligible)
+{
+    if (state == 0)
+    {
+        return EQ_BACKGROUND_NONE;
+    }
+    if ((state->consumed_frame_valid != 0) &&
+        (state->consumed_frame == processed_frame))
+    {
+        return EQ_BACKGROUND_NONE;
+    }
+    if ((builder_eligible != 0) && (lcd_eligible != 0))
+    {
+        return state->next_preference;
+    }
+    if (builder_eligible != 0)
+    {
+        return EQ_BACKGROUND_BUILDER;
+    }
+    if (lcd_eligible != 0)
+    {
+        return EQ_BACKGROUND_LCD;
+    }
+    return EQ_BACKGROUND_NONE;
+}
+
+void EqualizerBackgroundService_Record(
+    EQ_BACKGROUND_SERVICE_STATE *state,
+    unsigned long processed_frame,
+    int completed_kind)
+{
+    if ((state == 0) ||
+        ((completed_kind != EQ_BACKGROUND_BUILDER) &&
+         (completed_kind != EQ_BACKGROUND_LCD)))
+    {
+        return;
+    }
+    state->consumed_frame = processed_frame;
+    state->consumed_frame_valid = 1;
+    state->consumed_kind = completed_kind;
+    state->next_preference =
+        (completed_kind == EQ_BACKGROUND_BUILDER) ?
+        EQ_BACKGROUND_LCD : EQ_BACKGROUND_BUILDER;
+}
+
 #ifndef EQ_ALGO_ONLY
 
 static int EQ_NormalizeMode(int mode)
@@ -458,28 +565,99 @@ static void EQ_KeepBuildFingerprint(void)
 
 static void EQ_UpdateDebugGains(void)
 {
+    EQ_RESPONSE_SNAPSHOT active_response;
+    EQ_COMMAND_SNAPSHOT command_response;
     int band;
 
     for (band = 0; band < EQ_NUM_BANDS; band++)
     {
-        EQ_DebugBandGainDb[band] =
+        EQ_DebugBandGainDb[band] = (EQ_BoardControl.target_valid != 0) ?
+            EQ_BoardControl.target_gain_db[band] :
             Equalizer_GetBandTargetGainDb(&EQ_BoardState, band);
+        EQ_DebugControlShadowGainDb[band] =
+            EQ_BoardControl.shadow_gain_db[band];
     }
     EQ_DebugClipCount = EQ_BoardState.clip_count;
     EQ_DebugRequestedMode =
-        ((EQ_AppliedDiagPath == EQ_DIAG_PRESET) ||
-         (EQ_AppliedDiagPath == EQ_DIAG_FLAT)) ?
-        Equalizer_GetRequestedPreset(&EQ_BoardState) : EQ_PRESET_NONE;
+        (EQ_BoardControl.target_valid != 0) ?
+        EQ_BoardControl.target_preset : EQ_PRESET_NONE;
     EQ_DebugTransitionTargetMode =
         Equalizer_GetTransitionTargetPreset(&EQ_BoardState);
     EQ_DebugAppliedMode = Equalizer_GetAppliedPreset(&EQ_BoardState);
     EQ_DebugModeChangeCount = Equalizer_GetModeChangeCount(&EQ_BoardState);
+
+    EQ_DebugControlCommand = EQ_ControlMailbox.command;
+    EQ_DebugControlBand = EQ_ControlMailbox.band;
+    EQ_DebugControlPreset = EQ_ControlMailbox.preset;
+    EQ_DebugControlValueDb = EQ_ControlMailbox.value_db;
+    EQ_DebugControlStepDb = EQ_ControlMailbox.step_db;
+    EQ_DebugControlRequestToken = EQ_ControlMailbox.sequence;
+    EQ_DebugControlObservedToken = EQ_BoardControl.observed_sequence;
+    EQ_DebugControlAcceptedToken = EQ_BoardControl.accepted_sequence;
+    EQ_DebugControlTargetToken = EQ_BoardControl.target_sequence;
+    EQ_DebugControlPreparedToken = EQ_BoardControl.prepared_sequence;
+    EQ_DebugControlReadyValid = EQ_BoardControl.ready_candidate.valid;
+    EQ_DebugControlInstalledToken = EQ_BoardControl.installed_sequence;
+    EQ_DebugControlAppliedToken = EQ_BoardControl.applied_sequence;
+    EQ_DebugControlInstalledPairValid =
+        EQ_BoardControl.installed_pair_valid;
+    EQ_DebugControlRejectedCount = EQ_BoardControl.rejected_count;
+    EQ_DebugControlCoalescedCount = EQ_BoardControl.coalesced_count;
+    EQ_DebugControlLastError = EQ_BoardControl.last_error;
+    EQ_DebugBuilderState = EQ_BoardControl.builder.state;
+    EQ_DebugBuilderSectionIndex = EQ_BoardControl.builder.section_index;
+    EQ_DebugBuilderScanIndex = EQ_BoardControl.builder.scan_index;
+    EQ_DebugBuilderGeneration = EQ_BoardControl.builder.generation;
+    EQ_DebugBuilderRequestToken =
+        EQ_BoardControl.builder.request_sequence;
+    EQ_DebugBuilderSliceCount =
+        EQ_BoardControl.builder.payload_slice_count;
+    EQ_DebugBuilderCancelCount = EQ_BoardControl.builder.cancel_count;
+    EQ_DebugBuilderRestartCount = EQ_BoardControl.builder.restart_count;
+    EQ_DebugBuilderLastError = EQ_BoardControl.builder.last_error;
+    EQ_DebugResponseActiveGeneration =
+        Equalizer_GetActiveGeneration(&EQ_BoardState);
+    EQ_DebugResponseTargetGeneration = EQ_BoardControl.target_generation;
+    EQ_DebugResponseTransitionActive =
+        Equalizer_HasPendingTransition(&EQ_BoardState);
+    if (EqualizerResponse_CopyActive(&EQ_BoardState, &active_response) != 0)
+    {
+        EQ_DebugResponseTransitionProgress =
+            active_response.transition_progress;
+        EQ_DebugResponseActivePathType = active_response.path_type;
+    }
+    if (EqualizerResponse_CopyCommand(
+            &EQ_BoardControl, &command_response) != 0)
+    {
+        EQ_DebugResponseTargetValid =
+            command_response.target_response_valid;
+    }
+    else
+    {
+        EQ_DebugResponseTargetValid = 0;
+    }
 }
 
-static void EQ_ServiceMode(void)
+static void EQ_FillControlRequest(EQ_CONTROL_REQUEST *request)
 {
+    int band;
+
+    memset(request, 0, sizeof(*request));
+    request->preset = EQ_PRESET_NONE;
+    for (band = 0; band < EQ_NUM_BANDS; band++)
+    {
+        request->shadow_gain_db[band] =
+            EQ_BoardControl.shadow_gain_db[band];
+    }
+}
+
+static int EQ_ServiceMode(void)
+{
+    EQ_CONTROL_REQUEST request;
+    EQ_CONTROL_SEQUENCE submitted;
     int diag_path;
     int mode;
+    int submit_target;
 
     diag_path = EQ_NormalizeDiagPath(EQ_DebugDiagPath);
     if (EQ_DebugDiagPath != diag_path)
@@ -491,47 +669,74 @@ static void EQ_ServiceMode(void)
     {
         EQ_DebugMode = mode;
     }
-    if (diag_path != EQ_AppliedDiagPath)
+    if ((diag_path == EQ_DIAG_RAW_COPY) ||
+        (diag_path == EQ_DIAG_FLOAT_COPY))
+    {
+        if (diag_path != EQ_AppliedDiagPath)
+        {
+            Equalizer_SetBypass(&EQ_BoardState, 0);
+            Equalizer_SetCoreMode(&EQ_BoardState,
+                (diag_path == EQ_DIAG_RAW_COPY) ?
+                EQ_CORE_RAW_COPY : EQ_CORE_FLOAT_COPY);
+            EqualizerControl_RebaseAfterDirectPathChange(
+                &EQ_BoardControl, &EQ_BoardState);
+            EQ_LastServicedMode = EQ_PRESET_NONE;
+            EQ_AppliedDiagPath = diag_path;
+        }
+        EQ_UpdateDebugGains();
+        return 1;
+    }
+
+    submit_target = (diag_path != EQ_AppliedDiagPath) ? 1 : 0;
+    if ((diag_path == EQ_DIAG_PRESET) &&
+        (mode != EQ_LastServicedMode))
+    {
+        submit_target = 1;
+    }
+    if (submit_target != 0)
     {
         Equalizer_SetBypass(&EQ_BoardState, 0);
-        if (diag_path == EQ_DIAG_RAW_COPY)
+        Equalizer_SetCoreMode(&EQ_BoardState, EQ_CORE_RBJ_CASCADE);
+        if ((EQ_AppliedDiagPath == EQ_DIAG_RAW_COPY) ||
+            (EQ_AppliedDiagPath == EQ_DIAG_FLOAT_COPY))
         {
-            Equalizer_SetCoreMode(&EQ_BoardState, EQ_CORE_RAW_COPY);
-            EQ_LastServicedMode = EQ_PRESET_NONE;
+            EqualizerControl_RebaseAfterDirectPathChange(
+                &EQ_BoardControl, &EQ_BoardState);
         }
-        else if (diag_path == EQ_DIAG_FLOAT_COPY)
+        EQ_FillControlRequest(&request);
+        if (diag_path == EQ_DIAG_FLAT)
         {
-            Equalizer_SetCoreMode(&EQ_BoardState, EQ_CORE_FLOAT_COPY);
-            EQ_LastServicedMode = EQ_PRESET_NONE;
-        }
-        else if (diag_path == EQ_DIAG_FLAT)
-        {
-            Equalizer_SetCoreMode(&EQ_BoardState, EQ_CORE_RBJ_CASCADE);
-            Equalizer_ApplyPreset(&EQ_BoardState, EQ_PRESET_FLAT);
+            request.command = EQ_CONTROL_RESET_FLAT;
             EQ_LastServicedMode = EQ_PRESET_FLAT;
         }
         else if (diag_path == EQ_DIAG_SINGLE_BAND)
         {
-            Equalizer_SetCoreMode(&EQ_BoardState, EQ_CORE_RBJ_CASCADE);
-            Equalizer_ApplySingleBand1kPlus3Db(&EQ_BoardState);
+            int band;
+
+            request.command = EQ_CONTROL_SET_ALL;
+            request.preset = EQ_PRESET_CUSTOM;
+            for (band = 0; band < EQ_NUM_BANDS; band++)
+            {
+                request.shadow_gain_db[band] = 0.0f;
+            }
+            request.shadow_gain_db[5] = 3.0f;
             EQ_LastServicedMode = EQ_PRESET_NONE;
         }
         else
         {
-            Equalizer_SetCoreMode(&EQ_BoardState, EQ_CORE_RBJ_CASCADE);
-            Equalizer_ApplyPreset(&EQ_BoardState, mode);
+            request.command = EQ_CONTROL_APPLY_PRESET;
+            request.preset = mode;
             EQ_LastServicedMode = mode;
         }
-        EQ_AppliedDiagPath = diag_path;
-    }
-    else if ((diag_path == EQ_DIAG_PRESET) &&
-             (mode != EQ_LastServicedMode))
-    {
-        Equalizer_SetCoreMode(&EQ_BoardState, EQ_CORE_RBJ_CASCADE);
-        Equalizer_ApplyPreset(&EQ_BoardState, mode);
-        EQ_LastServicedMode = mode;
+        submitted = EqualizerControl_SubmitRequest(
+            &EQ_ControlMailbox, &request);
+        if (submitted != 0U)
+        {
+            EQ_AppliedDiagPath = diag_path;
+        }
     }
     EQ_UpdateDebugGains();
+    return 0;
 }
 
 static void EQ_UpdateModeServiceTiming(unsigned long cycles)
@@ -543,17 +748,30 @@ static void EQ_UpdateModeServiceTiming(unsigned long cycles)
     }
 }
 
-static void EQ_ServiceModeTimed(void)
+static int EQ_ServiceModeTimed(void)
 {
+    int direct_path;
 #if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
     unsigned int cycle_start = TSCL;
 
-    EQ_ServiceMode();
+    direct_path = EQ_ServiceMode();
     EQ_UpdateModeServiceTiming((unsigned long)(TSCL - cycle_start));
 #else
-    EQ_ServiceMode();
+    direct_path = EQ_ServiceMode();
     EQ_UpdateModeServiceTiming(0UL);
 #endif
+    return direct_path;
+}
+
+static void EQ_UpdateBuilderTiming(unsigned long cycles)
+{
+    EQ_DebugBuilderLastCycles = cycles;
+    EQ_DebugBuilderLastMs = (float)cycles / EQ_CPU_CYCLES_PER_MS;
+    if (cycles > EQ_DebugBuilderMaxCycles)
+    {
+        EQ_DebugBuilderMaxCycles = cycles;
+        EQ_DebugBuilderMaxMs = EQ_DebugBuilderLastMs;
+    }
 }
 
 static void EQ_UpdateAlgoTiming(unsigned long cycles)
@@ -752,6 +970,10 @@ static void EQ_FillDacInactiveBuffer(void)
 void Equalizer_Flow_Example(void)
 {
     unsigned char flag_ad_done;
+    int background_kind;
+    int builder_eligible;
+    int builder_result;
+    int direct_path;
 #if EQ_ENABLE_LCD_DISPLAY != 0
     EQ_LCD_SERVICE_POLICY lcd_policy;
     EQ_LCD_FAULT_POLICY lcd_fault_policy;
@@ -762,6 +984,7 @@ void Equalizer_Flow_Example(void)
     int lcd_transition_target_mode;
     int lcd_applied_mode;
     int lcd_job;
+    int lcd_eligible;
     int lcd_policy_decision;
 #endif
 
@@ -780,7 +1003,12 @@ void Equalizer_Flow_Example(void)
     Adc_Init(ADC_50KHZ, ADC_SAMPLE_1024);
     Dac_Init(DAC_50KHZ, DAC_SAMPLE_1024, DAC_CHANNEL_ALL);
     Equalizer_Init(&EQ_BoardState);
-    EQ_ServiceMode();
+    memset(&EQ_ControlMailbox, 0, sizeof(EQ_ControlMailbox));
+    EqualizerControl_Init(&EQ_BoardControl, &EQ_BoardState);
+    EqualizerBackgroundService_Init(&EQ_BackgroundService);
+    EQ_AppliedDiagPath = EQ_DIAG_PRESET;
+    EQ_LastServicedMode = EQ_PRESET_FLAT;
+    EQ_UpdateDebugGains();
     EQ_ClearDacBuffers();
 #if EQ_ENABLE_LCD_DISPLAY != 0
     EqualizerDisplay_Init();
@@ -833,7 +1061,23 @@ void Equalizer_Flow_Example(void)
 
         if ((FLAG_AD == 0) && (FLAG_DA == 0) && (flag_ad_done == 0))
         {
-            EQ_ServiceModeTimed();
+            if (EQ_FrameServicePending != 0U)
+            {
+                continue;
+            }
+            EqualizerControl_ObserveFrameBoundary(
+                &EQ_BoardControl, &EQ_BoardState);
+            direct_path = EQ_ServiceModeTimed();
+            if (direct_path != 0)
+            {
+                continue;
+            }
+            EqualizerControl_ServiceMailbox(
+                &EQ_BoardControl, &EQ_ControlMailbox, &EQ_BoardState);
+            EqualizerControl_InvalidateStaleWork(&EQ_BoardControl);
+            EqualizerControl_TryInstallReady(
+                &EQ_BoardControl, &EQ_BoardState);
+            EQ_UpdateDebugGains();
 
 #if EQ_ENABLE_LCD_DISPLAY != 0
             if ((EQ_DebugRequestedMode != lcd_requested_mode) ||
@@ -903,36 +1147,81 @@ void Equalizer_Flow_Example(void)
                 Dac_Stop();
             }
 
-        }
-
+            builder_eligible = EqualizerControl_BuilderEligible(
+                &EQ_BoardControl, &EQ_BoardState);
 #if EQ_ENABLE_LCD_DISPLAY != 0
-        if (EqualizerLcdPolicy_CanService(
-                &lcd_policy, EQ_DebugProcessFrames,
-                FLAG_AD, FLAG_DA, flag_ad_done,
-                EQ_FrameServicePending,
-                EqualizerDisplay_HasPendingJob()))
-        {
-            lcd_audio_before = ((FLAG_AD != 0) ? 0x01U : 0U) |
-                               ((FLAG_DA != 0) ? 0x02U : 0U) |
-                               ((flag_ad_done != 0) ? 0x04U : 0U) |
-                               ((EQ_FrameServicePending != 0U) ? 0x08U : 0U);
-            lcd_policy_decision = EqualizerLcdPolicy_Decide(
-                &lcd_policy, EQ_DebugProcessFrames,
-                0, 0, 0, 0,
-                (lcd_audio_before & 0x01U) != 0U,
-                (lcd_audio_before & 0x02U) != 0U,
-                (lcd_audio_before & 0x04U) != 0U,
-                (lcd_audio_before & 0x08U) != 0U,
-                1);
-            if (lcd_policy_decision == EQ_LCD_POLICY_DEFER)
+            lcd_eligible = 0;
+            if (EqualizerLcdPolicy_CanService(
+                    &lcd_policy, EQ_DebugProcessFrames,
+                    FLAG_AD, FLAG_DA, flag_ad_done,
+                    EQ_FrameServicePending,
+                    EqualizerDisplay_HasPendingJob()))
             {
-                if (EqualizerLcdPolicy_RecordDeferred(
-                        &lcd_policy, EQ_DebugProcessFrames))
+                lcd_audio_before = ((FLAG_AD != 0) ? 0x01U : 0U) |
+                                   ((FLAG_DA != 0) ? 0x02U : 0U) |
+                                   ((flag_ad_done != 0) ? 0x04U : 0U) |
+                                   ((EQ_FrameServicePending != 0U) ?
+                                    0x08U : 0U);
+                lcd_policy_decision = EqualizerLcdPolicy_Decide(
+                    &lcd_policy, EQ_DebugProcessFrames,
+                    0, 0, 0, 0,
+                    (lcd_audio_before & 0x01U) != 0U,
+                    (lcd_audio_before & 0x02U) != 0U,
+                    (lcd_audio_before & 0x04U) != 0U,
+                    (lcd_audio_before & 0x08U) != 0U,
+                    EqualizerDisplay_HasPendingJob());
+                if (lcd_policy_decision == EQ_LCD_POLICY_DEFER)
                 {
-                    EQ_DebugLcdDeferredAudioCount++;
+                    if (EqualizerLcdPolicy_RecordDeferred(
+                            &lcd_policy, EQ_DebugProcessFrames))
+                    {
+                        EQ_DebugLcdDeferredAudioCount++;
+                    }
+                }
+                else if (lcd_policy_decision == EQ_LCD_POLICY_SERVICE)
+                {
+                    lcd_eligible = 1;
                 }
             }
-            else if (lcd_policy_decision == EQ_LCD_POLICY_SERVICE)
+#else
+            background_kind = EQ_BACKGROUND_NONE;
+#endif
+            background_kind = EqualizerBackgroundService_Decide(
+                &EQ_BackgroundService, EQ_DebugProcessFrames,
+                builder_eligible,
+#if EQ_ENABLE_LCD_DISPLAY != 0
+                lcd_eligible);
+#else
+                0);
+#endif
+            if (background_kind == EQ_BACKGROUND_BUILDER)
+            {
+                unsigned long builder_cycles;
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+                unsigned int builder_cycle_start;
+
+                builder_cycle_start = TSCL;
+#endif
+                builder_result = EqualizerControl_ServiceOneBuilderSlice(
+                    &EQ_BoardControl);
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+                builder_cycles =
+                    (unsigned long)(TSCL - builder_cycle_start);
+#else
+                builder_cycles = 0UL;
+#endif
+                EQ_UpdateBuilderTiming(builder_cycles);
+                if (builder_result == EQ_BUILDER_WORKED)
+                {
+                    EqualizerBackgroundService_Record(
+                        &EQ_BackgroundService, EQ_DebugProcessFrames,
+                        EQ_BACKGROUND_BUILDER);
+                }
+                EQ_UpdateDebugGains();
+                continue;
+            }
+#if EQ_ENABLE_LCD_DISPLAY != 0
+            if (background_kind == EQ_BACKGROUND_LCD)
             {
                 lcd_job = EqualizerDisplay_ServiceOneJob();
                 lcd_audio_after = ((FLAG_AD != 0) ? 0x01U : 0U) |
@@ -952,10 +1241,16 @@ void Equalizer_Flow_Example(void)
                         EQ_CAPTURE_TRIGGER_LCD_JOB);
                     EqualizerLcdPolicy_RecordService(
                         &lcd_policy, EQ_DebugProcessFrames, 1);
-                    continue;
+                    EqualizerBackgroundService_Record(
+                        &EQ_BackgroundService, EQ_DebugProcessFrames,
+                        EQ_BACKGROUND_LCD);
                 }
+                continue;
             }
+#endif
         }
+
+#if EQ_ENABLE_LCD_DISPLAY != 0
         else if ((EqualizerDisplay_HasPendingJob() != 0) &&
                  ((FLAG_AD != 0) || (FLAG_DA != 0) ||
                   (flag_ad_done != 0) ||

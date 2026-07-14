@@ -46,6 +46,8 @@
 #include "user_subband_denoise_ms_eval.h"
 #include "user_equalizer_flow.h"
 #include "user_equalizer.h"
+#include "user_equalizer_control.h"
+#include "user_equalizer_response.h"
 #include "user_equalizer_display.h"
 #include "user_equalizer_eval.h"
 #ifdef SUBBAND_ALGO_ONLY

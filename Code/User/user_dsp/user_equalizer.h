@@ -48,6 +48,11 @@
 #define EQ_PRESET_CUSTOM       EQ_PRESET_COUNT
 #define EQ_PRESET_NONE         (-1)
 
+#define EQ_HEADROOM_POINT_COUNT 512
+#define EQ_RBJ_BANK_SINGLE_1K EQ_PRESET_COUNT
+#define EQ_RBJ_BANK_CACHE_COUNT (EQ_PRESET_COUNT + 1)
+#define EQ_RBJ_BANK_CUSTOM (-1)
+
 #define EQ_CORE_RAW_COPY       0
 #define EQ_CORE_FLOAT_COPY     1
 #define EQ_CORE_LEGACY         2
@@ -83,6 +88,21 @@ typedef struct
     float preamp_db;
     float preamp_gain;
 } EQ_FILTER_BANK;
+
+typedef unsigned int EQ_CONTROL_SEQUENCE;
+typedef char EQ_CONTROL_SEQUENCE_MUST_BE_32_BITS[
+    (sizeof(EQ_CONTROL_SEQUENCE) == 4U) ? 1 : -1];
+
+typedef struct
+{
+    EQ_FILTER_BANK bank;
+    float gains_db[EQ_NUM_BANDS];
+    int bank_id;
+    int preset;
+    unsigned long generation;
+    EQ_CONTROL_SEQUENCE request_sequence;
+    int valid;
+} EQ_PREPARED_BANK;
 
 typedef struct
 {
@@ -163,6 +183,44 @@ void Equalizer_ApplySingleBand1kPlus3Db(EQ_STATE *st);
 void Equalizer_ProcessFrame(EQ_STATE *st, const short *in, short *out, int n);
 void Equalizer_ProcessFrameFloat(EQ_STATE *st, const float *in,
                                  float *out, int n);
+
+int Equalizer_PublishLogicalTarget(
+    EQ_STATE *st,
+    const float gains_db[EQ_NUM_BANDS],
+    int preset,
+    unsigned long *generation_out,
+    int *bank_id_out);
+int Equalizer_CopyPresetGainsDb(int preset,
+                                float gains_out[EQ_NUM_BANDS]);
+int Equalizer_CopyCachedPreparedBank(
+    int bank_id,
+    int preset,
+    unsigned long generation,
+    EQ_CONTROL_SEQUENCE request_sequence,
+    EQ_PREPARED_BANK *out);
+int Equalizer_DesignRbjSection(EQ_BIQUAD *section_out,
+                               int section,
+                               float gain_db);
+int Equalizer_GetBiquadResponseComplex(const EQ_BIQUAD *section,
+                                       float frequency_hz,
+                                       double *real_out,
+                                       double *imag_out);
+int Equalizer_EvaluateHeadroomPointDb(const EQ_FILTER_BANK *bank,
+                                      int point_index,
+                                      float *magnitude_db);
+void Equalizer_FinalizeRbjBank(EQ_FILTER_BANK *bank,
+                               int gains_are_flat,
+                               float peak_db);
+int Equalizer_IsPresetCacheReady(void);
+int Equalizer_InstallPreparedBank(EQ_STATE *st,
+                                  const EQ_PREPARED_BANK *prepared,
+                                  int transition_kind);
+unsigned long Equalizer_GetActiveGeneration(const EQ_STATE *st);
+
+#define EQ_INSTALL_INSTALLED 1
+#define EQ_INSTALL_BUSY 0
+#define EQ_INSTALL_STALE (-1)
+#define EQ_INSTALL_INVALID (-2)
 
 float Equalizer_GetBandCenterHz(int band);
 float Equalizer_GetBandTargetGainDb(const EQ_STATE *st, int band);
