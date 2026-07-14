@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import math
 import pathlib
 import subprocess
@@ -14,6 +15,12 @@ CORE = ROOT / "Code/User/user_dsp/user_equalizer.c"
 BASH = pathlib.Path(r"C:\msys64\usr\bin\bash.exe")
 CENTERS = [31.25, 62.5, 125.0, 250.0, 500.0,
            1000.0, 2000.0, 4000.0, 8000.0, 16000.0]
+REPORT_PATH = ROOT / "tools/equalizer_33_response_report.py"
+REPORT_SPEC = importlib.util.spec_from_file_location(
+    "equalizer_33_response_report", REPORT_PATH)
+assert REPORT_SPEC is not None and REPORT_SPEC.loader is not None
+REPORT = importlib.util.module_from_spec(REPORT_SPEC)
+REPORT_SPEC.loader.exec_module(REPORT)
 
 
 def desired_curve(gains: list[float], frequency_hz: float) -> float:
@@ -94,6 +101,36 @@ class EqualizerResponseTest(unittest.TestCase):
         self.assertAlmostEqual(desired_curve(gains, math.sqrt(500.0 * 1000.0)),
                                3.0, places=12)
 
+    def test_flat_headroom_and_response_are_identity(self) -> None:
+        gains = REPORT.PRESETS["flat"]
+        bank = REPORT.design_bank(gains)
+        peak_db, preamp_db, preamp_gain = REPORT.headroom(bank, gains)
+        self.assertEqual(peak_db, 0.0)
+        self.assertEqual(preamp_db, 0.0)
+        self.assertEqual(preamp_gain, 1.0)
+        for frequency in REPORT.log_grid(129):
+            shape = REPORT.magnitude_db(
+                REPORT.cascade_response(bank, frequency))
+            self.assertAlmostEqual(shape, 0.0, places=12)
+            self.assertAlmostEqual(shape + preamp_db, 0.0, places=12)
+
+    def test_interaction_uses_one_db_shape_only_without_mutation(self) -> None:
+        flat_before = tuple(REPORT.PRESETS["flat"])
+        matrix = REPORT.interaction_matrix()
+        self.assertEqual(REPORT.INTERACTION_PERTURBATION_DB, 1.0)
+        self.assertEqual(len(matrix), 10)
+        self.assertTrue(all(len(row) == 10 for row in matrix))
+        self.assertEqual(sum(math.isfinite(value)
+                             for row in matrix for value in row), 100)
+        self.assertEqual(tuple(REPORT.PRESETS["flat"]), flat_before)
+        start = REPORT_PATH.read_text(encoding="utf-8").index(
+            "def interaction_matrix(")
+        end = REPORT_PATH.read_text(encoding="utf-8").index(
+            "\ndef _write_csv", start)
+        implementation = REPORT_PATH.read_text(encoding="utf-8")[start:end]
+        self.assertNotIn("headroom(", implementation)
+        self.assertNotIn("preamp", implementation)
+
     def test_board_response_module_excludes_host_math(self) -> None:
         math_include = self.source.index('#include "math.h"')
         host_guard = self.source.rfind("#ifdef EQ_ALGO_ONLY", 0, math_include)
@@ -139,9 +176,35 @@ class EqualizerResponseTest(unittest.TestCase):
             self.assertLess(metrics["builder_sync_coefficient_max_diff"], 1e-6)
             self.assertLess(metrics["builder_sync_peak_diff_db"], 1e-4)
             self.assertLess(metrics["builder_sync_preamp_diff_db"], 1e-4)
+            self.assertEqual(metrics["python_flat_peak_db"], 0.0)
+            self.assertEqual(metrics["python_flat_preamp_db"], 0.0)
+            self.assertEqual(metrics["python_flat_preamp_gain"], 1.0)
+            self.assertEqual(metrics["c_flat_peak_db"], 0.0)
+            self.assertEqual(metrics["c_flat_preamp_db"], 0.0)
+            self.assertEqual(metrics["c_flat_preamp_gain"], 1.0)
+            self.assertLess(metrics["c_python_flat_shape_max_error_db"],
+                            1e-6)
+            self.assertLess(metrics["c_python_flat_total_max_error_db"],
+                            1e-6)
             self.assertEqual(metrics["interaction_rows"], 10.0)
             self.assertEqual(metrics["interaction_columns"], 10.0)
             self.assertEqual(metrics["interaction_finite_count"], 100.0)
+            self.assertEqual(metrics["interaction_perturbation_db"], 1.0)
+            for name in (
+                "interaction_diagonal_mean_db",
+                "interaction_off_diagonal_abs_max_db",
+                "interaction_off_diagonal_rms_db",
+                "interaction_ratio",
+                "c_python_phase_max_error_rad",
+                "c_python_group_delay_max_error_samples",
+            ):
+                self.assertTrue(math.isfinite(metrics[name]), name)
+            self.assertGreater(metrics["group_delay_valid_point_count"], 0.0)
+            self.assertLess(metrics["c_python_phase_max_error_rad"], 1e-6)
+            self.assertLess(
+                metrics["c_python_group_delay_max_error_samples"], 1e-4)
+            self.assertLess(metrics["flat_group_delay_abs_max_samples"],
+                            1e-9)
             expected_png = {
                 "target_vs_actual_flat.png", "target_vs_actual_bass.png",
                 "target_vs_actual_vocal.png", "target_vs_actual_treble.png",

@@ -11,6 +11,7 @@ CONTROL = ROOT / "Code/User/user_dsp/user_equalizer_control.c"
 FLOW = ROOT / "Code/User/user_dsp/user_equalizer_flow.c"
 HEADER = ROOT / "Code/User/user_dsp/user_equalizer_control.h"
 RESPONSE = ROOT / "Code/User/user_dsp/user_equalizer_response.c"
+EVALUATOR = ROOT / "Code/User/user_dsp/user_equalizer_eval.c"
 BASH = pathlib.Path(r"C:\msys64\usr\bin\bash.exe")
 
 
@@ -32,6 +33,17 @@ class EqualizerControlTest(unittest.TestCase):
         cls.control = CONTROL.read_text(encoding="utf-8")
         cls.flow = FLOW.read_text(encoding="utf-8")
         cls.header = HEADER.read_text(encoding="utf-8")
+        cls.evaluator = EVALUATOR.read_text(encoding="utf-8")
+
+    def test_host_safe_boundary_defers_finalize_install(self) -> None:
+        start = self.evaluator.index("static void EQ_EvalControlService(")
+        end = self.evaluator.index("static void EQ_EvalControlSettle", start)
+        service = self.evaluator[start:end]
+        self.assertEqual(service.count(
+            "EqualizerControl_TryInstallReady("), 1)
+        self.assertLess(service.index("EqualizerControl_TryInstallReady("),
+                        service.index(
+                            "EqualizerControl_ServiceOneBuilderSlice("))
 
     def test_host_harness(self) -> None:
         result = run_msys(

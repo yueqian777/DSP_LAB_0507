@@ -57,6 +57,20 @@ static void process_until_settled(EQ_STATE *equalizer)
     CHECK(Equalizer_HasPendingTransition(equalizer) == 0);
 }
 
+static void service_host_safe_boundary(EQ_CONTROL_STATE *control,
+                                       EQ_CONTROL_MAILBOX *mailbox,
+                                       EQ_STATE *equalizer)
+{
+    EqualizerControl_ObserveFrameBoundary(control, equalizer);
+    (void)EqualizerControl_ServiceMailbox(control, mailbox, equalizer);
+    EqualizerControl_InvalidateStaleWork(control);
+    (void)EqualizerControl_TryInstallReady(control, equalizer);
+    if (EqualizerControl_BuilderEligible(control, equalizer) != 0)
+    {
+        (void)EqualizerControl_ServiceOneBuilderSlice(control);
+    }
+}
+
 static void test_mailbox_protocol(void)
 {
     EQ_STATE equalizer;
@@ -447,6 +461,49 @@ static void test_identity_return_waits_for_custom_target(void)
     CHECK(equalizer.active_preset == EQ_PRESET_CUSTOM);
 }
 
+static void test_finalize_and_install_use_separate_boundaries(void)
+{
+    static const float custom[EQ_NUM_BANDS] =
+    {
+        -3.0f, -1.0f, 1.0f, 3.0f, 4.0f,
+         2.0f,  0.0f, -2.0f, 1.0f, 3.0f
+    };
+    EQ_STATE equalizer;
+    EQ_CONTROL_STATE control;
+    EQ_CONTROL_MAILBOX mailbox;
+    EQ_CONTROL_REQUEST request;
+    int boundary;
+    int band;
+
+    Equalizer_Init(&equalizer);
+    EqualizerControl_Init(&control, &equalizer);
+    memset(&mailbox, 0, sizeof(mailbox));
+    fill_request(&request, EQ_CONTROL_SET_ALL);
+    for (band = 0; band < EQ_NUM_BANDS; band++)
+    {
+        request.shadow_gain_db[band] = custom[band];
+    }
+    CHECK(EqualizerControl_SubmitRequest(&mailbox, &request) == 2U);
+    for (boundary = 0; boundary < 43; boundary++)
+    {
+        service_host_safe_boundary(&control, &mailbox, &equalizer);
+    }
+    CHECK(control.builder.payload_slice_count == 43UL);
+    CHECK(control.ready_candidate.valid == 1);
+    CHECK(equalizer.pending_bank_valid == 0);
+    CHECK(control.installed_sequence != control.target_sequence);
+    CHECK(control.applied_sequence != control.target_sequence);
+
+    service_host_safe_boundary(&control, &mailbox, &equalizer);
+    CHECK(equalizer.pending_bank_valid == 1);
+    CHECK(control.installed_sequence == control.target_sequence);
+    CHECK(control.applied_sequence != control.installed_sequence);
+    process_until_settled(&equalizer);
+    CHECK(control.applied_sequence != control.installed_sequence);
+    service_host_safe_boundary(&control, &mailbox, &equalizer);
+    CHECK(control.applied_sequence == control.installed_sequence);
+}
+
 int main(void)
 {
     test_mailbox_protocol();
@@ -456,6 +513,7 @@ int main(void)
     test_background_budget();
     test_target_rejection_is_transactional();
     test_identity_return_waits_for_custom_target();
+    test_finalize_and_install_use_separate_boundaries();
     printf("equalizer_control_test failures=%d\n", failures);
     return (failures == 0) ? 0 : 1;
 }

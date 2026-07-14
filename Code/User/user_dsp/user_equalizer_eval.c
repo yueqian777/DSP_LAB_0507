@@ -685,9 +685,7 @@ static void EQ_EvalControlService(EQ_EVAL_CONTROL_PATH *path, EQ_STATE *st)
     if (EqualizerControl_BuilderEligible(&path->control, st) != 0)
     {
         (void)EqualizerControl_ServiceOneBuilderSlice(&path->control);
-        (void)EqualizerControl_TryInstallReady(&path->control, st);
     }
-    EqualizerControl_ObserveFrameBoundary(&path->control, st);
 }
 
 static void EQ_EvalControlSettle(EQ_EVAL_CONTROL_PATH *path, EQ_STATE *st)

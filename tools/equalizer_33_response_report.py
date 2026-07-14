@@ -27,6 +27,8 @@ PRESETS = {
     "v_shape": (2.0, 2.0, 1.0, 0.0, -1.0, -1.0, 0.0, 1.0, 2.0, 2.0),
     "custom": (-3.0, -1.0, 1.0, 3.0, 4.0, 2.0, 0.0, -2.0, 1.0, 3.0),
 }
+INTERACTION_PERTURBATION_DB = 1.0
+INTERACTION_RATIO_EPSILON = 1.0e-12
 
 Coeff = tuple[float, float, float, float, float]
 
@@ -141,7 +143,10 @@ def magnitude_db(value: complex) -> float:
     return 20.0 * math.log10(max(abs(value), 1.0e-20))
 
 
-def headroom(bank: Sequence[Coeff]) -> tuple[float, float, float]:
+def headroom(bank: Sequence[Coeff],
+             gains_db: Sequence[float]) -> tuple[float, float, float]:
+    if all(abs(gain) < 1.0e-7 for gain in gains_db):
+        return 0.0, 0.0, 1.0
     log_min = f32(math.log(20.0))
     log_max = f32(math.log(20000.0))
     step = f32(f32(log_max - log_min) / 511.0)
@@ -196,14 +201,19 @@ def group_delay(frequencies: Sequence[float],
     return delay
 
 
-def interaction_matrix(gain_db: float = 6.0) -> list[list[float]]:
+def interaction_matrix() -> list[list[float]]:
     matrix: list[list[float]] = []
+    flat_bank = design_bank(PRESETS["flat"])
+    flat_response = [magnitude_db(cascade_response(flat_bank, center))
+                     for center in CENTERS]
     for source in range(len(CENTERS)):
         gains = [0.0] * len(CENTERS)
-        gains[source] = gain_db
+        gains[source] = INTERACTION_PERTURBATION_DB
         bank = design_bank(gains)
-        matrix.append([magnitude_db(cascade_response(bank, center))
-                       for center in CENTERS])
+        matrix.append([
+            magnitude_db(cascade_response(bank, center)) - flat_response[index]
+            for index, center in enumerate(CENTERS)
+        ])
     return matrix
 
 
@@ -248,7 +258,7 @@ def _heatmap(path: Path, matrix: Sequence[Sequence[float]]) -> None:
     draw = ImageDraw.Draw(image)
     margin, cell = 75, 58
     maximum = max(abs(value) for row in matrix for value in row) or 1.0
-    draw.text((margin, 20), "10 x 10 RBJ interaction matrix (dB)", fill="black")
+    draw.text((margin, 20), "10 x 10 RBJ +1 dB shape interaction", fill="black")
     for row_index, row in enumerate(matrix):
         for column_index, value in enumerate(row):
             normalized = min(abs(value) / maximum, 1.0)
@@ -268,19 +278,63 @@ def compare_c_reference(directory: Path) -> dict[str, float]:
         (directory / "c_response_512.csv").open(encoding="utf-8")))
     section_rows = list(csv.DictReader(
         (directory / "c_sections.csv").open(encoding="utf-8")))
-    bank = design_bank(PRESETS["custom"])
-    peak_db, preamp_db, _ = headroom(bank)
-    max_shape = 0.0
-    max_total = 0.0
+    response_by_preset: dict[str, list[dict[str, str]]] = {}
     for row in response_rows:
-        frequency = float(row["frequency_hz"])
-        shape = magnitude_db(cascade_response(bank, frequency))
-        total = shape + preamp_db
-        max_shape = max(max_shape, abs(shape - float(row["shape_db"])))
-        max_total = max(max_total, abs(total - float(row["total_db"])))
+        response_by_preset.setdefault(row["preset"], []).append(row)
+    response_errors: dict[str, tuple[float, float]] = {}
+    max_phase_error = 0.0
+    max_group_delay_error = 0.0
+    valid_group_delay_points = 0
+    flat_group_delay_abs_max = 0.0
+    for preset in ("flat", "custom"):
+        rows = sorted(response_by_preset[preset],
+                      key=lambda row: int(row["point"]))
+        gains = PRESETS[preset]
+        bank = design_bank(gains)
+        peak_db, preamp_db, _ = headroom(bank, gains)
+        frequencies = [float(row["frequency_hz"]) for row in rows]
+        responses = [cascade_response(bank, frequency)
+                     for frequency in frequencies]
+        python_phases = [cmath.phase(response) for response in responses]
+        python_delays = group_delay(frequencies, responses)
+        max_shape = 0.0
+        max_total = 0.0
+        for index, row in enumerate(rows):
+            shape = magnitude_db(responses[index])
+            total = shape + preamp_db
+            max_shape = max(max_shape,
+                            abs(shape - float(row["shape_db"])))
+            max_total = max(max_total,
+                            abs(total - float(row["total_db"])))
+            frequency = frequencies[index]
+            c_phase = float(row["phase_rad"])
+            c_delay = float(row["group_delay_samples"])
+            valid = (30.0 <= frequency <= 18000.0 and
+                     shape > -60.0 and int(row["valid"]) == 1 and
+                     math.isfinite(python_phases[index]) and
+                     math.isfinite(python_delays[index]) and
+                     math.isfinite(c_phase) and math.isfinite(c_delay))
+            if valid:
+                wrapped_error = math.atan2(
+                    math.sin(python_phases[index] - c_phase),
+                    math.cos(python_phases[index] - c_phase))
+                max_phase_error = max(max_phase_error, abs(wrapped_error))
+                max_group_delay_error = max(
+                    max_group_delay_error,
+                    abs(python_delays[index] - c_delay))
+                valid_group_delay_points += 1
+                if preset == "flat":
+                    flat_group_delay_abs_max = max(
+                        flat_group_delay_abs_max,
+                        abs(python_delays[index]), abs(c_delay))
+        response_errors[preset] = (max_shape, max_total)
+
+    custom_bank = design_bank(PRESETS["custom"])
+    custom_peak_db, custom_preamp_db, _ = headroom(
+        custom_bank, PRESETS["custom"])
     max_builder_sync = 0.0
     max_python_c_coeff = 0.0
-    for row, coeff in zip(section_rows, bank):
+    for row, coeff in zip(section_rows, custom_bank):
         for name, python_value in zip(("b0", "b1", "b2", "a1", "a2"), coeff):
             builder = float(row[f"builder_{name}"])
             synchronous = float(row[f"sync_{name}"])
@@ -289,17 +343,37 @@ def compare_c_reference(directory: Path) -> dict[str, float]:
                                      abs(python_value - builder))
     first = section_rows[0]
     return {
-        "c_python_shape_max_error_db": max_shape,
-        "c_python_total_max_error_db": max_total,
+        "c_python_shape_max_error_db": max(
+            response_errors["flat"][0], response_errors["custom"][0]),
+        "c_python_total_max_error_db": max(
+            response_errors["flat"][1], response_errors["custom"][1]),
+        "c_python_flat_shape_max_error_db": response_errors["flat"][0],
+        "c_python_flat_total_max_error_db": response_errors["flat"][1],
+        "c_python_custom_shape_max_error_db": response_errors["custom"][0],
+        "c_python_custom_total_max_error_db": response_errors["custom"][1],
+        "c_python_phase_max_error_rad": max_phase_error,
+        "c_python_group_delay_max_error_samples": max_group_delay_error,
+        "group_delay_valid_point_count": float(valid_group_delay_points),
+        "flat_group_delay_abs_max_samples": flat_group_delay_abs_max,
         "builder_sync_coefficient_max_diff": max_builder_sync,
         "python_c_coefficient_max_diff": max_python_c_coeff,
         "builder_sync_peak_diff_db": abs(float(first["builder_peak_db"]) -
                                           float(first["sync_peak_db"])),
         "builder_sync_preamp_diff_db": abs(float(first["builder_preamp_db"]) -
                                             float(first["sync_preamp_db"])),
-        "python_c_peak_diff_db": abs(peak_db - float(first["builder_peak_db"])),
-        "python_c_preamp_diff_db": abs(preamp_db -
-                                        float(first["builder_preamp_db"])),
+        "python_c_peak_diff_db": abs(custom_peak_db -
+                                      float(first["builder_peak_db"])),
+        "python_c_preamp_diff_db": abs(custom_preamp_db -
+                                         float(first["builder_preamp_db"])),
+        "python_flat_peak_db": 0.0,
+        "python_flat_preamp_db": 0.0,
+        "python_flat_preamp_gain": 1.0,
+        "c_flat_peak_db": float(response_by_preset["flat"][0][
+            "predicted_peak_db"]),
+        "c_flat_preamp_db": float(response_by_preset["flat"][0][
+            "preamp_db"]),
+        "c_flat_preamp_gain": float(response_by_preset["flat"][0][
+            "preamp_gain"]),
     }
 
 
@@ -313,7 +387,7 @@ def generate_report(output_dir: Path,
     preset_results: dict[str, tuple[list[float], list[float], list[float]]] = {}
     for name, gains in PRESETS.items():
         bank = design_bank(gains)
-        peak_db, preamp_db, preamp_gain = headroom(bank)
+        peak_db, preamp_db, preamp_gain = headroom(bank, gains)
         responses = [cascade_response(bank, frequency)
                      for frequency in frequencies]
         shape = [magnitude_db(value) for value in responses]
@@ -342,6 +416,16 @@ def generate_report(output_dir: Path,
 
     matrix = interaction_matrix()
     self_gains = [matrix[index][index] for index in range(10)]
+    off_diagonal = [matrix[row][column]
+                    for row in range(10) for column in range(10)
+                    if row != column]
+    diagonal_mean = sum(self_gains) / len(self_gains)
+    off_diagonal_abs_max = max(abs(value) for value in off_diagonal)
+    off_diagonal_rms = math.sqrt(sum(value * value
+                                     for value in off_diagonal) /
+                                 len(off_diagonal))
+    interaction_ratio = abs(diagonal_mean) / max(
+        off_diagonal_rms, INTERACTION_RATIO_EPSILON)
     _write_csv(output_dir / "response_curves.csv",
                ("preset", "point", "frequency_hz", "desired_db",
                 "shape_db", "total_db", "predicted_peak_db",
@@ -391,6 +475,11 @@ def generate_report(output_dir: Path,
         "interaction_columns": float(len(matrix[0])),
         "interaction_finite_count": float(sum(
             math.isfinite(value) for row in matrix for value in row)),
+        "interaction_perturbation_db": INTERACTION_PERTURBATION_DB,
+        "interaction_diagonal_mean_db": diagonal_mean,
+        "interaction_off_diagonal_abs_max_db": off_diagonal_abs_max,
+        "interaction_off_diagonal_rms_db": off_diagonal_rms,
+        "interaction_ratio": interaction_ratio,
         "interaction_self_gain_min_db": min(self_gains),
         "interaction_self_gain_max_db": max(self_gains),
     }

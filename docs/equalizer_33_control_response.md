@@ -4,8 +4,8 @@
 
 **Baseline:** `3d9bb2f3c65123761130571c624e82b7d5306c32`
 
-**Integration:** implemented and verified directly on local `main`. No remote
-push is authorized by this specification.
+**Integration:** Implemented and committed on main; remote repository contains
+the Host/CCS-verified implementation.
 
 **Hardware status:** `PENDING_HARDWARE`
 
@@ -658,7 +658,10 @@ finalize action.
 Section slices call `Equalizer_DesignRbjSection`. Scan slices call
 `Equalizer_EvaluateHeadroomPointDb` for the current indexed points. The finalize
 slice calls `Equalizer_FinalizeRbjBank` and publishes `ready_candidate`; it does
-not repeat any scan point.
+not repeat any scan point and does not install the candidate in the same safe
+boundary. The next safe-boundary service call may install that complete
+candidate; `applied_sequence` advances only after the crossfade completes and a
+later boundary observes the active generation.
 
 The existing full-headroom-scan debug count advances exactly once when an
 incremental 512-point scan completes. It does not advance per slice. Fixed
@@ -951,6 +954,11 @@ actual_shape_db = 20 log10(|product of the ten section responses|)
 actual_total_db = actual_shape_db + preamp_db
 ```
 
+FLAT is an explicit headroom identity case shared with
+`Equalizer_FinalizeRbjBank`: all ten gains equal to zero produces
+`predicted_peak_db = 0`, `preamp_db = 0`, and `preamp_gain = 1`. The `-0.5 dB`
+margin applies only to non-flat banks.
+
 Shelf reference points are 20 Hz and 20 kHz. The eight peaking references use
 their center frequencies.
 
@@ -978,7 +986,13 @@ The 10 x 10 interaction matrix starts from FLAT. For row `i`, only band `i` is
 set to +1 dB. Column `j` is the shape-response change at band `j`'s reference
 frequency. The implementation reports diagonal mean, maximum absolute
 off-diagonal response, off-diagonal RMS, and interaction ratio. It never
-modifies the source `EQ_STATE` and does not compensate the gains.
+includes preamp, modifies the source `EQ_STATE`, or compensates the gains. With
+`D` equal to the mean diagonal response, `R` equal to the RMS of all 90
+off-diagonal cells, and `epsilon = 1e-12`, the reported ratio is:
+
+```text
+interaction_ratio = abs(D) / max(R, epsilon)
+```
 
 ## 15. Independent Python reference
 
@@ -996,6 +1010,15 @@ Comparison uses 512 logarithmic points from 20 Hz to 20 kHz. Magnitude maximum
 error must be below 0.01 dB. Group delay is compared only from 30 Hz to 18 kHz
 where magnitude is above -60 dB. Singular/invalid points are marked invalid and
 excluded from aggregate pass/fail instead of being replaced by zero.
+
+The C Host export contains flat and custom 512-point grids with frequency,
+shape, total response, wrapped phase, group delay, and a validity flag. Python
+uses the same exported frequency values but independently evaluates the RBJ
+cascade. Phase error is reduced modulo `2*pi`. Current float precision supports
+the regression limits `phase_error < 1e-6 rad` and
+`group_delay_error < 1e-4 samples`; the measured 2026-07-14 values before final
+commit were approximately `3.14e-8 rad` and `6.44e-6 samples` over 948 valid
+flat/custom points.
 
 The Host report generator produces exactly these ignored local plots under
 `docs/eval_outputs/equalizer_control_response/`:
@@ -1174,6 +1197,8 @@ untouched and unstaged.
 
 - Exactly ten section payload slices, thirty-two scan payload slices, and one
   finalize payload slice for a non-flat custom build.
+- The 43rd slice leaves a complete `ready_candidate` uninstalled; installation
+  begins only on the next safe-boundary call.
 - One call processes at most one section or sixteen scan points.
 - No call completes the full builder through an internal state loop.
 - Publishing a logical custom target performs zero section designs and zero
@@ -1225,8 +1250,14 @@ untouched and unstaged.
 - Snapshots do not copy or mutate `s1/s2`, clipping, or transition state.
 - Desired endpoints and log-frequency interpolation are correct.
 - FLAT shape and total responses are finite and near 0 dB.
+- FLAT predicted peak/preamp are exactly `0 dB`, preamp gain is exactly `1`,
+  and flat group delay is near zero.
 - Section responses and the 10 x 10 interaction matrix are finite and do not
   mutate source state.
+- The interaction matrix uses an exact `+1 dB` single-band perturbation and
+  reports finite diagonal, off-diagonal, RMS, and ratio metrics without preamp.
+- Wrapped phase and valid-region group delay agree with the independent Python
+  implementation within the stated precision-derived limits.
 - No board-flow call calculates a 129-point curve or sends it to LCD.
 - The nine required Host plot names are generated under the ignored output
   directory and none is staged.

@@ -19,6 +19,8 @@ static const float report_custom[EQ_NUM_BANDS] =
     } \
 } while (0)
 
+#define TEST_PI 3.14159265358979323846
+
 static void settle(EQ_STATE *equalizer)
 {
     float input[EQ_FRAME_LEN];
@@ -161,6 +163,120 @@ static void test_command_and_prepared_snapshots(void)
     CHECK(response.role == EQ_RESPONSE_ROLE_PREPARED_TARGET);
 }
 
+typedef struct
+{
+    float frequency_hz;
+    float shape_db;
+    float total_db;
+    double phase_rad;
+    double unwrapped_phase_rad;
+    double group_delay_samples;
+    int response_valid;
+    int valid;
+} C_RESPONSE_POINT;
+
+static int export_response_grid(FILE *file, const char *preset,
+                                const EQ_RESPONSE_SNAPSHOT *snapshot)
+{
+    C_RESPONSE_POINT points[EQ_HEADROOM_POINT_COUNT];
+    float log_min;
+    float log_max;
+    int previous_valid;
+    double previous_unwrapped;
+    int point;
+
+    log_min = logf(20.0f);
+    log_max = logf(20000.0f);
+    previous_valid = 0;
+    previous_unwrapped = 0.0;
+    for (point = 0; point < EQ_HEADROOM_POINT_COUNT; point++)
+    {
+        EQ_RESPONSE_COMPLEX response;
+        double phase;
+
+        memset(&points[point], 0, sizeof(points[point]));
+        points[point].shape_db = (float)NAN;
+        points[point].total_db = (float)NAN;
+        points[point].phase_rad = NAN;
+        points[point].unwrapped_phase_rad = NAN;
+        points[point].group_delay_samples = NAN;
+        points[point].frequency_hz = expf(log_min +
+            (log_max - log_min) * (float)point /
+            (float)(EQ_HEADROOM_POINT_COUNT - 1));
+        if ((EqualizerResponse_GetCascadeComplex(
+                 snapshot, points[point].frequency_hz, 0, &response) == 0) ||
+            (EqualizerResponse_GetMagnitudeDb(
+                 snapshot, points[point].frequency_hz, 0,
+                 &points[point].shape_db) == 0) ||
+            (EqualizerResponse_GetMagnitudeDb(
+                 snapshot, points[point].frequency_hz, 1,
+                 &points[point].total_db) == 0))
+        {
+            previous_valid = 0;
+            continue;
+        }
+        phase = atan2(response.imag, response.real);
+        if (isfinite(phase) == 0)
+        {
+            previous_valid = 0;
+            continue;
+        }
+        points[point].phase_rad = phase;
+        if (previous_valid != 0)
+        {
+            while ((phase - previous_unwrapped) > TEST_PI)
+            {
+                phase -= 2.0 * TEST_PI;
+            }
+            while ((phase - previous_unwrapped) < -TEST_PI)
+            {
+                phase += 2.0 * TEST_PI;
+            }
+        }
+        points[point].unwrapped_phase_rad = phase;
+        points[point].response_valid = 1;
+        previous_unwrapped = phase;
+        previous_valid = 1;
+    }
+    for (point = 1; point < (EQ_HEADROOM_POINT_COUNT - 1); point++)
+    {
+        double omega_delta;
+
+        if ((points[point - 1].response_valid == 0) ||
+            (points[point].response_valid == 0) ||
+            (points[point + 1].response_valid == 0))
+        {
+            continue;
+        }
+        omega_delta = 2.0 * TEST_PI *
+            ((double)points[point + 1].frequency_hz -
+             (double)points[point - 1].frequency_hz) /
+            (double)EQ_SAMPLE_RATE;
+        if ((omega_delta == 0.0) || (isfinite(omega_delta) == 0))
+        {
+            continue;
+        }
+        points[point].group_delay_samples =
+            -(points[point + 1].unwrapped_phase_rad -
+              points[point - 1].unwrapped_phase_rad) / omega_delta;
+        if (isfinite(points[point].group_delay_samples) != 0)
+        {
+            points[point].valid = 1;
+        }
+    }
+    for (point = 0; point < EQ_HEADROOM_POINT_COUNT; point++)
+    {
+        fprintf(file,
+            "%s,%d,%.9g,%.9f,%.9f,%.17g,%.17g,%d,%.9g,%.9g,%.9g\n",
+            preset, point, points[point].frequency_hz,
+            points[point].shape_db, points[point].total_db,
+            points[point].phase_rad, points[point].group_delay_samples,
+            points[point].valid, snapshot->predicted_peak_db,
+            snapshot->preamp_db, snapshot->preamp_gain);
+    }
+    return 1;
+}
+
 static int export_c_reference(const char *directory)
 {
     EQ_STATE equalizer;
@@ -168,17 +284,12 @@ static int export_c_reference(const char *directory)
     EQ_CONTROL_STATE control;
     EQ_CONTROL_MAILBOX mailbox;
     EQ_CONTROL_REQUEST request;
-    EQ_RESPONSE_SNAPSHOT snapshot;
+    EQ_RESPONSE_SNAPSHOT flat_snapshot;
+    EQ_RESPONSE_SNAPSHOT custom_snapshot;
     FILE *response_file;
     FILE *section_file;
     char response_path[512];
     char section_path[512];
-    float shape_db;
-    float total_db;
-    float log_min;
-    float log_max;
-    float frequency_hz;
-    int point;
     int band;
 
     if (directory == 0)
@@ -206,6 +317,12 @@ static int export_c_reference(const char *directory)
 
     Equalizer_Init(&equalizer);
     Equalizer_Init(&synchronous);
+    if (EqualizerResponse_CopyActive(&equalizer, &flat_snapshot) == 0)
+    {
+        fclose(response_file);
+        fclose(section_file);
+        return 0;
+    }
     EqualizerControl_Init(&control, &equalizer);
     memset(&mailbox, 0, sizeof(mailbox));
     memset(&request, 0, sizeof(request));
@@ -234,7 +351,7 @@ static int export_c_reference(const char *directory)
         }
     }
     if (EqualizerResponse_CopyPrepared(
-            &control.ready_candidate, &snapshot) == 0)
+            &control.ready_candidate, &custom_snapshot) == 0)
     {
         fclose(response_file);
         fclose(section_file);
@@ -242,25 +359,15 @@ static int export_c_reference(const char *directory)
     }
     Equalizer_SetAllGainsDb(&synchronous, report_custom);
 
-    fprintf(response_file, "point,frequency_hz,shape_db,total_db\n");
-    log_min = logf(20.0f);
-    log_max = logf(20000.0f);
-    for (point = 0; point < EQ_HEADROOM_POINT_COUNT; point++)
+    fprintf(response_file,
+        "preset,point,frequency_hz,shape_db,total_db,phase_rad,"
+        "group_delay_samples,valid,predicted_peak_db,preamp_db,preamp_gain\n");
+    if ((export_response_grid(response_file, "flat", &flat_snapshot) == 0) ||
+        (export_response_grid(response_file, "custom", &custom_snapshot) == 0))
     {
-        frequency_hz = expf(log_min +
-            (log_max - log_min) * (float)point /
-            (float)(EQ_HEADROOM_POINT_COUNT - 1));
-        if ((EqualizerResponse_GetMagnitudeDb(
-                &snapshot, frequency_hz, 0, &shape_db) == 0) ||
-            (EqualizerResponse_GetMagnitudeDb(
-                &snapshot, frequency_hz, 1, &total_db) == 0))
-        {
-            fclose(response_file);
-            fclose(section_file);
-            return 0;
-        }
-        fprintf(response_file, "%d,%.9g,%.9f,%.9f\n",
-                point, frequency_hz, shape_db, total_db);
+        fclose(response_file);
+        fclose(section_file);
+        return 0;
     }
 
     fprintf(section_file,
@@ -269,7 +376,7 @@ static int export_c_reference(const char *directory)
         "builder_peak_db,sync_peak_db,builder_preamp_db,sync_preamp_db\n");
     for (band = 0; band < EQ_NUM_BANDS; band++)
     {
-        const EQ_BIQUAD *builder_section = &snapshot.section[band];
+        const EQ_BIQUAD *builder_section = &custom_snapshot.section[band];
         const EQ_BIQUAD *sync_section =
             &synchronous.pending_bank.section[band];
 
@@ -282,9 +389,9 @@ static int export_c_reference(const char *directory)
             builder_section->a2,
             sync_section->b0, sync_section->b1, sync_section->b2,
             sync_section->a1, sync_section->a2,
-            snapshot.predicted_peak_db,
+            custom_snapshot.predicted_peak_db,
             synchronous.pending_bank.predicted_peak_db,
-            snapshot.preamp_db, synchronous.pending_bank.preamp_db);
+            custom_snapshot.preamp_db, synchronous.pending_bank.preamp_db);
     }
     fclose(response_file);
     fclose(section_file);
