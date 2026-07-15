@@ -47,9 +47,16 @@ static unsigned char EQ_FrameServicePending = 0U;
 
 #endif
 
+#if (defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)) && \
+    defined(DSP_LAB_PROJECT_SELECT) && (DSP_LAB_PROJECT_SELECT == 33)
+#pragma DATA_SECTION(EQ_DebugInitStage, ".subband_l2")
+#pragma DATA_SECTION(EQ_DebugFlagAdDone, ".subband_l2")
+#endif
 volatile unsigned long EQ_DebugAdFrames = 0UL;
 volatile unsigned long EQ_DebugDaFrames = 0UL;
 volatile unsigned long EQ_DebugProcessFrames = 0UL;
+volatile unsigned long EQ_DebugInitStage = 0UL;
+volatile unsigned int EQ_DebugFlagAdDone = 0U;
 volatile unsigned long EQ_DebugAlgoLastCycles = 0UL;
 volatile unsigned long EQ_DebugAlgoMaxCycles = 0UL;
 volatile float EQ_DebugAlgoLastMs = 0.0f;
@@ -925,6 +932,10 @@ static void EQ_CaptureAdcFrame(void)
                            ADC_SAMPLE_1024);
     mode_change_after = Equalizer_GetModeChangeCount(&EQ_BoardState);
     EQ_DebugProcessFrames++;
+    if (EQ_DebugInitStage < 10UL)
+    {
+        EQ_DebugInitStage = 10UL;
+    }
 #if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
     cycle_end = TSCL;
     cycle_delta = (unsigned long)(cycle_end - cycle_start);
@@ -1017,6 +1028,8 @@ void Equalizer_Flow_Example(void)
 #endif
 
     flag_ad_done = 0;
+    EQ_DebugInitStage = 1UL;
+    EQ_DebugFlagAdDone = 0U;
 #if EQ_ENABLE_LCD_DISPLAY != 0
     EqualizerLcdPolicy_Init(&lcd_policy);
     EqualizerLcdFaultPolicy_Init(&lcd_fault_policy);
@@ -1029,8 +1042,11 @@ void Equalizer_Flow_Example(void)
     EQ_KeepBuildFingerprint();
 
     Adc_Init(ADC_50KHZ, ADC_SAMPLE_1024);
+    EQ_DebugInitStage = 2UL;
     Dac_Init(DAC_50KHZ, DAC_SAMPLE_1024, DAC_CHANNEL_ALL);
+    EQ_DebugInitStage = 3UL;
     Equalizer_Init(&EQ_BoardState);
+    EQ_DebugInitStage = 4UL;
     memset(&EQ_ControlMailbox, 0, sizeof(EQ_ControlMailbox));
     EqualizerControl_Init(&EQ_BoardControl, &EQ_BoardState);
     EqualizerBackgroundService_Init(&EQ_BackgroundService);
@@ -1056,13 +1072,18 @@ void Equalizer_Flow_Example(void)
     lcd_applied_mode = EQ_DebugAppliedMode;
 #endif
 
+    EQ_DebugInitStage = 5UL;
+
 #if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
     TSCL = 0;
 #endif
 
     Adc_Start();
+    EQ_DebugInitStage = 6UL;
     Dac_Start();
+    EQ_DebugInitStage = 7UL;
 
+    EQ_DebugInitStage = 8UL;
     while (1)
     {
         if (FLAG_AD == 1)
@@ -1071,7 +1092,12 @@ void Equalizer_Flow_Example(void)
             EQ_BeginFrameActiveSegment();
             FLAG_AD = 0;
             flag_ad_done = 1;
+            EQ_DebugFlagAdDone = 1U;
             EQ_DebugAdFrames++;
+            if (EQ_DebugInitStage < 9UL)
+            {
+                EQ_DebugInitStage = 9UL;
+            }
             EQ_CaptureAdcFrame();
             EQ_EndFrameActiveSegment();
         }
@@ -1081,10 +1107,15 @@ void Equalizer_Flow_Example(void)
             EQ_BeginFrameActiveSegment();
             FLAG_DA = 0;
             flag_ad_done = 0;
+            EQ_DebugFlagAdDone = 0U;
             EQ_DebugDaFrames++;
             EQ_FillDacInactiveBuffer();
             EQ_EndFrameActiveSegment();
             EQ_EndFrameService();
+            if (EQ_DebugInitStage < 11UL)
+            {
+                EQ_DebugInitStage = 11UL;
+            }
         }
 
         if ((FLAG_AD == 0) && (FLAG_DA == 0) && (flag_ad_done == 0))

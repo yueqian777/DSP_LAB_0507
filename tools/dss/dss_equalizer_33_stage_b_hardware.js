@@ -12,6 +12,7 @@ var audioSyncDir = env("DSP_TEST_AUDIO_SYNC_DIR", resultDir + "/audio_sync");
 var expectedSha = env("DSP_TEST_EXPECTED_SHA", "UNKNOWN");
 var operatorStatus = env("DSP_TEST_OPERATOR_STATUS", "NOT_OBSERVED");
 var operatorNotes = env("DSP_TEST_OPERATOR_NOTES", "");
+var testStage = env("DSP_TEST_STAGE", "CrossfadeA");
 var resultPath = resultDir + "/stage_results.jsonl";
 var summaryPath = resultDir + "/summary.json";
 var script = null;
@@ -32,6 +33,8 @@ var symbols = {
     ad_frames: "EQ_DebugAdFrames",
     da_frames: "EQ_DebugDaFrames",
     process_frames: "EQ_DebugProcessFrames",
+    init_stage: "EQ_DebugInitStage",
+    init_flag_ad_done: "EQ_DebugFlagAdDone",
     algo_last_cycles: "EQ_DebugAlgoLastCycles",
     algo_max_cycles: "EQ_DebugAlgoMaxCycles",
     mode_service_last_cycles: "EQ_DebugModeServiceLastCycles",
@@ -144,6 +147,14 @@ function numberValue(expression) {
     return value;
 }
 
+function optionalNumberValue(expression) {
+    try {
+        return numberValue(expression);
+    } catch (error) {
+        return null;
+    }
+}
+
 function readCString(symbol, maximum) {
     var text = "", index, code;
     for (index = 0; index < maximum; index++) {
@@ -164,13 +175,25 @@ function requireCondition(condition, message) {
 
 function snapshot() {
     var state = {}, key;
-    for (key in symbols) state[key] = numberValue(symbols[key]);
+    for (key in symbols) {
+        state[key] = key.indexOf("lcd_") == 0 && testStage == "CrossfadeA" ?
+            null : numberValue(symbols[key]);
+    }
     state.lcd_category_count = [];
     state.lcd_category_max_cycles = [];
     for (key = 0; key < 6; key++) {
-        state.lcd_category_count.push(numberValue("EQ_DebugLcdCategoryCount[" + key + "]"));
-        state.lcd_category_max_cycles.push(numberValue("EQ_DebugLcdCategoryMaxCycles[" + key + "]"));
+        state.lcd_category_count.push(testStage == "CrossfadeA" ? null :
+            numberValue("EQ_DebugLcdCategoryCount[" + key + "]"));
+        state.lcd_category_max_cycles.push(testStage == "CrossfadeA" ? null :
+            numberValue("EQ_DebugLcdCategoryMaxCycles[" + key + "]"));
     }
+    state.flag_ad = optionalNumberValue("FLAG_AD");
+    state.flag_da = optionalNumberValue("FLAG_DA");
+    state.cpu_ier = optionalNumberValue("IER");
+    state.edma_event_enable = optionalNumberValue(
+        "*((unsigned int *)0x01C01020)");
+    state.edma_interrupt_enable = optionalNumberValue(
+        "*((unsigned int *)0x01C01050)");
     return state;
 }
 
@@ -179,12 +202,31 @@ function delta(after, before, name) {
 }
 
 function writeResult(name, label, durationMs, before, after, detail) {
+    var metrics = null;
+    if (after != null && before != null &&
+        typeof after.ad_frames != "undefined" &&
+        typeof before.ad_frames != "undefined") {
+        metrics = {
+            algo_max_cycles: after.algo_max_cycles,
+            frame_service_max_cycles: after.frame_service_max_cycles,
+            frame_latency_max_cycles: after.frame_latency_max_cycles,
+            deadline_delta: delta(after, before, "deadline_miss"),
+            latency_deadline_delta: delta(after, before, "latency_deadline_miss"),
+            overlap_delta: delta(after, before, "service_overlap"),
+            dropped_delta: delta(after, before, "service_dropped"),
+            clip_delta: delta(after, before, "clip_count"),
+            ad_delta: delta(after, before, "ad_frames"),
+            da_delta: delta(after, before, "da_frames"),
+            process_delta: delta(after, before, "process_frames")
+        };
+    }
     results.write(jsonStringify({
         stage: name,
         result_label: label,
         duration_ms: durationMs,
         before: before,
         after: after,
+        metrics: metrics,
         detail: detail || ""
     }) + "\n");
     results.flush();
@@ -215,10 +257,18 @@ function checkCommon(name, before, after) {
                      name + ": unexpected LCD full redraw increased");
     requireCondition(delta(after, before, "lcd_budget_exceeded") == 0,
                      name + ": LCD budget-exceeded count increased");
+    requireCondition(after.algo_max_cycles < FRAME_BUDGET_CYCLES,
+                     name + ": algorithm maximum exceeds budget");
     requireCondition(after.frame_service_max_cycles < FRAME_BUDGET_CYCLES,
                      name + ": frame service maximum exceeds budget");
     requireCondition(after.frame_latency_max_cycles < FRAME_BUDGET_CYCLES,
                      name + ": frame latency maximum exceeds budget");
+}
+
+function clearDiagnosticPeaks() {
+    write("EQ_DebugAlgoMaxCycles = 0");
+    write("EQ_DebugFrameServiceMaxCycles = 0");
+    write("EQ_DebugFrameLatencyMaxCycles = 0");
 }
 
 function runFor(milliseconds) {
@@ -240,6 +290,11 @@ function runWindow(name, durationMs, label, extraCheck, detail) {
     }
     writeResult(name, label, durationMs, before, after, detail);
     return after;
+}
+
+function runMeasuredWindow(name, durationMs, label, extraCheck, detail) {
+    clearDiagnosticPeaks();
+    return runWindow(name, durationMs, label, extraCheck, detail);
 }
 
 function setPath(path, mode) {
@@ -314,6 +369,110 @@ function checkSettledRbj(before, after) {
                      "settled RBJ response path is neither identity nor active bank");
     requireCondition(after.response_transition_active == 0,
                      "RBJ return transition did not settle");
+}
+
+function checkPresetSettled(expectedMode) {
+    return function(before, after) {
+        var expectedPath = expectedMode == 0 ? 3 : 5;
+        requireCondition(after.applied_mode == expectedMode,
+                         "applied preset mismatch expected=" + expectedMode +
+                         " actual=" + after.applied_mode);
+        requireCondition(after.response_active_path == expectedPath,
+                         "settled preset path mismatch expected=" + expectedPath +
+                         " actual=" + after.response_active_path);
+        requireCondition(after.response_transition_active == 0,
+                         "preset transition did not settle");
+        requireCondition(after.applied_token == after.target_token &&
+                         after.applied_token == after.installed_token,
+                         "applied/target/installed token mismatch");
+    };
+}
+
+function runInitializationDiagnostic() {
+    var before = snapshot();
+    var after;
+    var detail = "milestones:1=flow,2=ADC init returned,3=DAC init returned," +
+        "4=equalizer/cache ready,5=runtime ready,6=ADC started," +
+        "7=DAC started,8=loop,9=first AD,10=first process,11=first DA";
+    runFor(2000);
+    after = snapshot();
+    try {
+        requireCondition(after.init_stage == 11,
+                         "initialization milestone stopped at " + after.init_stage);
+        requireCondition(delta(after, before, "ad_frames") > 0 &&
+                         delta(after, before, "da_frames") > 0 &&
+                         delta(after, before, "process_frames") > 0,
+                         "initialization frame counters did not grow");
+        requireCondition(Math.abs(delta(after, before, "ad_frames") -
+                                  delta(after, before, "da_frames")) <= 1 &&
+                         Math.abs(delta(after, before, "ad_frames") -
+                                  delta(after, before, "process_frames")) <= 1,
+                         "initialization AD/DA/process frame mismatch");
+    } catch (error) {
+        writeResult("target_initialization", LABEL_FAIL, 2000,
+                    before, after, String(error));
+        throw error;
+    }
+    writeResult("target_initialization", LABEL_BOARD, 2000,
+                before, after, detail);
+    return after;
+}
+
+function runCrossfadeA() {
+    var cycle;
+    write("EQ_DebugLcdRuntimeMask = 0");
+    requestAudio("tone");
+    setPath(4, 0);
+    for (cycle = 1; cycle <= 3; cycle++) {
+        write("EQ_DebugMode = 0");
+        runMeasuredWindow("CrossfadeA_" + cycle + "_FLAT_before", 20000,
+                          LABEL_BOARD, checkPresetSettled(0),
+                          "cycle=" + cycle + ";FLAT stable");
+        write("EQ_DebugMode = 1");
+        runMeasuredWindow("CrossfadeA_" + cycle + "_BASS", 20000,
+                          LABEL_BOARD, checkPresetSettled(1),
+                          "cycle=" + cycle + ";FLAT>BASS");
+        write("EQ_DebugMode = 0");
+        runMeasuredWindow("CrossfadeA_" + cycle + "_FLAT_after", 20000,
+                          LABEL_BOARD, checkPresetSettled(0),
+                          "cycle=" + cycle + ";BASS>FLAT");
+    }
+}
+
+function runLcdStatusOnly() {
+    write("EQ_DebugLcdRuntimeMask = 1");
+    requestAudio("music");
+    runMeasuredWindow("F_LCD_STATUS", 60000, LABEL_BOARD,
+        function(before, after) {
+            requireCondition(after.lcd_enabled == 1 && after.lcd_runtime_mask == 1,
+                             "LCD STATUS runtime mask mismatch");
+            requireCondition(delta(after, before, "lcd_job_count") > 0,
+                             "LCD STATUS jobs did not run");
+            requireCondition(after.lcd_max_job_cycles <= LCD_HARD_CYCLES,
+                             "LCD STATUS job exceeded hard 5 ms limit");
+        }, "STATUS only;no builder or additional LCD load");
+}
+
+function runFullValidation() {
+    requestAudio("tone");
+    runAudioMatrix("TONE_1K_-18DBFS");
+    requireCondition(numberValue("EQ_DebugInputPeak") > 0 &&
+                     numberValue("EQ_DebugOutputPeak") > 0,
+                     "audio input/output peak was not observed");
+    requestAudio("music");
+    runAudioMatrix("MUSIC");
+    runFixedPresetCache();
+    runCustomBuilder();
+    runLatestWins();
+    runIdentityReturns();
+    runLcdSharedBudget();
+    runSwitching("G_mode_switch_5s", 5000);
+    runSwitching("G_mode_switch_2s", 2000);
+    runWindow("H_stability_5min", 300000, LABEL_BOARD, function(before, after) {
+        requireCondition(after.lcd_runtime_mask == 3 &&
+                         delta(after, before, "lcd_job_count") > 0,
+                         "stability LCD BOTH did not remain active");
+    }, "music;LCD BOTH;no control writes during window");
 }
 
 function runAudioMatrix(prefix) {
@@ -486,28 +645,16 @@ try {
     debugSession.target.reset();
     debugSession.memory.loadProgram(program);
     verifyBuildIdentity();
-    runWindow("target_initialization", 1000, LABEL_BOARD, null,
-              "run to initialized Project 3.3 audio loop before control writes");
-
-    requestAudio("tone");
-    runAudioMatrix("TONE_1K_-18DBFS");
-    requireCondition(numberValue("EQ_DebugInputPeak") > 0 &&
-                     numberValue("EQ_DebugOutputPeak") > 0,
-                     "audio input/output peak was not observed");
-    requestAudio("music");
-    runAudioMatrix("MUSIC");
-    runFixedPresetCache();
-    runCustomBuilder();
-    runLatestWins();
-    runIdentityReturns();
-    runLcdSharedBudget();
-    runSwitching("G_mode_switch_5s", 5000);
-    runSwitching("G_mode_switch_2s", 2000);
-    runWindow("H_stability_5min", 300000, LABEL_BOARD, function(before, after) {
-        requireCondition(after.lcd_runtime_mask == 3 &&
-                         delta(after, before, "lcd_job_count") > 0,
-                         "stability LCD BOTH did not remain active");
-    }, "music;LCD BOTH;no control writes during window");
+    runInitializationDiagnostic();
+    if (testStage == "CrossfadeA") {
+        runCrossfadeA();
+    } else if (testStage == "LcdStatus") {
+        runLcdStatusOnly();
+    } else if (testStage == "Full") {
+        runFullValidation();
+    } else {
+        throw "unsupported validation stage: " + testStage;
+    }
     writeResult("subjective_speaker_observation",
                 operatorStatus == LABEL_SUBJECTIVE ? LABEL_SUBJECTIVE :
                                                      LABEL_NOT_OBSERVED,
@@ -517,6 +664,7 @@ try {
     summary.write(jsonStringify({
         result_label: LABEL_BOARD,
         commit_sha: expectedSha,
+        stage: testStage,
         dirty: 0,
         operator_status: operatorStatus,
         operator_notes: operatorNotes,
@@ -526,10 +674,13 @@ try {
     completed = true;
 } catch (error) {
     try {
+        var failureState = {};
+        try { failureState = snapshot(); } catch (snapshotError) {}
         if (results != null) writeResult("hardware_validation", LABEL_FAIL, 0, {}, {}, String(error));
         var failed = new FileWriter(summaryPath, false);
         failed.write(jsonStringify({result_label: LABEL_FAIL, error: String(error),
-                                     commit_sha: expectedSha}) + "\n");
+                                     commit_sha: expectedSha, stage: testStage,
+                                     final_state: failureState}) + "\n");
         failed.close();
     } catch (writeError) {}
     System.err.println("DSS_ERROR=" + error);

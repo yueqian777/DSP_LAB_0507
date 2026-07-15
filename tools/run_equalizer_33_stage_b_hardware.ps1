@@ -3,6 +3,8 @@ param(
     [string]$CcsRoot = "D:\SoftwareDownload\CCS_20.5.0.00028_win\ccs",
     [ValidateRange(1, 20)]
     [int]$DssTimeoutMinutes = 20,
+    [ValidateSet("CrossfadeA", "LcdStatus", "Full")]
+    [string]$Stage = "CrossfadeA",
     [ValidateSet("SUBJECTIVE_SPEAKER_OBSERVATION", "FAIL", "NOT_OBSERVED")]
     [string]$OperatorStatus = "NOT_OBSERVED",
     [string]$OperatorNotes = ""
@@ -58,7 +60,7 @@ foreach ($required in @($dss, $program, $linkInfo, $ccxml, $script)) {
 $head = (& git -C $root rev-parse HEAD).Trim()
 $shortSha = $head.Substring(0, 7)
 $stamp = Get-Date -Format "yyyyMMdd_HHmmss"
-$resultDir = Join-Path $env:TEMP "DSP_LAB_0507\equalizer_33_stage_b\${shortSha}_$stamp"
+$resultDir = Join-Path $env:TEMP "DSP_LAB_0507\equalizer_33_stage_b\${shortSha}_${Stage}_$stamp"
 $syncDir = Join-Path $resultDir "audio_sync"
 $tonePath = Join-Path $resultDir "tone_1khz_-18dbfs_50khz.wav"
 $musicPath = Join-Path $resultDir "music_like_-18dbfs_50khz.wav"
@@ -108,6 +110,7 @@ Write-MonoWave -Path $musicPath -Seconds 5 -Sample {
     operator_status = $OperatorStatus
     operator_notes = $OperatorNotes
     timeout_minutes = $DssTimeoutMinutes
+    stage = $Stage
 } | ConvertTo-Json | Set-Content -Encoding utf8 (Join-Path $resultDir "provenance.json")
 
 try {
@@ -147,6 +150,7 @@ try {
     $env:DSP_TEST_EXPECTED_SHA = $shortSha
     $env:DSP_TEST_OPERATOR_STATUS = $OperatorStatus
     $env:DSP_TEST_OPERATOR_NOTES = $OperatorNotes
+    $env:DSP_TEST_STAGE = $Stage
 
     $stdout = Join-Path $resultDir "dss_stdout.log"
     $stderr = Join-Path $resultDir "dss_stderr.log"
@@ -183,5 +187,5 @@ finally {
     Remove-Item Env:DSP_TEST_ROOT, Env:DSP_TEST_CCXML, Env:DSP_TEST_PROGRAM,
         Env:DSP_TEST_RESULT_DIR, Env:DSP_TEST_AUDIO_SYNC_DIR,
         Env:DSP_TEST_EXPECTED_SHA, Env:DSP_TEST_OPERATOR_STATUS,
-        Env:DSP_TEST_OPERATOR_NOTES -ErrorAction SilentlyContinue
+        Env:DSP_TEST_OPERATOR_NOTES, Env:DSP_TEST_STAGE -ErrorAction SilentlyContinue
 }

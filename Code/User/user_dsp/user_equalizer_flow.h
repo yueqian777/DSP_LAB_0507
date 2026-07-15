@@ -68,6 +68,10 @@ typedef struct
 extern volatile unsigned long EQ_DebugAdFrames;
 extern volatile unsigned long EQ_DebugDaFrames;
 extern volatile unsigned long EQ_DebugProcessFrames;
+/* 1 flow; 2 ADC init; 3 DAC init; 4 EQ/cache; 5 runtime ready;
+ * 6 ADC start; 7 DAC start; 8 loop; 9 first AD; 10 process; 11 DA. */
+extern volatile unsigned long EQ_DebugInitStage;
+extern volatile unsigned int EQ_DebugFlagAdDone;
 extern volatile unsigned long EQ_DebugAlgoLastCycles;
 extern volatile unsigned long EQ_DebugAlgoMaxCycles;
 extern volatile float EQ_DebugAlgoLastMs;
