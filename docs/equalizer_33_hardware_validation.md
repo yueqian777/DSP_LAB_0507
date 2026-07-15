@@ -4,8 +4,11 @@
 
 **Repository:** `main`
 
-**Current implementation commit before this report:**
-`70a5bd1d7c07b3861700bb8ed458c74c904c259a`
+**Current local implementation commit:**
+`0440347dbbacb39ee947a4500f6b99664edcacc4`
+
+**Current remote baseline:**
+`d8c48e504d5865518d5fea9410024bb466ccadcf`
 
 **Current status:** Partial `MEASURED_ON_CURRENT_BOARD`; final initialization
 `FAIL`; remaining LCD and endurance work `PENDING_HARDWARE`.
@@ -34,13 +37,13 @@ Generated WAV, JSON, and DSS logs remain under the temporary directory
 | `equalizer_control_test` | `HOST_VERIFIED`, `failures=0` |
 | `equalizer_response_test` | `HOST_VERIFIED`, `failures=0` |
 | Original equalizer evaluator | `HOST_VERIFIED`, `failures=0` |
-| Project 3.3 Python contracts | `HOST_VERIFIED`, 56 tests, `OK` |
+| Project 3.3 Python contracts | `HOST_VERIFIED`, 66 tests, `OK` |
 | Project 32 CCS build | `CCS_BUILD_VERIFIED`, warning=0, link error=0 |
 | Project 33 LCD OFF CCS build | `CCS_BUILD_VERIFIED`, warning=0, link error=0 |
 | Project 33 LCD ON CCS build | `CCS_BUILD_VERIFIED`, warning=0, link error=0 |
 
 The current Project 33 LCD ON output had build identity
-`P33_FIX_V5`, SHA `70a5bd1`, dirty=0, and the link XML reported
+`P33_FIX_V5`, SHA `0440347`, dirty=0, and the link XML reported
 `<link_errors>0x0</link_errors>`.
 
 ## 3. Failures and bounded fixes
@@ -51,11 +54,11 @@ overlap +1, dropped +1, clip +0, and maximum algorithm time 13,342,039 cycles
 (29.259 ms at 456 MHz). The active and pending ten-section banks were both
 processed during crossfade from DDR2.
 
-Commit `6cd5fd8` keeps both bank calculations and the 120 ms transition, fuses
-the pair processing without changing each bank's arithmetic order, and places
-the Project 3.3 board state in the existing `.subband_l2` section. A Host
-sample-equivalence regression covers FLAT->BASS and BASS->VOCAL. The section is
-conditional on Project 33, so Project 32 placement is unchanged.
+Commit `6cd5fd8` keeps both bank calculations and the 120 ms transition. The
+measured improvement is attributed to **fused dual-bank execution together
+with internal-L2 EQ state placement**, not to the fused loop alone. A Host
+sample-equivalence regression covers FLAT->BASS and BASS->VOCAL. The placement
+is conditional on Project 33, so Project 32 placement is unchanged.
 
 LCD STATUS later recorded 2,316,982 cycles (5.081 ms), exceeding the 2,280,000
 cycle hard limit. Auto-disable and budget-exceeded each increased by one,
@@ -64,12 +67,36 @@ pixels; no coordinates, gain bars, font, or audio scheduling were changed.
 This final LCD change compiled and linked but did not receive a completed board
 window because of the initialization failure in Section 7.
 
+### 3.1 Intermediate-build reproducibility audit
+
+The two successful measurement commits remain available only through this
+checkout's local reflog:
+
+| Build | Full commit | Tree | Reachable from `origin/main` |
+| --- | --- | --- | --- |
+| Stage A success | `2a89458867c3b98245c405fc008337caa5696771` | `0be3aae2c60f778c9ab392ef6743ba98b6add3d0` | No |
+| LCD STATUS failure | `06d473621033c7990e56233751b537e1c75d6215` | `16beb0f653402b64432150e67d88a3c7ebb1784e` | No |
+
+Both are `NON_REMOTE_INTERMEDIATE_BUILD` and
+`NOT_REPRODUCIBLE_FROM_CURRENT_REMOTE_HISTORY`. Their measurements remain
+evidence for those exact loaded commits only. They are not described as a
+current-remote pass.
+
+`2a89458..70a5bd1` changes only the Stage B DSS runner (16 lines). The full
+`2a89458..0440347` diff contains 43 files and 65,312 insertions because later
+Project 3.2 THD and memory-audit work is also present. Restricted to Project
+3.3 equalizer/runner paths, the current difference is five files with 369
+insertions and 31 deletions; RBJ mathematics, the fused loop, L2 EQ state,
+presets, preamp, crossfade, builder, and mailbox are unchanged.
+
 ## 4. Stage A: LCD OFF audio baseline
 
-Build `2a89458`, identity `P33_FIX_V5`, dirty=0, completed all twelve 20-second
-windows: 1 kHz -18 dBFS and music-like input, each through RAW_COPY,
+Build `2a89458867c3b98245c405fc008337caa5696771`, identity `P33_FIX_V5`,
+dirty=0, completed all twelve 20-second windows: 1 kHz -18 dBFS and music-like input, each through RAW_COPY,
 FLOAT_COPY, FLAT, BASS, VOCAL, and custom
 `[-3,-1,1,3,4,2,0,-2,1,3] dB`.
+
+**Build provenance:** `NON_REMOTE_INTERMEDIATE_BUILD`
 
 **Result:** `MEASURED_ON_CURRENT_BOARD`
 
@@ -104,10 +131,13 @@ so they are control-function evidence, not continuous real-time evidence.
 
 ## 6. Stage F: LCD and shared budget
 
-The STATUS run on build `06d4736` completed its 60-second observation window
+The STATUS run on build
+`06d473621033c7990e56233751b537e1c75d6215` completed its 60-second observation window
 with AD/DA/process each +2,924 and zero deadline, latency-deadline, overlap,
 dropped, and clip deltas. It also completed 43 builder slices. However, the
 first STATUS job exceeded the LCD hard budget and auto-disabled LCD.
+
+**Build provenance:** `NON_REMOTE_INTERMEDIATE_BUILD`
 
 **STATUS result:** `FAIL`
 
@@ -116,18 +146,57 @@ first STATUS job exceeded the LCD hard budget and auto-disabled LCD.
 **GAINS and BOTH:** `PENDING_HARDWARE` because the rule requires stopping after
 STATUS fails and the final build did not initialize on the subsequent attempts.
 
-## 7. Final-build initialization failure
+## 7. Final and current-build initialization failures
 
-The final runner commit `70a5bd1` compiled and linked with dirty=0. DSS read the
-expected build identity after each load. On two bounded attempts, the initial
-one-second run left AD/DA/process at 0/0/0. The runner labeled
-`target_initialization` as `FAIL`, halted once, stopped PC audio, disconnected
-and terminated the debug session, and did not enter Stage A.
+The final runner commit `70a5bd1d7c07b3861700bb8ed458c74c904c259a`
+compiled and linked with dirty=0. DSS read the expected build identity after
+each load. On two bounded attempts, the initial one-second run left
+AD/DA/process at 0/0/0. The runner labeled `target_initialization` as `FAIL`,
+halted once, stopped PC audio, disconnected, and did not enter Stage A.
+
+The remote baseline had advanced from the requested `a2205a1` to `d8c48e5`
+before the reproduction audit began. A staged runner and one-time milestone
+were committed on top. The first bounded diagnostic load reached milestone 11
+and AD/DA/process 53/53/53. CPU IER was `0x8663`; EDMA event-enable and
+interrupt-enable each contained bit 29. The harness stopped before CrossfadeA
+because the initialization snapshot exposed a corrupted latency-miss value.
+
+The value was `0xC002CC00`, exactly the address of `callback_adc` in that map.
+The linked `cb_Fxn` object has size four bytes, while ADC initialization stores
+`cb_Fxn[29]`; the destination was the latency-miss diagnostic address in that
+intermediate layout. This is an existing EDMA callback-table out-of-bounds
+write. The ADC/EDMA driver was not changed because it is explicitly outside
+this task. The final milestone variables are placed in Project 3.3
+`.subband_l2` so this new instrumentation does not participate in DDR global
+layout; the final map still records the pre-existing callback-table overrun
+risk separately: `cb_Fxn` is at `0xC0019598`, and slot 29 resolves to
+`0xC001960C`, the address of `EQ_DebugFrameServiceDroppedCount`.
+
+The second and final bounded diagnostic load used build identity `527c867`,
+dirty=0. It stopped at milestone 8: flow entered, ADC and DAC init returned,
+Equalizer initialization and fixed-preset cache completed, ADC and DAC start
+returned, and the main loop was entered. After two seconds:
+
+| Diagnostic | Value |
+| --- | ---: |
+| `FLAG_AD` | 0 |
+| `FLAG_DA` | 1 |
+| `flag_ad_done` mirror | 0 |
+| AD/DA/process frames | 0 / 0 / 0 |
+| CPU IER | `0x8663` |
+| EDMA event-enable | `0x20000000` |
+| EDMA interrupt-enable | `0x20000000` |
+
+The concrete stop point is after both start calls and main-loop entry but
+before the first ADC EDMA completion/`FLAG_AD`. DAC completion was observed via
+`FLAG_DA=1`. No FLAT/BASS window ran, so all three current-build AlgoMax,
+FrameServiceMax, FrameLatencyMax, safety deltas, and frame deltas are
+`NOT_OBSERVED`. No further reset, reload, power cycle, LCD STATUS, or Full stage
+was attempted.
 
 The same GEL log line, `PSC0 Enable Verify Timeout on Domain 0, LPSC 6`, had
 also appeared in earlier runs that did produce frames, so it is recorded but
-is not by itself assigned as the root cause. After the repeated identical
-failure, no further reset or reload was attempted.
+is not by itself assigned as the root cause.
 
 Multiple bounded reset/load attempts occurred during the campaign while
 isolating the crossfade and LCD failures. No DSS timeout or persistent Debug
@@ -138,6 +207,8 @@ remain visible in the temporary evidence directories.
 
 | Item | Status |
 | --- | --- |
+| Remote baseline plus local staged-runner CrossfadeA reproduction | `FAIL` at initialization milestone 8 |
+| Three current-build FLAT->BASS->FLAT cycles | `NOT_OBSERVED` |
 | LCD STATUS with final 168-pixel clear width | `PENDING_HARDWARE` |
 | LCD GAINS and BOTH 60-second windows | `PENDING_HARDWARE` |
 | Builder/LCD alternation on the final build | `PENDING_HARDWARE` |
