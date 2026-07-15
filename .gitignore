@@ -22,6 +22,10 @@ compare_*.wav
 *.mp3
 *.raw
 
+# Reproducible THD outputs are generated locally; keep only the directory.
+/results/thd/*
+!/results/thd/.gitkeep
+
 # OS/editor noise
 .DS_Store
 Thumbs.db
