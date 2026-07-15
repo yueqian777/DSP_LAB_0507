@@ -31,6 +31,10 @@ static short EQ_AD_Buffer6[ADC_SAMPLE_1024];
 static short EQ_AD_Buffer7[ADC_SAMPLE_1024];
 static short EQ_AD_Buffer8[ADC_SAMPLE_1024];
 static short EQ_DA_Buffer1[DAC_SAMPLE_1024];
+#if (defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)) && \
+    defined(DSP_LAB_PROJECT_SELECT) && (DSP_LAB_PROJECT_SELECT == 33)
+#pragma DATA_SECTION(EQ_BoardState, ".subband_l2")
+#endif
 static EQ_STATE EQ_BoardState;
 static EQ_CONTROL_STATE EQ_BoardControl;
 static EQ_BACKGROUND_SERVICE_STATE EQ_BackgroundService;

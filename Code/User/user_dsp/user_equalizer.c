@@ -1163,18 +1163,67 @@ static float EQ_ProcessRbjBank(EQ_FILTER_BANK *bank, float x)
     return y;
 }
 
+static void EQ_ProcessRbjBankPair(EQ_FILTER_BANK *active_bank,
+                                  EQ_FILTER_BANK *pending_bank,
+                                  float x,
+                                  float *active_out,
+                                  float *pending_out)
+{
+    float active;
+    float pending;
+    int section;
+
+    active = x * active_bank->preamp_gain;
+    pending = x * pending_bank->preamp_gain;
+    for (section = 0; section < EQ_NUM_BANDS; section++)
+    {
+        const EQ_BIQUAD *active_coeff = &active_bank->section[section];
+        const EQ_BIQUAD *pending_coeff = &pending_bank->section[section];
+        float active_section = active_coeff->b0 * active +
+                               active_bank->s1[section];
+        float pending_section = pending_coeff->b0 * pending +
+                                pending_bank->s1[section];
+
+        active_bank->s1[section] =
+            active_coeff->b1 * active -
+            active_coeff->a1 * active_section +
+            active_bank->s2[section];
+        pending_bank->s1[section] =
+            pending_coeff->b1 * pending -
+            pending_coeff->a1 * pending_section +
+            pending_bank->s2[section];
+        active_bank->s2[section] =
+            active_coeff->b2 * active -
+            active_coeff->a2 * active_section;
+        pending_bank->s2[section] =
+            pending_coeff->b2 * pending -
+            pending_coeff->a2 * pending_section;
+        active = active_section;
+        pending = pending_section;
+    }
+    *active_out = active;
+    *pending_out = pending;
+}
+
 static float EQ_ProcessRbjSample(EQ_STATE *st, float x)
 {
     float active;
 
-    active = (st->transition_kind == EQ_TRANSITION_DRY_TO_BANK) ? x :
-             EQ_ProcessRbjBank(&st->active_bank, x);
     if (st->pending_bank_valid != 0)
     {
         float pending;
         float mix;
 
-        pending = EQ_ProcessRbjBank(&st->pending_bank, x);
+        if (st->transition_kind == EQ_TRANSITION_DRY_TO_BANK)
+        {
+            active = x;
+            pending = EQ_ProcessRbjBank(&st->pending_bank, x);
+        }
+        else
+        {
+            EQ_ProcessRbjBankPair(&st->active_bank, &st->pending_bank,
+                                  x, &active, &pending);
+        }
         mix = 1.0f - (float)st->transition_remaining /
                       (float)st->transition_total;
         if (mix < 0.0f)
@@ -1214,6 +1263,10 @@ static float EQ_ProcessRbjSample(EQ_STATE *st, float x)
                 st->mode_change_count++;
             }
         }
+    }
+    else
+    {
+        active = EQ_ProcessRbjBank(&st->active_bank, x);
     }
     return active;
 }

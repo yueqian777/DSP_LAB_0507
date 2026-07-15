@@ -106,6 +106,124 @@ static void test_transition_and_immutability(void)
     CHECK(pending.identity == 0);
 }
 
+static float reference_process_bank(EQ_FILTER_BANK *bank, float input)
+{
+    float value;
+    int section;
+
+    value = input * bank->preamp_gain;
+    for (section = 0; section < EQ_NUM_BANDS; section++)
+    {
+        const EQ_BIQUAD *coeff = &bank->section[section];
+        float output = coeff->b0 * value + bank->s1[section];
+
+        bank->s1[section] = coeff->b1 * value - coeff->a1 * output +
+                            bank->s2[section];
+        bank->s2[section] = coeff->b2 * value - coeff->a2 * output;
+        value = output;
+    }
+    return value;
+}
+
+static float reference_process_transition_sample(EQ_STATE *state,
+                                                 float input)
+{
+    float active;
+
+    if (state->pending_bank_valid == 0)
+    {
+        return reference_process_bank(&state->active_bank, input);
+    }
+    active = reference_process_bank(&state->active_bank, input);
+    {
+        float pending = reference_process_bank(&state->pending_bank, input);
+        float mix = 1.0f - (float)state->transition_remaining /
+                              (float)state->transition_total;
+
+        active += (pending - active) * mix;
+    }
+    state->transition_remaining--;
+    if (state->transition_remaining <= 0)
+    {
+        state->active_bank = state->pending_bank;
+        state->active_bank_id = state->pending_bank_id;
+        state->active_preset = state->pending_preset;
+        state->active_generation = state->pending_generation;
+        memcpy(state->active_gain_db, state->pending_gain_db,
+               sizeof(state->active_gain_db));
+        memset(&state->pending_bank, 0, sizeof(state->pending_bank));
+        state->pending_bank_valid = 0;
+        state->pending_bank_id = EQ_RBJ_BANK_CUSTOM;
+        state->pending_preset = EQ_PRESET_NONE;
+        state->pending_generation = 0UL;
+        memset(state->pending_gain_db, 0, sizeof(state->pending_gain_db));
+        state->transition_remaining = 0;
+        state->transition_total = 0;
+        state->transition_kind = EQ_TRANSITION_NONE;
+    }
+    return active;
+}
+
+static void check_bank_pair_transition(int active_preset, int target_preset)
+{
+    EQ_STATE actual;
+    EQ_STATE reference;
+    float input[EQ_FRAME_LEN];
+    float actual_output[EQ_FRAME_LEN];
+    float expected_output[EQ_FRAME_LEN];
+    int frame;
+    int sample;
+    int section;
+
+    Equalizer_Init(&actual);
+    if (active_preset != EQ_PRESET_FLAT)
+    {
+        Equalizer_ApplyPreset(&actual, active_preset);
+        settle(&actual);
+    }
+    Equalizer_ApplyPreset(&actual, target_preset);
+    CHECK(actual.pending_bank_valid == 1);
+    CHECK(actual.transition_kind == EQ_TRANSITION_BANK_TO_BANK);
+    reference = actual;
+    frame = 0;
+    while ((actual.pending_bank_valid != 0) && (frame < 8))
+    {
+        for (sample = 0; sample < EQ_FRAME_LEN; sample++)
+        {
+            float position = (float)(frame * EQ_FRAME_LEN + sample);
+
+            input[sample] = 0.45f * sinf(position * 0.071f) +
+                            0.10f * cosf(position * 0.193f);
+            expected_output[sample] = reference_process_transition_sample(
+                &reference, input[sample]);
+        }
+        Equalizer_ProcessFrameFloat(&actual, input, actual_output,
+                                    EQ_FRAME_LEN);
+        for (sample = 0; sample < EQ_FRAME_LEN; sample++)
+        {
+            CHECK(fabsf(actual_output[sample] - expected_output[sample]) <
+                  1.0e-6f);
+        }
+        frame++;
+    }
+    CHECK(actual.pending_bank_valid == 0);
+    CHECK(reference.pending_bank_valid == 0);
+    CHECK(actual.transition_remaining == reference.transition_remaining);
+    for (section = 0; section < EQ_NUM_BANDS; section++)
+    {
+        CHECK(fabsf(actual.active_bank.s1[section] -
+                    reference.active_bank.s1[section]) < 1.0e-6f);
+        CHECK(fabsf(actual.active_bank.s2[section] -
+                    reference.active_bank.s2[section]) < 1.0e-6f);
+    }
+}
+
+static void test_bank_pair_transition_matches_reference(void)
+{
+    check_bank_pair_transition(EQ_PRESET_FLAT, EQ_PRESET_BASS_BOOST);
+    check_bank_pair_transition(EQ_PRESET_BASS_BOOST, EQ_PRESET_VOCAL);
+}
+
 static void test_command_and_prepared_snapshots(void)
 {
     static const float custom[EQ_NUM_BANDS] =
@@ -402,6 +520,7 @@ int main(int argc, char **argv)
 {
     test_identity_paths();
     test_transition_and_immutability();
+    test_bank_pair_transition_matches_reference();
     test_command_and_prepared_snapshots();
     if ((argc == 3) && (strcmp(argv[1], "--export") == 0))
     {
