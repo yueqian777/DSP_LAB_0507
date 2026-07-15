@@ -111,6 +111,28 @@ Keep the UI static. Do not touch the screen or run dynamic/high-frequency UI
 refresh during recording. Confirm Mode 1, denoise off, codec loopback off,
 all band gains `1.0`, and no EQ path.
 
+## Board-executed JTAG digital path (no PC soundcard)
+
+When use of the PC playback/recording device is prohibited, run the dedicated
+compile-time harness:
+
+```powershell
+.\tools\run_wola_thd_board_suite.ps1
+```
+
+The runner requires a clean commit and matching generated build identity. It
+builds Project 3.2 with `SUBBAND_THD_BOARD_TEST=1`, loads the deterministic
+PCM16 stimulus into DDR through DSS/JTAG, runs 489 consecutive frames through
+the real C6748 `SubbandWOLA_ProcessFrame()` implementation, and exports the
+full DDR output through DSS/JTAG. The normal production build keeps
+`SUBBAND_THD_BOARD_TEST=0`.
+
+The digital board result is labelled
+`MEASURED_BOARD_DIGITAL_NO_ADC_DAC_ANALOG`. It proves execution on the C6748
+without using any Windows audio endpoint, but it intentionally bypasses the
+ADC, DAC, analog filters, connectors, and cables. It must not be relabelled as
+the full analog board result below.
+
 ## Signal-source/capture baseline
 
 Use the same source and capture setup later used for the DSP path:

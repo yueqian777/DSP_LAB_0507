@@ -22,6 +22,12 @@ from analyze_thd import (  # noqa: E402
     validate_finite,
 )
 from generate_thd_tones import SAMPLE_RATE, generate_suite  # noqa: E402
+from board_thd_results import (  # noqa: E402
+    INPUT_SAMPLES,
+    PROCESSED_SAMPLES,
+    decode_c6748_raw,
+    prepare_inputs,
+)
 
 
 def quantized_signal(components: list[tuple[float, float]], seconds: float = 2.0) -> np.ndarray:
@@ -111,6 +117,57 @@ class ThdAnalyzerTests(unittest.TestCase):
             result, _ = analyze_wav(path, 1000.0)
             self.assertEqual(result["analysis_start_s"], 1.0)
             self.assertEqual(result["analysis_end_s"], 9.0)
+
+    def test_board_jtag_input_is_zero_padded_without_soundcard(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            prepare_inputs(output, frequencies=(1000,))
+            raw = np.fromfile(output / "1000Hz" / "input_full.pcm16le", dtype="<i2")
+            _, pcm, _ = read_pcm16_mono(
+                output / "tones" / "thd_1000Hz_m12dBFS_50k_mono16_10s.wav"
+            )
+            self.assertEqual(len(pcm), INPUT_SAMPLES)
+            self.assertEqual(len(raw), PROCESSED_SAMPLES)
+            np.testing.assert_array_equal(raw[:INPUT_SAMPLES], pcm)
+            self.assertTrue(np.all(raw[INPUT_SAMPLES:] == 0))
+
+    def test_board_harness_is_compile_time_off_and_uses_real_wola(self) -> None:
+        repo = Path(__file__).resolve().parents[2]
+        header = (repo / "Code/User/user_dsp/user_subband_flow.h").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        flow = (repo / "Code/User/user_dsp/user_subband_flow.c").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        main = (repo / "Code/main.c").read_text(encoding="utf-8", errors="replace")
+        dss = (repo / "tools/dss/dss_wola_thd_board.js").read_text(encoding="utf-8")
+        runner = (repo / "tools/run_wola_thd_board_suite.ps1").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("#define SUBBAND_THD_BOARD_TEST 0", header)
+        self.assertIn("#if SUBBAND_THD_BOARD_TEST", main)
+        self.assertIn("Subband_THD_Board_Test_Example();", main)
+        self.assertIn("SubbandWOLA_ProcessFrame(", flow)
+        self.assertIn("JTAG memory transfer only; no PC soundcard", dss)
+        self.assertIn("memory.loadRaw", dss)
+        self.assertIn("memory.saveRaw", dss)
+        self.assertIn("SUBBAND_THD_OutputPacked", dss)
+        self.assertIn("processedSamples / 2, 32, false", dss)
+        self.assertIn("--define=EQ_USE_GENERATED_BUILD_ID=1", runner)
+
+    def test_c6748_jtag_capture_is_contiguous_pcm16le(self) -> None:
+        samples = np.array([0, 1, -1, 32767, -32768, 1234], dtype="<i2")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "capture.raw"
+            samples.tofile(path)
+            original_count = PROCESSED_SAMPLES
+            try:
+                import board_thd_results
+
+                board_thd_results.PROCESSED_SAMPLES = len(samples)
+                np.testing.assert_array_equal(decode_c6748_raw(path), samples)
+            finally:
+                board_thd_results.PROCESSED_SAMPLES = original_count
 
 
 if __name__ == "__main__":

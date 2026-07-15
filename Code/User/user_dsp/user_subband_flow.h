@@ -20,6 +20,11 @@
 #define SUBBAND_USE_LEGACY_FIR 0
 #endif
 
+/* JTAG-only board THD harness. The production Project 3.2 path keeps this off. */
+#ifndef SUBBAND_THD_BOARD_TEST
+#define SUBBAND_THD_BOARD_TEST 0
+#endif
+
 /* Keep the original FIR bank compiled as a test backend without making it
  * the default project path. */
 #ifndef SUBBAND_ENABLE_LEGACY_FIR_BACKEND
@@ -127,6 +132,28 @@ extern volatile int SUBBAND_DebugDaPeak;
 
 void Subband_Request_Codec_Target(int kbps);
 void Subband_Flow_Example(void);
+
+#if SUBBAND_THD_BOARD_TEST
+#define SUBBAND_THD_INPUT_SAMPLES       500000
+#define SUBBAND_THD_PROCESSED_SAMPLES   500736
+#define SUBBAND_THD_FRAME_COUNT         489
+#define SUBBAND_THD_STATUS_BOOT         0
+#define SUBBAND_THD_STATUS_WAITING      1
+#define SUBBAND_THD_STATUS_RUNNING      2
+#define SUBBAND_THD_STATUS_READY        3
+
+extern short SUBBAND_THD_Input[SUBBAND_THD_PROCESSED_SAMPLES];
+extern unsigned int SUBBAND_THD_OutputPacked[SUBBAND_THD_PROCESSED_SAMPLES / 2];
+extern volatile unsigned int SUBBAND_THD_DebugRequest;
+extern volatile unsigned int SUBBAND_THD_DebugStatus;
+extern volatile unsigned long SUBBAND_THD_DebugFrames;
+extern volatile unsigned long SUBBAND_THD_DebugCycleCount;
+extern volatile unsigned long SUBBAND_THD_DebugMaxFrameCycles;
+extern volatile const char SUBBAND_THD_DebugBuildGitSha[];
+extern volatile const int SUBBAND_THD_DebugBuildDirty;
+
+void Subband_THD_Board_Test_Example(void);
+#endif
 #endif
 
 #endif /* _USER_SUBBAND_FLOW_H_ */
