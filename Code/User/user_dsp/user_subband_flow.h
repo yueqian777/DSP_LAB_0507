@@ -142,9 +142,10 @@ void Subband_Flow_Example(void);
 #define SUBBAND_THD_STATUS_RUNNING      2
 #define SUBBAND_THD_STATUS_READY        3
 
-extern short SUBBAND_THD_Input[SUBBAND_THD_PROCESSED_SAMPLES];
+extern unsigned int SUBBAND_THD_InputPacked[SUBBAND_THD_PROCESSED_SAMPLES / 2];
 extern unsigned int SUBBAND_THD_OutputPacked[SUBBAND_THD_PROCESSED_SAMPLES / 2];
 extern volatile unsigned int SUBBAND_THD_DebugRequest;
+extern volatile unsigned int SUBBAND_THD_DebugFrequencyHz;
 extern volatile unsigned int SUBBAND_THD_DebugStatus;
 extern volatile unsigned long SUBBAND_THD_DebugFrames;
 extern volatile unsigned long SUBBAND_THD_DebugCycleCount;

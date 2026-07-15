@@ -7,7 +7,7 @@ importPackage(Packages.java.io);
 var root = env("DSP_TEST_ROOT", String(new File(".").getCanonicalPath()).replace(/\\/g, "/"));
 var ccxml = env("DSP_TEST_CCXML", root + "/TargetConfig/C6748.ccxml");
 var program = env("DSP_TEST_PROGRAM", root + "/Debug/DSP_LAB_0507.out");
-var inputRaw = env("DSP_TEST_INPUT_RAW", "");
+var inputCaptureRaw = env("DSP_TEST_CAPTURE_INPUT_RAW", "");
 var outputRaw = env("DSP_TEST_OUTPUT_RAW", "");
 var summaryPath = env("DSP_TEST_SUMMARY", "");
 var expectedSha = env("DSP_TEST_EXPECTED_SHA", "UNKNOWN");
@@ -37,7 +37,7 @@ function writeSummary(status, detail) {
         "\"frequency_hz\":" + quote(frequencyHz) + "," +
         "\"commit_sha\":" + quote(expectedSha) + "," +
         "\"uses_pc_soundcard\":false," +
-        "\"transport\":\"JTAG_DSS_MEMORY_LOAD_SAVE\"," +
+        "\"transport\":\"JTAG_DSS_MEMORY_SAVE\"," +
         "\"frames\":" + numberValue("SUBBAND_THD_DebugFrames") + "," +
         "\"cycle_count\":" + numberValue("SUBBAND_THD_DebugCycleCount") + "," +
         "\"max_frame_cycles\":" + numberValue("SUBBAND_THD_DebugMaxFrameCycles") + "," +
@@ -84,7 +84,7 @@ function addressOf(symbol) {
 try {
     requireCondition(new File(ccxml).exists(), "missing CCXML");
     requireCondition(new File(program).exists(), "missing program");
-    requireCondition(new File(inputRaw).exists(), "missing input raw");
+    requireCondition(inputCaptureRaw != "", "missing input capture path");
     requireCondition(summaryPath != "", "missing summary path");
     script = ScriptingEnvironment.instance();
     script.setScriptTimeout(10 * 60 * 1000);
@@ -101,7 +101,7 @@ try {
     var initialDirty = numberValue("SUBBAND_THD_DebugBuildDirty");
     var initialSha = readCString("SUBBAND_THD_DebugBuildGitSha", 16);
     requireCondition(initialStatus == 1,
-                     "firmware did not enter JTAG input wait state; status=" +
+                     "firmware did not enter JTAG trigger wait state; status=" +
                      initialStatus + ";dirty=" + initialDirty + ";sha=" +
                      initialSha);
     requireCondition(initialDirty == 0,
@@ -109,9 +109,7 @@ try {
     requireCondition(initialSha == expectedSha,
                      "firmware SHA does not match " + expectedSha);
 
-    debugSession.memory.loadRaw(Memory.Page.PROGRAM,
-                                addressOf("SUBBAND_THD_Input"), inputRaw,
-                                16, false);
+    evaluate("SUBBAND_THD_DebugFrequencyHz = " + parseInt(frequencyHz, 10));
     evaluate("SUBBAND_THD_DebugRequest = 1");
 
     var waited = 0;
@@ -125,10 +123,13 @@ try {
                      "board WOLA frame count mismatch");
 
     debugSession.memory.saveRaw(Memory.Page.PROGRAM,
+                                addressOf("SUBBAND_THD_InputPacked"), inputCaptureRaw,
+                                processedSamples / 2, 32, false);
+    debugSession.memory.saveRaw(Memory.Page.PROGRAM,
                                 addressOf("SUBBAND_THD_OutputPacked"), outputRaw,
                                 processedSamples / 2, 32, false);
     writeSummary("MEASURED_BOARD_DIGITAL_NO_ADC_DAC_ANALOG",
-                 "internal DDR PCM -> C6748 WOLA -> DDR PCM; no PC soundcard");
+                 "C6748-generated PCM -> C6748 WOLA -> DDR PCM; JTAG capture; no PC soundcard");
     completed = true;
 } catch (error) {
     try {

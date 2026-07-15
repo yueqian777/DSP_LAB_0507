@@ -121,10 +121,10 @@ compile-time harness:
 ```
 
 The runner requires a clean commit and matching generated build identity. It
-builds Project 3.2 with `SUBBAND_THD_BOARD_TEST=1`, loads the deterministic
-PCM16 stimulus into DDR through DSS/JTAG, runs 489 consecutive frames through
-the real C6748 `SubbandWOLA_ProcessFrame()` implementation, and exports the
-full DDR output through DSS/JTAG. The normal production build keeps
+builds Project 3.2 with `SUBBAND_THD_BOARD_TEST=1`; the C6748 generates and
+captures the deterministic PCM16 stimulus, runs 489 consecutive frames through
+the real C6748 `SubbandWOLA_ProcessFrame()` implementation, and exports both
+input and output DDR captures through DSS/JTAG. The normal production build keeps
 `SUBBAND_THD_BOARD_TEST=0`.
 
 The digital board result is labelled
