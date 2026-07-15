@@ -7,7 +7,9 @@
 **Integration:** Implemented and committed on main; remote repository contains
 the Host/CCS-verified implementation.
 
-**Hardware status:** `PENDING_HARDWARE`
+**Hardware status:** Partial `MEASURED_ON_CURRENT_BOARD`; final LCD validation
+and the five-minute run remain `PENDING_HARDWARE` after a recorded target
+initialization `FAIL`.
 
 The 2026-07-14 software verification ran the original Host evaluator, the
 control and response C harnesses, the 53 Project 3.3 Python contracts, and CCS
@@ -17,10 +19,20 @@ response reference measured a maximum C/Python shape error of
 `7.052204793467354e-07 dB`; all 100 cells in the 10 x 10 interaction matrix
 were finite. Generated CSV/PNG evidence was kept in temporary directories.
 
-This verification did not run DSS, download a program, measure builder cycles
-on C6748, run an LCD ON continuity test, or perform a speaker listening test.
-Those properties remain `PENDING_HARDWARE`; this document does not claim
-`MEASURED_ON_CURRENT_BOARD`.
+The bounded 2026-07-15 board campaign subsequently ran DSS against a connected
+TMS320C6748/XDS100v3 system. LCD-OFF audio windows, preset-cache behavior, and
+custom-builder execution have `MEASURED_ON_CURRENT_BOARD` evidence for their
+exact loaded builds. Debugger-written mailbox scenarios are labeled
+`DEBUG_CONTROL_FUNCTIONAL`, and the user's audible-output observation is
+separately labeled `SUBJECTIVE_SPEAKER_OBSERVATION`.
+
+The campaign also recorded an LCD STATUS budget `FAIL`. A narrower fixed status
+rectangle was compiled, but two bounded reload attempts of that final build
+then stopped at target initialization with zero AD/DA/process frames. Therefore
+LCD STATUS/GAINS/BOTH continuity, 5 s and 2 s switching, and the five-minute
+run remain `PENDING_HARDWARE`. See
+`docs/equalizer_33_hardware_validation.md`; no analog THD, SNR, frequency
+response, or SPL claim is made.
 
 ## 1. Objective
 
