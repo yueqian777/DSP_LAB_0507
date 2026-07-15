@@ -22,6 +22,10 @@ unsigned int edmaTC     = 0;
 unsigned int syncType   = EDMA3_SYNC_AB;
 unsigned int trigMode   = EDMA3_TRIG_MODE_EVENT;
 unsigned int evtQ_adc   = 0;
+volatile unsigned int ADC_EDMA_CallbackRegistrationError = 0u;
+
+typedef char ADC_EDMA_TccRangeCheck[
+    (EDMA3_NUM_TCC > EDMA3_CHA_GPIO_BNKINT5) ? 1 : -1];
 
 /* EDMA参数配置 */
 static struct EDMA3CCPaRAMEntry dmaPar[3] = {
@@ -103,12 +107,21 @@ static void RequestEDMA3Channels(void)
 // sampleLen 采样长度
 static void AD7606Edma3Init(unsigned int sampleLen)
 {
+    unsigned int i;
+    unsigned int *pCcount;
+
+    if (tccNum >= EDMA3_NUM_TCC)
+    {
+        ADC_EDMA_CallbackRegistrationError = 1u;
+        return;
+    }
+
+    ADC_EDMA_CallbackRegistrationError = 0u;
+
     // 注册回调函数
     cb_Fxn[tccNum] = &callback_adc;
 
     // 在调用EDMA3SetPaRAM之前，修改dmaPar中的CCOUNT
-    unsigned int i;
-    unsigned int *pCcount; // 指向CCOUNT字段的指针
     for (i = 0; i < 3; i++) {
         // 获取当前结构体中CCOUNT的地址
         pCcount = (unsigned int *)(&(dmaPar[i].cCnt));

@@ -26,7 +26,14 @@ static void Edma3CCErrHandlerIsr(void);
 /**
  * @brief EDMA 回调函数数组
  */
-void (*edma1_cb_Fxn[])(unsigned int tccNum, unsigned int status, void *appData);
+#if defined(__TI_COMPILER_VERSION__)
+#pragma RETAIN(edma1_cb_Fxn)
+#endif
+EDMA1_CALLBACK edma1_cb_Fxn[EDMA3_NUM_TCC] = {0};
+
+typedef char EDMA1_CallbackTableSizeCheck[
+    (sizeof(edma1_cb_Fxn) ==
+     EDMA3_NUM_TCC * sizeof(edma1_cb_Fxn[0])) ? 1 : -1];
 
 /**
  * @brief EDMA3 初始化函数
@@ -93,6 +100,7 @@ static void Edma3CCComplHandlerIsr(void)
 
     volatile unsigned int indexl;
     volatile unsigned int Cnt = 0;
+    EDMA1_CALLBACK callback;
     indexl = 1u;
 
     // 清除系统中断标志
@@ -111,11 +119,20 @@ static void Edma3CCComplHandlerIsr(void)
             {
                 if(TRUE == (pendingIrqs & 1u))
                 {
+                    callback = NULL;
+                    if (indexl < EDMA3_NUM_TCC)
+                    {
+                        callback = edma1_cb_Fxn[indexl];
+                    }
+
                     // 清除 IPR 相应位
                     EDMA3ClrIntr(SOC_EDMA31CC_0_REGS, indexl);
-                    
-                    // 调用回调函数
-                    (*edma1_cb_Fxn[indexl])(indexl, EDMA3_XFER_COMPLETE, NULL);
+
+                    // 调用已注册的回调函数
+                    if (callback != NULL)
+                    {
+                        callback(indexl, EDMA3_XFER_COMPLETE, NULL);
+                    }
                 }
                 ++indexl;
                 pendingIrqs >>= 1u;

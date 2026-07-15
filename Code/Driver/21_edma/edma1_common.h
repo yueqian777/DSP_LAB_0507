@@ -8,15 +8,17 @@
 #ifndef _EDMA1_COMMON_H_
 #define _EDMA1_COMMON_H_
 
+#include "edma.h"
+
 /**
  * @brief EDMA 回调函数类型定义
  */
-typedef void (*EDMA_Callback)(unsigned int tccNum, unsigned int status, void *appData);
+typedef void (*EDMA1_CALLBACK)(unsigned int tccNum, unsigned int status, void *appData);
 
 /**
  * @brief EDMA 回调函数数组
  */
-extern void (*edma1_cb_Fxn[])(unsigned int tccNum, unsigned int status, void *appData);
+extern EDMA1_CALLBACK edma1_cb_Fxn[EDMA3_NUM_TCC];
 
 /**
  * @brief EDMA3 初始化函数
