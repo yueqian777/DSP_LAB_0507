@@ -22,6 +22,10 @@ static void PSCInit(void);
 static void EDMA3InterruptInit(void);
 static void Edma3CCComplHandlerIsr(void);
 static void Edma3CCErrHandlerIsr(void);
+static unsigned int EDMA0GetDspIntrStatus(void);
+static void EDMA0ClearDspIntr(unsigned int tccNum);
+
+#define EDMA0_DSP_REGION (1u)
 
 /**
  * @brief EDMA 回调函数数组
@@ -45,6 +49,38 @@ void Edma0_Common_Init(void)
     
     // 初始化 EDMA3 控制器
     EDMA3Init(SOC_EDMA30CC_0_REGS, 0);
+}
+
+void Edma0_Common_EnableDspTcc(unsigned int tccNum)
+{
+    unsigned int tccMask;
+
+    if (tccNum >= EDMA3_NUM_TCC)
+    {
+        return;
+    }
+
+    tccMask = (1u << tccNum);
+    HWREG(SOC_EDMA30CC_0_REGS + EDMA3CC_DRAE(EDMA0_DSP_REGION)) |=
+        tccMask;
+    HWREG(SOC_EDMA30CC_0_REGS + EDMA3CC_IECR) = tccMask;
+    HWREG(SOC_EDMA30CC_0_REGS + EDMA3CC_ICR) = tccMask;
+    HWREG(SOC_EDMA30CC_0_REGS + EDMA3CC_S_ICR(EDMA0_DSP_REGION)) =
+        tccMask;
+    HWREG(SOC_EDMA30CC_0_REGS + EDMA3CC_S_IESR(EDMA0_DSP_REGION)) =
+        tccMask;
+}
+
+static unsigned int EDMA0GetDspIntrStatus(void)
+{
+    return HWREG(SOC_EDMA30CC_0_REGS +
+                 EDMA3CC_S_IPR(EDMA0_DSP_REGION));
+}
+
+static void EDMA0ClearDspIntr(unsigned int tccNum)
+{
+    HWREG(SOC_EDMA30CC_0_REGS + EDMA3CC_S_ICR(EDMA0_DSP_REGION)) =
+        (1u << tccNum);
 }
 
 /**
@@ -103,14 +139,14 @@ static void Edma3CCComplHandlerIsr(void)
     IntEventClear(SYS_INT_EDMA3_0_CC0_INT1);
 
     // 获取 EDMA3 中断状态
-    isIPR = EDMA3GetIntrStatus(SOC_EDMA30CC_0_REGS);
+    isIPR = EDMA0GetDspIntrStatus();
     if(isIPR)
     {
         // 循环处理中断，最多重试 EDMA3CC_COMPL_HANDLER_RETRY_COUNT 次
         while ((Cnt < EDMA3CC_COMPL_HANDLER_RETRY_COUNT)&& (indexl != 0u))
         {
             indexl = 0u;
-            pendingIrqs = EDMA3GetIntrStatus(SOC_EDMA30CC_0_REGS);
+            pendingIrqs = EDMA0GetDspIntrStatus();
             while (pendingIrqs)
             {
                 if(TRUE == (pendingIrqs & 1u))
@@ -122,7 +158,7 @@ static void Edma3CCComplHandlerIsr(void)
                     }
 
                     // 清除 IPR 相应位
-                    EDMA3ClrIntr(SOC_EDMA30CC_0_REGS, indexl);
+                    EDMA0ClearDspIntr(indexl);
 
                     // 调用已注册的回调函数
                     if (callback != NULL)

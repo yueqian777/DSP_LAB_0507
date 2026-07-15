@@ -120,6 +120,7 @@ static void AD7606Edma3Init(unsigned int sampleLen)
 
     // 注册回调函数
     cb_Fxn[tccNum] = &callback_adc;
+    Edma0_Common_EnableDspTcc(tccNum);
 
     // 在调用EDMA3SetPaRAM之前，修改dmaPar中的CCOUNT
     for (i = 0; i < 3; i++) {

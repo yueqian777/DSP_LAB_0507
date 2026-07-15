@@ -26,4 +26,6 @@ extern EDMA0_CALLBACK cb_Fxn[EDMA3_NUM_TCC];
  */
 void Edma0_Common_Init(void);
 
+void Edma0_Common_EnableDspTcc(unsigned int tccNum);
+
 #endif /* _EDMA0_COMMON_H_ */

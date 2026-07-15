@@ -59,13 +59,36 @@ class EdmaCallbackContractTest(unittest.TestCase):
         self.assertIn("ADC_EDMA_CallbackRegistrationError = 1u;",
                       self.adc_c[guard:registration])
         self.assertIn("return;", self.adc_c[guard:registration])
+        region_enable = self.adc_c.index(
+            "Edma0_Common_EnableDspTcc(tccNum);", guard)
+        transfer_enable = self.adc_c.index("EDMA3EnableTransfer(", registration)
+        self.assertLess(registration, region_enable)
+        self.assertLess(region_enable, transfer_enable)
+
+    def test_edma0_completion_uses_dsp_shadow_region(self) -> None:
+        self.assertIn("void Edma0_Common_EnableDspTcc(unsigned int tccNum);",
+                      self.edma0_h)
+        self.assertIn("EDMA3CC_DRAE(EDMA0_DSP_REGION)", self.edma0_c)
+        self.assertIn("EDMA3CC_IECR", self.edma0_c)
+        self.assertIn("EDMA3CC_ICR", self.edma0_c)
+        self.assertIn("EDMA3CC_S_IESR(EDMA0_DSP_REGION)", self.edma0_c)
+        self.assertIn("EDMA3CC_S_IPR(EDMA0_DSP_REGION)", self.edma0_c)
+        self.assertIn("EDMA3CC_S_ICR(EDMA0_DSP_REGION)", self.edma0_c)
+
+        start = self.edma0_c.index("static void Edma3CCComplHandlerIsr(void)\n{")
+        end = self.edma0_c.index("static void Edma3CCErrHandlerIsr(void)", start)
+        isr = self.edma0_c[start:end]
+        self.assertIn("EDMA0GetDspIntrStatus()", isr)
+        self.assertIn("EDMA0ClearDspIntr(indexl);", isr)
+        self.assertNotIn("EDMA3GetIntrStatus", isr)
+        self.assertNotIn("EDMA3ClrIntr", isr)
 
     def test_completion_isrs_guard_bounds_and_null(self) -> None:
-        for source, table, callback_type, base in (
+        for source, table, callback_type, clear_statement in (
             (self.edma0_c, "cb_Fxn", "EDMA0_CALLBACK",
-             "SOC_EDMA30CC_0_REGS"),
+             "EDMA0ClearDspIntr(indexl);"),
             (self.edma1_c, "edma1_cb_Fxn", "EDMA1_CALLBACK",
-             "SOC_EDMA31CC_0_REGS"),
+             "EDMA3ClrIntr(SOC_EDMA31CC_0_REGS, indexl);"),
         ):
             start = source.index("static void Edma3CCComplHandlerIsr(void)\n{")
             end = source.index("static void Edma3CCErrHandlerIsr(void)", start)
@@ -73,7 +96,7 @@ class EdmaCallbackContractTest(unittest.TestCase):
             self.assertIn(f"{callback_type} callback;", isr)
             bounds = isr.index("if (indexl < EDMA3_NUM_TCC)")
             copy = isr.index(f"callback = {table}[indexl];", bounds)
-            clear = isr.index(f"EDMA3ClrIntr({base}, indexl);", copy)
+            clear = isr.index(clear_statement, copy)
             null_guard = isr.index("if (callback != NULL)", clear)
             call = isr.index("callback(indexl, EDMA3_XFER_COMPLETE, NULL);",
                              null_guard)
