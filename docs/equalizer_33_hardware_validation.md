@@ -4,11 +4,17 @@
 
 **Repository:** `main`
 
-**Current local implementation commit:**
+**Current remote HEAD/report commit:**
+`59114278f09657a38a44879bfecc15325661b2f1`
+
+**Stage runner implementation commit:**
 `0440347dbbacb39ee947a4500f6b99664edcacc4`
 
-**Current remote baseline:**
+**Runner base commit:**
 `d8c48e504d5865518d5fea9410024bb466ccadcf`
+
+**EDMA callback-table fix commit:**
+`ca7bf26dd595fee1d9045c15921afa53e94ca478`
 
 **Current status:** Partial `MEASURED_ON_CURRENT_BOARD`; final initialization
 `FAIL`; remaining LCD and endurance work `PENDING_HARDWARE`.
@@ -19,8 +25,10 @@ The connected chain was PC default line output -> ADC CH1 -> Project 3.3
 ten-band RBJ equalizer -> DAC CH1 -> speaker, using TMS320C6748 and XDS100v3.
 The board configuration retained 50 kHz sampling, 1024-sample frames,
 ping-pong buffers, the existing presets and preamp rule, and the 120 ms
-crossfade. Project 3.2, Touch, ADC/DAC/EDMA/PRU, and interrupt drivers were not
-modified.
+crossfade. Project 3.2, Touch, DAC timing, ADC timing and PaRAM setup, PRU, and
+the channel/TCC/interrupt mapping were not modified. The current fix is limited
+to the EDMA0/EDMA1 callback tables, completion-dispatch guards, and the ADC
+callback-registration bounds check.
 
 The labels in this report distinguish Host/build evidence, counter-based board
 evidence, debugger-assisted control writes, and subjective listening. No
@@ -38,13 +46,25 @@ Generated WAV, JSON, and DSS logs remain under the temporary directory
 | `equalizer_response_test` | `HOST_VERIFIED`, `failures=0` |
 | Original equalizer evaluator | `HOST_VERIFIED`, `failures=0` |
 | Project 3.3 Python contracts | `HOST_VERIFIED`, 66 tests, `OK` |
+| EDMA source/map contract | `HOST_VERIFIED`, 4 tests, `OK` |
 | Project 32 CCS build | `CCS_BUILD_VERIFIED`, warning=0, link error=0 |
 | Project 33 LCD OFF CCS build | `CCS_BUILD_VERIFIED`, warning=0, link error=0 |
 | Project 33 LCD ON CCS build | `CCS_BUILD_VERIFIED`, warning=0, link error=0 |
 
-The current Project 33 LCD ON output had build identity
-`P33_FIX_V5`, SHA `0440347`, dirty=0, and the link XML reported
+The EDMA-safe hardware rerun used the clean Project 33 LCD OFF output with build
+identity `P33_FIX_V5`, SHA `ca7bf26`, dirty=0. The Project 32, Project 33 LCD
+OFF, and Project 33 LCD ON link XML each reported
 `<link_errors>0x0</link_errors>`.
+
+| Callback table | Before fix | `ca7bf26` map |
+| --- | ---: | ---: |
+| `cb_Fxn` | 4 bytes at `0xC0019598` | 128 bytes at `0xC002F7E0` |
+| `edma1_cb_Fxn` | incomplete tentative array; omitted from the old linked map | 128 bytes at `0xC002F860` |
+
+For C6748, `EDMA3_NUM_TCC=32`. Slot 29 now resolves to `0xC002F854`,
+inside `cb_Fxn[0xC002F7E0,0xC002F860)`. Neither callback table overlaps an
+`EQ_Debug*` symbol. EDMA1 is explicitly retained so its complete table remains
+auditable even though this program does not use EDMA1 at runtime.
 
 ## 3. Failures and bounded fixes
 
@@ -165,8 +185,8 @@ The value was `0xC002CC00`, exactly the address of `callback_adc` in that map.
 The linked `cb_Fxn` object has size four bytes, while ADC initialization stores
 `cb_Fxn[29]`; the destination was the latency-miss diagnostic address in that
 intermediate layout. This is an existing EDMA callback-table out-of-bounds
-write. The ADC/EDMA driver was not changed because it is explicitly outside
-this task. The final milestone variables are placed in Project 3.3
+write. At that stage the ADC/EDMA driver had not yet been changed. The final
+milestone variables are placed in Project 3.3
 `.subband_l2` so this new instrumentation does not participate in DDR global
 layout; the final map still records the pre-existing callback-table overrun
 risk separately: `cb_Fxn` is at `0xC0019598`, and slot 29 resolves to
@@ -192,7 +212,37 @@ before the first ADC EDMA completion/`FLAG_AD`. DAC completion was observed via
 `FLAG_DA=1`. No FLAT/BASS window ran, so all three current-build AlgoMax,
 FrameServiceMax, FrameLatencyMax, safety deltas, and frame deltas are
 `NOT_OBSERVED`. No further reset, reload, power cycle, LCD STATUS, or Full stage
-was attempted.
+was attempted for that build.
+
+### 7.1 EDMA-safe bounded rerun
+
+Commit `ca7bf26dd595fee1d9045c15921afa53e94ca478` replaces both
+incomplete callback arrays with 32-entry initialized tables, adds C89
+compile-time size/range checks, bounds and null guards in both completion ISRs,
+and a bounded ADC registration failure state. This is a **confirmed
+memory-safety defect and prerequisite fix**. It is not established as the sole
+root cause of initialization milestone 8.
+
+Two initialization-only attempts used the clean LCD OFF output. Each attempt
+performed exactly one reset/load, ran for two seconds, halted once, read the
+diagnostics, and disconnected. Both produced the same result:
+
+| Diagnostic | Attempt 1 | Attempt 2 |
+| --- | ---: | ---: |
+| `EQ_DebugInitStage` | 8 | 8 |
+| `FLAG_AD` / `FLAG_DA` | 0 / 1 | 0 / 1 |
+| AD / DA / process frames | 0 / 0 / 0 | 0 / 0 / 0 |
+| CPU IER | `0x8663` | `0x8663` |
+| EDMA event-enable | `0x20000000` | `0x20000000` |
+| EDMA interrupt-enable | `0x20000000` | `0x20000000` |
+| deadline / latency miss / overlap / dropped | 0 / 0 / 0 / 0 | 0 / 0 / 0 / 0 |
+
+No diagnostic counter contained a `callback_adc` address after the fix. The
+current stop point is still before the first ADC EDMA completion and
+`FLAG_AD`; the channel and TCC 29 enable bits are set. Locating why the first
+ADC event/completion does not arrive remains separate driver/hardware work.
+Because initialization did not pass twice, CrossfadeA, LCD, Full, and endurance
+stages were not run.
 
 The same GEL log line, `PSC0 Enable Verify Timeout on Domain 0, LPSC 6`, had
 also appeared in earlier runs that did produce frames, so it is recorded but
@@ -207,8 +257,8 @@ remain visible in the temporary evidence directories.
 
 | Item | Status |
 | --- | --- |
-| Remote baseline plus local staged-runner CrossfadeA reproduction | `FAIL` at initialization milestone 8 |
-| Three current-build FLAT->BASS->FLAT cycles | `NOT_OBSERVED` |
+| EDMA-safe `ca7bf26` initialization reproduction | `FAIL` twice at initialization milestone 8 |
+| Three current-build FLAT->BASS->FLAT cycles | `NOT_EXECUTED`; initialization prerequisite failed |
 | LCD STATUS with final 168-pixel clear width | `PENDING_HARDWARE` |
 | LCD GAINS and BOTH 60-second windows | `PENDING_HARDWARE` |
 | Builder/LCD alternation on the final build | `PENDING_HARDWARE` |
