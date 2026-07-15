@@ -1,0 +1,2483 @@
+******************************************************************************
+               TMS320C6x Linker PC v8.5.0                      
+******************************************************************************
+>> Linked Wed Jul 15 13:51:36 2026
+
+OUTPUT FILE NAME:   <DSP_LAB_0507.out>
+ENTRY POINT SYMBOL: "_c_int00"  address: c00d9360
+
+
+MEMORY CONFIGURATION
+
+         name            origin    length      used     unused   attr    fill
+----------------------  --------  ---------  --------  --------  ----  --------
+  DSPL2ROM              00700000   00100000  00000000  00100000  RWIX
+  DSPL2RAM              00800000   00040000  0003ec64  0000139c  RWIX
+  DSPL1PRAM             00e00000   00008000  00000000  00008000  RWIX
+  DSPL1DRAM             00f00000   00008000  00000000  00008000  RWIX
+  SHDSPL2ROM            11700000   00100000  00000000  00100000  RWIX
+  SHDSPL2RAM            11800000   00040000  00000000  00040000  RWIX
+  SHDSPL1PRAM           11e00000   00008000  00000000  00008000  RWIX
+  SHDSPL1DRAM           11f00000   00008000  00000000  00008000  RWIX
+  EMIFACS0              40000000   20000000  00000000  20000000  RWIX
+  EMIFACS2              60000000   02000000  00000000  02000000  RWIX
+  EMIFACS3              62000000   02000000  00000000  02000000  RWIX
+  EMIFACS4              64000000   02000000  00000000  02000000  RWIX
+  EMIFACS5              66000000   02000000  00000000  02000000  RWIX
+  User_Buf1             80000000   00008000  00000000  00008000  RWIX
+  User_Buf2             80008000   00008000  00000000  00008000  RWIX
+  SHRAM                 80010000   00010000  00000000  00010000  RWIX
+  DDR2                  c0000000   06fffff0  000e3ac0  06f1c530  RWIX
+  User_ADLen            c6fffff0   00000002  00000000  00000002  RWIX
+  User_ADEn             c6fffff2   00000001  00000001  00000000  RWIX
+  User_ADFlag           c6fffff3   00000001  00000001  00000000  RWIX
+  User_ADPingPong       c6fffff4   00000001  00000001  00000000  RWIX
+  User_DALen            c6fffff8   00000002  00000002  00000000  RWIX
+  User_DAEn             c6fffffa   00000001  00000001  00000000  RWIX
+  User_DAFlag           c6fffffb   00000001  00000001  00000000  RWIX
+  User_DAPingPong       c6fffffc   00000001  00000001  00000000  RWIX
+  User_DASel            c6fffffd   00000001  00000001  00000000  RWIX
+  AD_Ch1Buf0            c7000000   00004000  00004000  00000000  RWIX
+  AD_Ch2Buf0            c7004000   00004000  00004000  00000000  RWIX
+  AD_Ch3Buf0            c7008000   00004000  00004000  00000000  RWIX
+  AD_Ch4Buf0            c700c000   00004000  00004000  00000000  RWIX
+  AD_Ch5Buf0            c7010000   00004000  00004000  00000000  RWIX
+  AD_Ch6Buf0            c7014000   00004000  00004000  00000000  RWIX
+  AD_Ch7Buf0            c7018000   00004000  00004000  00000000  RWIX
+  AD_Ch8Buf0            c701c000   00004000  00004000  00000000  RWIX
+  AD_Ch1Buf1            c7020000   00004000  00004000  00000000  RWIX
+  AD_Ch2Buf1            c7024000   00004000  00004000  00000000  RWIX
+  AD_Ch3Buf1            c7028000   00004000  00004000  00000000  RWIX
+  AD_Ch4Buf1            c702c000   00004000  00004000  00000000  RWIX
+  AD_Ch5Buf1            c7030000   00004000  00004000  00000000  RWIX
+  AD_Ch6Buf1            c7034000   00004000  00004000  00000000  RWIX
+  AD_Ch7Buf1            c7038000   00004000  00004000  00000000  RWIX
+  AD_Ch8Buf1            c703c000   00004000  00004000  00000000  RWIX
+  DA_Ch1Buf0            c7040000   00004000  00004000  00000000  RWIX
+  DA_Ch2Buf0            c7044000   00004000  00004000  00000000  RWIX
+  DA_Ch3Buf0            c7048000   00004000  00004000  00000000  RWIX
+  DA_Ch4Buf0            c704c000   00004000  00004000  00000000  RWIX
+  DA_Ch5Buf0            c7050000   00004000  00004000  00000000  RWIX
+  DA_Ch6Buf0            c7054000   00004000  00004000  00000000  RWIX
+  DA_Ch7Buf0            c7058000   00004000  00004000  00000000  RWIX
+  DA_Ch8Buf0            c705c000   00004000  00004000  00000000  RWIX
+  DA_Ch1Buf1            c7060000   00004000  00004000  00000000  RWIX
+  DA_Ch2Buf1            c7064000   00004000  00004000  00000000  RWIX
+  DA_Ch3Buf1            c7068000   00004000  00004000  00000000  RWIX
+  DA_Ch4Buf1            c706c000   00004000  00004000  00000000  RWIX
+  DA_Ch5Buf1            c7070000   00004000  00004000  00000000  RWIX
+  DA_Ch6Buf1            c7074000   00004000  00004000  00000000  RWIX
+  DA_Ch7Buf1            c7078000   00004000  00004000  00000000  RWIX
+  DA_Ch8Buf1            c707c000   00004000  00004000  00000000  RWIX
+
+
+SEGMENT ALLOCATION MAP
+
+run origin  load origin   length   init length attrs members
+----------  ----------- ---------- ----------- ----- -------
+00800000    00800000    0003ec64   00000000    rw-
+  00800000    00800000    0003ec64   00000000    rw- .subband_l2
+c0000000    c0000000    000bbbc3   00000000    rw-
+  c0000000    c0000000    000bb824   00000000    rw- offscreen_buffer
+  c00bb824    c00bb824    00000374   00000000    rw- .neardata
+  c00bbb98    c00bbb98    0000002b   00000000    rw- .bss
+c00bbc00    c00bbc00    0001dc80   0001dc80    r-x
+  c00bbc00    c00bbc00    0001dc80   0001dc80    r-x .text
+c00d9880    c00d9880    00004d24   00000000    rw-
+  c00d9880    c00d9880    00004d24   00000000    rw- .far
+c00de5a8    c00de5a8    0000392c   0000392c    r--
+  c00de5a8    c00de5a8    0000392c   0000392c    r-- .const
+c00e1ed8    c00e1ed8    00000fdd   00000000    rw-
+  c00e1ed8    c00e1ed8    00000800   00000000    rw- .stack
+  c00e26d8    c00e26d8    000007dd   00000000    rw- .fardata
+c00e2eb8    c00e2eb8    00000c50   00000c50    r--
+  c00e2eb8    c00e2eb8    00000170   00000170    r-- .switch
+  c00e3028    c00e3028    00000ae0   00000ae0    r-- .cinit
+c6fffff2    c6fffff2    0000000c   00000000    rw-
+  c6fffff2    c6fffff2    00000001   00000000    rw- User_ADEnFile
+  c6fffff3    c6fffff3    00000001   00000000    rw- User_ADFlagFile
+  c6fffff4    c6fffff4    00000001   00000000    rw- User_ADPingPongFile
+  c6fffff8    c6fffff8    00000002   00000000    rw- User_DALenFile
+  c6fffffa    c6fffffa    00000001   00000000    rw- User_DAEnFile
+  c6fffffb    c6fffffb    00000001   00000000    rw- User_DAFlagFile
+  c6fffffc    c6fffffc    00000001   00000000    rw- User_DAPingPongFile
+  c6fffffd    c6fffffd    00000001   00000000    rw- User_DASelFile
+c7000000    c7000000    00080000   00000000    rw-
+  c7000000    c7000000    00004000   00000000    rw- AD_Ch1Buf0_File
+  c7004000    c7004000    00004000   00000000    rw- AD_Ch2Buf0_File
+  c7008000    c7008000    00004000   00000000    rw- AD_Ch3Buf0_File
+  c700c000    c700c000    00004000   00000000    rw- AD_Ch4Buf0_File
+  c7010000    c7010000    00004000   00000000    rw- AD_Ch5Buf0_File
+  c7014000    c7014000    00004000   00000000    rw- AD_Ch6Buf0_File
+  c7018000    c7018000    00004000   00000000    rw- AD_Ch7Buf0_File
+  c701c000    c701c000    00004000   00000000    rw- AD_Ch8Buf0_File
+  c7020000    c7020000    00004000   00000000    rw- AD_Ch1Buf1_File
+  c7024000    c7024000    00004000   00000000    rw- AD_Ch2Buf1_File
+  c7028000    c7028000    00004000   00000000    rw- AD_Ch3Buf1_File
+  c702c000    c702c000    00004000   00000000    rw- AD_Ch4Buf1_File
+  c7030000    c7030000    00004000   00000000    rw- AD_Ch5Buf1_File
+  c7034000    c7034000    00004000   00000000    rw- AD_Ch6Buf1_File
+  c7038000    c7038000    00004000   00000000    rw- AD_Ch7Buf1_File
+  c703c000    c703c000    00004000   00000000    rw- AD_Ch8Buf1_File
+  c7040000    c7040000    00004000   00000000    rw- DA_Ch1Buf0_File
+  c7044000    c7044000    00004000   00000000    rw- DA_Ch2Buf0_File
+  c7048000    c7048000    00004000   00000000    rw- DA_Ch3Buf0_File
+  c704c000    c704c000    00004000   00000000    rw- DA_Ch4Buf0_File
+  c7050000    c7050000    00004000   00000000    rw- DA_Ch5Buf0_File
+  c7054000    c7054000    00004000   00000000    rw- DA_Ch6Buf0_File
+  c7058000    c7058000    00004000   00000000    rw- DA_Ch7Buf0_File
+  c705c000    c705c000    00004000   00000000    rw- DA_Ch8Buf0_File
+  c7060000    c7060000    00004000   00000000    rw- DA_Ch1Buf1_File
+  c7064000    c7064000    00004000   00000000    rw- DA_Ch2Buf1_File
+  c7068000    c7068000    00004000   00000000    rw- DA_Ch3Buf1_File
+  c706c000    c706c000    00004000   00000000    rw- DA_Ch4Buf1_File
+  c7070000    c7070000    00004000   00000000    rw- DA_Ch5Buf1_File
+  c7074000    c7074000    00004000   00000000    rw- DA_Ch6Buf1_File
+  c7078000    c7078000    00004000   00000000    rw- DA_Ch7Buf1_File
+  c707c000    c707c000    00004000   00000000    rw- DA_Ch8Buf1_File
+
+
+SECTION ALLOCATION MAP
+
+ output                                  attributes/
+section   page    origin      length       input sections
+--------  ----  ----------  ----------   ----------------
+.subband_l2 
+*          0    00800000    0003ec64     UNINITIALIZED
+                  00800000    00035448     user_subband_flow.obj (.subband_l2)
+                  00835448    00004cb8     user_subband_denoise.obj (.subband_l2)
+                  0083a100    0000402c     user_subband_wola.obj (.subband_l2)
+                  0083e12c    00000004     --HOLE--
+                  0083e130    00000860     user_subband_polyphase.obj (.subband_l2:uninit)
+                  0083e990    00000204     user_subband_polyphase.obj (.subband_l2:init)
+                  0083eb94    000000d0     user_subband_codec_loopback.obj (.subband_l2)
+
+.text      0    c00bbc00    0001dc80     
+                  c00bbc00    00003160     user_subband_denoise.obj (.text)
+                  c00bed60    00002340     user_subband_ui.obj (.text)
+                  c00c10a0    00001f00     user_subband_flow.obj (.text)
+                  c00c2fa0    00001aa0     system_config.lib : interrupt.obj (.text:retain)
+                  c00c4a40    000017a0     drivers.lib : edma.obj (.text)
+                  c00c61e0    000016e0     user_subband_polyphase.obj (.text)
+                  c00c78c0    00001600     user_subband_wola.obj (.text)
+                  c00c8ec0    000013e0     user_subband_codec_loopback.obj (.text)
+                  c00ca2a0    00000fc0     drivers.lib : emifa.obj (.text)
+                  c00cb260    00000ea0     grlib.lib : pushbutton.obj (.text)
+                  c00cc100    00000e60               : string.obj (.text)
+                  c00ccf60    00000e00     drivers.lib : raster.obj (.text)
+                  c00cdd60    000009c0     grlib.lib : circle.obj (.text)
+                  c00ce720    00000940     sys_iic.obj (.text)
+                  c00cf060    00000900     grlib.lib : offscr16bpp.obj (.text)
+                  c00cf960    000008a0     user_subband_ui_logic.obj (.text)
+                  c00d0200    00000820     drivers.lib : timer.obj (.text)
+                  c00d0a20    000007a0     grlib.lib : widget.obj (.text)
+                  c00d11c0    000006c0               : image.obj (.text)
+                  c00d1880    000006c0               : line.obj (.text)
+                  c00d1f40    000005e0     system_config.lib : interrupt.obj (.text)
+                  c00d2520    000005a0     drivers.lib : spi.obj (.text)
+                  c00d2ac0    000005a0     grlib.lib : canvas.obj (.text)
+                  c00d3060    000005a0     sys_spi.obj (.text)
+                  c00d3600    00000580     drivers.lib : gpio.obj (.text)
+                  c00d3b80    00000560     rts6740_elf.lib : divd.c.obj (.text:__c6xabi_divd)
+                  c00d40e0    000004c0     drivers.lib : i2c.obj (.text)
+                  c00d45a0    00000440     grlib.lib : container.obj (.text)
+                  c00d49e0    000003e0     edma0_common.obj (.text)
+                  c00d4dc0    000003e0     grlib.lib : rectangle.obj (.text)
+                  c00d51a0    00000360     touch_drv.obj (.text)
+                  c00d5500    00000340     rts6740_elf.lib : cos.c.obj (.text:cos)
+                  c00d5840    00000300                     : sin.c.obj (.text:sin)
+                  c00d5b40    000002a0     key_drv.obj (.text)
+                  c00d5de0    00000280     touch_scan.obj (.text)
+                  c00d6060    00000260     rts6740_elf.lib : imath64.c.obj (.text:__c6xabi_divull)
+                  c00d62c0    00000260     drivers.lib : pru.obj (.text)
+                  c00d6520    00000240     rts6740_elf.lib : cosf.c.obj (.text:cosf)
+                  c00d6760    00000220                     : divf.c.obj (.text:__c6xabi_divf)
+                  c00d6980    00000200                     : sinf.c.obj (.text:sinf)
+                  c00d6b80    00000080                     : llshift.c.obj (.text:__c6xabi_llshl)
+                  c00d6c00    00000200     system_config.lib : intvecs.obj (.text)
+                  c00d6e00    000001c0     lcd.obj (.text)
+                  c00d6fc0    000001c0     sysdelay.obj (.text)
+                  c00d7180    000001c0     touch_btn.obj (.text)
+                  c00d7340    000001c0     user_subband_ui_font.obj (.text)
+                  c00d7500    000001a0     rts6740_elf.lib : frexpf.c.obj (.text:frexpf)
+                  c00d76a0    000001a0     grlib.lib : context.obj (.text)
+                  c00d7840    00000160     adc_edma.obj (.text)
+                  c00d79a0    00000140     adc_pin.obj (.text)
+                  c00d7ae0    00000140     dac_drv.obj (.text)
+                  c00d7c20    00000140     drivers.lib : psc.obj (.text)
+                  c00d7d60    00000140     key_pin.obj (.text)
+                  c00d7ea0    00000140     rts6740_elf.lib : sqrtf.c.obj (.text:sqrtf)
+                  c00d7fe0    00000140     touch_pin.obj (.text)
+                  c00d8120    00000120     dac_pin.obj (.text)
+                  c00d8240    00000120     rts6740_elf.lib : logf.c.obj (.text:logf)
+                  c00d8360    00000100                     : copy_decompress_rle.c.obj (.text:__TI_decompress_rle_core)
+                  c00d8460    00000100     timer_drv.obj (.text)
+                  c00d8560    000000e0     rts6740_elf.lib : divi.asm.obj (.text:__divi)
+                  c00d8640    000000e0     adc_emif.obj (.text)
+                  c00d8720    000000e0     rts6740_elf.lib : exit.c.obj (.text:exit)
+                  c00d8800    000000e0     lcd_pin.obj (.text)
+                  c00d88e0    000000e0     rts6740_elf.lib : memset.c.obj (.text:memset)
+                  c00d89c0    000000c0                     : autoinit.c.obj (.text:__TI_auto_init_nobinit_nopinit:__TI_auto_init_nobinit_nopinit)
+                  c00d8a80    000000c0                     : round.c.obj (.text:__c6xabi_nround)
+                  c00d8b40    000000c0                     : divu.asm.obj (.text:__divu)
+                  c00d8c00    000000c0     adc_drv.obj (.text)
+                  c00d8cc0    000000c0     lcd_raster.obj (.text)
+                  c00d8d80    000000c0     rts6740_elf.lib : modf.c.obj (.text:modf)
+                  c00d8e40    000000c0                     : tls.c.obj (.text:tls:init:__TI_tls_init)
+                  c00d8f00    000000a0                     : fixfu.c.obj (.text:__c6xabi_fixfu)
+                  c00d8fa0    000000a0                     : roundf.c.obj (.text:__c6xabi_roundf)
+                  c00d9040    000000a0                     : remu.asm.obj (.text:__remu)
+                  c00d90e0    000000a0     adc_tim1.obj (.text)
+                  c00d9180    000000a0     dac_tim1.obj (.text)
+                  c00d9220    000000a0     lcd_dma.obj (.text)
+                  c00d92c0    000000a0     rts6740_elf.lib : memcpy64.asm.obj (.text:memcpy)
+                  c00d9360    00000080                     : boot.c.obj (.text:_c_int00)
+                  c00d93e0    00000060                     : llshift.c.obj (.text:__c6xabi_llshru)
+                  c00d9440    00000060                     : imath64.c.obj (.text:_subcull)
+                  c00d94a0    00000060     lcd_grlib.obj (.text)
+                  c00d9500    00000060     rts6740_elf.lib : modff.c.obj (.text:modff)
+                  c00d9560    00000060     utils.lib : delay.obj (.text)
+                  c00d95c0    00000040     rts6740_elf.lib : frcmpyd_div.c.obj (.text:__TI_frcmpyd_div)
+                  c00d9600    00000040                     : args_main.c.obj (.text:_args_main)
+                  c00d9640    00000040     adc_pru.obj (.text)
+                  c00d9680    00000040     dac_pru.obj (.text)
+                  c00d96c0    00000040     lcd_drv.obj (.text)
+                  c00d9700    00000020     rts6740_elf.lib : errno.c.obj (.text:__c6xabi_errno_addr)
+                  c00d9720    00000020                     : trunc.c.obj (.text:__c6xabi_trunc)
+                  c00d9740    00000020                     : truncf.c.obj (.text:__c6xabi_truncf)
+                  c00d9760    00000020                     : startup.c.obj (.text:_system_post_cinit)
+                  c00d9780    00000020                     : pre_init.c.obj (.text:_system_pre_init)
+                  c00d97a0    00000020                     : exit.c.obj (.text:abort)
+                  c00d97c0    00000020                     : copy_decompress_none.c.obj (.text:decompress:none:__TI_decompress_none)
+                  c00d97e0    00000020                     : copy_decompress_rle.c.obj (.text:decompress:rle24:__TI_decompress_rle24)
+                  c00d9800    00000020     edma.obj (.text)
+                  c00d9820    00000020     lcd_ctrl.obj (.text)
+                  c00d9840    00000020     main.obj (.text)
+                  c00d9860    00000020     system.obj (.text)
+
+.stack     0    c00e1ed8    00000800     UNINITIALIZED
+                  c00e1ed8    00000008     rts6740_elf.lib : boot.c.obj (.stack)
+                  c00e1ee0    000007f8     --HOLE--
+
+.const     0    c00de5a8    0000392c     
+                  c00de5a8    00000ff6     fontcmss38b.obj (.const:.string:g_pucCmss38bData)
+                  c00df59e    00000002     --HOLE-- [fill = 0]
+                  c00df5a0    0000091e     fontcmss22b.obj (.const:.string:g_pucCmss22bData)
+                  c00dfebe    00000002     --HOLE-- [fill = 0]
+                  c00dfec0    00000782     fontcmss18b.obj (.const:.string:g_pucCmss18bData)
+                  c00e0642    00000006     --HOLE-- [fill = 0]
+                  c00e0648    00000521     fontcmtt12.obj (.const:.string:g_pucCmtt12Data)
+                  c00e0b69    00000007     --HOLE-- [fill = 0]
+                  c00e0b70    000004bc     dac_pru.obj (.const:PRU0_Code)
+                  c00e102c    00000164     user_subband_ui_logic.obj (.const:.string)
+                  c00e1190    00000140     user_subband_ui_font.obj (.const:.string:Glyph_0)
+                  c00e12d0    000000c8     fontcmss18b.obj (.const:g_sFontCmss18b)
+                  c00e1398    000000c8     fontcmss22b.obj (.const:g_sFontCmss22b)
+                  c00e1460    000000c8     fontcmss38b.obj (.const:g_sFontCmss38b)
+                  c00e1528    000000c8     fontcmtt12.obj (.const:g_sFontCmtt12)
+                  c00e15f0    0000009c     adc_pru.obj (.const:PRU1_Code)
+                  c00e168c    00000004     --HOLE-- [fill = 0]
+                  c00e1690    00000080     user_subband_ui_font.obj (.const:.string:Glyph_12)
+                  c00e1710    00000080     user_subband_ui_font.obj (.const:.string:Glyph_15)
+                  c00e1790    00000080     user_subband_ui_font.obj (.const:.string:Glyph_1)
+                  c00e1810    00000080     user_subband_ui_font.obj (.const:.string:Glyph_2)
+                  c00e1890    00000080     user_subband_ui_font.obj (.const:.string:Glyph_3)
+                  c00e1910    00000080     user_subband_ui_font.obj (.const:.string:Glyph_4)
+                  c00e1990    00000080     user_subband_ui_font.obj (.const:.string:Glyph_5)
+                  c00e1a10    00000080     user_subband_ui_font.obj (.const:.string:Glyph_6)
+                  c00e1a90    00000080     user_subband_ui_font.obj (.const:.string:Glyph_7)
+                  c00e1b10    00000080     user_subband_ui_font.obj (.const:.string:Glyph_8)
+                  c00e1b90    00000080     user_subband_ui_font.obj (.const:Font_Entries)
+                  c00e1c10    00000080     user_subband_ui.obj (.const:UI_ModeButtons)
+                  c00e1c90    00000060     user_subband_ui_font.obj (.const:.string:Glyph_10)
+                  c00e1cf0    00000060     user_subband_ui_font.obj (.const:.string:Glyph_11)
+                  c00e1d50    00000040     user_subband_ui_font.obj (.const:.string:Glyph_13)
+                  c00e1d90    00000040     user_subband_ui_font.obj (.const:.string:Glyph_14)
+                  c00e1dd0    00000040     user_subband_ui_font.obj (.const:.string:Glyph_9)
+                  c00e1e10    00000040     lcd_widget.obj (.const:.string)
+                  c00e1e50    00000030     user_subband_ui.obj (.const:UI_RateButtons)
+                  c00e1e80    00000020     user_subband_codec_loopback.obj (.const:SubbandCodecLoopback_PerceptualWeight)
+                  c00e1ea0    00000020     user_subband_ui_logic.obj (.const:modes$1)
+                  c00e1ec0    00000014     user_subband_ui.obj (.const:.string)
+
+.switch    0    c00e2eb8    00000170     
+                  c00e2eb8    00000030     drivers.lib : emifa.obj (.switch:EMIFANANDEccValGet)
+                  c00e2ee8    00000030     user_subband_ui_logic.obj (.switch:SubbandUI_BuildProcessingChain)
+                  c00e2f18    00000030     user_subband_flow.obj (.switch:Subband_Service_Demo_Mode)
+                  c00e2f48    00000010     drivers.lib : emifa.obj (.switch:EMIFAAsyncDevDataBusWidthSelect)
+                  c00e2f58    00000010                 : emifa.obj (.switch:EMIFAAsyncDevOpModeSelect)
+                  c00e2f68    00000010                 : emifa.obj (.switch:EMIFACSWaitPinSelect)
+                  c00e2f78    00000010                 : emifa.obj (.switch:EMIFAExtendedWaitConfig)
+                  c00e2f88    00000010                 : emifa.obj (.switch:EMIFANAND4BitECCSelect)
+                  c00e2f98    00000010                 : emifa.obj (.switch:EMIFANAND4BitEccErrAddrGet)
+                  c00e2fa8    00000010                 : emifa.obj (.switch:EMIFANAND4BitEccErrValGet)
+                  c00e2fb8    00000010                 : emifa.obj (.switch:EMIFANANDCSSet)
+                  c00e2fc8    00000010                 : emifa.obj (.switch:EMIFANANDECCStart)
+                  c00e2fd8    00000010                 : emifa.obj (.switch:EMIFANORPageAccessDelaySet)
+                  c00e2fe8    00000010                 : emifa.obj (.switch:EMIFANORPageModeConfig)
+                  c00e2ff8    00000010                 : emifa.obj (.switch:EMIFANORPageSizeSet)
+                  c00e3008    00000010                 : emifa.obj (.switch:EMIFAWaitTimingConfig)
+                  c00e3018    00000010                 : gpio.obj (.switch:GPIOIntTypeSet)
+
+.far       0    c00d9880    00004d24     UNINITIALIZED
+                  c00d9880    00000800     user_subband_flow.obj (.far:AD_Buffer1)
+                  c00da080    00000800     user_subband_flow.obj (.far:AD_Buffer2)
+                  c00da880    00000800     user_subband_flow.obj (.far:AD_Buffer3)
+                  c00db080    00000800     user_subband_flow.obj (.far:AD_Buffer4)
+                  c00db880    00000800     user_subband_flow.obj (.far:AD_Buffer5)
+                  c00dc080    00000800     user_subband_flow.obj (.far:AD_Buffer6)
+                  c00dc880    00000800     user_subband_flow.obj (.far:AD_Buffer7)
+                  c00dd080    00000800     user_subband_flow.obj (.far:AD_Buffer8)
+                  c00dd880    00000800     user_subband_flow.obj (.far:DA_Buffer1)
+                  c00de080    00000240     system_config.lib : interrupt.obj (.far)
+                  c00de2c0    00000140     grlib.lib : widget.obj (.far)
+                  c00de400    0000012c     (.common:IIC_slaveData)
+                  c00de52c    00000028     (.common:Lcd_Display)
+                  c00de554    00000004     --HOLE--
+                  c00de558    00000020               : image.obj (.far)
+                  c00de578    0000001c     (.common:Lcd_Context)
+                  c00de594    00000004     --HOLE--
+                  c00de598    00000004     (.common:cb_Fxn)
+                  c00de59c    00000004     --HOLE--
+                  c00de5a0    00000004     dac_drv.obj (.far:spi_tx_data)
+
+.neardata 
+*          0    c00bb824    00000374     UNINITIALIZED
+                  c00bb824    0000012c     user_subband_ui.obj (.neardata)
+                  c00bb950    0000009c     user_subband_denoise.obj (.neardata)
+                  c00bb9ec    00000078     user_subband_flow.obj (.neardata)
+                  c00bba64    0000005c     user_subband_codec_loopback.obj (.neardata)
+                  c00bbac0    00000038     touch_scan.obj (.neardata)
+                  c00bbaf8    00000024     user_subband_wola.obj (.neardata)
+                  c00bbb1c    00000020     user_subband_eval.obj (.neardata)
+                  c00bbb3c    0000001c     adc_edma.obj (.neardata)
+                  c00bbb58    0000000d     grlib.lib : widget.obj (.neardata)
+                  c00bbb65    00000001     timer_drv.obj (.neardata)
+                  c00bbb66    00000002     --HOLE--
+                  c00bbb68    00000008     touch_btn.obj (.neardata)
+                  c00bbb70    00000008     touch_pin.obj (.neardata)
+                  c00bbb78    00000005     key_drv.obj (.neardata)
+                  c00bbb7d    00000003     --HOLE--
+                  c00bbb80    00000005     sys_iic.obj (.neardata)
+                  c00bbb85    00000003     --HOLE--
+                  c00bbb88    00000004     eeprom.obj (.neardata)
+                  c00bbb8c    00000004     sysdelay.obj (.neardata)
+                  c00bbb90    00000004     touch_drv.obj (.neardata)
+                  c00bbb94    00000004     user_subband_polyphase.obj (.neardata)
+
+.rodata    0    c00bbb98    00000000     UNINITIALIZED
+
+.bss       0    c00bbb98    0000002b     UNINITIALIZED
+                  c00bbb98    00000012     grlib.lib : string.obj (.bss)
+                  c00bbbaa    00000002               : offscr16bpp.obj (.bss)
+                  c00bbbac    00000004     drivers.lib : edma.obj (.bss)
+                  c00bbbb0    00000004     touch_btn.obj (.bss)
+                  c00bbbb4    00000001     (.common:FLAG_BUTTON)
+                  c00bbbb5    00000001     (.common:FLAG_BUTTON_1)
+                  c00bbbb6    00000001     (.common:FLAG_BUTTON_2)
+                  c00bbbb7    00000001     (.common:FLAG_BUTTON_3)
+                  c00bbbb8    00000001     (.common:FLAG_BUTTON_4)
+                  c00bbbb9    00000001     (.common:FLAG_BUTTON_5)
+                  c00bbbba    00000001     (.common:FLAG_BUTTON_6)
+                  c00bbbbb    00000001     (.common:FLAG_BUTTON_7)
+                  c00bbbbc    00000001     (.common:FLAG_BUTTON_8)
+                  c00bbbbd    00000001     (.common:FLAG_SPI_RX)
+                  c00bbbbe    00000001     (.common:FLAG_SPI_TX)
+                  c00bbbbf    00000001     (.common:SPI_rxCount)
+                  c00bbbc0    00000001     (.common:SPI_rxLength)
+                  c00bbbc1    00000001     (.common:SPI_txCount)
+                  c00bbbc2    00000001     (.common:SPI_txLength)
+
+.cinit     0    c00e3028    00000ae0     
+                  c00e3028    000004cc     (.cinit..fardata.load) [load image, compression = rle]
+                  c00e34f4    00000214     (.cinit..subband_l2.load) [load image, compression = rle]
+                  c00e3708    000000ca     (.cinit..neardata.load) [load image, compression = rle]
+                  c00e37d2    0000000d     (.cinit.offscreen_buffer.load) [load image, compression = rle]
+                  c00e37df    0000000b     (.cinit..far.load) [load image, compression = rle]
+                  c00e37ea    0000000b     (.cinit.AD_Ch1Buf0_File.load) [load image, compression = rle]
+                  c00e37f5    0000000b     (.cinit.AD_Ch1Buf1_File.load) [load image, compression = rle]
+                  c00e3800    0000000b     (.cinit.AD_Ch2Buf0_File.load) [load image, compression = rle]
+                  c00e380b    0000000b     (.cinit.AD_Ch2Buf1_File.load) [load image, compression = rle]
+                  c00e3816    0000000b     (.cinit.AD_Ch3Buf0_File.load) [load image, compression = rle]
+                  c00e3821    0000000b     (.cinit.AD_Ch3Buf1_File.load) [load image, compression = rle]
+                  c00e382c    0000000b     (.cinit.AD_Ch4Buf0_File.load) [load image, compression = rle]
+                  c00e3837    0000000b     (.cinit.AD_Ch4Buf1_File.load) [load image, compression = rle]
+                  c00e3842    0000000b     (.cinit.AD_Ch5Buf0_File.load) [load image, compression = rle]
+                  c00e384d    0000000b     (.cinit.AD_Ch5Buf1_File.load) [load image, compression = rle]
+                  c00e3858    0000000b     (.cinit.AD_Ch6Buf0_File.load) [load image, compression = rle]
+                  c00e3863    0000000b     (.cinit.AD_Ch6Buf1_File.load) [load image, compression = rle]
+                  c00e386e    0000000b     (.cinit.AD_Ch7Buf0_File.load) [load image, compression = rle]
+                  c00e3879    0000000b     (.cinit.AD_Ch7Buf1_File.load) [load image, compression = rle]
+                  c00e3884    0000000b     (.cinit.AD_Ch8Buf0_File.load) [load image, compression = rle]
+                  c00e388f    0000000b     (.cinit.AD_Ch8Buf1_File.load) [load image, compression = rle]
+                  c00e389a    0000000b     (.cinit.DA_Ch1Buf0_File.load) [load image, compression = rle]
+                  c00e38a5    0000000b     (.cinit.DA_Ch1Buf1_File.load) [load image, compression = rle]
+                  c00e38b0    0000000b     (.cinit.DA_Ch2Buf0_File.load) [load image, compression = rle]
+                  c00e38bb    0000000b     (.cinit.DA_Ch2Buf1_File.load) [load image, compression = rle]
+                  c00e38c6    0000000b     (.cinit.DA_Ch3Buf0_File.load) [load image, compression = rle]
+                  c00e38d1    0000000b     (.cinit.DA_Ch3Buf1_File.load) [load image, compression = rle]
+                  c00e38dc    0000000b     (.cinit.DA_Ch4Buf0_File.load) [load image, compression = rle]
+                  c00e38e7    0000000b     (.cinit.DA_Ch4Buf1_File.load) [load image, compression = rle]
+                  c00e38f2    0000000b     (.cinit.DA_Ch5Buf0_File.load) [load image, compression = rle]
+                  c00e38fd    0000000b     (.cinit.DA_Ch5Buf1_File.load) [load image, compression = rle]
+                  c00e3908    0000000b     (.cinit.DA_Ch6Buf0_File.load) [load image, compression = rle]
+                  c00e3913    0000000b     (.cinit.DA_Ch6Buf1_File.load) [load image, compression = rle]
+                  c00e391e    0000000b     (.cinit.DA_Ch7Buf0_File.load) [load image, compression = rle]
+                  c00e3929    0000000b     (.cinit.DA_Ch7Buf1_File.load) [load image, compression = rle]
+                  c00e3934    0000000b     (.cinit.DA_Ch8Buf0_File.load) [load image, compression = rle]
+                  c00e393f    0000000b     (.cinit.DA_Ch8Buf1_File.load) [load image, compression = rle]
+                  c00e394a    00000009     (.cinit..bss.load) [load image, compression = rle]
+                  c00e3953    00000008     (.cinit.User_DALenFile.load) [load image, compression = rle]
+                  c00e395b    00000001     --HOLE-- [fill = 0]
+                  c00e395c    00000008     (__TI_handler_table)
+                  c00e3964    00000007     (.cinit.User_ADEnFile.load) [load image, compression = rle]
+                  c00e396b    00000007     (.cinit.User_ADFlagFile.load) [load image, compression = rle]
+                  c00e3972    00000007     (.cinit.User_ADPingPongFile.load) [load image, compression = rle]
+                  c00e3979    00000007     (.cinit.User_DAEnFile.load) [load image, compression = rle]
+                  c00e3980    00000007     (.cinit.User_DAFlagFile.load) [load image, compression = rle]
+                  c00e3987    00000007     (.cinit.User_DAPingPongFile.load) [load image, compression = rle]
+                  c00e398e    00000007     (.cinit.User_DASelFile.load) [load image, compression = rle]
+                  c00e3995    00000003     --HOLE-- [fill = 0]
+                  c00e3998    00000170     (__TI_cinit_table)
+
+.init_array 
+*          0    c0000000    00000000     UNINITIALIZED
+
+.fardata   0    c00e26d8    000007dd     UNINITIALIZED
+                  c00e26d8    000000ff     sys_spi.obj (.fardata:SPI_rxBuffer)
+                  c00e27d7    00000001     --HOLE--
+                  c00e27d8    000000ff     sys_spi.obj (.fardata:SPI_txBuffer)
+                  c00e28d7    00000001     --HOLE--
+                  c00e28d8    000000ef     touch_drv.obj (.fardata:GT1151_CFG_TBL)
+                  c00e29c7    00000001     --HOLE--
+                  c00e29c8    00000060     adc_edma.obj (.fardata:dmaPar)
+                  c00e2a28    00000050     lcd_widget.obj (.fardata:g_sBtn1)
+                  c00e2a78    00000050     lcd_widget.obj (.fardata:g_sBtn2)
+                  c00e2ac8    00000050     lcd_widget.obj (.fardata:g_sBtn3)
+                  c00e2b18    00000050     lcd_widget.obj (.fardata:g_sBtn4)
+                  c00e2b68    00000050     lcd_widget.obj (.fardata:g_sBtn5)
+                  c00e2bb8    00000050     lcd_widget.obj (.fardata:g_sBtn6)
+                  c00e2c08    00000050     lcd_widget.obj (.fardata:g_sBtn7)
+                  c00e2c58    00000050     lcd_widget.obj (.fardata:g_sBtn8)
+                  c00e2ca8    00000040     rts6740_elf.lib : cos.c.obj (.fardata:R$1)
+                  c00e2ce8    00000040                     : sin.c.obj (.fardata:R$1)
+                  c00e2d28    00000040     lcd_widget.obj (.fardata:g_sHeading)
+                  c00e2d68    00000040     lcd_widget.obj (.fardata:g_sTxt1)
+                  c00e2da8    00000040     lcd_widget.obj (.fardata:g_sTxt2)
+                  c00e2de8    00000038     lcd_widget.obj (.fardata:g_sMainPanel)
+                  c00e2e20    00000020     grlib.lib : widget.obj (.fardata)
+                  c00e2e40    00000020     rts6740_elf.lib : logf.c.obj (.fardata:log_consts$1)
+                  c00e2e60    00000020     lcd_dma.obj (.fardata:palette_32b)
+                  c00e2e80    00000010     rts6740_elf.lib : cosf.c.obj (.fardata:R$1)
+                  c00e2e90    00000010                     : sinf.c.obj (.fardata:R$1)
+                  c00e2ea0    0000000c                     : exit.c.obj (.fardata)
+                  c00e2eac    00000004                     : errno.c.obj (.fardata)
+                  c00e2eb0    00000005     touch_drv.obj (.fardata:Touch_DebugProductId)
+
+offscreen_buffer 
+*          0    c0000000    000bb824     UNINITIALIZED
+                  c0000000    000bb824     lcd_dma.obj (offscreen_buffer)
+
+User_ADEnFile 
+*          0    c6fffff2    00000001     UNINITIALIZED
+                  c6fffff2    00000001     adc_api.obj (User_ADEnFile)
+
+User_ADFlagFile 
+*          0    c6fffff3    00000001     UNINITIALIZED
+                  c6fffff3    00000001     adc_api.obj (User_ADFlagFile)
+
+User_ADPingPongFile 
+*          0    c6fffff4    00000001     UNINITIALIZED
+                  c6fffff4    00000001     adc_api.obj (User_ADPingPongFile)
+
+User_DALenFile 
+*          0    c6fffff8    00000002     UNINITIALIZED
+                  c6fffff8    00000002     dac_api.obj (User_DALenFile)
+
+User_DAEnFile 
+*          0    c6fffffa    00000001     UNINITIALIZED
+                  c6fffffa    00000001     dac_api.obj (User_DAEnFile)
+
+User_DAFlagFile 
+*          0    c6fffffb    00000001     UNINITIALIZED
+                  c6fffffb    00000001     dac_api.obj (User_DAFlagFile)
+
+User_DAPingPongFile 
+*          0    c6fffffc    00000001     UNINITIALIZED
+                  c6fffffc    00000001     dac_api.obj (User_DAPingPongFile)
+
+User_DASelFile 
+*          0    c6fffffd    00000001     UNINITIALIZED
+                  c6fffffd    00000001     dac_api.obj (User_DASelFile)
+
+AD_Ch1Buf0_File 
+*          0    c7000000    00004000     UNINITIALIZED
+                  c7000000    00004000     adc_api.obj (AD_Ch1Buf0_File)
+
+AD_Ch2Buf0_File 
+*          0    c7004000    00004000     UNINITIALIZED
+                  c7004000    00004000     adc_api.obj (AD_Ch2Buf0_File)
+
+AD_Ch3Buf0_File 
+*          0    c7008000    00004000     UNINITIALIZED
+                  c7008000    00004000     adc_api.obj (AD_Ch3Buf0_File)
+
+AD_Ch4Buf0_File 
+*          0    c700c000    00004000     UNINITIALIZED
+                  c700c000    00004000     adc_api.obj (AD_Ch4Buf0_File)
+
+AD_Ch5Buf0_File 
+*          0    c7010000    00004000     UNINITIALIZED
+                  c7010000    00004000     adc_api.obj (AD_Ch5Buf0_File)
+
+AD_Ch6Buf0_File 
+*          0    c7014000    00004000     UNINITIALIZED
+                  c7014000    00004000     adc_api.obj (AD_Ch6Buf0_File)
+
+AD_Ch7Buf0_File 
+*          0    c7018000    00004000     UNINITIALIZED
+                  c7018000    00004000     adc_api.obj (AD_Ch7Buf0_File)
+
+AD_Ch8Buf0_File 
+*          0    c701c000    00004000     UNINITIALIZED
+                  c701c000    00004000     adc_api.obj (AD_Ch8Buf0_File)
+
+AD_Ch1Buf1_File 
+*          0    c7020000    00004000     UNINITIALIZED
+                  c7020000    00004000     adc_api.obj (AD_Ch1Buf1_File)
+
+AD_Ch2Buf1_File 
+*          0    c7024000    00004000     UNINITIALIZED
+                  c7024000    00004000     adc_api.obj (AD_Ch2Buf1_File)
+
+AD_Ch3Buf1_File 
+*          0    c7028000    00004000     UNINITIALIZED
+                  c7028000    00004000     adc_api.obj (AD_Ch3Buf1_File)
+
+AD_Ch4Buf1_File 
+*          0    c702c000    00004000     UNINITIALIZED
+                  c702c000    00004000     adc_api.obj (AD_Ch4Buf1_File)
+
+AD_Ch5Buf1_File 
+*          0    c7030000    00004000     UNINITIALIZED
+                  c7030000    00004000     adc_api.obj (AD_Ch5Buf1_File)
+
+AD_Ch6Buf1_File 
+*          0    c7034000    00004000     UNINITIALIZED
+                  c7034000    00004000     adc_api.obj (AD_Ch6Buf1_File)
+
+AD_Ch7Buf1_File 
+*          0    c7038000    00004000     UNINITIALIZED
+                  c7038000    00004000     adc_api.obj (AD_Ch7Buf1_File)
+
+AD_Ch8Buf1_File 
+*          0    c703c000    00004000     UNINITIALIZED
+                  c703c000    00004000     adc_api.obj (AD_Ch8Buf1_File)
+
+DA_Ch1Buf0_File 
+*          0    c7040000    00004000     UNINITIALIZED
+                  c7040000    00004000     dac_api.obj (DA_Ch1Buf0_File)
+
+DA_Ch2Buf0_File 
+*          0    c7044000    00004000     UNINITIALIZED
+                  c7044000    00004000     dac_api.obj (DA_Ch2Buf0_File)
+
+DA_Ch3Buf0_File 
+*          0    c7048000    00004000     UNINITIALIZED
+                  c7048000    00004000     dac_api.obj (DA_Ch3Buf0_File)
+
+DA_Ch4Buf0_File 
+*          0    c704c000    00004000     UNINITIALIZED
+                  c704c000    00004000     dac_api.obj (DA_Ch4Buf0_File)
+
+DA_Ch5Buf0_File 
+*          0    c7050000    00004000     UNINITIALIZED
+                  c7050000    00004000     dac_api.obj (DA_Ch5Buf0_File)
+
+DA_Ch6Buf0_File 
+*          0    c7054000    00004000     UNINITIALIZED
+                  c7054000    00004000     dac_api.obj (DA_Ch6Buf0_File)
+
+DA_Ch7Buf0_File 
+*          0    c7058000    00004000     UNINITIALIZED
+                  c7058000    00004000     dac_api.obj (DA_Ch7Buf0_File)
+
+DA_Ch8Buf0_File 
+*          0    c705c000    00004000     UNINITIALIZED
+                  c705c000    00004000     dac_api.obj (DA_Ch8Buf0_File)
+
+DA_Ch1Buf1_File 
+*          0    c7060000    00004000     UNINITIALIZED
+                  c7060000    00004000     dac_api.obj (DA_Ch1Buf1_File)
+
+DA_Ch2Buf1_File 
+*          0    c7064000    00004000     UNINITIALIZED
+                  c7064000    00004000     dac_api.obj (DA_Ch2Buf1_File)
+
+DA_Ch3Buf1_File 
+*          0    c7068000    00004000     UNINITIALIZED
+                  c7068000    00004000     dac_api.obj (DA_Ch3Buf1_File)
+
+DA_Ch4Buf1_File 
+*          0    c706c000    00004000     UNINITIALIZED
+                  c706c000    00004000     dac_api.obj (DA_Ch4Buf1_File)
+
+DA_Ch5Buf1_File 
+*          0    c7070000    00004000     UNINITIALIZED
+                  c7070000    00004000     dac_api.obj (DA_Ch5Buf1_File)
+
+DA_Ch6Buf1_File 
+*          0    c7074000    00004000     UNINITIALIZED
+                  c7074000    00004000     dac_api.obj (DA_Ch6Buf1_File)
+
+DA_Ch7Buf1_File 
+*          0    c7078000    00004000     UNINITIALIZED
+                  c7078000    00004000     dac_api.obj (DA_Ch7Buf1_File)
+
+DA_Ch8Buf1_File 
+*          0    c707c000    00004000     UNINITIALIZED
+                  c707c000    00004000     dac_api.obj (DA_Ch8Buf1_File)
+
+MODULE SUMMARY
+
+       Module                            code     ro data   rw data
+       ------                            ----     -------   -------
+    .\Code\
+       main.obj                          32       0         0      
+    +--+---------------------------------+--------+---------+---------+
+       Total:                            32       0         0      
+                                                                   
+    .\Code\Driver\00_sys\
+       system.obj                        32       0         0      
+    +--+---------------------------------+--------+---------+---------+
+       Total:                            32       0         0      
+                                                                   
+    .\Code\Driver\02_key\
+       key_drv.obj                       672      0         5      
+       key_pin.obj                       320      0         0      
+    +--+---------------------------------+--------+---------+---------+
+       Total:                            992      0         5      
+                                                                   
+    .\Code\Driver\03_timer\
+       timer_drv.obj                     256      0         1      
+    +--+---------------------------------+--------+---------+---------+
+       Total:                            256      0         1      
+                                                                   
+    .\Code\Driver\04_adc\
+       adc_api.obj                       0        0         262147 
+       adc_edma.obj                      352      0         124    
+       adc_pin.obj                       320      0         0      
+       adc_emif.obj                      224      0         0      
+       adc_pru.obj                       64       156       0      
+       adc_drv.obj                       192      0         0      
+       adc_tim1.obj                      160      0         0      
+    +--+---------------------------------+--------+---------+---------+
+       Total:                            1312     156       262271 
+                                                                   
+    .\Code\Driver\05_dac\
+       dac_api.obj                       0        0         262150 
+       dac_pru.obj                       64       1212      0      
+       dac_drv.obj                       320      0         4      
+       dac_pin.obj                       288      0         0      
+       dac_tim1.obj                      160      0         0      
+    +--+---------------------------------+--------+---------+---------+
+       Total:                            832      1212      262154 
+                                                                   
+    .\Code\Driver\10_eeprom\
+       eeprom.obj                        0        0         4      
+    +--+---------------------------------+--------+---------+---------+
+       Total:                            0        0         4      
+                                                                   
+    .\Code\Driver\11_lcd\
+       lcd_dma.obj                       160      0         768068 
+       lcd_widget.obj                    0        64        888    
+       lcd_pin.obj                       224      0         0      
+       lcd_raster.obj                    192      0         0      
+       lcd_grlib.obj                     96       0         68     
+       lcd_drv.obj                       64       0         0      
+       lcd_ctrl.obj                      32       0         0      
+    +--+---------------------------------+--------+---------+---------+
+       Total:                            768      64        769024 
+                                                                   
+    .\Code\Driver\12_touch\
+       touch_drv.obj                     864      0         248    
+       touch_scan.obj                    640      0         56     
+       touch_btn.obj                     448      0         21     
+       touch_pin.obj                     320      0         8      
+    +--+---------------------------------+--------+---------+---------+
+       Total:                            2272     0         333    
+                                                                   
+    .\Code\Driver\20_platform\
+       sysdelay.obj                      448      0         4      
+       lcd.obj                           448      0         0      
+       edma.obj                          32       0         0      
+    +--+---------------------------------+--------+---------+---------+
+       Total:                            928      0         4      
+                                                                   
+    .\Code\Driver\21_edma\
+       edma0_common.obj                  992      0         4      
+    +--+---------------------------------+--------+---------+---------+
+       Total:                            992      0         4      
+                                                                   
+    .\Code\Driver\22_spi\
+       sys_spi.obj                       1440     0         516    
+    +--+---------------------------------+--------+---------+---------+
+       Total:                            1440     0         516    
+                                                                   
+    .\Code\Driver\23_iic\
+       sys_iic.obj                       2368     0         305    
+    +--+---------------------------------+--------+---------+---------+
+       Total:                            2368     0         305    
+                                                                   
+    .\Code\User\user_dsp\
+       user_subband_flow.obj             7936     48        236736 
+       user_subband_denoise.obj          12640    0         19796  
+       user_subband_wola.obj             5632     0         16464  
+       user_subband_ui.obj               9024     196       300    
+       user_subband_polyphase.obj        5856     516       2148   
+       user_subband_codec_loopback.obj   5088     32        300    
+       user_subband_ui_logic.obj         2208     436       0      
+       user_subband_ui_font.obj          448      2112      0      
+       user_subband_eval.obj             0        0         32     
+    +--+---------------------------------+--------+---------+---------+
+       Total:                            48832    3340      275776 
+                                                                   
+    .\Library\StarterWare\Grlib\fonts\
+       fontcmss38b.obj                   0        4286      0      
+       fontcmss22b.obj                   0        2534      0      
+       fontcmss18b.obj                   0        2122      0      
+       fontcmtt12.obj                    0        1513      0      
+    +--+---------------------------------+--------+---------+---------+
+       Total:                            0        10455     0      
+                                                                   
+    ../Library/StarterWare/Drivers/Debug/drivers.lib
+       edma.obj                          6048     0         4      
+       emifa.obj                         4032     256       0      
+       raster.obj                        3584     0         0      
+       timer.obj                         2080     0         0      
+       spi.obj                           1440     0         0      
+       gpio.obj                          1408     16        0      
+       i2c.obj                           1216     0         0      
+       pru.obj                           608      0         0      
+       psc.obj                           320      0         0      
+    +--+---------------------------------+--------+---------+---------+
+       Total:                            20736    272       4      
+                                                                   
+    ../Library/StarterWare/Grlib/Debug/grlib.lib
+       pushbutton.obj                    3744     0         0      
+       string.obj                        3680     0         18     
+       circle.obj                        2496     0         0      
+       widget.obj                        1952     0         365    
+       offscr16bpp.obj                   2304     0         2      
+       image.obj                         1728     0         32     
+       line.obj                          1728     0         0      
+       canvas.obj                        1440     0         0      
+       container.obj                     1088     0         0      
+       rectangle.obj                     992      0         0      
+       context.obj                       416      0         0      
+    +--+---------------------------------+--------+---------+---------+
+       Total:                            21568    0         417    
+                                                                   
+    ../Library/StarterWare/SystemConfig/Debug/system_config.lib
+       interrupt.obj                     8320     0         576    
+       intvecs.obj                       512      0         0      
+    +--+---------------------------------+--------+---------+---------+
+       Total:                            8832     0         576    
+                                                                   
+    ../Library/StarterWare/Utils/Debug/utils.lib
+       delay.obj                         96       0         0      
+    +--+---------------------------------+--------+---------+---------+
+       Total:                            96       0         0      
+                                                                   
+    D:\SoftwareDownload\CCS_20.5.0.00028_win\ccs\tools\compiler\ti-cgt-c6000_8.5.0.LTS\lib\rts6740_elf.lib
+       divd.c.obj                        1376     0         0      
+       cos.c.obj                         832      0         64     
+       sin.c.obj                         768      0         64     
+       imath64.c.obj                     704      0         0      
+       cosf.c.obj                        576      0         16     
+       divf.c.obj                        544      0         0      
+       sinf.c.obj                        512      0         16     
+       frexpf.c.obj                      416      0         0      
+       logf.c.obj                        288      0         32     
+       sqrtf.c.obj                       320      0         0      
+       copy_decompress_rle.c.obj         288      0         0      
+       exit.c.obj                        256      0         12     
+       divi.asm.obj                      224      0         0      
+       llshift.c.obj                     224      0         0      
+       memset.c.obj                      224      0         0      
+       autoinit.c.obj                    192      0         0      
+       divu.asm.obj                      192      0         0      
+       modf.c.obj                        192      0         0      
+       round.c.obj                       192      0         0      
+       tls.c.obj                         192      0         0      
+       fixfu.c.obj                       160      0         0      
+       memcpy64.asm.obj                  160      0         0      
+       remu.asm.obj                      160      0         0      
+       roundf.c.obj                      160      0         0      
+       boot.c.obj                        128      0         0      
+       modff.c.obj                       96       0         0      
+       args_main.c.obj                   64       0         0      
+       frcmpyd_div.c.obj                 64       0         0      
+       errno.c.obj                       32       0         4      
+       copy_decompress_none.c.obj        32       0         0      
+       pre_init.c.obj                    32       0         0      
+       startup.c.obj                     32       0         0      
+       trunc.c.obj                       32       0         0      
+       truncf.c.obj                      32       0         0      
+    +--+---------------------------------+--------+---------+---------+
+       Total:                            9696     0         208    
+                                                                   
+       Stack:                            0        0         2048   
+       Linker Generated:                 0        2780      0      
+    +--+---------------------------------+--------+---------+---------+
+       Grand Total:                      121984   18279     1573650
+
+
+LINKER GENERATED COPY TABLES
+
+__TI_cinit_table @ c00e3998 records: 46, size/record: 8, table size: 368
+	.fardata: load addr=c00e3028, load size=000004cc bytes, run addr=c00e26d8, run size=000007dd bytes, compression=rle
+	.subband_l2: load addr=c00e34f4, load size=00000214 bytes, run addr=00800000, run size=0003ec64 bytes, compression=rle
+	.neardata: load addr=c00e3708, load size=000000ca bytes, run addr=c00bb824, run size=00000374 bytes, compression=rle
+	offscreen_buffer: load addr=c00e37d2, load size=0000000d bytes, run addr=c0000000, run size=000bb824 bytes, compression=rle
+	.far: load addr=c00e37df, load size=0000000b bytes, run addr=c00d9880, run size=00004d24 bytes, compression=rle
+	AD_Ch1Buf0_File: load addr=c00e37ea, load size=0000000b bytes, run addr=c7000000, run size=00004000 bytes, compression=rle
+	AD_Ch1Buf1_File: load addr=c00e37f5, load size=0000000b bytes, run addr=c7020000, run size=00004000 bytes, compression=rle
+	AD_Ch2Buf0_File: load addr=c00e3800, load size=0000000b bytes, run addr=c7004000, run size=00004000 bytes, compression=rle
+	AD_Ch2Buf1_File: load addr=c00e380b, load size=0000000b bytes, run addr=c7024000, run size=00004000 bytes, compression=rle
+	AD_Ch3Buf0_File: load addr=c00e3816, load size=0000000b bytes, run addr=c7008000, run size=00004000 bytes, compression=rle
+	AD_Ch3Buf1_File: load addr=c00e3821, load size=0000000b bytes, run addr=c7028000, run size=00004000 bytes, compression=rle
+	AD_Ch4Buf0_File: load addr=c00e382c, load size=0000000b bytes, run addr=c700c000, run size=00004000 bytes, compression=rle
+	AD_Ch4Buf1_File: load addr=c00e3837, load size=0000000b bytes, run addr=c702c000, run size=00004000 bytes, compression=rle
+	AD_Ch5Buf0_File: load addr=c00e3842, load size=0000000b bytes, run addr=c7010000, run size=00004000 bytes, compression=rle
+	AD_Ch5Buf1_File: load addr=c00e384d, load size=0000000b bytes, run addr=c7030000, run size=00004000 bytes, compression=rle
+	AD_Ch6Buf0_File: load addr=c00e3858, load size=0000000b bytes, run addr=c7014000, run size=00004000 bytes, compression=rle
+	AD_Ch6Buf1_File: load addr=c00e3863, load size=0000000b bytes, run addr=c7034000, run size=00004000 bytes, compression=rle
+	AD_Ch7Buf0_File: load addr=c00e386e, load size=0000000b bytes, run addr=c7018000, run size=00004000 bytes, compression=rle
+	AD_Ch7Buf1_File: load addr=c00e3879, load size=0000000b bytes, run addr=c7038000, run size=00004000 bytes, compression=rle
+	AD_Ch8Buf0_File: load addr=c00e3884, load size=0000000b bytes, run addr=c701c000, run size=00004000 bytes, compression=rle
+	AD_Ch8Buf1_File: load addr=c00e388f, load size=0000000b bytes, run addr=c703c000, run size=00004000 bytes, compression=rle
+	DA_Ch1Buf0_File: load addr=c00e389a, load size=0000000b bytes, run addr=c7040000, run size=00004000 bytes, compression=rle
+	DA_Ch1Buf1_File: load addr=c00e38a5, load size=0000000b bytes, run addr=c7060000, run size=00004000 bytes, compression=rle
+	DA_Ch2Buf0_File: load addr=c00e38b0, load size=0000000b bytes, run addr=c7044000, run size=00004000 bytes, compression=rle
+	DA_Ch2Buf1_File: load addr=c00e38bb, load size=0000000b bytes, run addr=c7064000, run size=00004000 bytes, compression=rle
+	DA_Ch3Buf0_File: load addr=c00e38c6, load size=0000000b bytes, run addr=c7048000, run size=00004000 bytes, compression=rle
+	DA_Ch3Buf1_File: load addr=c00e38d1, load size=0000000b bytes, run addr=c7068000, run size=00004000 bytes, compression=rle
+	DA_Ch4Buf0_File: load addr=c00e38dc, load size=0000000b bytes, run addr=c704c000, run size=00004000 bytes, compression=rle
+	DA_Ch4Buf1_File: load addr=c00e38e7, load size=0000000b bytes, run addr=c706c000, run size=00004000 bytes, compression=rle
+	DA_Ch5Buf0_File: load addr=c00e38f2, load size=0000000b bytes, run addr=c7050000, run size=00004000 bytes, compression=rle
+	DA_Ch5Buf1_File: load addr=c00e38fd, load size=0000000b bytes, run addr=c7070000, run size=00004000 bytes, compression=rle
+	DA_Ch6Buf0_File: load addr=c00e3908, load size=0000000b bytes, run addr=c7054000, run size=00004000 bytes, compression=rle
+	DA_Ch6Buf1_File: load addr=c00e3913, load size=0000000b bytes, run addr=c7074000, run size=00004000 bytes, compression=rle
+	DA_Ch7Buf0_File: load addr=c00e391e, load size=0000000b bytes, run addr=c7058000, run size=00004000 bytes, compression=rle
+	DA_Ch7Buf1_File: load addr=c00e3929, load size=0000000b bytes, run addr=c7078000, run size=00004000 bytes, compression=rle
+	DA_Ch8Buf0_File: load addr=c00e3934, load size=0000000b bytes, run addr=c705c000, run size=00004000 bytes, compression=rle
+	DA_Ch8Buf1_File: load addr=c00e393f, load size=0000000b bytes, run addr=c707c000, run size=00004000 bytes, compression=rle
+	.bss: load addr=c00e394a, load size=00000009 bytes, run addr=c00bbb98, run size=0000002b bytes, compression=rle
+	User_DALenFile: load addr=c00e3953, load size=00000008 bytes, run addr=c6fffff8, run size=00000002 bytes, compression=rle
+	User_ADEnFile: load addr=c00e3964, load size=00000007 bytes, run addr=c6fffff2, run size=00000001 bytes, compression=rle
+	User_ADFlagFile: load addr=c00e396b, load size=00000007 bytes, run addr=c6fffff3, run size=00000001 bytes, compression=rle
+	User_ADPingPongFile: load addr=c00e3972, load size=00000007 bytes, run addr=c6fffff4, run size=00000001 bytes, compression=rle
+	User_DAEnFile: load addr=c00e3979, load size=00000007 bytes, run addr=c6fffffa, run size=00000001 bytes, compression=rle
+	User_DAFlagFile: load addr=c00e3980, load size=00000007 bytes, run addr=c6fffffb, run size=00000001 bytes, compression=rle
+	User_DAPingPongFile: load addr=c00e3987, load size=00000007 bytes, run addr=c6fffffc, run size=00000001 bytes, compression=rle
+	User_DASelFile: load addr=c00e398e, load size=00000007 bytes, run addr=c6fffffd, run size=00000001 bytes, compression=rle
+
+
+LINKER GENERATED HANDLER TABLE
+
+__TI_handler_table @ c00e395c records: 2, size/record: 4, table size: 8
+	index: 0, handler: __TI_decompress_rle24
+	index: 1, handler: __TI_decompress_none
+
+
+GLOBAL SYMBOLS: SORTED ALPHABETICALLY BY Name 
+
+address   name                                            
+-------   ----                                            
+c7000000  AD_CH1_Buf0                                     
+c7020000  AD_CH1_Buf1                                     
+c7004000  AD_CH2_Buf0                                     
+c7024000  AD_CH2_Buf1                                     
+c7008000  AD_CH3_Buf0                                     
+c7028000  AD_CH3_Buf1                                     
+c700c000  AD_CH4_Buf0                                     
+c702c000  AD_CH4_Buf1                                     
+c7010000  AD_CH5_Buf0                                     
+c7030000  AD_CH5_Buf1                                     
+c7014000  AD_CH6_Buf0                                     
+c7034000  AD_CH6_Buf1                                     
+c7018000  AD_CH7_Buf0                                     
+c7038000  AD_CH7_Buf1                                     
+c701c000  AD_CH8_Buf0                                     
+c703c000  AD_CH8_Buf1                                     
+c6fffff2  AD_En                                           
+c6fffff4  AD_Ping_Pong                                    
+c00bbb88  AckRolling                                      
+c00d7aac  Adc_Convst_PinSet                               
+c00d78a8  Adc_EDMA_Init                                   
+c00d86b0  Adc_Emif_Init                                   
+c00d8c40  Adc_Init                                        
+c00d7a08  Adc_Pin_Init                                    
+c00d9640  Adc_Pru1_Init                                   
+c00d79a0  Adc_Reset_PinSet                                
+c00d8c20  Adc_Start                                       
+c00d8c00  Adc_Stop                                        
+c00d9110  Adc_Timer1_Init                                 
+c00d90f8  Adc_Timer1_Start                                
+c00d90e0  Adc_Timer1_Stop                                 
+c00d97a0  C$$EXIT                                         
+c00d2f64  CanvasInit                                      
+c00d2f30  CanvasMsgProc                                   
+c00cc010  CircularButtonInit                              
+c00cbfc0  CircularButtonMsgProc                           
+c00d6eb4  ConfigRasterDisplayEnable                       
+c00d6e88  ConfigRasterGpioPins                            
+c00d48e4  ContainerInit                                   
+c00d48b0  ContainerMsgProc                                
+c7040000  DA_CH1_Buf0                                     
+c7060000  DA_CH1_Buf1                                     
+c7044000  DA_CH2_Buf0                                     
+c7064000  DA_CH2_Buf1                                     
+c7048000  DA_CH3_Buf0                                     
+c7068000  DA_CH3_Buf1                                     
+c704c000  DA_CH4_Buf0                                     
+c706c000  DA_CH4_Buf1                                     
+c7050000  DA_CH5_Buf0                                     
+c7070000  DA_CH5_Buf1                                     
+c7054000  DA_CH6_Buf0                                     
+c7074000  DA_CH6_Buf1                                     
+c7058000  DA_CH7_Buf0                                     
+c7078000  DA_CH7_Buf1                                     
+c705c000  DA_CH8_Buf0                                     
+c707c000  DA_CH8_Buf1                                     
+c6fffffa  DA_En                                           
+c6fffff8  DA_Len                                          
+c6fffffc  DA_Ping_Pong                                    
+c6fffffd  DA_Sel                                          
+c00d8208  Dac_Clr_PinSet                                  
+c00d7b20  Dac_Init                                        
+c00d81e0  Dac_Load_PinSet                                 
+c00d8174  Dac_Pin_Init                                    
+c00d9680  Dac_Pru0_Init                                   
+c00d7b00  Dac_Start                                       
+c00d7ae0  Dac_Stop                                        
+c00d91ac  Dac_Timer1_Init                                 
+c00d9194  Dac_Timer1_Start                                
+c00d9180  Dac_Timer1_Stop                                 
+c00d9560  DelayTimerSetup                                 
+c00c4dc0  EDMA3ChannelToParamMap                          
+c00c5b60  EDMA3ClearErrorBits                             
+c00c5160  EDMA3ClrCCErr                                   
+c00c5204  EDMA3ClrEvt                                     
+c00c55f8  EDMA3ClrIntr                                    
+c00c5054  EDMA3ClrMissEvt                                 
+c00c5ff4  EDMA3ContextRestore                             
+c00c5e18  EDMA3ContextSave                                
+c00c5cf8  EDMA3Deinit                                     
+c00c4cfc  EDMA3DisableChInShadowReg                       
+c00c5310  EDMA3DisableDmaEvt                              
+c00c5570  EDMA3DisableEvtIntr                             
+c00c53c8  EDMA3DisableQdmaEvt                             
+c00c5ad0  EDMA3DisableTransfer                            
+c00c4c34  EDMA3EnableChInShadowReg                        
+c00c5288  EDMA3EnableDmaEvt                               
+c00c54e8  EDMA3EnableEvtIntr                              
+c00c5394  EDMA3EnableQdmaEvt                              
+c00c5a48  EDMA3EnableTransfer                             
+c00c54a0  EDMA3ErrIntrHighStatusGet                       
+c00c59a8  EDMA3FreeChannel                                
+c00c53f8  EDMA3GetCCErrStatus                             
+c00c5478  EDMA3GetErrIntrStatus                           
+c00c5420  EDMA3GetIntrStatus                              
+c00c5664  EDMA3GetPaRAM                                   
+c00c4a40  EDMA3Init                                       
+c00c544c  EDMA3IntrStatusHighGet                          
+c00c4de4  EDMA3MapChToEvtQ                                
+c00c4f2c  EDMA3MapQdmaChToPaRAM                           
+c00c4c20  EDMA3PeripheralIdGet                            
+c00c5108  EDMA3QdmaClrMissEvt                             
+c00c54c4  EDMA3QdmaGetErrIntrStatus                       
+c00c56c0  EDMA3QdmaGetPaRAM                               
+c00c5838  EDMA3QdmaGetPaRAMEntry                          
+c00c578c  EDMA3QdmaSetPaRAM                               
+c00c57f8  EDMA3QdmaSetPaRAMEntry                          
+c00c5884  EDMA3RequestChannel                             
+c00c5180  EDMA3SetEvt                                     
+c00c5728  EDMA3SetPaRAM                                   
+c00c5018  EDMA3SetQdmaTrigWord                            
+c00c4ea8  EDMA3UnmapChToEvtQ                              
+c00d9800  EDMAVersionGet                                  
+c00ca638  EMIFAAsyncDevDataBusWidthSelect                 
+c00ca6e4  EMIFAAsyncDevOpModeSelect                       
+c00ca4c8  EMIFACSWaitPinSelect                            
+c00ca7a0  EMIFAExtendedWaitConfig                         
+c00ca488  EMIFAMaxExtWaitCycleSet                         
+c00ca2a0  EMIFAModuleIdRead                               
+c00cb104  EMIFAMskedIntClear                              
+c00cb1e8  EMIFAMskedIntDisable                            
+c00cb174  EMIFAMskedIntEnable                             
+c00cb098  EMIFAMskedIntStatusRead                         
+c00ca340  EMIFANAND4BitECCAddrCalcStart                   
+c00cabf8  EMIFANAND4BitECCLoad                            
+c00ca9b0  EMIFANAND4BitECCNumOfErrsGet                    
+c00ca3f8  EMIFANAND4BitECCSelect                          
+c00ca990  EMIFANAND4BitECCStateGet                        
+c00cad88  EMIFANAND4BitEccErrAddrGet                      
+c00cae28  EMIFANAND4BitEccErrValGet                       
+c00ca2b8  EMIFANANDCSSet                                  
+c00ca360  EMIFANANDECCStart                               
+c00cac24  EMIFANANDEccValGet                              
+c00cab44  EMIFANORPageAccessDelaySet                      
+c00ca9d0  EMIFANORPageModeConfig                          
+c00caa88  EMIFANORPageSizeSet                             
+c00cb028  EMIFARawIntClear                                
+c00cafc0  EMIFARawIntStatusRead                           
+c00ca858  EMIFASDRAMConfig                                
+c00ca8b0  EMIFASDRAMPowDownModeConfig                     
+c00ca8e0  EMIFASDRAMRefDurPowDownModeEnable               
+c00ca8f8  EMIFASDRAMRefRateSet                            
+c00ca92c  EMIFASDRAMSelfRefExitTimeConfig                 
+c00ca884  EMIFASDRAMSelfRefModeConfig                     
+c00ca914  EMIFASDRAMTimingConfig                          
+c00ca5e8  EMIFAWaitPinPolaritySet                         
+c00ca948  EMIFAWaitPinStatusGet                           
+c00caec8  EMIFAWaitTimingConfig                           
+c00d4d24  Edma0_Common_Init                               
+c00d2398  ExcCombineAdd                                   
+c00d23e0  ExcCombineRemove                                
+c00d2378  ExcGlobalEnable                                 
+c6fffff3  FLAG_AD                                         
+c00bbbb4  FLAG_BUTTON                                     
+c00bbbb5  FLAG_BUTTON_1                                   
+c00bbbb6  FLAG_BUTTON_2                                   
+c00bbbb7  FLAG_BUTTON_3                                   
+c00bbbb8  FLAG_BUTTON_4                                   
+c00bbbb9  FLAG_BUTTON_5                                   
+c00bbbba  FLAG_BUTTON_6                                   
+c00bbbbb  FLAG_BUTTON_7                                   
+c00bbbbc  FLAG_BUTTON_8                                   
+c6fffffb  FLAG_DA                                         
+c00bbb78  FLAG_KEY1                                       
+c00bbb79  FLAG_KEY2                                       
+c00bbb7a  FLAG_KEY3                                       
+c00bbb7b  FLAG_KEY4                                       
+c00bbb7c  FLAG_KEY5                                       
+c00bbbbd  FLAG_SPI_RX                                     
+c00bbbbe  FLAG_SPI_TX                                     
+c00bbb65  FLAG_TIM2                                       
+c00bbb70  FLAG_TOUCH                                      
+c00d3aa4  GPIOBankIntDisable                              
+c00d3a74  GPIOBankIntEnable                               
+c00d3ad0  GPIOBankPinsWrite                               
+c00d3698  GPIODirModeGet                                  
+c00d3600  GPIODirModeSet                                  
+c00d3944  GPIOIntTypeGet                                  
+c00d37d8  GPIOIntTypeSet                                  
+c00d3a2c  GPIOPinIntClear                                 
+c00d39cc  GPIOPinIntStatus                                
+c00d3778  GPIOPinRead                                     
+c00d36f8  GPIOPinWrite                                    
+c00e28d8  GT1151_CFG_TBL                                  
+c00d5218  GT1151_Init                                     
+c00d5de0  GT1151_Scan                                     
+c00cdd60  GrCircleDraw                                    
+c00ce3c4  GrCircleFill                                    
+c00d772c  GrContextClipRegionSet                          
+c00d76a0  GrContextInit                                   
+c00d11c0  GrImageDraw                                     
+c00d1d10  GrLineDraw                                      
+c00d1880  GrLineDrawH                                     
+c00d1958  GrLineDrawV                                     
+c00cf864  GrOffScreen16BPPInit                            
+c00d4dc0  GrRectDraw                                      
+c00d4e88  GrRectFill                                      
+c00d508c  GrRectIntersectGet                              
+c00d5024  GrRectOverlapCheck                              
+c00cc258  GrStringDraw                                    
+c00cc9b8  GrStringGet                                     
+c00cc934  GrStringLanguageSet                             
+c00cc8cc  GrStringTableSet                                
+c00cc164  GrStringWidthGet                                
+c00d4564  I2CDMARxEventDisable                            
+c00d4518  I2CDMARxEventEnable                             
+c00d4540  I2CDMATxEventDisable                            
+c00d44f4  I2CDMATxEventEnable                             
+c00d44e0  I2CDMATxRxEventDisable                          
+c00d44a8  I2CInterruptVectorGet                           
+c00d4308  I2CMasterBusBusy                                
+c00d4350  I2CMasterControl                                
+c00d4420  I2CMasterDataGet                                
+c00d43f8  I2CMasterDataPut                                
+c00d41b8  I2CMasterDisable                                
+c00d4180  I2CMasterEnable                                 
+c00d43d0  I2CMasterErr                                    
+c00d40e0  I2CMasterInitExpClk                             
+c00d42c4  I2CMasterIntClearEx                             
+c00d4224  I2CMasterIntDisableEx                           
+c00d41d8  I2CMasterIntEnableEx                            
+c00d426c  I2CMasterIntStatus                              
+c00d432c  I2CMasterIsBusy                                 
+c00d42f0  I2CMasterSlaveAddrSet                           
+c00d4378  I2CMasterStart                                  
+c00d4398  I2CMasterStop                                   
+c00d4490  I2COwnAddressSet                                
+c00d4478  I2CSetDataCount                                 
+c00d44c4  I2CSlaveAddressGet                              
+c00d4460  I2CSlaveDataGet                                 
+c00d4438  I2CSlaveDataPut                                 
+c00d42d8  I2CSlaveIntClearEx                              
+c00d4248  I2CSlaveIntDisableEx                            
+c00d4200  I2CSlaveIntEnableEx                             
+c00d4288  I2CSlaveIntStatus                               
+c00d42a4  I2CSlaveIntStatusEx                             
+c00d43b8  I2CStatusClear                                  
+c00ceac8  IICReceive                                      
+c00ce7f4  IICSend                                         
+c00ced8c  IIC_Read                                        
+c00cec40  IIC_Read_Reg                                    
+c00ce720  IIC_SelectDevice                                
+c00cebac  IIC_SeqRead_Reg                                 
+c00cea20  IIC_SeqWrite_Reg                                
+c00ce924  IIC_Write                                       
+c00ce8e0  IIC_Write_Reg                                   
+c00bbb80  IIC_dataIdx                                     
+c00de400  IIC_slaveData                                   
+c00bbb84  IIC_txCompFlag                                  
+c00d1f40  IntDSPINTCInit                                  
+c00d22f0  IntDisable                                      
+c00d22c0  IntEnable                                       
+c00d20b8  IntEventClear                                   
+c00d21f4  IntEventCombineAdd                              
+c00d20f0  IntEventCombineInit                             
+c00d2298  IntEventCombineRegister                         
+c00d2248  IntEventCombineRemove                           
+c00d1ffc  IntEventMap                                     
+c00d2084  IntEventSet                                     
+c00d234c  IntGlobalDisable                                
+c00d2338  IntGlobalEnable                                 
+c00d2360  IntGlobalRestore                                
+c00d1fb0  IntRegister                                     
+c00d2324  IntReset                                        
+c00d1fd4  IntUnRegister                                   
+c00d9594  IsTimerElapsed                                  
+c00d7da0  KEY_PinInit                                     
+c00d5dac  Key_Init                                        
+c00d6e04  LCDPinMuxSetup                                  
+c00d6e00  LCDVersionGet                                   
+c0000000  Lcd_Buffer                                      
+c00d9820  Lcd_CTRL_Init                                   
+c00de578  Lcd_Context                                     
+c00d9220  Lcd_DMA_Init                                    
+c00de52c  Lcd_Display                                     
+c00d94a0  Lcd_Grlib_Init                                  
+c00d96c0  Lcd_Init                                        
+c00d88a8  Lcd_Pin_Init                                    
+c00d8d6c  Lcd_Raster_Enable                               
+c00d8cc0  Lcd_Raster_Init                                 
+c00cc100  NumLeadingZeros                                 
+c00d7220  OnButtonPress                                   
+c00e0b70  PRU0_Code                                       
+c00e15f0  PRU1_Code                                       
+c00d7c20  PSCModuleControl                                
+c00d62c0  PruDisable                                      
+c00d6308  PruEnable                                       
+c00d6378  PruLoad                                         
+c00d6410  PruRun                                          
+c00d6464  PruWaitForHalt                                  
+c00cf060  RGB16                                           
+c00ccfd4  RasterAutoUnderFlowDisable                      
+c00ccfb4  RasterAutoUnderFlowEnable                       
+c00cd508  RasterByteSwapDisable                           
+c00cd4e4  RasterByteSwapEnable                            
+c00cd694  RasterClearGetIntStatus                         
+c00ccf60  RasterClkConfig                                 
+c00cd8f4  RasterClocksEnable                              
+c00cdc4c  RasterContextRestore                            
+c00cdb64  RasterContextSave                               
+c00cd4a8  RasterDMAConfig                                 
+c00cd64c  RasterDMAFBConfig                               
+c00cd980  RasterDMASoftWareClkDisable                     
+c00cd958  RasterDMASoftWareClkEnable                      
+c00cd018  RasterDisable                                   
+c00cda88  RasterDmaMasterPrioritySet                      
+c00ccff4  RasterEnable                                    
+c00cd550  RasterEndOfFrameIntDisable                      
+c00cd52c  RasterEndOfFrameIntEnable                       
+c00cd220  RasterFIFODMADelayConfig                        
+c00cd268  RasterHparamConfig                              
+c00ccfa0  RasterIdGet                                     
+c00cdb18  RasterIdleModeConfig                            
+c00cd188  RasterIntDisable                                
+c00cd120  RasterIntEnable                                 
+c00cd5d4  RasterIntRawStatus                              
+c00cd620  RasterIntRawStatusSet                           
+c00cd574  RasterIntStatus                                 
+c00cd0e0  RasterLSBDataOrderSelect                        
+c00cd100  RasterMSBDataOrderSelect                        
+c00cd040  RasterModeConfig                                
+c00cd200  RasterNibbleModeDisable                         
+c00cd1e0  RasterNibbleModeEnable                          
+c00cd934  RasterSoftWareClkDisable                        
+c00cd910  RasterSoftWareClkEnable                         
+c00cda14  RasterSoftWareResetControlDisable               
+c00cd9a4  RasterSoftWareResetControlEnable                
+c00cdad0  RasterStandbyModeConfig                         
+c00cd750  RasterSubPanelConfig                            
+c00cd72c  RasterSubPanelDisable                           
+c00cd70c  RasterSubPanelEnable                            
+c00cd434  RasterTiming2Configure                          
+c00cd344  RasterVparamConfig                              
+c00cb8d4  RectangularButtonInit                           
+c00cb874  RectangularButtonMsgProc                        
+c00d2798  SPICSTimerDisable                               
+c00d27c0  SPICSTimerEnable                                
+c00d27e8  SPICharLengthSet                                
+c00d2520  SPIClkConfigure                                 
+c00d2838  SPIConfigClkFormat                              
+c00d2708  SPIDat1Config                                   
+c00d2a70  SPIDataReceive                                  
+c00d26e4  SPIDefaultCSSet                                 
+c00d2624  SPIDelayConfigure                               
+c00d2568  SPIEnable                                       
+c00d2a10  SPIIntDisable                                   
+c00d29ec  SPIIntEnable                                    
+c00d29c4  SPIIntLevelSet                                  
+c00d2a4c  SPIIntStatus                                    
+c00d2a34  SPIIntStatusClear                               
+c00d2a8c  SPIInterruptVectorGet                           
+c00d25b4  SPIModeConfigure                                
+c00d25a0  SPIOutOfReset                                   
+c00d2914  SPIParityDisable                                
+c00d28c0  SPIParityEnable                                 
+c00d25d8  SPIPinControl                                   
+c00d2584  SPIReset                                        
+c00d2894  SPIShiftLsbFirst                                
+c00d286c  SPIShiftMsbFirst                                
+c00d276c  SPITransmitData1                                
+c00d2998  SPIWaitDisable                                  
+c00d2970  SPIWaitEnable                                   
+c00d2940  SPIWdelaySet                                    
+c00d3344  SPI_SeqRead_Reg                                 
+c00d3224  SPI_SeqWrite_Reg                                
+c00e26d8  SPI_rxBuffer                                    
+c00bbbbf  SPI_rxCount                                     
+c00bbbc0  SPI_rxLength                                    
+c00e27d8  SPI_txBuffer                                    
+c00bbbc1  SPI_txCount                                     
+c00bbbc2  SPI_txLength                                    
+c00bba7c  SUBBAND_CODEC_LOOP_DebugAvgBitsPerScalar        
+c00bba80  SUBBAND_CODEC_LOOP_DebugBandBits0               
+c00bba84  SUBBAND_CODEC_LOOP_DebugBandBits1               
+c00bba88  SUBBAND_CODEC_LOOP_DebugBandBits2               
+c00bba8c  SUBBAND_CODEC_LOOP_DebugBandBits3               
+c00bba90  SUBBAND_CODEC_LOOP_DebugBandBits4               
+c00bba94  SUBBAND_CODEC_LOOP_DebugBandBits5               
+c00bba98  SUBBAND_CODEC_LOOP_DebugBandBits6               
+c00bba9c  SUBBAND_CODEC_LOOP_DebugBandBits7               
+c00bba68  SUBBAND_CODEC_LOOP_DebugCompressionLevel        
+c00bba78  SUBBAND_CODEC_LOOP_DebugCompressionRatio        
+c00bba64  SUBBAND_CODEC_LOOP_DebugEnabled                 
+c00bba74  SUBBAND_CODEC_LOOP_DebugEstimatedBitrateKbps    
+c00bbabc  SUBBAND_CODEC_LOOP_DebugFrames                  
+c00bbaa0  SUBBAND_CODEC_LOOP_DebugInvalidCount            
+c00bbab0  SUBBAND_CODEC_LOOP_DebugPayloadBitsPerHop       
+c00bbaa4  SUBBAND_CODEC_LOOP_DebugQuantizerClampCount     
+c00bbaac  SUBBAND_CODEC_LOOP_DebugQuantizerClampRatio     
+c00bba70  SUBBAND_CODEC_LOOP_DebugRequestedTargetKbps     
+c00bbab4  SUBBAND_CODEC_LOOP_DebugScalarBitsPerHop        
+c00bbab8  SUBBAND_CODEC_LOOP_DebugScalarCountPerHop       
+c00bba6c  SUBBAND_CODEC_LOOP_DebugTargetKbps              
+c00bbaa8  SUBBAND_CODEC_LOOP_DebugTotalScalarCount        
+c00bb950  SUBBAND_DENOISE_DebugEnabled                    
+c00bb980  SUBBAND_DENOISE_DebugFade                       
+c00bb970  SUBBAND_DENOISE_DebugGainAvg                    
+c00bb9d0  SUBBAND_DENOISE_DebugGainAvgX1000000            
+c00bb968  SUBBAND_DENOISE_DebugInputPowerAvg              
+c00bb9c8  SUBBAND_DENOISE_DebugInputPowerAvgDiv16         
+c00bb95c  SUBBAND_DENOISE_DebugLearnHops                  
+c00bb964  SUBBAND_DENOISE_DebugLearnProgress              
+c00bb9c4  SUBBAND_DENOISE_DebugLearnProgressX1000000      
+c00bb954  SUBBAND_DENOISE_DebugLearning                   
+c00bb978  SUBBAND_DENOISE_DebugMaxGain                    
+c00bb9d8  SUBBAND_DENOISE_DebugMaxGainX1000000            
+c00bb9ac  SUBBAND_DENOISE_DebugMcraAlphaNoise             
+c00bb9b0  SUBBAND_DENOISE_DebugMcraAlphaSpeech            
+c00bb9a8  SUBBAND_DENOISE_DebugMcraDeltaHigh              
+c00bb9a4  SUBBAND_DENOISE_DebugMcraDeltaLow               
+c00bb9b4  SUBBAND_DENOISE_DebugMcraFloorAvg               
+c00bb9e8  SUBBAND_DENOISE_DebugMcraFloorAvgX1000000       
+c00bb9a0  SUBBAND_DENOISE_DebugMcraOverdriveAvg           
+c00bb9e4  SUBBAND_DENOISE_DebugMcraOverdriveAvgX1000000   
+c00bb99c  SUBBAND_DENOISE_DebugMcraSpeechProbAvg          
+c00bb9e0  SUBBAND_DENOISE_DebugMcraSpeechProbAvgX1000000  
+c00bb9b8  SUBBAND_DENOISE_DebugMcraStrongMode             
+c00bb9c0  SUBBAND_DENOISE_DebugMcraTonalGuardBinsLastFrame
+c00bb9bc  SUBBAND_DENOISE_DebugMcraTonalGuardHits         
+c00bb974  SUBBAND_DENOISE_DebugMinGain                    
+c00bb9d4  SUBBAND_DENOISE_DebugMinGainX1000000            
+c00bb994  SUBBAND_DENOISE_DebugMsBias                     
+c00bb990  SUBBAND_DENOISE_DebugMsMinPsdAvg                
+c00bb98c  SUBBAND_DENOISE_DebugMsNoisePsdAvg              
+c00bb988  SUBBAND_DENOISE_DebugMsUpdateCount              
+c00bb998  SUBBAND_DENOISE_DebugMsWindowSeconds            
+c00bb97c  SUBBAND_DENOISE_DebugNoisePsdAvg                
+c00bb9dc  SUBBAND_DENOISE_DebugNoisePsdAvgDiv16           
+c00bb984  SUBBAND_DENOISE_DebugNoiseTrackMode             
+c00bb96c  SUBBAND_DENOISE_DebugOutputPowerAvg             
+c00bb9cc  SUBBAND_DENOISE_DebugOutputPowerAvgDiv16        
+c00bb958  SUBBAND_DENOISE_DebugReady                      
+c00bb960  SUBBAND_DENOISE_DebugTargetHops                 
+c00bba58  SUBBAND_DebugAdFirstSample                      
+c00bb9f0  SUBBAND_DebugAdFrames                           
+c00bba5c  SUBBAND_DebugAdPeak                             
+c00bba1c  SUBBAND_DebugAlgoFrames                         
+c00bba14  SUBBAND_DebugAppliedBackend                     
+c00bba04  SUBBAND_DebugAppliedDemoMode                    
+c00bba18  SUBBAND_DebugBackendChanges                     
+c00bba54  SUBBAND_DebugBenchmarkResetRequest              
+c00bba30  SUBBAND_DebugCpuUsagePercent                    
+c00bba5a  SUBBAND_DebugDaFirstSample                      
+c00bb9f4  SUBBAND_DebugDaFrames                           
+c00bba60  SUBBAND_DebugDaPeak                             
+c00bba00  SUBBAND_DebugDemoMode                           
+c00bba08  SUBBAND_DebugDemoModeChanges                    
+c00bb9f8  SUBBAND_DebugFrameReady                         
+c00bba3c  SUBBAND_DebugInputClipFrames                    
+c00bba4c  SUBBAND_DebugInputMeanSquareAvg                 
+c00bba34  SUBBAND_DebugInputNonzeroFrames                 
+c00bba44  SUBBAND_DebugInputPeakMax                       
+c00bb9f9  SUBBAND_DebugLastAdPingPong                     
+c00bba20  SUBBAND_DebugLastCycles                         
+c00bb9fa  SUBBAND_DebugLastDaPingPong                     
+c00bba28  SUBBAND_DebugLastMs                             
+c00bba24  SUBBAND_DebugMaxCycles                          
+c00bba2c  SUBBAND_DebugMaxMs                              
+c00bba40  SUBBAND_DebugOutputClipFrames                   
+c00bba50  SUBBAND_DebugOutputMeanSquareAvg                
+c00bba38  SUBBAND_DebugOutputNonzeroFrames                
+c00bba48  SUBBAND_DebugOutputPeakMax                      
+c00bba0c  SUBBAND_DebugPersistentCodecKbps                
+c00bba10  SUBBAND_DebugRequestedBackend                   
+c00bbb1c  SUBBAND_EVAL_DebugAdFrames                      
+c00bbb38  SUBBAND_EVAL_DebugCpuUsagePercent               
+c00bbb20  SUBBAND_EVAL_DebugDaFrames                      
+c00bbb28  SUBBAND_EVAL_DebugDenoiseFrames                 
+c00bbb30  SUBBAND_EVAL_DebugDenoiseLastMs                 
+c00bbb34  SUBBAND_EVAL_DebugDenoiseMaxMs                  
+c00bbb2c  SUBBAND_EVAL_DebugFrameBudgetMs                 
+c00bbb24  SUBBAND_EVAL_DebugWolaFrames                    
+c00bb9fc  SUBBAND_FilterbankFrames                        
+c00bb828  SUBBAND_UI_DebugAcceptedTouchCount              
+c00bb858  SUBBAND_UI_DebugAlgoLoadPercent                 
+c00bb8d4  SUBBAND_UI_DebugCancelledDigitJobs              
+c00bb89c  SUBBAND_UI_DebugChainDirtySetCount              
+c00bb8a4  SUBBAND_UI_DebugChainDirtyWithoutDrawFrames     
+c00bb8a0  SUBBAND_UI_DebugChainDrawCount                  
+c00bb890  SUBBAND_UI_DebugChainRefreshCount               
+c00bb854  SUBBAND_UI_DebugCountdownMs                     
+c00bb860  SUBBAND_UI_DebugDirtyFlags                      
+c00bb88c  SUBBAND_UI_DebugDisplayedChainKbps              
+c00bb888  SUBBAND_UI_DebugDisplayedChainMode              
+c00bb848  SUBBAND_UI_DebugDisplayedMode                   
+c00bb850  SUBBAND_UI_DebugDisplayedTargetKbps             
+c00bb868  SUBBAND_UI_DebugDrawOverBudgetCount             
+c00bb864  SUBBAND_UI_DebugFontBytes                       
+c00bb830  SUBBAND_UI_DebugFullRedrawCount                 
+c00bb8b8  SUBBAND_UI_DebugHoldoffSkipCount                
+c00bb894  SUBBAND_UI_DebugLastChainDrawCycles             
+c00bb8a8  SUBBAND_UI_DebugLastDrawAlgoFrame               
+c00bb834  SUBBAND_UI_DebugLastDrawCycles                  
+c00bb86c  SUBBAND_UI_DebugLastDrawJob                     
+c00bb8c4  SUBBAND_UI_DebugLastLearningStateDrawCycles     
+c00bb8cc  SUBBAND_UI_DebugLastRemainingDigitDrawCycles    
+c00bb83c  SUBBAND_UI_DebugLastTouchCycles                 
+c00bb8bc  SUBBAND_UI_DebugLearningStateDrawCount          
+c00bb884  SUBBAND_UI_DebugLoadSampleCount                 
+c00bb874  SUBBAND_UI_DebugMaxButtonDrawCycles             
+c00bb898  SUBBAND_UI_DebugMaxChainDrawCycles              
+c00bb838  SUBBAND_UI_DebugMaxDrawCycles                   
+c00bb8b0  SUBBAND_UI_DebugMaxDrawJobsPerFrame             
+c00bb8c8  SUBBAND_UI_DebugMaxLearningStateDrawCycles      
+c00bb870  SUBBAND_UI_DebugMaxProgressDrawCycles           
+c00bb8d0  SUBBAND_UI_DebugMaxRemainingDigitDrawCycles     
+c00bb878  SUBBAND_UI_DebugMaxTextDrawCycles               
+c00bb840  SUBBAND_UI_DebugMaxTouchCycles                  
+c00bb82c  SUBBAND_UI_DebugRefreshCount                    
+c00bb8c0  SUBBAND_UI_DebugRemainingDigitDrawCount         
+c00bb87c  SUBBAND_UI_DebugRollingCycles                   
+c00bb880  SUBBAND_UI_DebugRollingLoadPercent              
+c00bb84c  SUBBAND_UI_DebugSelectedCodecKbps               
+c00bb844  SUBBAND_UI_DebugSelectedMode                    
+c00bb8b4  SUBBAND_UI_DebugSkippedDrawGap                  
+c00bb85c  SUBBAND_UI_DebugSkippedRefreshes                
+c00bb8ac  SUBBAND_UI_DebugSkippedSameFrame                
+c00bb8d8  SUBBAND_UI_DebugSuppressedZeroSecondJobs        
+c00bb824  SUBBAND_UI_DebugTouchCount                      
+c00bbb08  SUBBAND_WOLA_DebugBypass                        
+c00bbb04  SUBBAND_WOLA_DebugEnergyRatio                   
+c00bbaf8  SUBBAND_WOLA_DebugFrames                        
+c00bbafc  SUBBAND_WOLA_DebugInputEnergy                   
+c00bbb0c  SUBBAND_WOLA_DebugLastCycles                    
+c00bbb14  SUBBAND_WOLA_DebugLastMs                        
+c00bbb10  SUBBAND_WOLA_DebugMaxCycles                     
+c00bbb18  SUBBAND_WOLA_DebugMaxMs                         
+c00bbb00  SUBBAND_WOLA_DebugOutputEnergy                  
+c00d9578  StartTimer                                      
+c00d9588  StopTimer                                       
+c00ca284  SubbandCodecLoopback_GetTargetKbps              
+c00c8ec0  SubbandCodecLoopback_Init                       
+c00ca268  SubbandCodecLoopback_IsEnabled                  
+c00c99b0  SubbandCodecLoopback_ProcessSpectrum            
+c00c909c  SubbandCodecLoopback_Reset                      
+c00c8ff8  SubbandCodecLoopback_SetEnabled                 
+c00c8f6c  SubbandCodecLoopback_SetTargetKbps              
+c00bbe0c  SubbandDenoise_GetFade                          
+c00bed40  SubbandDenoise_GetGainAvg                       
+c00bed28  SubbandDenoise_GetGainMax                       
+c00bed10  SubbandDenoise_GetGainMin                       
+c00becf0  SubbandDenoise_GetLearnCount                    
+c00becd4  SubbandDenoise_GetLearnProgress                 
+c00becc0  SubbandDenoise_GetNoisePsdAvg                   
+c00beca0  SubbandDenoise_GetNoiseTrackMode                
+c00bec80  SubbandDenoise_GetTargetHops                    
+c00bc710  SubbandDenoise_Init                             
+c00bec60  SubbandDenoise_IsEnabled                        
+c00bec40  SubbandDenoise_IsLearning                       
+c00bec20  SubbandDenoise_IsReady                          
+c00bde00  SubbandDenoise_ProcessSpectrum                  
+c00bd2cc  SubbandDenoise_Reset                            
+c00bd188  SubbandDenoise_ResetMcraState                   
+c00bd170  SubbandDenoise_ResetNoiseTracker                
+c00bd138  SubbandDenoise_SetEnabled                       
+c00bce30  SubbandDenoise_SetMcraParams                    
+c00bcd8c  SubbandDenoise_SetMcraTonalGuardParams          
+c00bcd2c  SubbandDenoise_SetNoiseTrackMode                
+c00bcc38  SubbandDenoise_SetParams                        
+c00bcb54  SubbandDenoise_StartNoiseLearning               
+c00bcb38  SubbandDenoise_StopLearning                     
+c00c6220  SubbandPolyphase_Init                           
+c00c7670  SubbandPolyphase_ProcessFrame                   
+c00c61e0  SubbandPolyphase_Reset                          
+c00d7368  SubbandUIFont_DrawPhrase                        
+c00d7348  SubbandUIFont_PhraseWidth                       
+c00d7340  SubbandUIFont_StorageBytes                      
+c00cfec0  SubbandUI_BuildProcessingChain                  
+c00c0d9c  SubbandUI_Init                                  
+c00cfbc8  SubbandUI_IsCodecMode                           
+c00cfbbc  SubbandUI_LatchInit                             
+c00cfb78  SubbandUI_LatchUpdate                           
+c00cfb60  SubbandUI_ModeForButton                         
+c00cfb2c  SubbandUI_ModeUsesLearning                      
+c00cfb04  SubbandUI_NormalizeCodecKbps                    
+c00c0bf4  SubbandUI_NotifyModeChanged                     
+c00c0bb0  SubbandUI_RecordAlgoCycles                      
+c00cf9b0  SubbandUI_RemainingMs                           
+c00cfa40  SubbandUI_RemainingSeconds                      
+c00c0b80  SubbandUI_ResetLoadWindow                       
+c00cf960  SubbandUI_SelectLearningDisplayJob              
+c00c0240  SubbandUI_ServiceDisplay                        
+c00beed4  SubbandUI_ServiceTouch                          
+c00c8e00  SubbandWOLA_GetCOLAMaxError                     
+c00c78c0  SubbandWOLA_Init                                
+c00c7f00  SubbandWOLA_ProcessFrame                        
+c00c7be0  SubbandWOLA_ResetAllGains                       
+c00c7af4  SubbandWOLA_ResetStream                         
+c00c7ac0  SubbandWOLA_SetBandGain                         
+c00c7a80  SubbandWOLA_SetBypass                           
+c00c1148  Subband_FilterBank_Init                         
+c00c2744  Subband_Flow_Example                            
+c00c1560  Subband_Process_1024                            
+c00c10a0  Subband_Request_Codec_Target                    
+c00d7120  SysDelayTimerSetup                              
+c00d7110  SysIsTimerElapsed                               
+c00d70b0  SysStartTimer                                   
+c00d7098  SysStopTimer                                    
+c00ce754  Sys_IIC_Init                                    
+c00d9860  Sys_Init                                        
+c00d3060  Sys_SPI_Init                                    
+c00d7004  Sysdelay                                        
+c00d84a4  Tim2_Init                                       
+c00d06cc  TimerCaptureConfigure                           
+c00d04c8  TimerCaptureGet                                 
+c00d0874  TimerClockModeSet                               
+c00d0518  TimerCompareGet                                 
+c00d04f4  TimerCompareSet                                 
+c00d0294  TimerConfigure                                  
+c00d0434  TimerCounterGet                                 
+c00d0400  TimerCounterSet                                 
+c00d025c  TimerDisable                                    
+c00d06b0  TimerDivDwnRatio34Get                           
+c00d0664  TimerDivDwnRatio34Set                           
+c00d0200  TimerEnable                                     
+c00d07d8  TimerInputGateDisable                           
+c00d07a0  TimerInputGateEnable                            
+c00d0568  TimerIntDisable                                 
+c00d0538  TimerIntEnable                                  
+c00d05b8  TimerIntStatusClear                             
+c00d0594  TimerIntStatusGet                               
+c00d0954  TimerInvertINDisable                            
+c00d091c  TimerInvertINEnable                             
+c00d09cc  TimerInvertOUTDisable                           
+c00d0990  TimerInvertOUTEnable                            
+c00d08ec  TimerOUTStatusGet                               
+c00d03d0  TimerPeriodGet                                  
+c00d0394  TimerPeriodSet                                  
+c00d0648  TimerPreScalarCount34Get                        
+c00d05f4  TimerPreScalarCount34Set                        
+c00d08b0  TimerPulseModeSet                               
+c00d0810  TimerPulseWidthSet                              
+c00d0768  TimerReadResetDisable                           
+c00d072c  TimerReadResetEnable                            
+c00d0498  TimerReloadGet                                  
+c00d0464  TimerReloadSet                                  
+c00d030c  TimerWatchdogActivate                           
+c00d034c  TimerWatchdogReactivate                         
+c00bbb92  Touch_DebugConfigSent                           
+c00bbb91  Touch_DebugConfigVersion                        
+c00bbb93  Touch_DebugCtrlWriteOk                          
+c00bbadc  Touch_DebugDownCount                            
+c00bbae4  Touch_DebugI2cErrorCount                        
+c00bbb74  Touch_DebugInterruptCount                       
+c00bbaf0  Touch_DebugLastX                                
+c00bbaf4  Touch_DebugLastY                                
+c00bbad8  Touch_DebugNoDataCount                          
+c00e2eb0  Touch_DebugProductId                            
+c00bbb90  Touch_DebugProductIdReadOk                      
+c00bbacc  Touch_DebugRawState                             
+c00bbad4  Touch_DebugReadyCount                           
+c00bbae0  Touch_DebugReleaseCount                         
+c00bbaec  Touch_DebugReleaseSampleCount                   
+c00bbad0  Touch_DebugScanCount                            
+c00bbae8  Touch_DebugTouchSampleCount                     
+c00d54d0  Touch_Init                                      
+c00d80a0  Touch_Int_PinSet                                
+c00d8040  Touch_Pin_Init_In                               
+c00d800c  Touch_Pin_Init_Out                              
+c00d5ff4  Touch_Scan                                      
+c00d5de0  Touch_ScanRaw                                   
+c00bbac0  Touch_Sta                                       
+c00bbac4  Touch_X                                         
+c00bbac8  Touch_Y                                         
+c00d0b2c  WidgetAdd                                       
+c00d0b14  WidgetDefaultMsgProc                            
+c00d0e94  WidgetMessageQueueAdd                           
+c00d1070  WidgetMessageQueueProcess                       
+c00d0d38  WidgetMessageSendPostOrder                      
+c00d0c48  WidgetMessageSendPreOrder                       
+c00d0a34  WidgetMutexGet                                  
+c00d0a20  WidgetMutexInit                                 
+c00d0a74  WidgetMutexPut                                  
+c00d1188  WidgetPointerMessage                            
+c00d0ba0  WidgetRemove                                    
+c00d7180  Widget_Btn_App                                  
+c00e3998  __TI_CINIT_Base                                 
+c00e3b08  __TI_CINIT_Limit                                
+c00e3b08  __TI_CINIT_Warm                                 
+c00e395c  __TI_Handler_Table_Base                         
+c00e3964  __TI_Handler_Table_Limit                        
+c00e26d8  __TI_STACK_END                                  
+00000800  __TI_STACK_SIZE                                 
+c00bb824  __TI_STATIC_BASE                                
+UNDEFED   __TI_TLS_INIT_Base                              
+UNDEFED   __TI_TLS_INIT_Limit                             
+c00d89c0  __TI_auto_init_nobinit_nopinit                  
+c00e2ea0  __TI_cleanup_ptr                                
+c00d97c0  __TI_decompress_none                            
+c00d97e0  __TI_decompress_rle24                           
+c00e2ea4  __TI_dtors_ptr                                  
+c00e2ea8  __TI_enable_exit_profile_output                 
+c00d95c0  __TI_frcmpyd_div                                
+ffffffff  __TI_pprof_out_hndl                             
+ffffffff  __TI_prof_data_size                             
+ffffffff  __TI_prof_data_start                            
+c00d8e40  __TI_tls_init                                   
+ffffffff  __binit__                                       
+c00d3b80  __c6xabi_divd                                   
+c00d6760  __c6xabi_divf                                   
+c00d8560  __c6xabi_divi                                   
+c00d8b40  __c6xabi_divu                                   
+c00d6060  __c6xabi_divull                                 
+c00d9700  __c6xabi_errno_addr                             
+c00d8f00  __c6xabi_fixfu                                  
+c00d6b80  __c6xabi_llshl                                  
+c00d93e0  __c6xabi_llshru                                 
+c00d8a80  __c6xabi_nround                                 
+c00d9040  __c6xabi_remu                                   
+c00d8fa0  __c6xabi_roundf                                 
+c00d8a80  __c6xabi_roundl                                 
+c00d9720  __c6xabi_trunc                                  
+c00d9740  __c6xabi_truncf                                 
+c00d9720  __c6xabi_truncl                                 
+ffffffff  __c_args__                                      
+c00d8560  __divi                                          
+c00d8b40  __divu                                          
+c00e2eac  __errno                                         
+c00d9040  __remu                                          
+c00d9600  _args_main                                      
+c00c3f98  _c674x_mask_int10_isr                           
+c00c4160  _c674x_mask_int11_isr                           
+c00c4324  _c674x_mask_int12_isr                           
+c00c44e8  _c674x_mask_int13_isr                           
+c00c46b0  _c674x_mask_int14_isr                           
+c00c4878  _c674x_mask_int15_isr                           
+c00c34f0  _c674x_mask_int4_isr                            
+c00c36b8  _c674x_mask_int5_isr                            
+c00c3880  _c674x_mask_int6_isr                            
+c00c3a44  _c674x_mask_int7_isr                            
+c00c3c08  _c674x_mask_int8_isr                            
+c00c3dd0  _c674x_mask_int9_isr                            
+c00c2fa0  _c674x_nmi_isr                                  
+c00c3164  _c674x_rsvd_int2_isr                            
+c00c3328  _c674x_rsvd_int3_isr                            
+c00d9360  _c_int00                                        
+c00d6c00  _intcVectorTable                                
+c00e1ed8  _stack                                          
+c00d9440  _subcull                                        
+c00d9760  _system_post_cinit                              
+c00d9780  _system_pre_init                                
+c00d97a0  abort                                           
+ffffffff  binit                                           
+c00de598  cb_Fxn                                          
+c00bbb40  chNum                                           
+c00bbb3c  chType                                          
+c00d5500  cos                                             
+c00d6520  cosf                                            
+c00d5500  cosl                                            
+c00d956c  delay                                           
+c00bbb48  edmaTC                                          
+c00e2eac  errno                                           
+c00bbb54  evtQ_adc                                        
+c00d8720  exit                                            
+c00d7500  frexpf                                          
+c00e2a28  g_sBtn1                                         
+c00e2a78  g_sBtn2                                         
+c00e2ac8  g_sBtn3                                         
+c00e2b18  g_sBtn4                                         
+c00e2b68  g_sBtn5                                         
+c00e2bb8  g_sBtn6                                         
+c00e2c08  g_sBtn7                                         
+c00e2c58  g_sBtn8                                         
+c00e12d0  g_sFontCmss18b                                  
+c00e1398  g_sFontCmss22b                                  
+c00e1460  g_sFontCmss38b                                  
+c00e1528  g_sFontCmtt12                                   
+c00e2d28  g_sHeading                                      
+c00e2de8  g_sMainPanel                                    
+c00e2e20  g_sRoot                                         
+c00e2d68  g_sTxt1                                         
+c00e2da8  g_sTxt2                                         
+c00d8240  logf                                            
+c00d9840  main                                            
+c00d92c0  memcpy                                          
+c00d88e0  memset                                          
+c00d8d80  modf                                            
+c00d9500  modff                                           
+c00d8d80  modfl                                           
+c00bbbaa  offset                                          
+c00e2e60  palette_32b                                     
+c00bbbac  regionId                                        
+c00d5840  sin                                             
+c00d6980  sinf                                            
+c00d5840  sinl                                            
+c00d7ea0  sqrtf                                           
+c00bbb4c  syncType                                        
+c00bbb44  tccNum                                          
+c00bbb50  trigMode                                        
+
+
+GLOBAL SYMBOLS: SORTED BY Symbol Address 
+
+address   name                                            
+-------   ----                                            
+00000800  __TI_STACK_SIZE                                 
+c0000000  Lcd_Buffer                                      
+c00bb824  SUBBAND_UI_DebugTouchCount                      
+c00bb824  __TI_STATIC_BASE                                
+c00bb828  SUBBAND_UI_DebugAcceptedTouchCount              
+c00bb82c  SUBBAND_UI_DebugRefreshCount                    
+c00bb830  SUBBAND_UI_DebugFullRedrawCount                 
+c00bb834  SUBBAND_UI_DebugLastDrawCycles                  
+c00bb838  SUBBAND_UI_DebugMaxDrawCycles                   
+c00bb83c  SUBBAND_UI_DebugLastTouchCycles                 
+c00bb840  SUBBAND_UI_DebugMaxTouchCycles                  
+c00bb844  SUBBAND_UI_DebugSelectedMode                    
+c00bb848  SUBBAND_UI_DebugDisplayedMode                   
+c00bb84c  SUBBAND_UI_DebugSelectedCodecKbps               
+c00bb850  SUBBAND_UI_DebugDisplayedTargetKbps             
+c00bb854  SUBBAND_UI_DebugCountdownMs                     
+c00bb858  SUBBAND_UI_DebugAlgoLoadPercent                 
+c00bb85c  SUBBAND_UI_DebugSkippedRefreshes                
+c00bb860  SUBBAND_UI_DebugDirtyFlags                      
+c00bb864  SUBBAND_UI_DebugFontBytes                       
+c00bb868  SUBBAND_UI_DebugDrawOverBudgetCount             
+c00bb86c  SUBBAND_UI_DebugLastDrawJob                     
+c00bb870  SUBBAND_UI_DebugMaxProgressDrawCycles           
+c00bb874  SUBBAND_UI_DebugMaxButtonDrawCycles             
+c00bb878  SUBBAND_UI_DebugMaxTextDrawCycles               
+c00bb87c  SUBBAND_UI_DebugRollingCycles                   
+c00bb880  SUBBAND_UI_DebugRollingLoadPercent              
+c00bb884  SUBBAND_UI_DebugLoadSampleCount                 
+c00bb888  SUBBAND_UI_DebugDisplayedChainMode              
+c00bb88c  SUBBAND_UI_DebugDisplayedChainKbps              
+c00bb890  SUBBAND_UI_DebugChainRefreshCount               
+c00bb894  SUBBAND_UI_DebugLastChainDrawCycles             
+c00bb898  SUBBAND_UI_DebugMaxChainDrawCycles              
+c00bb89c  SUBBAND_UI_DebugChainDirtySetCount              
+c00bb8a0  SUBBAND_UI_DebugChainDrawCount                  
+c00bb8a4  SUBBAND_UI_DebugChainDirtyWithoutDrawFrames     
+c00bb8a8  SUBBAND_UI_DebugLastDrawAlgoFrame               
+c00bb8ac  SUBBAND_UI_DebugSkippedSameFrame                
+c00bb8b0  SUBBAND_UI_DebugMaxDrawJobsPerFrame             
+c00bb8b4  SUBBAND_UI_DebugSkippedDrawGap                  
+c00bb8b8  SUBBAND_UI_DebugHoldoffSkipCount                
+c00bb8bc  SUBBAND_UI_DebugLearningStateDrawCount          
+c00bb8c0  SUBBAND_UI_DebugRemainingDigitDrawCount         
+c00bb8c4  SUBBAND_UI_DebugLastLearningStateDrawCycles     
+c00bb8c8  SUBBAND_UI_DebugMaxLearningStateDrawCycles      
+c00bb8cc  SUBBAND_UI_DebugLastRemainingDigitDrawCycles    
+c00bb8d0  SUBBAND_UI_DebugMaxRemainingDigitDrawCycles     
+c00bb8d4  SUBBAND_UI_DebugCancelledDigitJobs              
+c00bb8d8  SUBBAND_UI_DebugSuppressedZeroSecondJobs        
+c00bb950  SUBBAND_DENOISE_DebugEnabled                    
+c00bb954  SUBBAND_DENOISE_DebugLearning                   
+c00bb958  SUBBAND_DENOISE_DebugReady                      
+c00bb95c  SUBBAND_DENOISE_DebugLearnHops                  
+c00bb960  SUBBAND_DENOISE_DebugTargetHops                 
+c00bb964  SUBBAND_DENOISE_DebugLearnProgress              
+c00bb968  SUBBAND_DENOISE_DebugInputPowerAvg              
+c00bb96c  SUBBAND_DENOISE_DebugOutputPowerAvg             
+c00bb970  SUBBAND_DENOISE_DebugGainAvg                    
+c00bb974  SUBBAND_DENOISE_DebugMinGain                    
+c00bb978  SUBBAND_DENOISE_DebugMaxGain                    
+c00bb97c  SUBBAND_DENOISE_DebugNoisePsdAvg                
+c00bb980  SUBBAND_DENOISE_DebugFade                       
+c00bb984  SUBBAND_DENOISE_DebugNoiseTrackMode             
+c00bb988  SUBBAND_DENOISE_DebugMsUpdateCount              
+c00bb98c  SUBBAND_DENOISE_DebugMsNoisePsdAvg              
+c00bb990  SUBBAND_DENOISE_DebugMsMinPsdAvg                
+c00bb994  SUBBAND_DENOISE_DebugMsBias                     
+c00bb998  SUBBAND_DENOISE_DebugMsWindowSeconds            
+c00bb99c  SUBBAND_DENOISE_DebugMcraSpeechProbAvg          
+c00bb9a0  SUBBAND_DENOISE_DebugMcraOverdriveAvg           
+c00bb9a4  SUBBAND_DENOISE_DebugMcraDeltaLow               
+c00bb9a8  SUBBAND_DENOISE_DebugMcraDeltaHigh              
+c00bb9ac  SUBBAND_DENOISE_DebugMcraAlphaNoise             
+c00bb9b0  SUBBAND_DENOISE_DebugMcraAlphaSpeech            
+c00bb9b4  SUBBAND_DENOISE_DebugMcraFloorAvg               
+c00bb9b8  SUBBAND_DENOISE_DebugMcraStrongMode             
+c00bb9bc  SUBBAND_DENOISE_DebugMcraTonalGuardHits         
+c00bb9c0  SUBBAND_DENOISE_DebugMcraTonalGuardBinsLastFrame
+c00bb9c4  SUBBAND_DENOISE_DebugLearnProgressX1000000      
+c00bb9c8  SUBBAND_DENOISE_DebugInputPowerAvgDiv16         
+c00bb9cc  SUBBAND_DENOISE_DebugOutputPowerAvgDiv16        
+c00bb9d0  SUBBAND_DENOISE_DebugGainAvgX1000000            
+c00bb9d4  SUBBAND_DENOISE_DebugMinGainX1000000            
+c00bb9d8  SUBBAND_DENOISE_DebugMaxGainX1000000            
+c00bb9dc  SUBBAND_DENOISE_DebugNoisePsdAvgDiv16           
+c00bb9e0  SUBBAND_DENOISE_DebugMcraSpeechProbAvgX1000000  
+c00bb9e4  SUBBAND_DENOISE_DebugMcraOverdriveAvgX1000000   
+c00bb9e8  SUBBAND_DENOISE_DebugMcraFloorAvgX1000000       
+c00bb9f0  SUBBAND_DebugAdFrames                           
+c00bb9f4  SUBBAND_DebugDaFrames                           
+c00bb9f8  SUBBAND_DebugFrameReady                         
+c00bb9f9  SUBBAND_DebugLastAdPingPong                     
+c00bb9fa  SUBBAND_DebugLastDaPingPong                     
+c00bb9fc  SUBBAND_FilterbankFrames                        
+c00bba00  SUBBAND_DebugDemoMode                           
+c00bba04  SUBBAND_DebugAppliedDemoMode                    
+c00bba08  SUBBAND_DebugDemoModeChanges                    
+c00bba0c  SUBBAND_DebugPersistentCodecKbps                
+c00bba10  SUBBAND_DebugRequestedBackend                   
+c00bba14  SUBBAND_DebugAppliedBackend                     
+c00bba18  SUBBAND_DebugBackendChanges                     
+c00bba1c  SUBBAND_DebugAlgoFrames                         
+c00bba20  SUBBAND_DebugLastCycles                         
+c00bba24  SUBBAND_DebugMaxCycles                          
+c00bba28  SUBBAND_DebugLastMs                             
+c00bba2c  SUBBAND_DebugMaxMs                              
+c00bba30  SUBBAND_DebugCpuUsagePercent                    
+c00bba34  SUBBAND_DebugInputNonzeroFrames                 
+c00bba38  SUBBAND_DebugOutputNonzeroFrames                
+c00bba3c  SUBBAND_DebugInputClipFrames                    
+c00bba40  SUBBAND_DebugOutputClipFrames                   
+c00bba44  SUBBAND_DebugInputPeakMax                       
+c00bba48  SUBBAND_DebugOutputPeakMax                      
+c00bba4c  SUBBAND_DebugInputMeanSquareAvg                 
+c00bba50  SUBBAND_DebugOutputMeanSquareAvg                
+c00bba54  SUBBAND_DebugBenchmarkResetRequest              
+c00bba58  SUBBAND_DebugAdFirstSample                      
+c00bba5a  SUBBAND_DebugDaFirstSample                      
+c00bba5c  SUBBAND_DebugAdPeak                             
+c00bba60  SUBBAND_DebugDaPeak                             
+c00bba64  SUBBAND_CODEC_LOOP_DebugEnabled                 
+c00bba68  SUBBAND_CODEC_LOOP_DebugCompressionLevel        
+c00bba6c  SUBBAND_CODEC_LOOP_DebugTargetKbps              
+c00bba70  SUBBAND_CODEC_LOOP_DebugRequestedTargetKbps     
+c00bba74  SUBBAND_CODEC_LOOP_DebugEstimatedBitrateKbps    
+c00bba78  SUBBAND_CODEC_LOOP_DebugCompressionRatio        
+c00bba7c  SUBBAND_CODEC_LOOP_DebugAvgBitsPerScalar        
+c00bba80  SUBBAND_CODEC_LOOP_DebugBandBits0               
+c00bba84  SUBBAND_CODEC_LOOP_DebugBandBits1               
+c00bba88  SUBBAND_CODEC_LOOP_DebugBandBits2               
+c00bba8c  SUBBAND_CODEC_LOOP_DebugBandBits3               
+c00bba90  SUBBAND_CODEC_LOOP_DebugBandBits4               
+c00bba94  SUBBAND_CODEC_LOOP_DebugBandBits5               
+c00bba98  SUBBAND_CODEC_LOOP_DebugBandBits6               
+c00bba9c  SUBBAND_CODEC_LOOP_DebugBandBits7               
+c00bbaa0  SUBBAND_CODEC_LOOP_DebugInvalidCount            
+c00bbaa4  SUBBAND_CODEC_LOOP_DebugQuantizerClampCount     
+c00bbaa8  SUBBAND_CODEC_LOOP_DebugTotalScalarCount        
+c00bbaac  SUBBAND_CODEC_LOOP_DebugQuantizerClampRatio     
+c00bbab0  SUBBAND_CODEC_LOOP_DebugPayloadBitsPerHop       
+c00bbab4  SUBBAND_CODEC_LOOP_DebugScalarBitsPerHop        
+c00bbab8  SUBBAND_CODEC_LOOP_DebugScalarCountPerHop       
+c00bbabc  SUBBAND_CODEC_LOOP_DebugFrames                  
+c00bbac0  Touch_Sta                                       
+c00bbac4  Touch_X                                         
+c00bbac8  Touch_Y                                         
+c00bbacc  Touch_DebugRawState                             
+c00bbad0  Touch_DebugScanCount                            
+c00bbad4  Touch_DebugReadyCount                           
+c00bbad8  Touch_DebugNoDataCount                          
+c00bbadc  Touch_DebugDownCount                            
+c00bbae0  Touch_DebugReleaseCount                         
+c00bbae4  Touch_DebugI2cErrorCount                        
+c00bbae8  Touch_DebugTouchSampleCount                     
+c00bbaec  Touch_DebugReleaseSampleCount                   
+c00bbaf0  Touch_DebugLastX                                
+c00bbaf4  Touch_DebugLastY                                
+c00bbaf8  SUBBAND_WOLA_DebugFrames                        
+c00bbafc  SUBBAND_WOLA_DebugInputEnergy                   
+c00bbb00  SUBBAND_WOLA_DebugOutputEnergy                  
+c00bbb04  SUBBAND_WOLA_DebugEnergyRatio                   
+c00bbb08  SUBBAND_WOLA_DebugBypass                        
+c00bbb0c  SUBBAND_WOLA_DebugLastCycles                    
+c00bbb10  SUBBAND_WOLA_DebugMaxCycles                     
+c00bbb14  SUBBAND_WOLA_DebugLastMs                        
+c00bbb18  SUBBAND_WOLA_DebugMaxMs                         
+c00bbb1c  SUBBAND_EVAL_DebugAdFrames                      
+c00bbb20  SUBBAND_EVAL_DebugDaFrames                      
+c00bbb24  SUBBAND_EVAL_DebugWolaFrames                    
+c00bbb28  SUBBAND_EVAL_DebugDenoiseFrames                 
+c00bbb2c  SUBBAND_EVAL_DebugFrameBudgetMs                 
+c00bbb30  SUBBAND_EVAL_DebugDenoiseLastMs                 
+c00bbb34  SUBBAND_EVAL_DebugDenoiseMaxMs                  
+c00bbb38  SUBBAND_EVAL_DebugCpuUsagePercent               
+c00bbb3c  chType                                          
+c00bbb40  chNum                                           
+c00bbb44  tccNum                                          
+c00bbb48  edmaTC                                          
+c00bbb4c  syncType                                        
+c00bbb50  trigMode                                        
+c00bbb54  evtQ_adc                                        
+c00bbb65  FLAG_TIM2                                       
+c00bbb70  FLAG_TOUCH                                      
+c00bbb74  Touch_DebugInterruptCount                       
+c00bbb78  FLAG_KEY1                                       
+c00bbb79  FLAG_KEY2                                       
+c00bbb7a  FLAG_KEY3                                       
+c00bbb7b  FLAG_KEY4                                       
+c00bbb7c  FLAG_KEY5                                       
+c00bbb80  IIC_dataIdx                                     
+c00bbb84  IIC_txCompFlag                                  
+c00bbb88  AckRolling                                      
+c00bbb90  Touch_DebugProductIdReadOk                      
+c00bbb91  Touch_DebugConfigVersion                        
+c00bbb92  Touch_DebugConfigSent                           
+c00bbb93  Touch_DebugCtrlWriteOk                          
+c00bbbaa  offset                                          
+c00bbbac  regionId                                        
+c00bbbb4  FLAG_BUTTON                                     
+c00bbbb5  FLAG_BUTTON_1                                   
+c00bbbb6  FLAG_BUTTON_2                                   
+c00bbbb7  FLAG_BUTTON_3                                   
+c00bbbb8  FLAG_BUTTON_4                                   
+c00bbbb9  FLAG_BUTTON_5                                   
+c00bbbba  FLAG_BUTTON_6                                   
+c00bbbbb  FLAG_BUTTON_7                                   
+c00bbbbc  FLAG_BUTTON_8                                   
+c00bbbbd  FLAG_SPI_RX                                     
+c00bbbbe  FLAG_SPI_TX                                     
+c00bbbbf  SPI_rxCount                                     
+c00bbbc0  SPI_rxLength                                    
+c00bbbc1  SPI_txCount                                     
+c00bbbc2  SPI_txLength                                    
+c00bbe0c  SubbandDenoise_GetFade                          
+c00bc710  SubbandDenoise_Init                             
+c00bcb38  SubbandDenoise_StopLearning                     
+c00bcb54  SubbandDenoise_StartNoiseLearning               
+c00bcc38  SubbandDenoise_SetParams                        
+c00bcd2c  SubbandDenoise_SetNoiseTrackMode                
+c00bcd8c  SubbandDenoise_SetMcraTonalGuardParams          
+c00bce30  SubbandDenoise_SetMcraParams                    
+c00bd138  SubbandDenoise_SetEnabled                       
+c00bd170  SubbandDenoise_ResetNoiseTracker                
+c00bd188  SubbandDenoise_ResetMcraState                   
+c00bd2cc  SubbandDenoise_Reset                            
+c00bde00  SubbandDenoise_ProcessSpectrum                  
+c00bec20  SubbandDenoise_IsReady                          
+c00bec40  SubbandDenoise_IsLearning                       
+c00bec60  SubbandDenoise_IsEnabled                        
+c00bec80  SubbandDenoise_GetTargetHops                    
+c00beca0  SubbandDenoise_GetNoiseTrackMode                
+c00becc0  SubbandDenoise_GetNoisePsdAvg                   
+c00becd4  SubbandDenoise_GetLearnProgress                 
+c00becf0  SubbandDenoise_GetLearnCount                    
+c00bed10  SubbandDenoise_GetGainMin                       
+c00bed28  SubbandDenoise_GetGainMax                       
+c00bed40  SubbandDenoise_GetGainAvg                       
+c00beed4  SubbandUI_ServiceTouch                          
+c00c0240  SubbandUI_ServiceDisplay                        
+c00c0b80  SubbandUI_ResetLoadWindow                       
+c00c0bb0  SubbandUI_RecordAlgoCycles                      
+c00c0bf4  SubbandUI_NotifyModeChanged                     
+c00c0d9c  SubbandUI_Init                                  
+c00c10a0  Subband_Request_Codec_Target                    
+c00c1148  Subband_FilterBank_Init                         
+c00c1560  Subband_Process_1024                            
+c00c2744  Subband_Flow_Example                            
+c00c2fa0  _c674x_nmi_isr                                  
+c00c3164  _c674x_rsvd_int2_isr                            
+c00c3328  _c674x_rsvd_int3_isr                            
+c00c34f0  _c674x_mask_int4_isr                            
+c00c36b8  _c674x_mask_int5_isr                            
+c00c3880  _c674x_mask_int6_isr                            
+c00c3a44  _c674x_mask_int7_isr                            
+c00c3c08  _c674x_mask_int8_isr                            
+c00c3dd0  _c674x_mask_int9_isr                            
+c00c3f98  _c674x_mask_int10_isr                           
+c00c4160  _c674x_mask_int11_isr                           
+c00c4324  _c674x_mask_int12_isr                           
+c00c44e8  _c674x_mask_int13_isr                           
+c00c46b0  _c674x_mask_int14_isr                           
+c00c4878  _c674x_mask_int15_isr                           
+c00c4a40  EDMA3Init                                       
+c00c4c20  EDMA3PeripheralIdGet                            
+c00c4c34  EDMA3EnableChInShadowReg                        
+c00c4cfc  EDMA3DisableChInShadowReg                       
+c00c4dc0  EDMA3ChannelToParamMap                          
+c00c4de4  EDMA3MapChToEvtQ                                
+c00c4ea8  EDMA3UnmapChToEvtQ                              
+c00c4f2c  EDMA3MapQdmaChToPaRAM                           
+c00c5018  EDMA3SetQdmaTrigWord                            
+c00c5054  EDMA3ClrMissEvt                                 
+c00c5108  EDMA3QdmaClrMissEvt                             
+c00c5160  EDMA3ClrCCErr                                   
+c00c5180  EDMA3SetEvt                                     
+c00c5204  EDMA3ClrEvt                                     
+c00c5288  EDMA3EnableDmaEvt                               
+c00c5310  EDMA3DisableDmaEvt                              
+c00c5394  EDMA3EnableQdmaEvt                              
+c00c53c8  EDMA3DisableQdmaEvt                             
+c00c53f8  EDMA3GetCCErrStatus                             
+c00c5420  EDMA3GetIntrStatus                              
+c00c544c  EDMA3IntrStatusHighGet                          
+c00c5478  EDMA3GetErrIntrStatus                           
+c00c54a0  EDMA3ErrIntrHighStatusGet                       
+c00c54c4  EDMA3QdmaGetErrIntrStatus                       
+c00c54e8  EDMA3EnableEvtIntr                              
+c00c5570  EDMA3DisableEvtIntr                             
+c00c55f8  EDMA3ClrIntr                                    
+c00c5664  EDMA3GetPaRAM                                   
+c00c56c0  EDMA3QdmaGetPaRAM                               
+c00c5728  EDMA3SetPaRAM                                   
+c00c578c  EDMA3QdmaSetPaRAM                               
+c00c57f8  EDMA3QdmaSetPaRAMEntry                          
+c00c5838  EDMA3QdmaGetPaRAMEntry                          
+c00c5884  EDMA3RequestChannel                             
+c00c59a8  EDMA3FreeChannel                                
+c00c5a48  EDMA3EnableTransfer                             
+c00c5ad0  EDMA3DisableTransfer                            
+c00c5b60  EDMA3ClearErrorBits                             
+c00c5cf8  EDMA3Deinit                                     
+c00c5e18  EDMA3ContextSave                                
+c00c5ff4  EDMA3ContextRestore                             
+c00c61e0  SubbandPolyphase_Reset                          
+c00c6220  SubbandPolyphase_Init                           
+c00c7670  SubbandPolyphase_ProcessFrame                   
+c00c78c0  SubbandWOLA_Init                                
+c00c7a80  SubbandWOLA_SetBypass                           
+c00c7ac0  SubbandWOLA_SetBandGain                         
+c00c7af4  SubbandWOLA_ResetStream                         
+c00c7be0  SubbandWOLA_ResetAllGains                       
+c00c7f00  SubbandWOLA_ProcessFrame                        
+c00c8e00  SubbandWOLA_GetCOLAMaxError                     
+c00c8ec0  SubbandCodecLoopback_Init                       
+c00c8f6c  SubbandCodecLoopback_SetTargetKbps              
+c00c8ff8  SubbandCodecLoopback_SetEnabled                 
+c00c909c  SubbandCodecLoopback_Reset                      
+c00c99b0  SubbandCodecLoopback_ProcessSpectrum            
+c00ca268  SubbandCodecLoopback_IsEnabled                  
+c00ca284  SubbandCodecLoopback_GetTargetKbps              
+c00ca2a0  EMIFAModuleIdRead                               
+c00ca2b8  EMIFANANDCSSet                                  
+c00ca340  EMIFANAND4BitECCAddrCalcStart                   
+c00ca360  EMIFANANDECCStart                               
+c00ca3f8  EMIFANAND4BitECCSelect                          
+c00ca488  EMIFAMaxExtWaitCycleSet                         
+c00ca4c8  EMIFACSWaitPinSelect                            
+c00ca5e8  EMIFAWaitPinPolaritySet                         
+c00ca638  EMIFAAsyncDevDataBusWidthSelect                 
+c00ca6e4  EMIFAAsyncDevOpModeSelect                       
+c00ca7a0  EMIFAExtendedWaitConfig                         
+c00ca858  EMIFASDRAMConfig                                
+c00ca884  EMIFASDRAMSelfRefModeConfig                     
+c00ca8b0  EMIFASDRAMPowDownModeConfig                     
+c00ca8e0  EMIFASDRAMRefDurPowDownModeEnable               
+c00ca8f8  EMIFASDRAMRefRateSet                            
+c00ca914  EMIFASDRAMTimingConfig                          
+c00ca92c  EMIFASDRAMSelfRefExitTimeConfig                 
+c00ca948  EMIFAWaitPinStatusGet                           
+c00ca990  EMIFANAND4BitECCStateGet                        
+c00ca9b0  EMIFANAND4BitECCNumOfErrsGet                    
+c00ca9d0  EMIFANORPageModeConfig                          
+c00caa88  EMIFANORPageSizeSet                             
+c00cab44  EMIFANORPageAccessDelaySet                      
+c00cabf8  EMIFANAND4BitECCLoad                            
+c00cac24  EMIFANANDEccValGet                              
+c00cad88  EMIFANAND4BitEccErrAddrGet                      
+c00cae28  EMIFANAND4BitEccErrValGet                       
+c00caec8  EMIFAWaitTimingConfig                           
+c00cafc0  EMIFARawIntStatusRead                           
+c00cb028  EMIFARawIntClear                                
+c00cb098  EMIFAMskedIntStatusRead                         
+c00cb104  EMIFAMskedIntClear                              
+c00cb174  EMIFAMskedIntEnable                             
+c00cb1e8  EMIFAMskedIntDisable                            
+c00cb874  RectangularButtonMsgProc                        
+c00cb8d4  RectangularButtonInit                           
+c00cbfc0  CircularButtonMsgProc                           
+c00cc010  CircularButtonInit                              
+c00cc100  NumLeadingZeros                                 
+c00cc164  GrStringWidthGet                                
+c00cc258  GrStringDraw                                    
+c00cc8cc  GrStringTableSet                                
+c00cc934  GrStringLanguageSet                             
+c00cc9b8  GrStringGet                                     
+c00ccf60  RasterClkConfig                                 
+c00ccfa0  RasterIdGet                                     
+c00ccfb4  RasterAutoUnderFlowEnable                       
+c00ccfd4  RasterAutoUnderFlowDisable                      
+c00ccff4  RasterEnable                                    
+c00cd018  RasterDisable                                   
+c00cd040  RasterModeConfig                                
+c00cd0e0  RasterLSBDataOrderSelect                        
+c00cd100  RasterMSBDataOrderSelect                        
+c00cd120  RasterIntEnable                                 
+c00cd188  RasterIntDisable                                
+c00cd1e0  RasterNibbleModeEnable                          
+c00cd200  RasterNibbleModeDisable                         
+c00cd220  RasterFIFODMADelayConfig                        
+c00cd268  RasterHparamConfig                              
+c00cd344  RasterVparamConfig                              
+c00cd434  RasterTiming2Configure                          
+c00cd4a8  RasterDMAConfig                                 
+c00cd4e4  RasterByteSwapEnable                            
+c00cd508  RasterByteSwapDisable                           
+c00cd52c  RasterEndOfFrameIntEnable                       
+c00cd550  RasterEndOfFrameIntDisable                      
+c00cd574  RasterIntStatus                                 
+c00cd5d4  RasterIntRawStatus                              
+c00cd620  RasterIntRawStatusSet                           
+c00cd64c  RasterDMAFBConfig                               
+c00cd694  RasterClearGetIntStatus                         
+c00cd70c  RasterSubPanelEnable                            
+c00cd72c  RasterSubPanelDisable                           
+c00cd750  RasterSubPanelConfig                            
+c00cd8f4  RasterClocksEnable                              
+c00cd910  RasterSoftWareClkEnable                         
+c00cd934  RasterSoftWareClkDisable                        
+c00cd958  RasterDMASoftWareClkEnable                      
+c00cd980  RasterDMASoftWareClkDisable                     
+c00cd9a4  RasterSoftWareResetControlEnable                
+c00cda14  RasterSoftWareResetControlDisable               
+c00cda88  RasterDmaMasterPrioritySet                      
+c00cdad0  RasterStandbyModeConfig                         
+c00cdb18  RasterIdleModeConfig                            
+c00cdb64  RasterContextSave                               
+c00cdc4c  RasterContextRestore                            
+c00cdd60  GrCircleDraw                                    
+c00ce3c4  GrCircleFill                                    
+c00ce720  IIC_SelectDevice                                
+c00ce754  Sys_IIC_Init                                    
+c00ce7f4  IICSend                                         
+c00ce8e0  IIC_Write_Reg                                   
+c00ce924  IIC_Write                                       
+c00cea20  IIC_SeqWrite_Reg                                
+c00ceac8  IICReceive                                      
+c00cebac  IIC_SeqRead_Reg                                 
+c00cec40  IIC_Read_Reg                                    
+c00ced8c  IIC_Read                                        
+c00cf060  RGB16                                           
+c00cf864  GrOffScreen16BPPInit                            
+c00cf960  SubbandUI_SelectLearningDisplayJob              
+c00cf9b0  SubbandUI_RemainingMs                           
+c00cfa40  SubbandUI_RemainingSeconds                      
+c00cfb04  SubbandUI_NormalizeCodecKbps                    
+c00cfb2c  SubbandUI_ModeUsesLearning                      
+c00cfb60  SubbandUI_ModeForButton                         
+c00cfb78  SubbandUI_LatchUpdate                           
+c00cfbbc  SubbandUI_LatchInit                             
+c00cfbc8  SubbandUI_IsCodecMode                           
+c00cfec0  SubbandUI_BuildProcessingChain                  
+c00d0200  TimerEnable                                     
+c00d025c  TimerDisable                                    
+c00d0294  TimerConfigure                                  
+c00d030c  TimerWatchdogActivate                           
+c00d034c  TimerWatchdogReactivate                         
+c00d0394  TimerPeriodSet                                  
+c00d03d0  TimerPeriodGet                                  
+c00d0400  TimerCounterSet                                 
+c00d0434  TimerCounterGet                                 
+c00d0464  TimerReloadSet                                  
+c00d0498  TimerReloadGet                                  
+c00d04c8  TimerCaptureGet                                 
+c00d04f4  TimerCompareSet                                 
+c00d0518  TimerCompareGet                                 
+c00d0538  TimerIntEnable                                  
+c00d0568  TimerIntDisable                                 
+c00d0594  TimerIntStatusGet                               
+c00d05b8  TimerIntStatusClear                             
+c00d05f4  TimerPreScalarCount34Set                        
+c00d0648  TimerPreScalarCount34Get                        
+c00d0664  TimerDivDwnRatio34Set                           
+c00d06b0  TimerDivDwnRatio34Get                           
+c00d06cc  TimerCaptureConfigure                           
+c00d072c  TimerReadResetEnable                            
+c00d0768  TimerReadResetDisable                           
+c00d07a0  TimerInputGateEnable                            
+c00d07d8  TimerInputGateDisable                           
+c00d0810  TimerPulseWidthSet                              
+c00d0874  TimerClockModeSet                               
+c00d08b0  TimerPulseModeSet                               
+c00d08ec  TimerOUTStatusGet                               
+c00d091c  TimerInvertINEnable                             
+c00d0954  TimerInvertINDisable                            
+c00d0990  TimerInvertOUTEnable                            
+c00d09cc  TimerInvertOUTDisable                           
+c00d0a20  WidgetMutexInit                                 
+c00d0a34  WidgetMutexGet                                  
+c00d0a74  WidgetMutexPut                                  
+c00d0b14  WidgetDefaultMsgProc                            
+c00d0b2c  WidgetAdd                                       
+c00d0ba0  WidgetRemove                                    
+c00d0c48  WidgetMessageSendPreOrder                       
+c00d0d38  WidgetMessageSendPostOrder                      
+c00d0e94  WidgetMessageQueueAdd                           
+c00d1070  WidgetMessageQueueProcess                       
+c00d1188  WidgetPointerMessage                            
+c00d11c0  GrImageDraw                                     
+c00d1880  GrLineDrawH                                     
+c00d1958  GrLineDrawV                                     
+c00d1d10  GrLineDraw                                      
+c00d1f40  IntDSPINTCInit                                  
+c00d1fb0  IntRegister                                     
+c00d1fd4  IntUnRegister                                   
+c00d1ffc  IntEventMap                                     
+c00d2084  IntEventSet                                     
+c00d20b8  IntEventClear                                   
+c00d20f0  IntEventCombineInit                             
+c00d21f4  IntEventCombineAdd                              
+c00d2248  IntEventCombineRemove                           
+c00d2298  IntEventCombineRegister                         
+c00d22c0  IntEnable                                       
+c00d22f0  IntDisable                                      
+c00d2324  IntReset                                        
+c00d2338  IntGlobalEnable                                 
+c00d234c  IntGlobalDisable                                
+c00d2360  IntGlobalRestore                                
+c00d2378  ExcGlobalEnable                                 
+c00d2398  ExcCombineAdd                                   
+c00d23e0  ExcCombineRemove                                
+c00d2520  SPIClkConfigure                                 
+c00d2568  SPIEnable                                       
+c00d2584  SPIReset                                        
+c00d25a0  SPIOutOfReset                                   
+c00d25b4  SPIModeConfigure                                
+c00d25d8  SPIPinControl                                   
+c00d2624  SPIDelayConfigure                               
+c00d26e4  SPIDefaultCSSet                                 
+c00d2708  SPIDat1Config                                   
+c00d276c  SPITransmitData1                                
+c00d2798  SPICSTimerDisable                               
+c00d27c0  SPICSTimerEnable                                
+c00d27e8  SPICharLengthSet                                
+c00d2838  SPIConfigClkFormat                              
+c00d286c  SPIShiftMsbFirst                                
+c00d2894  SPIShiftLsbFirst                                
+c00d28c0  SPIParityEnable                                 
+c00d2914  SPIParityDisable                                
+c00d2940  SPIWdelaySet                                    
+c00d2970  SPIWaitEnable                                   
+c00d2998  SPIWaitDisable                                  
+c00d29c4  SPIIntLevelSet                                  
+c00d29ec  SPIIntEnable                                    
+c00d2a10  SPIIntDisable                                   
+c00d2a34  SPIIntStatusClear                               
+c00d2a4c  SPIIntStatus                                    
+c00d2a70  SPIDataReceive                                  
+c00d2a8c  SPIInterruptVectorGet                           
+c00d2f30  CanvasMsgProc                                   
+c00d2f64  CanvasInit                                      
+c00d3060  Sys_SPI_Init                                    
+c00d3224  SPI_SeqWrite_Reg                                
+c00d3344  SPI_SeqRead_Reg                                 
+c00d3600  GPIODirModeSet                                  
+c00d3698  GPIODirModeGet                                  
+c00d36f8  GPIOPinWrite                                    
+c00d3778  GPIOPinRead                                     
+c00d37d8  GPIOIntTypeSet                                  
+c00d3944  GPIOIntTypeGet                                  
+c00d39cc  GPIOPinIntStatus                                
+c00d3a2c  GPIOPinIntClear                                 
+c00d3a74  GPIOBankIntEnable                               
+c00d3aa4  GPIOBankIntDisable                              
+c00d3ad0  GPIOBankPinsWrite                               
+c00d3b80  __c6xabi_divd                                   
+c00d40e0  I2CMasterInitExpClk                             
+c00d4180  I2CMasterEnable                                 
+c00d41b8  I2CMasterDisable                                
+c00d41d8  I2CMasterIntEnableEx                            
+c00d4200  I2CSlaveIntEnableEx                             
+c00d4224  I2CMasterIntDisableEx                           
+c00d4248  I2CSlaveIntDisableEx                            
+c00d426c  I2CMasterIntStatus                              
+c00d4288  I2CSlaveIntStatus                               
+c00d42a4  I2CSlaveIntStatusEx                             
+c00d42c4  I2CMasterIntClearEx                             
+c00d42d8  I2CSlaveIntClearEx                              
+c00d42f0  I2CMasterSlaveAddrSet                           
+c00d4308  I2CMasterBusBusy                                
+c00d432c  I2CMasterIsBusy                                 
+c00d4350  I2CMasterControl                                
+c00d4378  I2CMasterStart                                  
+c00d4398  I2CMasterStop                                   
+c00d43b8  I2CStatusClear                                  
+c00d43d0  I2CMasterErr                                    
+c00d43f8  I2CMasterDataPut                                
+c00d4420  I2CMasterDataGet                                
+c00d4438  I2CSlaveDataPut                                 
+c00d4460  I2CSlaveDataGet                                 
+c00d4478  I2CSetDataCount                                 
+c00d4490  I2COwnAddressSet                                
+c00d44a8  I2CInterruptVectorGet                           
+c00d44c4  I2CSlaveAddressGet                              
+c00d44e0  I2CDMATxRxEventDisable                          
+c00d44f4  I2CDMATxEventEnable                             
+c00d4518  I2CDMARxEventEnable                             
+c00d4540  I2CDMATxEventDisable                            
+c00d4564  I2CDMARxEventDisable                            
+c00d48b0  ContainerMsgProc                                
+c00d48e4  ContainerInit                                   
+c00d4d24  Edma0_Common_Init                               
+c00d4dc0  GrRectDraw                                      
+c00d4e88  GrRectFill                                      
+c00d5024  GrRectOverlapCheck                              
+c00d508c  GrRectIntersectGet                              
+c00d5218  GT1151_Init                                     
+c00d54d0  Touch_Init                                      
+c00d5500  cos                                             
+c00d5500  cosl                                            
+c00d5840  sin                                             
+c00d5840  sinl                                            
+c00d5dac  Key_Init                                        
+c00d5de0  GT1151_Scan                                     
+c00d5de0  Touch_ScanRaw                                   
+c00d5ff4  Touch_Scan                                      
+c00d6060  __c6xabi_divull                                 
+c00d62c0  PruDisable                                      
+c00d6308  PruEnable                                       
+c00d6378  PruLoad                                         
+c00d6410  PruRun                                          
+c00d6464  PruWaitForHalt                                  
+c00d6520  cosf                                            
+c00d6760  __c6xabi_divf                                   
+c00d6980  sinf                                            
+c00d6b80  __c6xabi_llshl                                  
+c00d6c00  _intcVectorTable                                
+c00d6e00  LCDVersionGet                                   
+c00d6e04  LCDPinMuxSetup                                  
+c00d6e88  ConfigRasterGpioPins                            
+c00d6eb4  ConfigRasterDisplayEnable                       
+c00d7004  Sysdelay                                        
+c00d7098  SysStopTimer                                    
+c00d70b0  SysStartTimer                                   
+c00d7110  SysIsTimerElapsed                               
+c00d7120  SysDelayTimerSetup                              
+c00d7180  Widget_Btn_App                                  
+c00d7220  OnButtonPress                                   
+c00d7340  SubbandUIFont_StorageBytes                      
+c00d7348  SubbandUIFont_PhraseWidth                       
+c00d7368  SubbandUIFont_DrawPhrase                        
+c00d7500  frexpf                                          
+c00d76a0  GrContextInit                                   
+c00d772c  GrContextClipRegionSet                          
+c00d78a8  Adc_EDMA_Init                                   
+c00d79a0  Adc_Reset_PinSet                                
+c00d7a08  Adc_Pin_Init                                    
+c00d7aac  Adc_Convst_PinSet                               
+c00d7ae0  Dac_Stop                                        
+c00d7b00  Dac_Start                                       
+c00d7b20  Dac_Init                                        
+c00d7c20  PSCModuleControl                                
+c00d7da0  KEY_PinInit                                     
+c00d7ea0  sqrtf                                           
+c00d800c  Touch_Pin_Init_Out                              
+c00d8040  Touch_Pin_Init_In                               
+c00d80a0  Touch_Int_PinSet                                
+c00d8174  Dac_Pin_Init                                    
+c00d81e0  Dac_Load_PinSet                                 
+c00d8208  Dac_Clr_PinSet                                  
+c00d8240  logf                                            
+c00d84a4  Tim2_Init                                       
+c00d8560  __c6xabi_divi                                   
+c00d8560  __divi                                          
+c00d86b0  Adc_Emif_Init                                   
+c00d8720  exit                                            
+c00d88a8  Lcd_Pin_Init                                    
+c00d88e0  memset                                          
+c00d89c0  __TI_auto_init_nobinit_nopinit                  
+c00d8a80  __c6xabi_nround                                 
+c00d8a80  __c6xabi_roundl                                 
+c00d8b40  __c6xabi_divu                                   
+c00d8b40  __divu                                          
+c00d8c00  Adc_Stop                                        
+c00d8c20  Adc_Start                                       
+c00d8c40  Adc_Init                                        
+c00d8cc0  Lcd_Raster_Init                                 
+c00d8d6c  Lcd_Raster_Enable                               
+c00d8d80  modf                                            
+c00d8d80  modfl                                           
+c00d8e40  __TI_tls_init                                   
+c00d8f00  __c6xabi_fixfu                                  
+c00d8fa0  __c6xabi_roundf                                 
+c00d9040  __c6xabi_remu                                   
+c00d9040  __remu                                          
+c00d90e0  Adc_Timer1_Stop                                 
+c00d90f8  Adc_Timer1_Start                                
+c00d9110  Adc_Timer1_Init                                 
+c00d9180  Dac_Timer1_Stop                                 
+c00d9194  Dac_Timer1_Start                                
+c00d91ac  Dac_Timer1_Init                                 
+c00d9220  Lcd_DMA_Init                                    
+c00d92c0  memcpy                                          
+c00d9360  _c_int00                                        
+c00d93e0  __c6xabi_llshru                                 
+c00d9440  _subcull                                        
+c00d94a0  Lcd_Grlib_Init                                  
+c00d9500  modff                                           
+c00d9560  DelayTimerSetup                                 
+c00d956c  delay                                           
+c00d9578  StartTimer                                      
+c00d9588  StopTimer                                       
+c00d9594  IsTimerElapsed                                  
+c00d95c0  __TI_frcmpyd_div                                
+c00d9600  _args_main                                      
+c00d9640  Adc_Pru1_Init                                   
+c00d9680  Dac_Pru0_Init                                   
+c00d96c0  Lcd_Init                                        
+c00d9700  __c6xabi_errno_addr                             
+c00d9720  __c6xabi_trunc                                  
+c00d9720  __c6xabi_truncl                                 
+c00d9740  __c6xabi_truncf                                 
+c00d9760  _system_post_cinit                              
+c00d9780  _system_pre_init                                
+c00d97a0  C$$EXIT                                         
+c00d97a0  abort                                           
+c00d97c0  __TI_decompress_none                            
+c00d97e0  __TI_decompress_rle24                           
+c00d9800  EDMAVersionGet                                  
+c00d9820  Lcd_CTRL_Init                                   
+c00d9840  main                                            
+c00d9860  Sys_Init                                        
+c00de400  IIC_slaveData                                   
+c00de52c  Lcd_Display                                     
+c00de578  Lcd_Context                                     
+c00de598  cb_Fxn                                          
+c00e0b70  PRU0_Code                                       
+c00e12d0  g_sFontCmss18b                                  
+c00e1398  g_sFontCmss22b                                  
+c00e1460  g_sFontCmss38b                                  
+c00e1528  g_sFontCmtt12                                   
+c00e15f0  PRU1_Code                                       
+c00e1ed8  _stack                                          
+c00e26d8  SPI_rxBuffer                                    
+c00e26d8  __TI_STACK_END                                  
+c00e27d8  SPI_txBuffer                                    
+c00e28d8  GT1151_CFG_TBL                                  
+c00e2a28  g_sBtn1                                         
+c00e2a78  g_sBtn2                                         
+c00e2ac8  g_sBtn3                                         
+c00e2b18  g_sBtn4                                         
+c00e2b68  g_sBtn5                                         
+c00e2bb8  g_sBtn6                                         
+c00e2c08  g_sBtn7                                         
+c00e2c58  g_sBtn8                                         
+c00e2d28  g_sHeading                                      
+c00e2d68  g_sTxt1                                         
+c00e2da8  g_sTxt2                                         
+c00e2de8  g_sMainPanel                                    
+c00e2e20  g_sRoot                                         
+c00e2e60  palette_32b                                     
+c00e2ea0  __TI_cleanup_ptr                                
+c00e2ea4  __TI_dtors_ptr                                  
+c00e2ea8  __TI_enable_exit_profile_output                 
+c00e2eac  __errno                                         
+c00e2eac  errno                                           
+c00e2eb0  Touch_DebugProductId                            
+c00e395c  __TI_Handler_Table_Base                         
+c00e3964  __TI_Handler_Table_Limit                        
+c00e3998  __TI_CINIT_Base                                 
+c00e3b08  __TI_CINIT_Limit                                
+c00e3b08  __TI_CINIT_Warm                                 
+c6fffff2  AD_En                                           
+c6fffff3  FLAG_AD                                         
+c6fffff4  AD_Ping_Pong                                    
+c6fffff8  DA_Len                                          
+c6fffffa  DA_En                                           
+c6fffffb  FLAG_DA                                         
+c6fffffc  DA_Ping_Pong                                    
+c6fffffd  DA_Sel                                          
+c7000000  AD_CH1_Buf0                                     
+c7004000  AD_CH2_Buf0                                     
+c7008000  AD_CH3_Buf0                                     
+c700c000  AD_CH4_Buf0                                     
+c7010000  AD_CH5_Buf0                                     
+c7014000  AD_CH6_Buf0                                     
+c7018000  AD_CH7_Buf0                                     
+c701c000  AD_CH8_Buf0                                     
+c7020000  AD_CH1_Buf1                                     
+c7024000  AD_CH2_Buf1                                     
+c7028000  AD_CH3_Buf1                                     
+c702c000  AD_CH4_Buf1                                     
+c7030000  AD_CH5_Buf1                                     
+c7034000  AD_CH6_Buf1                                     
+c7038000  AD_CH7_Buf1                                     
+c703c000  AD_CH8_Buf1                                     
+c7040000  DA_CH1_Buf0                                     
+c7044000  DA_CH2_Buf0                                     
+c7048000  DA_CH3_Buf0                                     
+c704c000  DA_CH4_Buf0                                     
+c7050000  DA_CH5_Buf0                                     
+c7054000  DA_CH6_Buf0                                     
+c7058000  DA_CH7_Buf0                                     
+c705c000  DA_CH8_Buf0                                     
+c7060000  DA_CH1_Buf1                                     
+c7064000  DA_CH2_Buf1                                     
+c7068000  DA_CH3_Buf1                                     
+c706c000  DA_CH4_Buf1                                     
+c7070000  DA_CH5_Buf1                                     
+c7074000  DA_CH6_Buf1                                     
+c7078000  DA_CH7_Buf1                                     
+c707c000  DA_CH8_Buf1                                     
+ffffffff  __TI_pprof_out_hndl                             
+ffffffff  __TI_prof_data_size                             
+ffffffff  __TI_prof_data_start                            
+ffffffff  __binit__                                       
+ffffffff  __c_args__                                      
+ffffffff  binit                                           
+UNDEFED   __TI_TLS_INIT_Base                              
+UNDEFED   __TI_TLS_INIT_Limit                             
+
+[789 symbols]

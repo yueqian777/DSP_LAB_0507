@@ -1,0 +1,2175 @@
+{
+  "schema_version": 1,
+  "metadata": {
+    "commit_sha": "c07c53e6ca726dfc0877d0d7ac62324b62ecff7e",
+    "build_identity": {
+      "version": "P33_FIX_V5",
+      "git_sha": "c07c53e",
+      "dirty": 0
+    },
+    "source_dirty_at_build": false,
+    "configuration": "Debug configuration with production-equivalent -O3 optimization",
+    "compiler": "TMS320C6x Linker PC v8.5.0.LTS",
+    "optimization": "-O3",
+    "common_defines": [
+      "c6748",
+      "DEBUG",
+      "EQ_USE_GENERATED_BUILD_ID=1"
+    ],
+    "production_defines": [
+      "DSP_LAB_PROJECT_SELECT=32",
+      "SUBBAND_THD_BOARD_TEST=0"
+    ],
+    "thd_test_defines": [
+      "DSP_LAB_PROJECT_SELECT=32",
+      "SUBBAND_THD_BOARD_TEST=1"
+    ],
+    "linker_command_files": [
+      "TargetConfig/C6748.cmd",
+      "TargetConfig/User.cmd"
+    ],
+    "linker_options": {
+      "stack_size": "0x800",
+      "heap_size": "0x800",
+      "rom_model": true
+    },
+    "production": {
+      "clean_full_rebuild": true,
+      "link_errors": 0,
+      "linked_at": "Wed Jul 15 13:51:36 2026",
+      "map_path": "results\\memory\\production_DSP_LAB_0507.map",
+      "xml_link_info_path": "results\\memory\\production_DSP_LAB_0507_linkInfo.xml",
+      "build_log_path": "results/memory/build.log",
+      "command": "gmake -C Debug -B all \"GEN_OPTS__FLAG=--define=DSP_LAB_PROJECT_SELECT=32 --define=SUBBAND_THD_BOARD_TEST=0 --define=EQ_USE_GENERATED_BUILD_ID=1\""
+    },
+    "thd_test": {
+      "clean_full_rebuild": true,
+      "link_errors": 0,
+      "linked_at": "Wed Jul 15 13:54:40 2026",
+      "map_path": "results\\memory\\thd_test_DSP_LAB_0507.map",
+      "xml_link_info_path": "results\\memory\\thd_test_DSP_LAB_0507_linkInfo.xml",
+      "build_log_path": "results/memory/thd_test_build.log",
+      "command": "gmake -C Debug -B all \"GEN_OPTS__FLAG=--define=DSP_LAB_PROJECT_SELECT=32 --define=SUBBAND_THD_BOARD_TEST=1 --define=EQ_USE_GENERATED_BUILD_ID=1\""
+    }
+  },
+  "production": {
+    "summary": [
+      {
+        "category": "program_code_and_readonly",
+        "bytes": 139772,
+        "kib": 136.496094,
+        "note": ".text/.const/.switch/.cinit and other read-only sections"
+      },
+      {
+        "category": "static_readwrite_ram",
+        "bytes": 1572145,
+        "kib": 1535.297852,
+        "note": "Static run-time RAM including fixed board audio buffers"
+      },
+      {
+        "category": "stack_mapped_reserved",
+        "bytes": 2048,
+        "kib": 2.0,
+        "note": "Linker-mapped reservation; not a measured high-water mark"
+      },
+      {
+        "category": "heap_mapped_reserved",
+        "bytes": 0,
+        "kib": 0.0,
+        "note": ".sysmem mapped size; linker option configures 2048 bytes"
+      },
+      {
+        "category": "total_runtime_ram",
+        "bytes": 1713965,
+        "kib": 1673.793945,
+        "note": "Sum of map MEMORY CONFIGURATION used bytes; load/run not double-counted"
+      }
+    ],
+    "sections": [
+      {
+        "section_name": ".text",
+        "category": "code_readonly",
+        "run_address": "0xc00bbc00",
+        "load_address": "0xc00bbc00",
+        "size_bytes": 121984,
+        "size_kib": 119.125,
+        "memory_region": "DDR2",
+        "region_capacity_bytes": 117440496,
+        "region_utilization_percent": 0.794057,
+        "map_initialization": "load image"
+      },
+      {
+        "section_name": ".subband_l2",
+        "category": "static_readwrite",
+        "run_address": "0x00800000",
+        "load_address": "",
+        "size_bytes": 257124,
+        "size_kib": 251.097656,
+        "memory_region": "DSPL2RAM",
+        "region_capacity_bytes": 262144,
+        "region_utilization_percent": 98.085022,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": ".stack",
+        "category": "runtime_reserved",
+        "run_address": "0xc00e1ed8",
+        "load_address": "",
+        "size_bytes": 2048,
+        "size_kib": 2.0,
+        "memory_region": "DDR2",
+        "region_capacity_bytes": 117440496,
+        "region_utilization_percent": 0.794057,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": ".cio",
+        "category": "static_readwrite",
+        "run_address": "",
+        "load_address": "",
+        "size_bytes": 0,
+        "size_kib": 0.0,
+        "memory_region": "UNALLOCATED",
+        "region_capacity_bytes": 0,
+        "region_utilization_percent": 0.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": ".const",
+        "category": "code_readonly",
+        "run_address": "0xc00de5a8",
+        "load_address": "0xc00de5a8",
+        "size_bytes": 14636,
+        "size_kib": 14.292969,
+        "memory_region": "DDR2",
+        "region_capacity_bytes": 117440496,
+        "region_utilization_percent": 0.794057,
+        "map_initialization": "load image"
+      },
+      {
+        "section_name": ".data",
+        "category": "static_readwrite",
+        "run_address": "",
+        "load_address": "",
+        "size_bytes": 0,
+        "size_kib": 0.0,
+        "memory_region": "UNALLOCATED",
+        "region_capacity_bytes": 0,
+        "region_utilization_percent": 0.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": ".switch",
+        "category": "code_readonly",
+        "run_address": "0xc00e2eb8",
+        "load_address": "0xc00e2eb8",
+        "size_bytes": 368,
+        "size_kib": 0.359375,
+        "memory_region": "DDR2",
+        "region_capacity_bytes": 117440496,
+        "region_utilization_percent": 0.794057,
+        "map_initialization": "load image"
+      },
+      {
+        "section_name": ".sysmem",
+        "category": "runtime_reserved",
+        "run_address": "",
+        "load_address": "",
+        "size_bytes": 0,
+        "size_kib": 0.0,
+        "memory_region": "UNALLOCATED",
+        "region_capacity_bytes": 0,
+        "region_utilization_percent": 0.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": ".far",
+        "category": "static_readwrite",
+        "run_address": "0xc00d9880",
+        "load_address": "",
+        "size_bytes": 19748,
+        "size_kib": 19.285156,
+        "memory_region": "DDR2",
+        "region_capacity_bytes": 117440496,
+        "region_utilization_percent": 0.794057,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": ".args",
+        "category": "runtime_reserved",
+        "run_address": "",
+        "load_address": "",
+        "size_bytes": 0,
+        "size_kib": 0.0,
+        "memory_region": "UNALLOCATED",
+        "region_capacity_bytes": 0,
+        "region_utilization_percent": 0.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": ".ppinfo",
+        "category": "static_readwrite",
+        "run_address": "",
+        "load_address": "",
+        "size_bytes": 0,
+        "size_kib": 0.0,
+        "memory_region": "UNALLOCATED",
+        "region_capacity_bytes": 0,
+        "region_utilization_percent": 0.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": ".ppdata",
+        "category": "static_readwrite",
+        "run_address": "",
+        "load_address": "",
+        "size_bytes": 0,
+        "size_kib": 0.0,
+        "memory_region": "UNALLOCATED",
+        "region_capacity_bytes": 0,
+        "region_utilization_percent": 0.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": ".neardata",
+        "category": "static_readwrite",
+        "run_address": "0xc00bb824",
+        "load_address": "",
+        "size_bytes": 884,
+        "size_kib": 0.863281,
+        "memory_region": "DDR2",
+        "region_capacity_bytes": 117440496,
+        "region_utilization_percent": 0.794057,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": ".rodata",
+        "category": "code_readonly",
+        "run_address": "0xc00bbb98",
+        "load_address": "",
+        "size_bytes": 0,
+        "size_kib": 0.0,
+        "memory_region": "DDR2",
+        "region_capacity_bytes": 117440496,
+        "region_utilization_percent": 0.794057,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": ".bss",
+        "category": "static_readwrite",
+        "run_address": "0xc00bbb98",
+        "load_address": "",
+        "size_bytes": 43,
+        "size_kib": 0.041992,
+        "memory_region": "DDR2",
+        "region_capacity_bytes": 117440496,
+        "region_utilization_percent": 0.794057,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": ".pinit",
+        "category": "code_readonly",
+        "run_address": "",
+        "load_address": "",
+        "size_bytes": 0,
+        "size_kib": 0.0,
+        "memory_region": "UNALLOCATED",
+        "region_capacity_bytes": 0,
+        "region_utilization_percent": 0.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": ".cinit",
+        "category": "code_readonly",
+        "run_address": "0xc00e3028",
+        "load_address": "0xc00e3028",
+        "size_bytes": 2784,
+        "size_kib": 2.71875,
+        "memory_region": "DDR2",
+        "region_capacity_bytes": 117440496,
+        "region_utilization_percent": 0.794057,
+        "map_initialization": "load image"
+      },
+      {
+        "section_name": ".binit",
+        "category": "code_readonly",
+        "run_address": "",
+        "load_address": "",
+        "size_bytes": 0,
+        "size_kib": 0.0,
+        "memory_region": "UNALLOCATED",
+        "region_capacity_bytes": 0,
+        "region_utilization_percent": 0.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": ".init_array",
+        "category": "code_readonly",
+        "run_address": "",
+        "load_address": "",
+        "size_bytes": 0,
+        "size_kib": 0.0,
+        "memory_region": "UNALLOCATED",
+        "region_capacity_bytes": 0,
+        "region_utilization_percent": 0.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": ".fardata",
+        "category": "static_readwrite",
+        "run_address": "0xc00e26d8",
+        "load_address": "",
+        "size_bytes": 2013,
+        "size_kib": 1.96582,
+        "memory_region": "DDR2",
+        "region_capacity_bytes": 117440496,
+        "region_utilization_percent": 0.794057,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": ".c6xabi.exidx",
+        "category": "code_readonly",
+        "run_address": "",
+        "load_address": "",
+        "size_bytes": 0,
+        "size_kib": 0.0,
+        "memory_region": "UNALLOCATED",
+        "region_capacity_bytes": 0,
+        "region_utilization_percent": 0.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": ".c6xabi.extab",
+        "category": "code_readonly",
+        "run_address": "",
+        "load_address": "",
+        "size_bytes": 0,
+        "size_kib": 0.0,
+        "memory_region": "UNALLOCATED",
+        "region_capacity_bytes": 0,
+        "region_utilization_percent": 0.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "offscreen_buffer",
+        "category": "static_readwrite",
+        "run_address": "0xc0000000",
+        "load_address": "",
+        "size_bytes": 768036,
+        "size_kib": 750.035156,
+        "memory_region": "DDR2",
+        "region_capacity_bytes": 117440496,
+        "region_utilization_percent": 0.794057,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "User_ADEnFile",
+        "category": "static_readwrite",
+        "run_address": "0xc6fffff2",
+        "load_address": "",
+        "size_bytes": 1,
+        "size_kib": 0.000977,
+        "memory_region": "User_ADEn",
+        "region_capacity_bytes": 1,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "User_ADFlagFile",
+        "category": "static_readwrite",
+        "run_address": "0xc6fffff3",
+        "load_address": "",
+        "size_bytes": 1,
+        "size_kib": 0.000977,
+        "memory_region": "User_ADFlag",
+        "region_capacity_bytes": 1,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "User_ADPingPongFile",
+        "category": "static_readwrite",
+        "run_address": "0xc6fffff4",
+        "load_address": "",
+        "size_bytes": 1,
+        "size_kib": 0.000977,
+        "memory_region": "User_ADPingPong",
+        "region_capacity_bytes": 1,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "User_ADLenFile",
+        "category": "static_readwrite",
+        "run_address": "",
+        "load_address": "",
+        "size_bytes": 0,
+        "size_kib": 0.0,
+        "memory_region": "UNALLOCATED",
+        "region_capacity_bytes": 0,
+        "region_utilization_percent": 0.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "User_DAEnFile",
+        "category": "static_readwrite",
+        "run_address": "0xc6fffffa",
+        "load_address": "",
+        "size_bytes": 1,
+        "size_kib": 0.000977,
+        "memory_region": "User_DAEn",
+        "region_capacity_bytes": 1,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "User_DAFlagFile",
+        "category": "static_readwrite",
+        "run_address": "0xc6fffffb",
+        "load_address": "",
+        "size_bytes": 1,
+        "size_kib": 0.000977,
+        "memory_region": "User_DAFlag",
+        "region_capacity_bytes": 1,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "User_DAPingPongFile",
+        "category": "static_readwrite",
+        "run_address": "0xc6fffffc",
+        "load_address": "",
+        "size_bytes": 1,
+        "size_kib": 0.000977,
+        "memory_region": "User_DAPingPong",
+        "region_capacity_bytes": 1,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "User_DALenFile",
+        "category": "static_readwrite",
+        "run_address": "0xc6fffff8",
+        "load_address": "",
+        "size_bytes": 2,
+        "size_kib": 0.001953,
+        "memory_region": "User_DALen",
+        "region_capacity_bytes": 2,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "User_DASelFile",
+        "category": "static_readwrite",
+        "run_address": "0xc6fffffd",
+        "load_address": "",
+        "size_bytes": 1,
+        "size_kib": 0.000977,
+        "memory_region": "User_DASel",
+        "region_capacity_bytes": 1,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "AD_Ch1Buf0_File",
+        "category": "static_readwrite",
+        "run_address": "0xc7000000",
+        "load_address": "",
+        "size_bytes": 16384,
+        "size_kib": 16.0,
+        "memory_region": "AD_Ch1Buf0",
+        "region_capacity_bytes": 16384,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "AD_Ch2Buf0_File",
+        "category": "static_readwrite",
+        "run_address": "0xc7004000",
+        "load_address": "",
+        "size_bytes": 16384,
+        "size_kib": 16.0,
+        "memory_region": "AD_Ch2Buf0",
+        "region_capacity_bytes": 16384,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "AD_Ch3Buf0_File",
+        "category": "static_readwrite",
+        "run_address": "0xc7008000",
+        "load_address": "",
+        "size_bytes": 16384,
+        "size_kib": 16.0,
+        "memory_region": "AD_Ch3Buf0",
+        "region_capacity_bytes": 16384,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "AD_Ch4Buf0_File",
+        "category": "static_readwrite",
+        "run_address": "0xc700c000",
+        "load_address": "",
+        "size_bytes": 16384,
+        "size_kib": 16.0,
+        "memory_region": "AD_Ch4Buf0",
+        "region_capacity_bytes": 16384,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "AD_Ch5Buf0_File",
+        "category": "static_readwrite",
+        "run_address": "0xc7010000",
+        "load_address": "",
+        "size_bytes": 16384,
+        "size_kib": 16.0,
+        "memory_region": "AD_Ch5Buf0",
+        "region_capacity_bytes": 16384,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "AD_Ch6Buf0_File",
+        "category": "static_readwrite",
+        "run_address": "0xc7014000",
+        "load_address": "",
+        "size_bytes": 16384,
+        "size_kib": 16.0,
+        "memory_region": "AD_Ch6Buf0",
+        "region_capacity_bytes": 16384,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "AD_Ch7Buf0_File",
+        "category": "static_readwrite",
+        "run_address": "0xc7018000",
+        "load_address": "",
+        "size_bytes": 16384,
+        "size_kib": 16.0,
+        "memory_region": "AD_Ch7Buf0",
+        "region_capacity_bytes": 16384,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "AD_Ch8Buf0_File",
+        "category": "static_readwrite",
+        "run_address": "0xc701c000",
+        "load_address": "",
+        "size_bytes": 16384,
+        "size_kib": 16.0,
+        "memory_region": "AD_Ch8Buf0",
+        "region_capacity_bytes": 16384,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "AD_Ch1Buf1_File",
+        "category": "static_readwrite",
+        "run_address": "0xc7020000",
+        "load_address": "",
+        "size_bytes": 16384,
+        "size_kib": 16.0,
+        "memory_region": "AD_Ch1Buf1",
+        "region_capacity_bytes": 16384,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "AD_Ch2Buf1_File",
+        "category": "static_readwrite",
+        "run_address": "0xc7024000",
+        "load_address": "",
+        "size_bytes": 16384,
+        "size_kib": 16.0,
+        "memory_region": "AD_Ch2Buf1",
+        "region_capacity_bytes": 16384,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "AD_Ch3Buf1_File",
+        "category": "static_readwrite",
+        "run_address": "0xc7028000",
+        "load_address": "",
+        "size_bytes": 16384,
+        "size_kib": 16.0,
+        "memory_region": "AD_Ch3Buf1",
+        "region_capacity_bytes": 16384,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "AD_Ch4Buf1_File",
+        "category": "static_readwrite",
+        "run_address": "0xc702c000",
+        "load_address": "",
+        "size_bytes": 16384,
+        "size_kib": 16.0,
+        "memory_region": "AD_Ch4Buf1",
+        "region_capacity_bytes": 16384,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "AD_Ch5Buf1_File",
+        "category": "static_readwrite",
+        "run_address": "0xc7030000",
+        "load_address": "",
+        "size_bytes": 16384,
+        "size_kib": 16.0,
+        "memory_region": "AD_Ch5Buf1",
+        "region_capacity_bytes": 16384,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "AD_Ch6Buf1_File",
+        "category": "static_readwrite",
+        "run_address": "0xc7034000",
+        "load_address": "",
+        "size_bytes": 16384,
+        "size_kib": 16.0,
+        "memory_region": "AD_Ch6Buf1",
+        "region_capacity_bytes": 16384,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "AD_Ch7Buf1_File",
+        "category": "static_readwrite",
+        "run_address": "0xc7038000",
+        "load_address": "",
+        "size_bytes": 16384,
+        "size_kib": 16.0,
+        "memory_region": "AD_Ch7Buf1",
+        "region_capacity_bytes": 16384,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "AD_Ch8Buf1_File",
+        "category": "static_readwrite",
+        "run_address": "0xc703c000",
+        "load_address": "",
+        "size_bytes": 16384,
+        "size_kib": 16.0,
+        "memory_region": "AD_Ch8Buf1",
+        "region_capacity_bytes": 16384,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "DA_Ch1Buf0_File",
+        "category": "static_readwrite",
+        "run_address": "0xc7040000",
+        "load_address": "",
+        "size_bytes": 16384,
+        "size_kib": 16.0,
+        "memory_region": "DA_Ch1Buf0",
+        "region_capacity_bytes": 16384,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "DA_Ch2Buf0_File",
+        "category": "static_readwrite",
+        "run_address": "0xc7044000",
+        "load_address": "",
+        "size_bytes": 16384,
+        "size_kib": 16.0,
+        "memory_region": "DA_Ch2Buf0",
+        "region_capacity_bytes": 16384,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "DA_Ch3Buf0_File",
+        "category": "static_readwrite",
+        "run_address": "0xc7048000",
+        "load_address": "",
+        "size_bytes": 16384,
+        "size_kib": 16.0,
+        "memory_region": "DA_Ch3Buf0",
+        "region_capacity_bytes": 16384,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "DA_Ch4Buf0_File",
+        "category": "static_readwrite",
+        "run_address": "0xc704c000",
+        "load_address": "",
+        "size_bytes": 16384,
+        "size_kib": 16.0,
+        "memory_region": "DA_Ch4Buf0",
+        "region_capacity_bytes": 16384,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "DA_Ch5Buf0_File",
+        "category": "static_readwrite",
+        "run_address": "0xc7050000",
+        "load_address": "",
+        "size_bytes": 16384,
+        "size_kib": 16.0,
+        "memory_region": "DA_Ch5Buf0",
+        "region_capacity_bytes": 16384,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "DA_Ch6Buf0_File",
+        "category": "static_readwrite",
+        "run_address": "0xc7054000",
+        "load_address": "",
+        "size_bytes": 16384,
+        "size_kib": 16.0,
+        "memory_region": "DA_Ch6Buf0",
+        "region_capacity_bytes": 16384,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "DA_Ch7Buf0_File",
+        "category": "static_readwrite",
+        "run_address": "0xc7058000",
+        "load_address": "",
+        "size_bytes": 16384,
+        "size_kib": 16.0,
+        "memory_region": "DA_Ch7Buf0",
+        "region_capacity_bytes": 16384,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "DA_Ch8Buf0_File",
+        "category": "static_readwrite",
+        "run_address": "0xc705c000",
+        "load_address": "",
+        "size_bytes": 16384,
+        "size_kib": 16.0,
+        "memory_region": "DA_Ch8Buf0",
+        "region_capacity_bytes": 16384,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "DA_Ch1Buf1_File",
+        "category": "static_readwrite",
+        "run_address": "0xc7060000",
+        "load_address": "",
+        "size_bytes": 16384,
+        "size_kib": 16.0,
+        "memory_region": "DA_Ch1Buf1",
+        "region_capacity_bytes": 16384,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "DA_Ch2Buf1_File",
+        "category": "static_readwrite",
+        "run_address": "0xc7064000",
+        "load_address": "",
+        "size_bytes": 16384,
+        "size_kib": 16.0,
+        "memory_region": "DA_Ch2Buf1",
+        "region_capacity_bytes": 16384,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "DA_Ch3Buf1_File",
+        "category": "static_readwrite",
+        "run_address": "0xc7068000",
+        "load_address": "",
+        "size_bytes": 16384,
+        "size_kib": 16.0,
+        "memory_region": "DA_Ch3Buf1",
+        "region_capacity_bytes": 16384,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "DA_Ch4Buf1_File",
+        "category": "static_readwrite",
+        "run_address": "0xc706c000",
+        "load_address": "",
+        "size_bytes": 16384,
+        "size_kib": 16.0,
+        "memory_region": "DA_Ch4Buf1",
+        "region_capacity_bytes": 16384,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "DA_Ch5Buf1_File",
+        "category": "static_readwrite",
+        "run_address": "0xc7070000",
+        "load_address": "",
+        "size_bytes": 16384,
+        "size_kib": 16.0,
+        "memory_region": "DA_Ch5Buf1",
+        "region_capacity_bytes": 16384,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "DA_Ch6Buf1_File",
+        "category": "static_readwrite",
+        "run_address": "0xc7074000",
+        "load_address": "",
+        "size_bytes": 16384,
+        "size_kib": 16.0,
+        "memory_region": "DA_Ch6Buf1",
+        "region_capacity_bytes": 16384,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "DA_Ch7Buf1_File",
+        "category": "static_readwrite",
+        "run_address": "0xc7078000",
+        "load_address": "",
+        "size_bytes": 16384,
+        "size_kib": 16.0,
+        "memory_region": "DA_Ch7Buf1",
+        "region_capacity_bytes": 16384,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "DA_Ch8Buf1_File",
+        "category": "static_readwrite",
+        "run_address": "0xc707c000",
+        "load_address": "",
+        "size_bytes": 16384,
+        "size_kib": 16.0,
+        "memory_region": "DA_Ch8Buf1",
+        "region_capacity_bytes": 16384,
+        "region_utilization_percent": 100.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "User_Buf1File",
+        "category": "static_readwrite",
+        "run_address": "",
+        "load_address": "",
+        "size_bytes": 0,
+        "size_kib": 0.0,
+        "memory_region": "UNALLOCATED",
+        "region_capacity_bytes": 0,
+        "region_utilization_percent": 0.0,
+        "map_initialization": "no in-place load image"
+      },
+      {
+        "section_name": "User_Buf2File",
+        "category": "static_readwrite",
+        "run_address": "",
+        "load_address": "",
+        "size_bytes": 0,
+        "size_kib": 0.0,
+        "memory_region": "UNALLOCATED",
+        "region_capacity_bytes": 0,
+        "region_utilization_percent": 0.0,
+        "map_initialization": "no in-place load image"
+      }
+    ],
+    "regions": [
+      {
+        "region": "DSPL2ROM",
+        "origin": "0x00700000",
+        "capacity_bytes": 1048576,
+        "used_bytes": 0,
+        "unused_bytes": 1048576,
+        "utilization_percent": 0.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "DSPL2RAM",
+        "origin": "0x00800000",
+        "capacity_bytes": 262144,
+        "used_bytes": 257124,
+        "unused_bytes": 5020,
+        "utilization_percent": 98.085022,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "DSPL1PRAM",
+        "origin": "0x00e00000",
+        "capacity_bytes": 32768,
+        "used_bytes": 0,
+        "unused_bytes": 32768,
+        "utilization_percent": 0.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "DSPL1DRAM",
+        "origin": "0x00f00000",
+        "capacity_bytes": 32768,
+        "used_bytes": 0,
+        "unused_bytes": 32768,
+        "utilization_percent": 0.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "SHDSPL2ROM",
+        "origin": "0x11700000",
+        "capacity_bytes": 1048576,
+        "used_bytes": 0,
+        "unused_bytes": 1048576,
+        "utilization_percent": 0.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "SHDSPL2RAM",
+        "origin": "0x11800000",
+        "capacity_bytes": 262144,
+        "used_bytes": 0,
+        "unused_bytes": 262144,
+        "utilization_percent": 0.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "SHDSPL1PRAM",
+        "origin": "0x11e00000",
+        "capacity_bytes": 32768,
+        "used_bytes": 0,
+        "unused_bytes": 32768,
+        "utilization_percent": 0.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "SHDSPL1DRAM",
+        "origin": "0x11f00000",
+        "capacity_bytes": 32768,
+        "used_bytes": 0,
+        "unused_bytes": 32768,
+        "utilization_percent": 0.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "EMIFACS0",
+        "origin": "0x40000000",
+        "capacity_bytes": 536870912,
+        "used_bytes": 0,
+        "unused_bytes": 536870912,
+        "utilization_percent": 0.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "EMIFACS2",
+        "origin": "0x60000000",
+        "capacity_bytes": 33554432,
+        "used_bytes": 0,
+        "unused_bytes": 33554432,
+        "utilization_percent": 0.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "EMIFACS3",
+        "origin": "0x62000000",
+        "capacity_bytes": 33554432,
+        "used_bytes": 0,
+        "unused_bytes": 33554432,
+        "utilization_percent": 0.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "EMIFACS4",
+        "origin": "0x64000000",
+        "capacity_bytes": 33554432,
+        "used_bytes": 0,
+        "unused_bytes": 33554432,
+        "utilization_percent": 0.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "EMIFACS5",
+        "origin": "0x66000000",
+        "capacity_bytes": 33554432,
+        "used_bytes": 0,
+        "unused_bytes": 33554432,
+        "utilization_percent": 0.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "User_Buf1",
+        "origin": "0x80000000",
+        "capacity_bytes": 32768,
+        "used_bytes": 0,
+        "unused_bytes": 32768,
+        "utilization_percent": 0.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "User_Buf2",
+        "origin": "0x80008000",
+        "capacity_bytes": 32768,
+        "used_bytes": 0,
+        "unused_bytes": 32768,
+        "utilization_percent": 0.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "SHRAM",
+        "origin": "0x80010000",
+        "capacity_bytes": 65536,
+        "used_bytes": 0,
+        "unused_bytes": 65536,
+        "utilization_percent": 0.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "DDR2",
+        "origin": "0xc0000000",
+        "capacity_bytes": 117440496,
+        "used_bytes": 932544,
+        "unused_bytes": 116507952,
+        "utilization_percent": 0.794057,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "User_ADLen",
+        "origin": "0xc6fffff0",
+        "capacity_bytes": 2,
+        "used_bytes": 0,
+        "unused_bytes": 2,
+        "utilization_percent": 0.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "User_ADEn",
+        "origin": "0xc6fffff2",
+        "capacity_bytes": 1,
+        "used_bytes": 1,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "User_ADFlag",
+        "origin": "0xc6fffff3",
+        "capacity_bytes": 1,
+        "used_bytes": 1,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "User_ADPingPong",
+        "origin": "0xc6fffff4",
+        "capacity_bytes": 1,
+        "used_bytes": 1,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "User_DALen",
+        "origin": "0xc6fffff8",
+        "capacity_bytes": 2,
+        "used_bytes": 2,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "User_DAEn",
+        "origin": "0xc6fffffa",
+        "capacity_bytes": 1,
+        "used_bytes": 1,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "User_DAFlag",
+        "origin": "0xc6fffffb",
+        "capacity_bytes": 1,
+        "used_bytes": 1,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "User_DAPingPong",
+        "origin": "0xc6fffffc",
+        "capacity_bytes": 1,
+        "used_bytes": 1,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "User_DASel",
+        "origin": "0xc6fffffd",
+        "capacity_bytes": 1,
+        "used_bytes": 1,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "AD_Ch1Buf0",
+        "origin": "0xc7000000",
+        "capacity_bytes": 16384,
+        "used_bytes": 16384,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "AD_Ch2Buf0",
+        "origin": "0xc7004000",
+        "capacity_bytes": 16384,
+        "used_bytes": 16384,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "AD_Ch3Buf0",
+        "origin": "0xc7008000",
+        "capacity_bytes": 16384,
+        "used_bytes": 16384,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "AD_Ch4Buf0",
+        "origin": "0xc700c000",
+        "capacity_bytes": 16384,
+        "used_bytes": 16384,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "AD_Ch5Buf0",
+        "origin": "0xc7010000",
+        "capacity_bytes": 16384,
+        "used_bytes": 16384,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "AD_Ch6Buf0",
+        "origin": "0xc7014000",
+        "capacity_bytes": 16384,
+        "used_bytes": 16384,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "AD_Ch7Buf0",
+        "origin": "0xc7018000",
+        "capacity_bytes": 16384,
+        "used_bytes": 16384,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "AD_Ch8Buf0",
+        "origin": "0xc701c000",
+        "capacity_bytes": 16384,
+        "used_bytes": 16384,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "AD_Ch1Buf1",
+        "origin": "0xc7020000",
+        "capacity_bytes": 16384,
+        "used_bytes": 16384,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "AD_Ch2Buf1",
+        "origin": "0xc7024000",
+        "capacity_bytes": 16384,
+        "used_bytes": 16384,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "AD_Ch3Buf1",
+        "origin": "0xc7028000",
+        "capacity_bytes": 16384,
+        "used_bytes": 16384,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "AD_Ch4Buf1",
+        "origin": "0xc702c000",
+        "capacity_bytes": 16384,
+        "used_bytes": 16384,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "AD_Ch5Buf1",
+        "origin": "0xc7030000",
+        "capacity_bytes": 16384,
+        "used_bytes": 16384,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "AD_Ch6Buf1",
+        "origin": "0xc7034000",
+        "capacity_bytes": 16384,
+        "used_bytes": 16384,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "AD_Ch7Buf1",
+        "origin": "0xc7038000",
+        "capacity_bytes": 16384,
+        "used_bytes": 16384,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "AD_Ch8Buf1",
+        "origin": "0xc703c000",
+        "capacity_bytes": 16384,
+        "used_bytes": 16384,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "DA_Ch1Buf0",
+        "origin": "0xc7040000",
+        "capacity_bytes": 16384,
+        "used_bytes": 16384,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "DA_Ch2Buf0",
+        "origin": "0xc7044000",
+        "capacity_bytes": 16384,
+        "used_bytes": 16384,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "DA_Ch3Buf0",
+        "origin": "0xc7048000",
+        "capacity_bytes": 16384,
+        "used_bytes": 16384,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "DA_Ch4Buf0",
+        "origin": "0xc704c000",
+        "capacity_bytes": 16384,
+        "used_bytes": 16384,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "DA_Ch5Buf0",
+        "origin": "0xc7050000",
+        "capacity_bytes": 16384,
+        "used_bytes": 16384,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "DA_Ch6Buf0",
+        "origin": "0xc7054000",
+        "capacity_bytes": 16384,
+        "used_bytes": 16384,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "DA_Ch7Buf0",
+        "origin": "0xc7058000",
+        "capacity_bytes": 16384,
+        "used_bytes": 16384,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "DA_Ch8Buf0",
+        "origin": "0xc705c000",
+        "capacity_bytes": 16384,
+        "used_bytes": 16384,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "DA_Ch1Buf1",
+        "origin": "0xc7060000",
+        "capacity_bytes": 16384,
+        "used_bytes": 16384,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "DA_Ch2Buf1",
+        "origin": "0xc7064000",
+        "capacity_bytes": 16384,
+        "used_bytes": 16384,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "DA_Ch3Buf1",
+        "origin": "0xc7068000",
+        "capacity_bytes": 16384,
+        "used_bytes": 16384,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "DA_Ch4Buf1",
+        "origin": "0xc706c000",
+        "capacity_bytes": 16384,
+        "used_bytes": 16384,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "DA_Ch5Buf1",
+        "origin": "0xc7070000",
+        "capacity_bytes": 16384,
+        "used_bytes": 16384,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "DA_Ch6Buf1",
+        "origin": "0xc7074000",
+        "capacity_bytes": 16384,
+        "used_bytes": 16384,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "DA_Ch7Buf1",
+        "origin": "0xc7078000",
+        "capacity_bytes": 16384,
+        "used_bytes": 16384,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      },
+      {
+        "region": "DA_Ch8Buf1",
+        "origin": "0xc707c000",
+        "capacity_bytes": 16384,
+        "used_bytes": 16384,
+        "unused_bytes": 0,
+        "utilization_percent": 100.0,
+        "attributes": "RWIX"
+      }
+    ],
+    "modules": [
+      {
+        "module": "WOLA / FFT",
+        "code_readonly_bytes": 11488,
+        "static_ram_bytes": 19128,
+        "code_readonly_kib": 11.21875,
+        "static_ram_kib": 18.679688,
+        "granularity": "TI linker object-file contribution; linker holes assigned to platform/shared"
+      },
+      {
+        "module": "Denoise",
+        "code_readonly_bytes": 12640,
+        "static_ram_bytes": 19796,
+        "code_readonly_kib": 12.34375,
+        "static_ram_kib": 19.332031,
+        "granularity": "TI linker object-file contribution; linker holes assigned to platform/shared"
+      },
+      {
+        "module": "Compression",
+        "code_readonly_bytes": 5120,
+        "static_ram_bytes": 332,
+        "code_readonly_kib": 5.0,
+        "static_ram_kib": 0.324219,
+        "granularity": "TI linker object-file contribution; linker holes assigned to platform/shared"
+      },
+      {
+        "module": "Main chain and audio buffers",
+        "code_readonly_bytes": 11496,
+        "static_ram_bytes": 761161,
+        "code_readonly_kib": 11.226562,
+        "static_ram_kib": 743.321289,
+        "granularity": "TI linker object-file contribution; linker holes assigned to platform/shared"
+      },
+      {
+        "module": "UI and display",
+        "code_readonly_bytes": 49999,
+        "static_ram_bytes": 769997,
+        "code_readonly_kib": 48.827148,
+        "static_ram_kib": 751.950195,
+        "granularity": "TI linker object-file contribution; linker holes assigned to platform/shared"
+      },
+      {
+        "module": "Platform and shared runtime",
+        "code_readonly_bytes": 49029,
+        "static_ram_bytes": 1731,
+        "code_readonly_kib": 47.879883,
+        "static_ram_kib": 1.69043,
+        "granularity": "TI linker object-file contribution; linker holes assigned to platform/shared"
+      }
+    ],
+    "largest_objects": [
+      {
+        "object_kind": "code",
+        "rank": 1,
+        "name": "user_subband_denoise.obj (.text)",
+        "object_file": "user_subband_denoise.obj",
+        "output_section": ".text",
+        "bytes": 12640,
+        "kib": 12.34375,
+        "memory_region": "DDR2",
+        "module": "Denoise",
+        "description": "Subband denoise state and processing code"
+      },
+      {
+        "object_kind": "code",
+        "rank": 2,
+        "name": "user_subband_ui.obj (.text)",
+        "object_file": "user_subband_ui.obj",
+        "output_section": ".text",
+        "bytes": 9024,
+        "kib": 8.8125,
+        "memory_region": "DDR2",
+        "module": "UI and display",
+        "description": "Project 3.2 UI, display state, text or glyph support"
+      },
+      {
+        "object_kind": "code",
+        "rank": 3,
+        "name": "user_subband_flow.obj (.text)",
+        "object_file": "user_subband_flow.obj",
+        "output_section": ".text",
+        "bytes": 7936,
+        "kib": 7.75,
+        "memory_region": "DDR2",
+        "module": "Main chain and audio buffers",
+        "description": "Project 3.2 audio main chain, frame and ping-pong state"
+      },
+      {
+        "object_kind": "code",
+        "rank": 4,
+        "name": "system_config.lib:interrupt.obj (.text:retain)",
+        "object_file": "system_config.lib:interrupt.obj",
+        "output_section": ".text",
+        "bytes": 6816,
+        "kib": 6.65625,
+        "memory_region": "DDR2",
+        "module": "Platform and shared runtime",
+        "description": "Platform, driver or shared runtime contribution"
+      },
+      {
+        "object_kind": "code",
+        "rank": 5,
+        "name": "drivers.lib:edma.obj (.text)",
+        "object_file": "drivers.lib:edma.obj",
+        "output_section": ".text",
+        "bytes": 6048,
+        "kib": 5.90625,
+        "memory_region": "DDR2",
+        "module": "Platform and shared runtime",
+        "description": "Platform, driver or shared runtime contribution"
+      },
+      {
+        "object_kind": "code",
+        "rank": 6,
+        "name": "user_subband_polyphase.obj (.text)",
+        "object_file": "user_subband_polyphase.obj",
+        "output_section": ".text",
+        "bytes": 5856,
+        "kib": 5.71875,
+        "memory_region": "DDR2",
+        "module": "WOLA / FFT",
+        "description": "Polyphase/FFT filter-bank state and code"
+      },
+      {
+        "object_kind": "code",
+        "rank": 7,
+        "name": "user_subband_wola.obj (.text)",
+        "object_file": "user_subband_wola.obj",
+        "output_section": ".text",
+        "bytes": 5632,
+        "kib": 5.5,
+        "memory_region": "DDR2",
+        "module": "WOLA / FFT",
+        "description": "WOLA analysis/synthesis, overlap and spectrum state"
+      },
+      {
+        "object_kind": "code",
+        "rank": 8,
+        "name": "user_subband_codec_loopback.obj (.text)",
+        "object_file": "user_subband_codec_loopback.obj",
+        "output_section": ".text",
+        "bytes": 5088,
+        "kib": 4.96875,
+        "memory_region": "DDR2",
+        "module": "Compression",
+        "description": "Subband codec/quantization state and code"
+      },
+      {
+        "object_kind": "code",
+        "rank": 9,
+        "name": "drivers.lib:emifa.obj (.text)",
+        "object_file": "drivers.lib:emifa.obj",
+        "output_section": ".text",
+        "bytes": 4032,
+        "kib": 3.9375,
+        "memory_region": "DDR2",
+        "module": "Platform and shared runtime",
+        "description": "Platform, driver or shared runtime contribution"
+      },
+      {
+        "object_kind": "code",
+        "rank": 10,
+        "name": "grlib.lib:pushbutton.obj (.text)",
+        "object_file": "grlib.lib:pushbutton.obj",
+        "output_section": ".text",
+        "bytes": 3744,
+        "kib": 3.65625,
+        "memory_region": "DDR2",
+        "module": "UI and display",
+        "description": "LCD, touch, font or graphics support"
+      },
+      {
+        "object_kind": "code",
+        "rank": 11,
+        "name": "grlib.lib:string.obj (.text)",
+        "object_file": "grlib.lib:string.obj",
+        "output_section": ".text",
+        "bytes": 3680,
+        "kib": 3.59375,
+        "memory_region": "DDR2",
+        "module": "UI and display",
+        "description": "LCD, touch, font or graphics support"
+      },
+      {
+        "object_kind": "code",
+        "rank": 12,
+        "name": "drivers.lib:raster.obj (.text)",
+        "object_file": "drivers.lib:raster.obj",
+        "output_section": ".text",
+        "bytes": 3584,
+        "kib": 3.5,
+        "memory_region": "DDR2",
+        "module": "Platform and shared runtime",
+        "description": "Platform, driver or shared runtime contribution"
+      },
+      {
+        "object_kind": "code",
+        "rank": 13,
+        "name": "grlib.lib:circle.obj (.text)",
+        "object_file": "grlib.lib:circle.obj",
+        "output_section": ".text",
+        "bytes": 2496,
+        "kib": 2.4375,
+        "memory_region": "DDR2",
+        "module": "UI and display",
+        "description": "LCD, touch, font or graphics support"
+      },
+      {
+        "object_kind": "code",
+        "rank": 14,
+        "name": "sys_iic.obj (.text)",
+        "object_file": "sys_iic.obj",
+        "output_section": ".text",
+        "bytes": 2368,
+        "kib": 2.3125,
+        "memory_region": "DDR2",
+        "module": "Platform and shared runtime",
+        "description": "Platform, driver or shared runtime contribution"
+      },
+      {
+        "object_kind": "code",
+        "rank": 15,
+        "name": "grlib.lib:offscr16bpp.obj (.text)",
+        "object_file": "grlib.lib:offscr16bpp.obj",
+        "output_section": ".text",
+        "bytes": 2304,
+        "kib": 2.25,
+        "memory_region": "DDR2",
+        "module": "UI and display",
+        "description": "LCD frame/off-screen buffer"
+      },
+      {
+        "object_kind": "static_data",
+        "rank": 1,
+        "name": "lcd_dma.obj (offscreen_buffer)",
+        "object_file": "lcd_dma.obj",
+        "output_section": "offscreen_buffer",
+        "bytes": 768036,
+        "kib": 750.035156,
+        "memory_region": "DDR2",
+        "module": "UI and display",
+        "description": "LCD frame/off-screen buffer"
+      },
+      {
+        "object_kind": "static_data",
+        "rank": 2,
+        "name": "user_subband_flow.obj (.subband_l2)",
+        "object_file": "user_subband_flow.obj",
+        "output_section": ".subband_l2",
+        "bytes": 218184,
+        "kib": 213.070312,
+        "memory_region": "DSPL2RAM",
+        "module": "Main chain and audio buffers",
+        "description": "Project 3.2 audio main chain, frame and ping-pong state"
+      },
+      {
+        "object_kind": "static_data",
+        "rank": 3,
+        "name": "user_subband_denoise.obj (.subband_l2)",
+        "object_file": "user_subband_denoise.obj",
+        "output_section": ".subband_l2",
+        "bytes": 19640,
+        "kib": 19.179688,
+        "memory_region": "DSPL2RAM",
+        "module": "Denoise",
+        "description": "Subband denoise state and processing code"
+      },
+      {
+        "object_kind": "static_data",
+        "rank": 4,
+        "name": "user_subband_wola.obj (.subband_l2)",
+        "object_file": "user_subband_wola.obj",
+        "output_section": ".subband_l2",
+        "bytes": 16428,
+        "kib": 16.042969,
+        "memory_region": "DSPL2RAM",
+        "module": "WOLA / FFT",
+        "description": "WOLA analysis/synthesis, overlap and spectrum state"
+      },
+      {
+        "object_kind": "static_data",
+        "rank": 5,
+        "name": "adc_api.obj (AD_Ch1Buf0_File)",
+        "object_file": "adc_api.obj",
+        "output_section": "AD_Ch1Buf0_File",
+        "bytes": 16384,
+        "kib": 16.0,
+        "memory_region": "AD_Ch1Buf0",
+        "module": "Main chain and audio buffers",
+        "description": "ADC/DAC driver or fixed board audio buffer"
+      },
+      {
+        "object_kind": "static_data",
+        "rank": 6,
+        "name": "adc_api.obj (AD_Ch2Buf0_File)",
+        "object_file": "adc_api.obj",
+        "output_section": "AD_Ch2Buf0_File",
+        "bytes": 16384,
+        "kib": 16.0,
+        "memory_region": "AD_Ch2Buf0",
+        "module": "Main chain and audio buffers",
+        "description": "ADC/DAC driver or fixed board audio buffer"
+      },
+      {
+        "object_kind": "static_data",
+        "rank": 7,
+        "name": "adc_api.obj (AD_Ch3Buf0_File)",
+        "object_file": "adc_api.obj",
+        "output_section": "AD_Ch3Buf0_File",
+        "bytes": 16384,
+        "kib": 16.0,
+        "memory_region": "AD_Ch3Buf0",
+        "module": "Main chain and audio buffers",
+        "description": "ADC/DAC driver or fixed board audio buffer"
+      },
+      {
+        "object_kind": "static_data",
+        "rank": 8,
+        "name": "adc_api.obj (AD_Ch4Buf0_File)",
+        "object_file": "adc_api.obj",
+        "output_section": "AD_Ch4Buf0_File",
+        "bytes": 16384,
+        "kib": 16.0,
+        "memory_region": "AD_Ch4Buf0",
+        "module": "Main chain and audio buffers",
+        "description": "ADC/DAC driver or fixed board audio buffer"
+      },
+      {
+        "object_kind": "static_data",
+        "rank": 9,
+        "name": "adc_api.obj (AD_Ch5Buf0_File)",
+        "object_file": "adc_api.obj",
+        "output_section": "AD_Ch5Buf0_File",
+        "bytes": 16384,
+        "kib": 16.0,
+        "memory_region": "AD_Ch5Buf0",
+        "module": "Main chain and audio buffers",
+        "description": "ADC/DAC driver or fixed board audio buffer"
+      },
+      {
+        "object_kind": "static_data",
+        "rank": 10,
+        "name": "adc_api.obj (AD_Ch6Buf0_File)",
+        "object_file": "adc_api.obj",
+        "output_section": "AD_Ch6Buf0_File",
+        "bytes": 16384,
+        "kib": 16.0,
+        "memory_region": "AD_Ch6Buf0",
+        "module": "Main chain and audio buffers",
+        "description": "ADC/DAC driver or fixed board audio buffer"
+      },
+      {
+        "object_kind": "static_data",
+        "rank": 11,
+        "name": "adc_api.obj (AD_Ch7Buf0_File)",
+        "object_file": "adc_api.obj",
+        "output_section": "AD_Ch7Buf0_File",
+        "bytes": 16384,
+        "kib": 16.0,
+        "memory_region": "AD_Ch7Buf0",
+        "module": "Main chain and audio buffers",
+        "description": "ADC/DAC driver or fixed board audio buffer"
+      },
+      {
+        "object_kind": "static_data",
+        "rank": 12,
+        "name": "adc_api.obj (AD_Ch8Buf0_File)",
+        "object_file": "adc_api.obj",
+        "output_section": "AD_Ch8Buf0_File",
+        "bytes": 16384,
+        "kib": 16.0,
+        "memory_region": "AD_Ch8Buf0",
+        "module": "Main chain and audio buffers",
+        "description": "ADC/DAC driver or fixed board audio buffer"
+      },
+      {
+        "object_kind": "static_data",
+        "rank": 13,
+        "name": "adc_api.obj (AD_Ch1Buf1_File)",
+        "object_file": "adc_api.obj",
+        "output_section": "AD_Ch1Buf1_File",
+        "bytes": 16384,
+        "kib": 16.0,
+        "memory_region": "AD_Ch1Buf1",
+        "module": "Main chain and audio buffers",
+        "description": "ADC/DAC driver or fixed board audio buffer"
+      },
+      {
+        "object_kind": "static_data",
+        "rank": 14,
+        "name": "adc_api.obj (AD_Ch2Buf1_File)",
+        "object_file": "adc_api.obj",
+        "output_section": "AD_Ch2Buf1_File",
+        "bytes": 16384,
+        "kib": 16.0,
+        "memory_region": "AD_Ch2Buf1",
+        "module": "Main chain and audio buffers",
+        "description": "ADC/DAC driver or fixed board audio buffer"
+      },
+      {
+        "object_kind": "static_data",
+        "rank": 15,
+        "name": "adc_api.obj (AD_Ch3Buf1_File)",
+        "object_file": "adc_api.obj",
+        "output_section": "AD_Ch3Buf1_File",
+        "bytes": 16384,
+        "kib": 16.0,
+        "memory_region": "AD_Ch3Buf1",
+        "module": "Main chain and audio buffers",
+        "description": "ADC/DAC driver or fixed board audio buffer"
+      },
+      {
+        "object_kind": "constant",
+        "rank": 1,
+        "name": "fontcmss38b.obj (.const:.string:g_pucCmss38bData)",
+        "object_file": "fontcmss38b.obj",
+        "output_section": ".const",
+        "bytes": 4086,
+        "kib": 3.990234,
+        "memory_region": "DDR2",
+        "module": "UI and display",
+        "description": "LCD, touch, font or graphics support"
+      },
+      {
+        "object_kind": "constant",
+        "rank": 2,
+        "name": "fontcmss22b.obj (.const:.string:g_pucCmss22bData)",
+        "object_file": "fontcmss22b.obj",
+        "output_section": ".const",
+        "bytes": 2334,
+        "kib": 2.279297,
+        "memory_region": "DDR2",
+        "module": "UI and display",
+        "description": "LCD, touch, font or graphics support"
+      },
+      {
+        "object_kind": "constant",
+        "rank": 3,
+        "name": "fontcmss18b.obj (.const:.string:g_pucCmss18bData)",
+        "object_file": "fontcmss18b.obj",
+        "output_section": ".const",
+        "bytes": 1922,
+        "kib": 1.876953,
+        "memory_region": "DDR2",
+        "module": "UI and display",
+        "description": "LCD, touch, font or graphics support"
+      },
+      {
+        "object_kind": "constant",
+        "rank": 4,
+        "name": "fontcmtt12.obj (.const:.string:g_pucCmtt12Data)",
+        "object_file": "fontcmtt12.obj",
+        "output_section": ".const",
+        "bytes": 1313,
+        "kib": 1.282227,
+        "memory_region": "DDR2",
+        "module": "UI and display",
+        "description": "LCD, touch, font or graphics support"
+      },
+      {
+        "object_kind": "constant",
+        "rank": 5,
+        "name": "dac_pru.obj (.const:PRU0_Code)",
+        "object_file": "dac_pru.obj",
+        "output_section": ".const",
+        "bytes": 1212,
+        "kib": 1.183594,
+        "memory_region": "DDR2",
+        "module": "Main chain and audio buffers",
+        "description": "ADC/DAC driver or fixed board audio buffer"
+      },
+      {
+        "object_kind": "constant",
+        "rank": 6,
+        "name": "user_subband_ui_logic.obj (.const:.string)",
+        "object_file": "user_subband_ui_logic.obj",
+        "output_section": ".const",
+        "bytes": 356,
+        "kib": 0.347656,
+        "memory_region": "DDR2",
+        "module": "UI and display",
+        "description": "Project 3.2 UI, display state, text or glyph support"
+      },
+      {
+        "object_kind": "constant",
+        "rank": 7,
+        "name": "user_subband_ui_font.obj (.const:.string:Glyph_0)",
+        "object_file": "user_subband_ui_font.obj",
+        "output_section": ".const",
+        "bytes": 320,
+        "kib": 0.3125,
+        "memory_region": "DDR2",
+        "module": "UI and display",
+        "description": "Project 3.2 UI, display state, text or glyph support"
+      },
+      {
+        "object_kind": "constant",
+        "rank": 8,
+        "name": "fontcmss18b.obj (.const:g_sFontCmss18b)",
+        "object_file": "fontcmss18b.obj",
+        "output_section": ".const",
+        "bytes": 200,
+        "kib": 0.195312,
+        "memory_region": "DDR2",
+        "module": "UI and display",
+        "description": "LCD, touch, font or graphics support"
+      },
+      {
+        "object_kind": "constant",
+        "rank": 9,
+        "name": "fontcmss22b.obj (.const:g_sFontCmss22b)",
+        "object_file": "fontcmss22b.obj",
+        "output_section": ".const",
+        "bytes": 200,
+        "kib": 0.195312,
+        "memory_region": "DDR2",
+        "module": "UI and display",
+        "description": "LCD, touch, font or graphics support"
+      },
+      {
+        "object_kind": "constant",
+        "rank": 10,
+        "name": "fontcmss38b.obj (.const:g_sFontCmss38b)",
+        "object_file": "fontcmss38b.obj",
+        "output_section": ".const",
+        "bytes": 200,
+        "kib": 0.195312,
+        "memory_region": "DDR2",
+        "module": "UI and display",
+        "description": "LCD, touch, font or graphics support"
+      },
+      {
+        "object_kind": "constant",
+        "rank": 11,
+        "name": "fontcmtt12.obj (.const:g_sFontCmtt12)",
+        "object_file": "fontcmtt12.obj",
+        "output_section": ".const",
+        "bytes": 200,
+        "kib": 0.195312,
+        "memory_region": "DDR2",
+        "module": "UI and display",
+        "description": "LCD, touch, font or graphics support"
+      },
+      {
+        "object_kind": "constant",
+        "rank": 12,
+        "name": "adc_pru.obj (.const:PRU1_Code)",
+        "object_file": "adc_pru.obj",
+        "output_section": ".const",
+        "bytes": 156,
+        "kib": 0.152344,
+        "memory_region": "DDR2",
+        "module": "Main chain and audio buffers",
+        "description": "ADC/DAC driver or fixed board audio buffer"
+      },
+      {
+        "object_kind": "constant",
+        "rank": 13,
+        "name": "user_subband_ui_font.obj (.const:.string:Glyph_12)",
+        "object_file": "user_subband_ui_font.obj",
+        "output_section": ".const",
+        "bytes": 128,
+        "kib": 0.125,
+        "memory_region": "DDR2",
+        "module": "UI and display",
+        "description": "Project 3.2 UI, display state, text or glyph support"
+      },
+      {
+        "object_kind": "constant",
+        "rank": 14,
+        "name": "user_subband_ui_font.obj (.const:.string:Glyph_15)",
+        "object_file": "user_subband_ui_font.obj",
+        "output_section": ".const",
+        "bytes": 128,
+        "kib": 0.125,
+        "memory_region": "DDR2",
+        "module": "UI and display",
+        "description": "Project 3.2 UI, display state, text or glyph support"
+      },
+      {
+        "object_kind": "constant",
+        "rank": 15,
+        "name": "user_subband_ui_font.obj (.const:.string:Glyph_1)",
+        "object_file": "user_subband_ui_font.obj",
+        "output_section": ".const",
+        "bytes": 128,
+        "kib": 0.125,
+        "memory_region": "DDR2",
+        "module": "UI and display",
+        "description": "Project 3.2 UI, display state, text or glyph support"
+      }
+    ],
+    "max_general_region": {
+      "region": "DSPL2RAM",
+      "origin": "0x00800000",
+      "capacity_bytes": 262144,
+      "used_bytes": 257124,
+      "unused_bytes": 5020,
+      "utilization_percent": 98.085022,
+      "attributes": "RWIX"
+    }
+  },
+  "thd_test": {
+    "summary": [
+      {
+        "category": "program_code_and_readonly",
+        "bytes": 141156,
+        "kib": 137.847656,
+        "note": ".text/.const/.switch/.cinit and other read-only sections"
+      },
+      {
+        "category": "static_readwrite_ram",
+        "bytes": 3579409,
+        "kib": 3495.516602,
+        "note": "Static run-time RAM including fixed board audio buffers"
+      },
+      {
+        "category": "stack_mapped_reserved",
+        "bytes": 2048,
+        "kib": 2.0,
+        "note": "Linker-mapped reservation; not a measured high-water mark"
+      },
+      {
+        "category": "heap_mapped_reserved",
+        "bytes": 0,
+        "kib": 0.0,
+        "note": ".sysmem mapped size; linker option configures 2048 bytes"
+      },
+      {
+        "category": "total_runtime_ram",
+        "bytes": 3722613,
+        "kib": 3635.364258,
+        "note": "Sum of map MEMORY CONFIGURATION used bytes; load/run not double-counted"
+      }
+    ],
+    "test_only_capture": {
+      "classification": "TEST_ONLY",
+      "object_file": "user_subband_flow.obj",
+      "input_section": ".far",
+      "component_bytes": 2007240,
+      "memory_region": "DDR2",
+      "input_symbol": "SUBBAND_THD_InputPacked",
+      "input_symbol_address": "0xc0000000",
+      "bytes_until_next_linker_symbol": 1001472,
+      "output_symbol": "SUBBAND_THD_OutputPacked",
+      "output_symbol_address": "0xc00f4800",
+      "bytes_from_output_symbol_to_component_end": 1005768,
+      "precision_note": "The linker proves the complete object contribution and symbol boundaries, but does not emit individual variable sizes for OutputPacked and adjacent THD frame scratch state."
+    }
+  },
+  "comparison": [
+    {
+      "category": "program_code_and_readonly",
+      "production_bytes": 139772,
+      "thd_test_bytes": 141156,
+      "test_only_increment_bytes": 1384
+    },
+    {
+      "category": "static_readwrite_ram",
+      "production_bytes": 1572145,
+      "thd_test_bytes": 3579409,
+      "test_only_increment_bytes": 2007264
+    },
+    {
+      "category": "stack_mapped_reserved",
+      "production_bytes": 2048,
+      "thd_test_bytes": 2048,
+      "test_only_increment_bytes": 0
+    },
+    {
+      "category": "heap_mapped_reserved",
+      "production_bytes": 0,
+      "thd_test_bytes": 0,
+      "test_only_increment_bytes": 0
+    },
+    {
+      "category": "total_runtime_ram",
+      "production_bytes": 1713965,
+      "thd_test_bytes": 3722613,
+      "test_only_increment_bytes": 2008648
+    }
+  ],
+  "dynamic_allocation_audit": {
+    "production_runtime_calls_linked": false,
+    "linked_symbols": [],
+    "production_sysmem_mapped_bytes": 0,
+    "linker_heap_option_bytes": 2048,
+    "source_calls": [
+      {
+        "file": "Code\\User\\user_dsp\\user_subband_audio_compare.c",
+        "line": 159,
+        "text": "samples = (short *)malloc((size_t)sample_count * sizeof(short));"
+      },
+      {
+        "file": "Code\\User\\user_dsp\\user_subband_audio_compare.c",
+        "line": 168,
+        "text": "free(samples);"
+      },
+      {
+        "file": "Code\\User\\user_dsp\\user_subband_audio_compare.c",
+        "line": 189,
+        "text": "free(samples);"
+      },
+      {
+        "file": "Code\\User\\user_dsp\\user_subband_audio_compare.c",
+        "line": 551,
+        "text": "input_padded = (short *)calloc((size_t)padded_count, sizeof(short));"
+      },
+      {
+        "file": "Code\\User\\user_dsp\\user_subband_audio_compare.c",
+        "line": 552,
+        "text": "wola_only = (short *)calloc((size_t)padded_count, sizeof(short));"
+      },
+      {
+        "file": "Code\\User\\user_dsp\\user_subband_audio_compare.c",
+        "line": 553,
+        "text": "denoised = (short *)calloc((size_t)padded_count, sizeof(short));"
+      },
+      {
+        "file": "Code\\User\\user_dsp\\user_subband_audio_compare.c",
+        "line": 554,
+        "text": "codec_out = (short *)calloc((size_t)padded_count, sizeof(short));"
+      },
+      {
+        "file": "Code\\User\\user_dsp\\user_subband_audio_compare.c",
+        "line": 668,
+        "text": "free(input);"
+      },
+      {
+        "file": "Code\\User\\user_dsp\\user_subband_audio_compare.c",
+        "line": 672,
+        "text": "free(input_padded);"
+      },
+      {
+        "file": "Code\\User\\user_dsp\\user_subband_audio_compare.c",
+        "line": 676,
+        "text": "free(wola_only);"
+      },
+      {
+        "file": "Code\\User\\user_dsp\\user_subband_audio_compare.c",
+        "line": 680,
+        "text": "free(denoised);"
+      },
+      {
+        "file": "Code\\User\\user_dsp\\user_subband_audio_compare.c",
+        "line": 684,
+        "text": "free(codec_out);"
+      }
+    ],
+    "source_guard": "SUBBAND_ALGO_ONLY (host/offline-only; absent from production build)"
+  },
+  "evidence_boundaries": [
+    "All byte counts are from fresh TI linker map/XML outputs; .out file size is not used as RAM.",
+    "Load and run sizes are not added together.",
+    "Stack is a linker reservation, not a measured run-time high-water mark.",
+    "Heap option is 2048 bytes, but .sysmem maps 0 bytes because the production image links no dynamic-allocation calls.",
+    "Module attribution is at object-file contribution granularity; shared libraries and linker gaps remain platform/shared.",
+    "No board stack watermark or run-time heap peak was measured in this build-artifact-only audit."
+  ],
+  "audit_checks": {
+    "production_link_errors_zero": true,
+    "thd_link_errors_zero": true,
+    "production_has_no_thd_capture_symbols": true,
+    "thd_has_both_capture_symbols": true,
+    "production_has_no_dynamic_allocation_symbols": true,
+    "production_module_code_reconciles": true,
+    "production_module_static_reconciles": true,
+    "production_categories_reconcile": true
+  }
+}

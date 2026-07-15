@@ -1,0 +1,46 @@
+﻿object_kind,rank,name,object_file,output_section,bytes,kib,memory_region,module,description
+code,1,user_subband_denoise.obj (.text),user_subband_denoise.obj,.text,12640,12.34375,DDR2,Denoise,Subband denoise state and processing code
+code,2,user_subband_ui.obj (.text),user_subband_ui.obj,.text,9024,8.8125,DDR2,UI and display,"Project 3.2 UI, display state, text or glyph support"
+code,3,user_subband_flow.obj (.text),user_subband_flow.obj,.text,7936,7.75,DDR2,Main chain and audio buffers,"Project 3.2 audio main chain, frame and ping-pong state"
+code,4,system_config.lib:interrupt.obj (.text:retain),system_config.lib:interrupt.obj,.text,6816,6.65625,DDR2,Platform and shared runtime,"Platform, driver or shared runtime contribution"
+code,5,drivers.lib:edma.obj (.text),drivers.lib:edma.obj,.text,6048,5.90625,DDR2,Platform and shared runtime,"Platform, driver or shared runtime contribution"
+code,6,user_subband_polyphase.obj (.text),user_subband_polyphase.obj,.text,5856,5.71875,DDR2,WOLA / FFT,Polyphase/FFT filter-bank state and code
+code,7,user_subband_wola.obj (.text),user_subband_wola.obj,.text,5632,5.5,DDR2,WOLA / FFT,"WOLA analysis/synthesis, overlap and spectrum state"
+code,8,user_subband_codec_loopback.obj (.text),user_subband_codec_loopback.obj,.text,5088,4.96875,DDR2,Compression,Subband codec/quantization state and code
+code,9,drivers.lib:emifa.obj (.text),drivers.lib:emifa.obj,.text,4032,3.9375,DDR2,Platform and shared runtime,"Platform, driver or shared runtime contribution"
+code,10,grlib.lib:pushbutton.obj (.text),grlib.lib:pushbutton.obj,.text,3744,3.65625,DDR2,UI and display,"LCD, touch, font or graphics support"
+code,11,grlib.lib:string.obj (.text),grlib.lib:string.obj,.text,3680,3.59375,DDR2,UI and display,"LCD, touch, font or graphics support"
+code,12,drivers.lib:raster.obj (.text),drivers.lib:raster.obj,.text,3584,3.5,DDR2,Platform and shared runtime,"Platform, driver or shared runtime contribution"
+code,13,grlib.lib:circle.obj (.text),grlib.lib:circle.obj,.text,2496,2.4375,DDR2,UI and display,"LCD, touch, font or graphics support"
+code,14,sys_iic.obj (.text),sys_iic.obj,.text,2368,2.3125,DDR2,Platform and shared runtime,"Platform, driver or shared runtime contribution"
+code,15,grlib.lib:offscr16bpp.obj (.text),grlib.lib:offscr16bpp.obj,.text,2304,2.25,DDR2,UI and display,LCD frame/off-screen buffer
+static_data,1,lcd_dma.obj (offscreen_buffer),lcd_dma.obj,offscreen_buffer,768036,750.035156,DDR2,UI and display,LCD frame/off-screen buffer
+static_data,2,user_subband_flow.obj (.subband_l2),user_subband_flow.obj,.subband_l2,218184,213.070312,DSPL2RAM,Main chain and audio buffers,"Project 3.2 audio main chain, frame and ping-pong state"
+static_data,3,user_subband_denoise.obj (.subband_l2),user_subband_denoise.obj,.subband_l2,19640,19.179688,DSPL2RAM,Denoise,Subband denoise state and processing code
+static_data,4,user_subband_wola.obj (.subband_l2),user_subband_wola.obj,.subband_l2,16428,16.042969,DSPL2RAM,WOLA / FFT,"WOLA analysis/synthesis, overlap and spectrum state"
+static_data,5,adc_api.obj (AD_Ch1Buf0_File),adc_api.obj,AD_Ch1Buf0_File,16384,16.0,AD_Ch1Buf0,Main chain and audio buffers,ADC/DAC driver or fixed board audio buffer
+static_data,6,adc_api.obj (AD_Ch2Buf0_File),adc_api.obj,AD_Ch2Buf0_File,16384,16.0,AD_Ch2Buf0,Main chain and audio buffers,ADC/DAC driver or fixed board audio buffer
+static_data,7,adc_api.obj (AD_Ch3Buf0_File),adc_api.obj,AD_Ch3Buf0_File,16384,16.0,AD_Ch3Buf0,Main chain and audio buffers,ADC/DAC driver or fixed board audio buffer
+static_data,8,adc_api.obj (AD_Ch4Buf0_File),adc_api.obj,AD_Ch4Buf0_File,16384,16.0,AD_Ch4Buf0,Main chain and audio buffers,ADC/DAC driver or fixed board audio buffer
+static_data,9,adc_api.obj (AD_Ch5Buf0_File),adc_api.obj,AD_Ch5Buf0_File,16384,16.0,AD_Ch5Buf0,Main chain and audio buffers,ADC/DAC driver or fixed board audio buffer
+static_data,10,adc_api.obj (AD_Ch6Buf0_File),adc_api.obj,AD_Ch6Buf0_File,16384,16.0,AD_Ch6Buf0,Main chain and audio buffers,ADC/DAC driver or fixed board audio buffer
+static_data,11,adc_api.obj (AD_Ch7Buf0_File),adc_api.obj,AD_Ch7Buf0_File,16384,16.0,AD_Ch7Buf0,Main chain and audio buffers,ADC/DAC driver or fixed board audio buffer
+static_data,12,adc_api.obj (AD_Ch8Buf0_File),adc_api.obj,AD_Ch8Buf0_File,16384,16.0,AD_Ch8Buf0,Main chain and audio buffers,ADC/DAC driver or fixed board audio buffer
+static_data,13,adc_api.obj (AD_Ch1Buf1_File),adc_api.obj,AD_Ch1Buf1_File,16384,16.0,AD_Ch1Buf1,Main chain and audio buffers,ADC/DAC driver or fixed board audio buffer
+static_data,14,adc_api.obj (AD_Ch2Buf1_File),adc_api.obj,AD_Ch2Buf1_File,16384,16.0,AD_Ch2Buf1,Main chain and audio buffers,ADC/DAC driver or fixed board audio buffer
+static_data,15,adc_api.obj (AD_Ch3Buf1_File),adc_api.obj,AD_Ch3Buf1_File,16384,16.0,AD_Ch3Buf1,Main chain and audio buffers,ADC/DAC driver or fixed board audio buffer
+constant,1,fontcmss38b.obj (.const:.string:g_pucCmss38bData),fontcmss38b.obj,.const,4086,3.990234,DDR2,UI and display,"LCD, touch, font or graphics support"
+constant,2,fontcmss22b.obj (.const:.string:g_pucCmss22bData),fontcmss22b.obj,.const,2334,2.279297,DDR2,UI and display,"LCD, touch, font or graphics support"
+constant,3,fontcmss18b.obj (.const:.string:g_pucCmss18bData),fontcmss18b.obj,.const,1922,1.876953,DDR2,UI and display,"LCD, touch, font or graphics support"
+constant,4,fontcmtt12.obj (.const:.string:g_pucCmtt12Data),fontcmtt12.obj,.const,1313,1.282227,DDR2,UI and display,"LCD, touch, font or graphics support"
+constant,5,dac_pru.obj (.const:PRU0_Code),dac_pru.obj,.const,1212,1.183594,DDR2,Main chain and audio buffers,ADC/DAC driver or fixed board audio buffer
+constant,6,user_subband_ui_logic.obj (.const:.string),user_subband_ui_logic.obj,.const,356,0.347656,DDR2,UI and display,"Project 3.2 UI, display state, text or glyph support"
+constant,7,user_subband_ui_font.obj (.const:.string:Glyph_0),user_subband_ui_font.obj,.const,320,0.3125,DDR2,UI and display,"Project 3.2 UI, display state, text or glyph support"
+constant,8,fontcmss18b.obj (.const:g_sFontCmss18b),fontcmss18b.obj,.const,200,0.195312,DDR2,UI and display,"LCD, touch, font or graphics support"
+constant,9,fontcmss22b.obj (.const:g_sFontCmss22b),fontcmss22b.obj,.const,200,0.195312,DDR2,UI and display,"LCD, touch, font or graphics support"
+constant,10,fontcmss38b.obj (.const:g_sFontCmss38b),fontcmss38b.obj,.const,200,0.195312,DDR2,UI and display,"LCD, touch, font or graphics support"
+constant,11,fontcmtt12.obj (.const:g_sFontCmtt12),fontcmtt12.obj,.const,200,0.195312,DDR2,UI and display,"LCD, touch, font or graphics support"
+constant,12,adc_pru.obj (.const:PRU1_Code),adc_pru.obj,.const,156,0.152344,DDR2,Main chain and audio buffers,ADC/DAC driver or fixed board audio buffer
+constant,13,user_subband_ui_font.obj (.const:.string:Glyph_12),user_subband_ui_font.obj,.const,128,0.125,DDR2,UI and display,"Project 3.2 UI, display state, text or glyph support"
+constant,14,user_subband_ui_font.obj (.const:.string:Glyph_15),user_subband_ui_font.obj,.const,128,0.125,DDR2,UI and display,"Project 3.2 UI, display state, text or glyph support"
+constant,15,user_subband_ui_font.obj (.const:.string:Glyph_1),user_subband_ui_font.obj,.const,128,0.125,DDR2,UI and display,"Project 3.2 UI, display state, text or glyph support"

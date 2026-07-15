@@ -1,0 +1,52 @@
+{
+  "commit_sha": "c07c53e6ca726dfc0877d0d7ac62324b62ecff7e",
+  "build_identity": {
+    "version": "P33_FIX_V5",
+    "git_sha": "c07c53e",
+    "dirty": 0
+  },
+  "source_dirty_at_build": false,
+  "configuration": "Debug configuration with production-equivalent -O3 optimization",
+  "compiler": "TMS320C6x Linker PC v8.5.0.LTS",
+  "optimization": "-O3",
+  "common_defines": [
+    "c6748",
+    "DEBUG",
+    "EQ_USE_GENERATED_BUILD_ID=1"
+  ],
+  "production_defines": [
+    "DSP_LAB_PROJECT_SELECT=32",
+    "SUBBAND_THD_BOARD_TEST=0"
+  ],
+  "thd_test_defines": [
+    "DSP_LAB_PROJECT_SELECT=32",
+    "SUBBAND_THD_BOARD_TEST=1"
+  ],
+  "linker_command_files": [
+    "TargetConfig/C6748.cmd",
+    "TargetConfig/User.cmd"
+  ],
+  "linker_options": {
+    "stack_size": "0x800",
+    "heap_size": "0x800",
+    "rom_model": true
+  },
+  "production": {
+    "clean_full_rebuild": true,
+    "link_errors": 0,
+    "linked_at": "Wed Jul 15 13:51:36 2026",
+    "map_path": "results\\memory\\production_DSP_LAB_0507.map",
+    "xml_link_info_path": "results\\memory\\production_DSP_LAB_0507_linkInfo.xml",
+    "build_log_path": "results/memory/build.log",
+    "command": "gmake -C Debug -B all \"GEN_OPTS__FLAG=--define=DSP_LAB_PROJECT_SELECT=32 --define=SUBBAND_THD_BOARD_TEST=0 --define=EQ_USE_GENERATED_BUILD_ID=1\""
+  },
+  "thd_test": {
+    "clean_full_rebuild": true,
+    "link_errors": 0,
+    "linked_at": "Wed Jul 15 13:54:40 2026",
+    "map_path": "results\\memory\\thd_test_DSP_LAB_0507.map",
+    "xml_link_info_path": "results\\memory\\thd_test_DSP_LAB_0507_linkInfo.xml",
+    "build_log_path": "results/memory/thd_test_build.log",
+    "command": "gmake -C Debug -B all \"GEN_OPTS__FLAG=--define=DSP_LAB_PROJECT_SELECT=32 --define=SUBBAND_THD_BOARD_TEST=1 --define=EQ_USE_GENERATED_BUILD_ID=1\""
+  }
+}

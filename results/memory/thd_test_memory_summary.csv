@@ -1,0 +1,6 @@
+﻿category,bytes,kib,note
+program_code_and_readonly,141156,137.847656,.text/.const/.switch/.cinit and other read-only sections
+static_readwrite_ram,3579409,3495.516602,Static run-time RAM including fixed board audio buffers
+stack_mapped_reserved,2048,2.0,Linker-mapped reservation; not a measured high-water mark
+heap_mapped_reserved,0,0.0,.sysmem mapped size; linker option configures 2048 bytes
+total_runtime_ram,3722613,3635.364258,Sum of map MEMORY CONFIGURATION used bytes; load/run not double-counted
