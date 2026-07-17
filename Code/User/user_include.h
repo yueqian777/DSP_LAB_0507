@@ -51,6 +51,7 @@
 #include "user_equalizer_display.h"
 #include "user_equalizer_eval.h"
 #include "user_audio_feature_analyzer.h"
+#include "user_smart_bass.h"
 #include "user_spectral_fft.h"
 #ifdef SUBBAND_ALGO_ONLY
 #include "user_subband_test.h"

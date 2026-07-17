@@ -216,6 +216,10 @@ int Equalizer_CopyCachedPreparedBank(
 int Equalizer_DesignRbjSection(EQ_BIQUAD *section_out,
                                int section,
                                float gain_db);
+int Equalizer_DesignRbjLowShelfAt(EQ_BIQUAD *section_out,
+                                  float frequency_hz,
+                                  float gain_db,
+                                  float shelf_slope);
 int Equalizer_GetBiquadResponseComplex(const EQ_BIQUAD *section,
                                        float frequency_hz,
                                        double *real_out,

@@ -13,6 +13,15 @@
 #define EQ_ENABLE_AUDIO_FEATURE_ANALYZER 0
 #endif
 
+#ifndef EQ_ENABLE_SMART_BASS
+#define EQ_ENABLE_SMART_BASS 0
+#endif
+
+#if (EQ_ENABLE_SMART_BASS != 0) && \
+    (EQ_ENABLE_AUDIO_FEATURE_ANALYZER == 0)
+#error Smart Bass requires the audio feature analyzer.
+#endif
+
 #define EQ_DIAG_RAW_COPY       0
 #define EQ_DIAG_FLOAT_COPY     1
 #define EQ_DIAG_FLAT           2
@@ -137,6 +146,28 @@ extern volatile float EQ_DebugAnalyzerBassDb;
 extern volatile float EQ_DebugAnalyzerMudDb;
 extern volatile float EQ_DebugAnalyzerPresenceDb;
 extern volatile float EQ_DebugAnalyzerBrightnessDb;
+extern volatile const unsigned int EQ_DebugSmartBassCompiled;
+extern volatile unsigned int EQ_DebugSmartBassEnabled;
+extern volatile int EQ_DebugSmartBassStrength;
+extern volatile unsigned int EQ_DebugSmartBassProcessingActive;
+extern volatile float EQ_DebugSmartBassInputBassDb;
+extern volatile float EQ_DebugSmartBassInputRmsDbfs;
+extern volatile int EQ_DebugSmartBassRequestedLevel;
+extern volatile int EQ_DebugSmartBassAppliedLevel;
+extern volatile int EQ_DebugSmartBassPendingLevel;
+extern volatile float EQ_DebugSmartBassRequestedGainDb;
+extern volatile float EQ_DebugSmartBassAppliedGainDb;
+extern volatile unsigned int EQ_DebugSmartBassTransitionActive;
+extern volatile float EQ_DebugSmartBassTransitionProgress;
+extern volatile unsigned long EQ_DebugSmartBassDecisionCount;
+extern volatile unsigned long EQ_DebugSmartBassLevelChangeCount;
+extern volatile unsigned long EQ_DebugSmartBassTransitionCount;
+extern volatile unsigned long EQ_DebugSmartBassInvalidReleaseCount;
+extern volatile unsigned long EQ_DebugSmartBassLastCycles;
+extern volatile unsigned long EQ_DebugSmartBassMaxCycles;
+extern volatile unsigned long EQ_DebugSmartBassSaturationCount;
+extern volatile unsigned long EQ_DebugSmartBassNonFiniteCount;
+extern volatile int EQ_DebugSmartBassReason;
 extern volatile unsigned int EQ_DebugUartFeatureRequest;
 extern volatile unsigned long EQ_DebugUartFeatureDeadlineDelta;
 extern volatile unsigned long EQ_DebugUartFeatureLatencyMissDelta;

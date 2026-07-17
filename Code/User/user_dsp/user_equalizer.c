@@ -339,7 +339,7 @@ static void EQ_DesignRbjPeaking(EQ_BIQUAD *c, float f0_hz, float gain_db)
 }
 
 static void EQ_DesignRbjShelf(EQ_BIQUAD *c, float f0_hz, float gain_db,
-                              int high_shelf)
+                              int high_shelf, float shelf_slope)
 {
     float a;
     float w0;
@@ -360,7 +360,7 @@ static void EQ_DesignRbjShelf(EQ_BIQUAD *c, float f0_hz, float gain_db,
     sin_w0 = sinf(w0);
     cos_w0 = cosf(w0);
     alpha = (sin_w0 * 0.5f) *
-            sqrtf((a + 1.0f / a) * (1.0f / EQ_RBJ_SHELF_SLOPE - 1.0f) +
+            sqrtf((a + 1.0f / a) * (1.0f / shelf_slope - 1.0f) +
                   2.0f);
     two_sqrt_a_alpha = 2.0f * sqrtf(a) * alpha;
 
@@ -385,6 +385,28 @@ static void EQ_DesignRbjShelf(EQ_BIQUAD *c, float f0_hz, float gain_db,
     EQ_NormalizeBiquad(c, a0);
 }
 
+int Equalizer_DesignRbjLowShelfAt(EQ_BIQUAD *section_out,
+                                  float frequency_hz,
+                                  float gain_db,
+                                  float shelf_slope)
+{
+    if ((section_out == 0) || (EQ_IsFinite(frequency_hz) == 0) ||
+        (EQ_IsFinite(gain_db) == 0) ||
+        (EQ_IsFinite(shelf_slope) == 0) ||
+        (frequency_hz <= 0.0f) ||
+        (frequency_hz >= (EQ_SAMPLE_RATE * 0.5f)) ||
+        (gain_db < EQ_GAIN_MIN_DB) || (gain_db > EQ_GAIN_MAX_DB) ||
+        (shelf_slope <= 0.0f) || (shelf_slope > 1.0f))
+    {
+        return 0;
+    }
+
+    EQ_DesignRbjShelf(section_out, frequency_hz, gain_db, 0,
+                      shelf_slope);
+    return ((EQ_BiquadIsFinite(section_out) != 0) &&
+            (EQ_BiquadIsStable(section_out) != 0)) ? 1 : 0;
+}
+
 int Equalizer_DesignRbjSection(EQ_BIQUAD *section_out,
                                int section,
                                float gain_db)
@@ -397,12 +419,12 @@ int Equalizer_DesignRbjSection(EQ_BIQUAD *section_out,
     if (section == 0)
     {
         EQ_DesignRbjShelf(section_out, EQ_BandCenterHz[section],
-                          gain_db, 0);
+                          gain_db, 0, EQ_RBJ_SHELF_SLOPE);
     }
     else if (section == (EQ_NUM_BANDS - 1))
     {
         EQ_DesignRbjShelf(section_out, EQ_BandCenterHz[section],
-                          gain_db, 1);
+                          gain_db, 1, EQ_RBJ_SHELF_SLOPE);
     }
     else
     {

@@ -9,6 +9,7 @@
 #if EQ_ENABLE_AUDIO_FEATURE_ANALYZER != 0
 #include "user_audio_feature_analyzer.h"
 #endif
+#include "user_smart_bass.h"
 #include "user_equalizer_display.h"
 #include "user_equalizer_response.h"
 #include "equalizer_build_id.h"
@@ -50,11 +51,18 @@ static short EQ_DA_Buffer1[DAC_SAMPLE_1024];
 #pragma DATA_SECTION(EQ_AudioAnalyzerState, ".subband_l2")
 #pragma DATA_SECTION(EQ_AnalyzerInput, ".subband_l2")
 #endif
+#if EQ_ENABLE_SMART_BASS != 0
+#pragma DATA_SECTION(EQ_SmartBassState, ".subband_l2")
+#endif
 #endif
 static EQ_STATE EQ_BoardState;
 #if EQ_ENABLE_AUDIO_FEATURE_ANALYZER != 0
 static AUDIO_FEATURE_ANALYZER EQ_AudioAnalyzerState;
 static short EQ_AnalyzerInput[AUDIO_FEATURE_FRAME_LEN];
+#endif
+#if EQ_ENABLE_SMART_BASS != 0
+static SMART_BASS_STATE EQ_SmartBassState;
+static unsigned int EQ_SmartBassAnalyzerFault = 1U;
 #endif
 static EQ_CONTROL_STATE EQ_BoardControl;
 static EQ_BACKGROUND_SERVICE_STATE EQ_BackgroundService;
@@ -330,6 +338,29 @@ volatile float EQ_DebugAnalyzerBassDb = 0.0f;
 volatile float EQ_DebugAnalyzerMudDb = 0.0f;
 volatile float EQ_DebugAnalyzerPresenceDb = 0.0f;
 volatile float EQ_DebugAnalyzerBrightnessDb = 0.0f;
+volatile const unsigned int EQ_DebugSmartBassCompiled =
+    EQ_ENABLE_SMART_BASS;
+volatile unsigned int EQ_DebugSmartBassEnabled = 0U;
+volatile int EQ_DebugSmartBassStrength = SMART_BASS_STRENGTH_MEDIUM;
+volatile unsigned int EQ_DebugSmartBassProcessingActive = 0U;
+volatile float EQ_DebugSmartBassInputBassDb = 0.0f;
+volatile float EQ_DebugSmartBassInputRmsDbfs = -240.0f;
+volatile int EQ_DebugSmartBassRequestedLevel = 0;
+volatile int EQ_DebugSmartBassAppliedLevel = 0;
+volatile int EQ_DebugSmartBassPendingLevel = 0;
+volatile float EQ_DebugSmartBassRequestedGainDb = 0.0f;
+volatile float EQ_DebugSmartBassAppliedGainDb = 0.0f;
+volatile unsigned int EQ_DebugSmartBassTransitionActive = 0U;
+volatile float EQ_DebugSmartBassTransitionProgress = 0.0f;
+volatile unsigned long EQ_DebugSmartBassDecisionCount = 0UL;
+volatile unsigned long EQ_DebugSmartBassLevelChangeCount = 0UL;
+volatile unsigned long EQ_DebugSmartBassTransitionCount = 0UL;
+volatile unsigned long EQ_DebugSmartBassInvalidReleaseCount = 0UL;
+volatile unsigned long EQ_DebugSmartBassLastCycles = 0UL;
+volatile unsigned long EQ_DebugSmartBassMaxCycles = 0UL;
+volatile unsigned long EQ_DebugSmartBassSaturationCount = 0UL;
+volatile unsigned long EQ_DebugSmartBassNonFiniteCount = 0UL;
+volatile int EQ_DebugSmartBassReason = SMART_BASS_REASON_DISABLED;
 volatile unsigned int EQ_DebugUartFeatureRequest = 0U;
 volatile unsigned long EQ_DebugUartFeatureDeadlineDelta = 0UL;
 volatile unsigned long EQ_DebugUartFeatureLatencyMissDelta = 0UL;
@@ -1298,6 +1329,76 @@ static void EQ_EndFrameService(void)
     EQ_FrameServicePending = 0U;
 }
 
+#if EQ_ENABLE_SMART_BASS != 0
+static void EQ_SyncSmartBassDebug(void)
+{
+    EQ_DebugSmartBassProcessingActive =
+        (unsigned int)EQ_SmartBassState.processing_active;
+    EQ_DebugSmartBassInputBassDb =
+        EQ_SmartBassState.latest_bass_relative_db;
+    EQ_DebugSmartBassInputRmsDbfs = EQ_SmartBassState.latest_rms_dbfs;
+    EQ_DebugSmartBassRequestedLevel = EQ_SmartBassState.target_level;
+    EQ_DebugSmartBassAppliedLevel = EQ_SmartBassState.active_level;
+    EQ_DebugSmartBassPendingLevel = EQ_SmartBassState.pending_level;
+    EQ_DebugSmartBassRequestedGainDb =
+        SmartBass_GetRequestedGainDb(&EQ_SmartBassState);
+    EQ_DebugSmartBassAppliedGainDb =
+        SmartBass_GetAppliedGainDb(&EQ_SmartBassState);
+    EQ_DebugSmartBassTransitionActive =
+        (unsigned int)EQ_SmartBassState.transition_active;
+    EQ_DebugSmartBassTransitionProgress =
+        SmartBass_GetTransitionProgress(&EQ_SmartBassState);
+    EQ_DebugSmartBassDecisionCount = EQ_SmartBassState.decision_count;
+    EQ_DebugSmartBassLevelChangeCount =
+        EQ_SmartBassState.level_change_count;
+    EQ_DebugSmartBassTransitionCount =
+        EQ_SmartBassState.transition_count;
+    EQ_DebugSmartBassInvalidReleaseCount =
+        EQ_SmartBassState.invalid_release_count;
+    EQ_DebugSmartBassSaturationCount =
+        EQ_SmartBassState.saturation_count;
+    EQ_DebugSmartBassNonFiniteCount =
+        EQ_SmartBassState.nonfinite_count;
+    EQ_DebugSmartBassReason = SmartBass_GetReason(&EQ_SmartBassState);
+}
+
+static void EQ_ServiceSmartBassRuntimeControl(void)
+{
+    int requested_enabled;
+
+    EQ_DebugSmartBassEnabled =
+        (EQ_DebugSmartBassEnabled != 0U) ? 1U : 0U;
+    (void)SmartBass_SetStrength(
+        &EQ_SmartBassState, EQ_DebugSmartBassStrength);
+    EQ_DebugSmartBassStrength = EQ_SmartBassState.strength;
+    requested_enabled = ((EQ_DebugSmartBassEnabled != 0U) &&
+                         (EQ_DebugAnalyzerEnabled != 0U) &&
+                         (EQ_AnalyzerLastEnabled != 0U) &&
+                         (EQ_SmartBassAnalyzerFault == 0U)) ? 1 : 0;
+    (void)SmartBass_SetEnabled(&EQ_SmartBassState, requested_enabled);
+}
+
+static void EQ_MarkSmartBassAnalyzerUnavailable(void)
+{
+    EQ_SmartBassAnalyzerFault = 1U;
+    if (EQ_SmartBassState.initialized != 0)
+    {
+        SmartBass_InvalidateAnalysisEpoch(&EQ_SmartBassState);
+        (void)SmartBass_SetEnabled(&EQ_SmartBassState, 0);
+        EQ_SyncSmartBassDebug();
+    }
+}
+
+static void EQ_UpdateSmartBassTiming(unsigned long cycles)
+{
+    EQ_DebugSmartBassLastCycles = cycles;
+    if (cycles > EQ_DebugSmartBassMaxCycles)
+    {
+        EQ_DebugSmartBassMaxCycles = cycles;
+    }
+}
+#endif
+
 #if EQ_ENABLE_AUDIO_FEATURE_ANALYZER != 0
 static void EQ_ClearPublishedAnalyzerState(void)
 {
@@ -1315,6 +1416,9 @@ static void EQ_ClearPublishedAnalyzerState(void)
     EQ_AnalyzerLastDeferredFrame = ~0UL;
     EqualizerUartFeatureAudit_Init(&EQ_UartFeatureAudit);
     EQ_SyncUartFeatureAuditDebug();
+#if EQ_ENABLE_SMART_BASS != 0
+    EQ_MarkSmartBassAnalyzerUnavailable();
+#endif
 }
 
 static void EQ_ResetAnalyzerRuntime(void)
@@ -1403,6 +1507,12 @@ static void EQ_PublishAnalyzerSnapshot(void)
         snapshot.relative_db[AUDIO_FEATURE_PRESENCE];
     EQ_DebugAnalyzerBrightnessDb =
         snapshot.relative_db[AUDIO_FEATURE_BRIGHTNESS];
+#if EQ_ENABLE_SMART_BASS != 0
+    EQ_SmartBassAnalyzerFault = 0U;
+    EQ_ServiceSmartBassRuntimeControl();
+    (void)SmartBass_UpdateFromFeature(&EQ_SmartBassState, &snapshot);
+    EQ_SyncSmartBassDebug();
+#endif
 }
 
 static int EQ_ServiceAnalyzer(void)
@@ -1438,6 +1548,9 @@ static int EQ_ServiceAnalyzer(void)
     {
         EQ_DebugAnalyzerValid = 0U;
         EQ_DebugAnalyzerWarmup = 0U;
+#if EQ_ENABLE_SMART_BASS != 0
+        EQ_MarkSmartBassAnalyzerUnavailable();
+#endif
     }
     return result;
 }
@@ -1451,6 +1564,12 @@ static void EQ_CaptureAdcFrame(void)
     unsigned int cycle_start;
     unsigned int cycle_end;
     unsigned long cycle_delta;
+#if EQ_ENABLE_SMART_BASS != 0
+    unsigned int smart_bass_cycle_start;
+#endif
+#endif
+#if EQ_ENABLE_SMART_BASS != 0
+    unsigned long smart_bass_cycles;
 #endif
 
     if (AD_Ping_Pong == AD_BUFFER_PONG)
@@ -1483,9 +1602,28 @@ static void EQ_CaptureAdcFrame(void)
 #if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
     cycle_start = TSCL;
 #endif
+#if EQ_ENABLE_SMART_BASS != 0
+    EQ_ServiceSmartBassRuntimeControl();
+#endif
     mode_change_before = Equalizer_GetModeChangeCount(&EQ_BoardState);
     Equalizer_ProcessFrame(&EQ_BoardState, EQ_AD_Buffer1, EQ_DA_Buffer1,
                            ADC_SAMPLE_1024);
+#if EQ_ENABLE_SMART_BASS != 0
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+    smart_bass_cycle_start = TSCL;
+#endif
+    (void)SmartBass_ProcessFrame(
+        &EQ_SmartBassState, EQ_DA_Buffer1, EQ_DA_Buffer1,
+        ADC_SAMPLE_1024);
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+    smart_bass_cycles =
+        (unsigned long)(TSCL - smart_bass_cycle_start);
+#else
+    smart_bass_cycles = 0UL;
+#endif
+    EQ_UpdateSmartBassTiming(smart_bass_cycles);
+    EQ_SyncSmartBassDebug();
+#endif
     mode_change_after = Equalizer_GetModeChangeCount(&EQ_BoardState);
     EQ_DebugProcessFrames++;
     if (EQ_DebugInitStage < 10UL)
@@ -1626,6 +1764,15 @@ void Equalizer_Flow_Example(void)
     EqualizerAnalyzerRuntime_Init(&EQ_AnalyzerLastEnabled);
     EQ_ClearPublishedAnalyzerState();
     EQ_DebugAnalyzerResetRequest = 0U;
+#endif
+#if EQ_ENABLE_SMART_BASS != 0
+    SmartBass_Init(&EQ_SmartBassState);
+    EQ_SmartBassAnalyzerFault = 1U;
+    EQ_DebugSmartBassEnabled = 0U;
+    EQ_DebugSmartBassStrength = SMART_BASS_STRENGTH_MEDIUM;
+    EQ_DebugSmartBassLastCycles = 0UL;
+    EQ_DebugSmartBassMaxCycles = 0UL;
+    EQ_SyncSmartBassDebug();
 #endif
     EQ_AppliedDiagPath = EQ_DIAG_PRESET;
     EQ_LastServicedMode = EQ_PRESET_FLAT;

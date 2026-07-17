@@ -270,3 +270,61 @@ remain visible in the temporary evidence directories.
 
 The subjective observation records only that sound was heard. It is not a
 no-distortion, no-pop, frequency-response, or analog-quality measurement.
+
+## 9. Analyzer gate baseline for Smart Bass development
+
+**Date:** 2026-07-17
+
+**Exact build commit:**
+`a490e80a69297968ac23cd3ce8b2a4087cb0e016`
+
+**Result:** `MEASURED_ON_CURRENT_BOARD_A490E80`
+
+The operator confirmed a full power cycle before the clean build/load/run.
+The configuration was Project 33, Analyzer ON, Smart Bass OFF, and LCD OFF:
+
+```text
+DSP_LAB_PROJECT_SELECT=33
+EQ_ENABLE_AUDIO_FEATURE_ANALYZER=1
+EQ_ENABLE_SMART_BASS=0
+EQ_ENABLE_LCD_DISPLAY=0
+EQ_USE_GENERATED_BUILD_ID=1
+```
+
+The TI C6000 full build completed with zero diagnostics and
+`<link_errors>0x0</link_errors>`. The loaded output contained `a490e80` and no
+`unavailable` fallback. UART reported `P33 BUILD a490e80`, followed by INIT
+01 through 08 and INIT 11.
+
+During the 60-second default-disabled window, AD/DA/process were
+2891/2891/2891. `EQ_DebugAnalyzerCompiled=1`, enabled=0, run count=0,
+analysis count=0, valid=0, and warmup=0. Deadline, latency miss, overlap, and
+dropped counters were all zero.
+
+After enabling the Analyzer, four integer-bin PC line-output stimuli produced
+the expected dominant relative feature:
+
+| Stimulus | Frequency | Dominant feature value | Other feature values |
+| --- | ---: | ---: | --- |
+| Bass | 97.65625 Hz | Bass 19 dB | -47, -53, -58 dB |
+| Mud | 390.625 Hz | Mud 14 dB | -37, -48, -49 dB |
+| Presence | 1953.125 Hz | Presence 7 dB | -35, -42, -36 dB |
+| Brightness | 8007.8125 Hz | Brightness 1 dB | -26, -28, -21 dB |
+
+Each tone snapshot had valid=1, warmup=1, and analysis count=24. At the final
+snapshot, AD/DA/process were 3820/3820/3820. Maximum observed Analyzer,
+algorithm, frame-service, and frame-latency times were 299587, 360424,
+809876, and 810150 cycles. All four safety counters remained zero.
+
+The UART serialization check synchronized immediately after a processed-frame
+boundary. The first audit was observed with pending=1, complete=0, request=0,
+and baseline frame 3673. Writing a second request while halted for the Watch
+snapshot retained request=1, kept pending=1, and left the baseline at 3673.
+After resuming, the retained request started the next audit at baseline 3674.
+The final state was pending=0, complete=1, request=0, and all four UART safety
+deltas were zero. Exactly two bounded `P33 FEAT` lines were captured.
+
+The formal JSON, UART log, WAV stimuli, and build artifacts are retained under
+`%TEMP%\DSP_LAB_0507\smart_bass_v1\a490e80`. This establishes only the
+Analyzer/flow prerequisite for the exact a490e80 build. Smart Bass processing
+was compiled out and was not measured in this baseline.
