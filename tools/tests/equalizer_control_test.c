@@ -366,6 +366,8 @@ static void test_analyzer_runtime_gate(void)
 {
     unsigned int last_enabled;
 
+    CHECK(EQ_DebugAnalyzerCompiled ==
+          (unsigned int)EQ_ENABLE_AUDIO_FEATURE_ANALYZER);
     EqualizerAnalyzerRuntime_Init(&last_enabled);
     CHECK(last_enabled == 0U);
 
@@ -400,16 +402,30 @@ static void test_analyzer_runtime_gate(void)
 static void test_uart_feature_delayed_audit(void)
 {
     EQ_UART_FEATURE_AUDIT audit;
+    unsigned int retained_request;
 
     EqualizerUartFeatureAudit_Init(&audit);
-    EqualizerUartFeatureAudit_Begin(
-        &audit, 100UL, 4UL, 5UL, 6UL, 7UL, 0U);
+    CHECK(EqualizerUartFeatureAudit_Begin(
+        &audit, 100UL, 4UL, 5UL, 6UL, 7UL, 0U));
     CHECK(audit.pending == 0U);
     CHECK(audit.complete == 0U);
     EqualizerUartFeatureAudit_EndWrite(&audit, 0x01U);
     CHECK(audit.pending == 1U);
     CHECK(audit.complete == 0U);
     CHECK(audit.audio_arrived == 1U);
+
+    retained_request = 1U;
+    if (EqualizerUartFeatureAudit_Begin(
+            &audit, 200UL, 40UL, 50UL, 60UL, 70UL, 0x02U))
+    {
+        retained_request = 0U;
+    }
+    CHECK(audit.baseline_process_frames == 100UL);
+    CHECK(audit.baseline_deadline == 4UL);
+    CHECK(audit.baseline_latency == 5UL);
+    CHECK(audit.baseline_overlap == 6UL);
+    CHECK(audit.baseline_dropped == 7UL);
+    CHECK(retained_request == 1U);
 
     CHECK(!EqualizerUartFeatureAudit_CompleteAfterFrame(
         &audit, 100UL, 40UL, 50UL, 60UL, 70UL));
@@ -427,11 +443,17 @@ static void test_uart_feature_delayed_audit(void)
     CHECK(audit.latency_delta == 2UL);
     CHECK(audit.overlap_delta == 3UL);
     CHECK(audit.dropped_delta == 4UL);
+    CHECK(retained_request == 1U);
 
-    EqualizerUartFeatureAudit_Begin(
-        &audit, 200UL, 10UL, 20UL, 30UL, 40UL, 0x02U);
+    if (EqualizerUartFeatureAudit_Begin(
+            &audit, 200UL, 10UL, 20UL, 30UL, 40UL, 0x02U))
+    {
+        retained_request = 0U;
+    }
+    CHECK(audit.baseline_process_frames == 200UL);
     EqualizerUartFeatureAudit_EndWrite(&audit, 0x03U);
     CHECK(audit.audio_arrived == 0U);
+    CHECK(retained_request == 0U);
 }
 
 static void test_target_rejection_is_transactional(void)

@@ -466,6 +466,16 @@ class EqualizerFlowContractTest(unittest.TestCase):
 
     def test_analyzer_defaults_off_and_has_watch_diagnostics(self) -> None:
         self.assertIn("#define EQ_ENABLE_AUDIO_FEATURE_ANALYZER 0", self.header)
+        self.assertIn(
+            "volatile const unsigned int EQ_DebugAnalyzerCompiled =\n"
+            "    EQ_ENABLE_AUDIO_FEATURE_ANALYZER;",
+            self.source,
+        )
+        self.assertIn(
+            "extern volatile const unsigned int EQ_DebugAnalyzerCompiled;",
+            self.header,
+        )
+        self.assertEqual(self.source.count("EQ_DebugAnalyzerCompiled"), 1)
         self.assertIn("EQ_DebugAnalyzerEnabled = 0U", self.source)
         for name in (
             "EQ_DebugAnalyzerResetRequest",
@@ -546,8 +556,18 @@ class EqualizerFlowContractTest(unittest.TestCase):
             "EQ_DebugAnalyzerValid != 0U",
             "EQ_DebugAnalyzerWarmup != 0U",
             "EQ_DebugUartFeatureRequest != 0U",
+            "EQ_DebugUartFeatureAuditPending == 0U",
         ):
             self.assertIn(condition, eligibility)
+
+        service_start = loop.index(
+            "if (background_kind == EQ_BACKGROUND_UART)"
+        )
+        service_end = loop.index("continue;", service_start)
+        service_guard = loop[service_start:service_end]
+        self.assertIn(
+            "EQ_DebugUartFeatureAuditPending != 0U", service_guard
+        )
 
     def test_analyzer_disable_and_reset_clear_stale_publication(self) -> None:
         start = self.source.index(

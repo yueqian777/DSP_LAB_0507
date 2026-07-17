@@ -118,6 +118,7 @@ extern volatile unsigned long EQ_DebugDeadlineMissCount;
 extern volatile unsigned long EQ_DebugFrameLatencyDeadlineMissCount;
 extern volatile unsigned long EQ_DebugFrameServiceOverlapCount;
 extern volatile unsigned long EQ_DebugFrameServiceDroppedCount;
+extern volatile const unsigned int EQ_DebugAnalyzerCompiled;
 extern volatile unsigned int EQ_DebugAnalyzerEnabled;
 extern volatile unsigned int EQ_DebugAnalyzerResetRequest;
 extern volatile unsigned int EQ_DebugAnalyzerPending;
@@ -284,7 +285,7 @@ int EqualizerAnalyzerRuntime_Decide(
     int audio_safe,
     int builder_eligible);
 void EqualizerUartFeatureAudit_Init(EQ_UART_FEATURE_AUDIT *audit);
-void EqualizerUartFeatureAudit_Begin(
+int EqualizerUartFeatureAudit_Begin(
     EQ_UART_FEATURE_AUDIT *audit,
     unsigned long process_frames,
     unsigned long deadline,

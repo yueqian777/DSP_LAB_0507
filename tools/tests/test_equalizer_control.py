@@ -60,6 +60,22 @@ class EqualizerControlTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout)
         self.assertIn("failures=0", result.stdout)
 
+    def test_host_harness_analyzer_compiled_on(self) -> None:
+        result = run_msys(
+            "gcc -std=c99 -Wall -Wextra -Werror -DEQ_ALGO_ONLY "
+            "-DEQ_ENABLE_AUDIO_FEATURE_ANALYZER=1 "
+            "-ICode/User/user_dsp "
+            "Code/User/user_dsp/user_equalizer.c "
+            "Code/User/user_dsp/user_equalizer_control.c "
+            "Code/User/user_dsp/user_equalizer_response.c "
+            "Code/User/user_dsp/user_equalizer_flow.c "
+            "tools/tests/equalizer_control_test.c -lm "
+            "-o /tmp/equalizer_control_analyzer_on_test.exe && "
+            "/tmp/equalizer_control_analyzer_on_test.exe"
+        )
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("failures=0", result.stdout)
+
     def test_mailbox_layout_and_single_attempt_reader(self) -> None:
         mailbox = self.header[self.header.index("typedef struct\n{"):]
         self.assertLess(mailbox.index("volatile EQ_CONTROL_SEQUENCE sequence"),

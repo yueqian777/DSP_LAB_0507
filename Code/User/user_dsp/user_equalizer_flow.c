@@ -245,14 +245,17 @@ static void EQ_UartReportFeatureOnce(unsigned char flag_ad_done)
     line[index] = '\0';
 
     audio_flags_before = EQ_AudioFlagMask(flag_ad_done);
-    EqualizerUartFeatureAudit_Begin(
-        &EQ_UartFeatureAudit,
-        EQ_DebugProcessFrames,
-        EQ_DebugDeadlineMissCount,
-        EQ_DebugFrameLatencyDeadlineMissCount,
-        EQ_DebugFrameServiceOverlapCount,
-        EQ_DebugFrameServiceDroppedCount,
-        audio_flags_before);
+    if (!EqualizerUartFeatureAudit_Begin(
+            &EQ_UartFeatureAudit,
+            EQ_DebugProcessFrames,
+            EQ_DebugDeadlineMissCount,
+            EQ_DebugFrameLatencyDeadlineMissCount,
+            EQ_DebugFrameServiceOverlapCount,
+            EQ_DebugFrameServiceDroppedCount,
+            audio_flags_before))
+    {
+        return;
+    }
     UARTPuts(line, -1);
     audio_flags_after = EQ_AudioFlagMask(flag_ad_done);
     EqualizerUartFeatureAudit_EndWrite(
@@ -307,6 +310,8 @@ volatile unsigned long EQ_DebugDeadlineMissCount = 0UL;
 volatile unsigned long EQ_DebugFrameLatencyDeadlineMissCount = 0UL;
 volatile unsigned long EQ_DebugFrameServiceOverlapCount = 0UL;
 volatile unsigned long EQ_DebugFrameServiceDroppedCount = 0UL;
+volatile const unsigned int EQ_DebugAnalyzerCompiled =
+    EQ_ENABLE_AUDIO_FEATURE_ANALYZER;
 volatile unsigned int EQ_DebugAnalyzerEnabled = 0U;
 volatile unsigned int EQ_DebugAnalyzerResetRequest = 0U;
 volatile unsigned int EQ_DebugAnalyzerPending = 0U;
@@ -829,7 +834,7 @@ void EqualizerUartFeatureAudit_Init(EQ_UART_FEATURE_AUDIT *audit)
     }
 }
 
-void EqualizerUartFeatureAudit_Begin(
+int EqualizerUartFeatureAudit_Begin(
     EQ_UART_FEATURE_AUDIT *audit,
     unsigned long process_frames,
     unsigned long deadline,
@@ -838,9 +843,9 @@ void EqualizerUartFeatureAudit_Begin(
     unsigned long dropped,
     unsigned int flags_before)
 {
-    if (audit == 0)
+    if ((audit == 0) || (audit->pending != 0U))
     {
-        return;
+        return 0;
     }
     audit->baseline_process_frames = process_frames;
     audit->baseline_deadline = deadline;
@@ -855,6 +860,7 @@ void EqualizerUartFeatureAudit_Begin(
     audit->pending = 0U;
     audit->complete = 0U;
     audit->audio_arrived = 0U;
+    return 1;
 }
 
 void EqualizerUartFeatureAudit_EndWrite(
@@ -1818,6 +1824,7 @@ void Equalizer_Flow_Example(void)
                 (EQ_DebugAnalyzerValid != 0U) &&
                 (EQ_DebugAnalyzerWarmup != 0U) &&
                 (EQ_DebugUartFeatureRequest != 0U) &&
+                (EQ_DebugUartFeatureAuditPending == 0U) &&
                 (builder_eligible == 0) &&
                 (analyzer_eligible == 0);
 #else
@@ -1981,6 +1988,7 @@ void Equalizer_Flow_Example(void)
                     (EQ_DebugAnalyzerEnabled == 0U) ||
                     (EQ_DebugAnalyzerValid == 0U) ||
                     (EQ_DebugAnalyzerWarmup == 0U) ||
+                    (EQ_DebugUartFeatureAuditPending != 0U) ||
                     (EQ_DebugUartFeatureRequest == 0U))
                 {
                     continue;
