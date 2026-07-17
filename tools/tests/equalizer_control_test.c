@@ -362,6 +362,78 @@ static void test_background_budget(void)
     CHECK(state.consumed_frame == 1UL);
 }
 
+static void test_analyzer_runtime_gate(void)
+{
+    unsigned int last_enabled;
+
+    EqualizerAnalyzerRuntime_Init(&last_enabled);
+    CHECK(last_enabled == 0U);
+
+    CHECK(EqualizerAnalyzerRuntime_Decide(
+        &last_enabled, 1U, 0U, 0, 0) == EQ_ANALYZER_ACTION_NONE);
+    CHECK(last_enabled == 0U);
+    CHECK(EqualizerAnalyzerRuntime_Decide(
+        &last_enabled, 1U, 0U, 1, 1) == EQ_ANALYZER_ACTION_NONE);
+    CHECK(last_enabled == 0U);
+    CHECK(EqualizerAnalyzerRuntime_Decide(
+        &last_enabled, 1U, 0U, 1, 0) == EQ_ANALYZER_ACTION_ENABLE_RESET);
+    CHECK(last_enabled == 1U);
+
+    CHECK(EqualizerAnalyzerRuntime_Decide(
+        &last_enabled, 1U, 1U, 1, 1) == EQ_ANALYZER_ACTION_NONE);
+    CHECK(EqualizerAnalyzerRuntime_Decide(
+        &last_enabled, 1U, 1U, 1, 0) == EQ_ANALYZER_ACTION_MANUAL_RESET);
+    CHECK(last_enabled == 1U);
+
+    CHECK(EqualizerAnalyzerRuntime_Decide(
+        &last_enabled, 0U, 0U, 0, 0) == EQ_ANALYZER_ACTION_NONE);
+    CHECK(last_enabled == 1U);
+    CHECK(EqualizerAnalyzerRuntime_Decide(
+        &last_enabled, 0U, 0U, 1, 1) == EQ_ANALYZER_ACTION_DISABLE);
+    CHECK(last_enabled == 0U);
+
+    CHECK(EqualizerAnalyzerRuntime_Decide(
+        &last_enabled, 0U, 1U, 1, 0) == EQ_ANALYZER_ACTION_MANUAL_RESET);
+    CHECK(last_enabled == 0U);
+}
+
+static void test_uart_feature_delayed_audit(void)
+{
+    EQ_UART_FEATURE_AUDIT audit;
+
+    EqualizerUartFeatureAudit_Init(&audit);
+    EqualizerUartFeatureAudit_Begin(
+        &audit, 100UL, 4UL, 5UL, 6UL, 7UL, 0U);
+    CHECK(audit.pending == 0U);
+    CHECK(audit.complete == 0U);
+    EqualizerUartFeatureAudit_EndWrite(&audit, 0x01U);
+    CHECK(audit.pending == 1U);
+    CHECK(audit.complete == 0U);
+    CHECK(audit.audio_arrived == 1U);
+
+    CHECK(!EqualizerUartFeatureAudit_CompleteAfterFrame(
+        &audit, 100UL, 40UL, 50UL, 60UL, 70UL));
+    CHECK(audit.pending == 1U);
+    CHECK(audit.deadline_delta == 0UL);
+    CHECK(audit.latency_delta == 0UL);
+    CHECK(audit.overlap_delta == 0UL);
+    CHECK(audit.dropped_delta == 0UL);
+
+    CHECK(EqualizerUartFeatureAudit_CompleteAfterFrame(
+        &audit, 101UL, 5UL, 7UL, 9UL, 11UL));
+    CHECK(audit.pending == 0U);
+    CHECK(audit.complete == 1U);
+    CHECK(audit.deadline_delta == 1UL);
+    CHECK(audit.latency_delta == 2UL);
+    CHECK(audit.overlap_delta == 3UL);
+    CHECK(audit.dropped_delta == 4UL);
+
+    EqualizerUartFeatureAudit_Begin(
+        &audit, 200UL, 10UL, 20UL, 30UL, 40UL, 0x02U);
+    EqualizerUartFeatureAudit_EndWrite(&audit, 0x03U);
+    CHECK(audit.audio_arrived == 0U);
+}
+
 static void test_target_rejection_is_transactional(void)
 {
     EQ_STATE equalizer;
@@ -520,6 +592,8 @@ int main(void)
     test_latest_wins_and_cache();
     test_direct_setter_rejection();
     test_background_budget();
+    test_analyzer_runtime_gate();
+    test_uart_feature_delayed_audit();
     test_target_rejection_is_transactional();
     test_identity_return_waits_for_custom_target();
     test_finalize_and_install_use_separate_boundaries();

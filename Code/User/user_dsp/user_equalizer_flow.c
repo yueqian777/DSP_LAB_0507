@@ -6,7 +6,9 @@
  */
 
 #include "user_equalizer_flow.h"
+#if EQ_ENABLE_AUDIO_FEATURE_ANALYZER != 0
 #include "user_audio_feature_analyzer.h"
+#endif
 #include "user_equalizer_display.h"
 #include "user_equalizer_response.h"
 #include "equalizer_build_id.h"
@@ -29,7 +31,9 @@
 #endif
 
 #define EQ_CPU_CYCLES_PER_MS 456000.0f
+#if EQ_ENABLE_AUDIO_FEATURE_ANALYZER != 0
 #define EQ_UART_FEATURE_LINE_CAPACITY 72
+#endif
 static short EQ_AD_Buffer1[ADC_SAMPLE_1024];
 static short EQ_AD_Buffer2[ADC_SAMPLE_1024];
 static short EQ_AD_Buffer3[ADC_SAMPLE_1024];
@@ -42,12 +46,16 @@ static short EQ_DA_Buffer1[DAC_SAMPLE_1024];
 #if (defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)) && \
     defined(DSP_LAB_PROJECT_SELECT) && (DSP_LAB_PROJECT_SELECT == 33)
 #pragma DATA_SECTION(EQ_BoardState, ".subband_l2")
+#if EQ_ENABLE_AUDIO_FEATURE_ANALYZER != 0
 #pragma DATA_SECTION(EQ_AudioAnalyzerState, ".subband_l2")
 #pragma DATA_SECTION(EQ_AnalyzerInput, ".subband_l2")
 #endif
+#endif
 static EQ_STATE EQ_BoardState;
+#if EQ_ENABLE_AUDIO_FEATURE_ANALYZER != 0
 static AUDIO_FEATURE_ANALYZER EQ_AudioAnalyzerState;
 static short EQ_AnalyzerInput[AUDIO_FEATURE_FRAME_LEN];
+#endif
 static EQ_CONTROL_STATE EQ_BoardControl;
 static EQ_BACKGROUND_SERVICE_STATE EQ_BackgroundService;
 static int EQ_LastServicedMode = -1;
@@ -56,7 +64,11 @@ static unsigned int EQ_FrameServiceStartCycle = 0U;
 static unsigned int EQ_FrameActiveSegmentStartCycle = 0U;
 static unsigned long EQ_FrameActiveServiceCycles = 0UL;
 static unsigned char EQ_FrameServicePending = 0U;
+#if EQ_ENABLE_AUDIO_FEATURE_ANALYZER != 0
 static unsigned long EQ_AnalyzerLastDeferredFrame = ~0UL;
+static unsigned int EQ_AnalyzerLastEnabled = 0U;
+static EQ_UART_FEATURE_AUDIT EQ_UartFeatureAudit;
+#endif
 
 static void EQ_UartInit(void)
 {
@@ -84,6 +96,7 @@ static void EQ_UartReportStage(unsigned long stage)
 #endif
 }
 
+#if EQ_ENABLE_AUDIO_FEATURE_ANALYZER != 0
 static int EQ_UartAppendChar(char *line, int index, char value)
 {
     if ((index < 0) || (index >= (EQ_UART_FEATURE_LINE_CAPACITY - 1)))
@@ -171,14 +184,38 @@ static long EQ_DbToTenths(float value)
         (long)(scaled + 0.5f) : (long)(scaled - 0.5f);
 }
 
-static void EQ_UartReportFeatureOnce(void)
+static unsigned int EQ_AudioFlagMask(unsigned char flag_ad_done)
+{
+    return ((FLAG_AD != 0) ? 0x01U : 0U) |
+           ((FLAG_DA != 0) ? 0x02U : 0U) |
+           ((flag_ad_done != 0) ? 0x04U : 0U) |
+           ((EQ_FrameServicePending != 0U) ? 0x08U : 0U);
+}
+
+static void EQ_SyncUartFeatureAuditDebug(void)
+{
+    EQ_DebugUartFeatureDeadlineDelta =
+        EQ_UartFeatureAudit.deadline_delta;
+    EQ_DebugUartFeatureLatencyMissDelta =
+        EQ_UartFeatureAudit.latency_delta;
+    EQ_DebugUartFeatureOverlapDelta =
+        EQ_UartFeatureAudit.overlap_delta;
+    EQ_DebugUartFeatureDroppedDelta =
+        EQ_UartFeatureAudit.dropped_delta;
+    EQ_DebugUartFeatureAuditPending = EQ_UartFeatureAudit.pending;
+    EQ_DebugUartFeatureAuditComplete = EQ_UartFeatureAudit.complete;
+    EQ_DebugUartFeatureAudioArrived =
+        EQ_UartFeatureAudit.audio_arrived;
+    EQ_DebugUartFeatureBaselineFrame =
+        EQ_UartFeatureAudit.baseline_process_frames;
+}
+
+static void EQ_UartReportFeatureOnce(unsigned char flag_ad_done)
 {
 #if EQ_ENABLE_UART_DIAGNOSTICS != 0
     static char line[EQ_UART_FEATURE_LINE_CAPACITY];
-    unsigned long deadline_before;
-    unsigned long latency_before;
-    unsigned long overlap_before;
-    unsigned long dropped_before;
+    unsigned int audio_flags_before;
+    unsigned int audio_flags_after;
     int index;
 
     index = EQ_UartAppendLiteral(line, 0, "P33 FEAT,");
@@ -207,22 +244,38 @@ static void EQ_UartReportFeatureOnce(void)
     }
     line[index] = '\0';
 
-    deadline_before = EQ_DebugDeadlineMissCount;
-    latency_before = EQ_DebugFrameLatencyDeadlineMissCount;
-    overlap_before = EQ_DebugFrameServiceOverlapCount;
-    dropped_before = EQ_DebugFrameServiceDroppedCount;
+    audio_flags_before = EQ_AudioFlagMask(flag_ad_done);
+    EqualizerUartFeatureAudit_Begin(
+        &EQ_UartFeatureAudit,
+        EQ_DebugProcessFrames,
+        EQ_DebugDeadlineMissCount,
+        EQ_DebugFrameLatencyDeadlineMissCount,
+        EQ_DebugFrameServiceOverlapCount,
+        EQ_DebugFrameServiceDroppedCount,
+        audio_flags_before);
     UARTPuts(line, -1);
-    EQ_DebugUartFeatureDeadlineDelta =
-        EQ_DebugDeadlineMissCount - deadline_before;
-    EQ_DebugUartFeatureLatencyMissDelta =
-        EQ_DebugFrameLatencyDeadlineMissCount - latency_before;
-    EQ_DebugUartFeatureOverlapDelta =
-        EQ_DebugFrameServiceOverlapCount - overlap_before;
-    EQ_DebugUartFeatureDroppedDelta =
-        EQ_DebugFrameServiceDroppedCount - dropped_before;
+    audio_flags_after = EQ_AudioFlagMask(flag_ad_done);
+    EqualizerUartFeatureAudit_EndWrite(
+        &EQ_UartFeatureAudit, audio_flags_after);
+    EQ_SyncUartFeatureAuditDebug();
 #endif
     EQ_DebugUartFeatureRequest = 0U;
 }
+
+static void EQ_CompleteUartFeatureAudit(void)
+{
+    if (EqualizerUartFeatureAudit_CompleteAfterFrame(
+            &EQ_UartFeatureAudit,
+            EQ_DebugProcessFrames,
+            EQ_DebugDeadlineMissCount,
+            EQ_DebugFrameLatencyDeadlineMissCount,
+            EQ_DebugFrameServiceOverlapCount,
+            EQ_DebugFrameServiceDroppedCount))
+    {
+        EQ_SyncUartFeatureAuditDebug();
+    }
+}
+#endif /* EQ_ENABLE_AUDIO_FEATURE_ANALYZER */
 
 #endif
 
@@ -255,6 +308,7 @@ volatile unsigned long EQ_DebugFrameLatencyDeadlineMissCount = 0UL;
 volatile unsigned long EQ_DebugFrameServiceOverlapCount = 0UL;
 volatile unsigned long EQ_DebugFrameServiceDroppedCount = 0UL;
 volatile unsigned int EQ_DebugAnalyzerEnabled = 0U;
+volatile unsigned int EQ_DebugAnalyzerResetRequest = 0U;
 volatile unsigned int EQ_DebugAnalyzerPending = 0U;
 volatile unsigned int EQ_DebugAnalyzerValid = 0U;
 volatile unsigned int EQ_DebugAnalyzerWarmup = 0U;
@@ -276,6 +330,10 @@ volatile unsigned long EQ_DebugUartFeatureDeadlineDelta = 0UL;
 volatile unsigned long EQ_DebugUartFeatureLatencyMissDelta = 0UL;
 volatile unsigned long EQ_DebugUartFeatureOverlapDelta = 0UL;
 volatile unsigned long EQ_DebugUartFeatureDroppedDelta = 0UL;
+volatile unsigned int EQ_DebugUartFeatureAuditPending = 0U;
+volatile unsigned int EQ_DebugUartFeatureAuditComplete = 0U;
+volatile unsigned int EQ_DebugUartFeatureAudioArrived = 0U;
+volatile unsigned long EQ_DebugUartFeatureBaselineFrame = 0UL;
 volatile int EQ_DebugMode = EQ_PRESET_FLAT;
 volatile int EQ_DebugDiagPath = EQ_DIAG_PRESET;
 volatile int EQ_DebugRequestedMode = EQ_PRESET_FLAT;
@@ -719,6 +777,125 @@ int EqualizerAnalyzer_CanService(
            (analyzer_pending != 0);
 }
 
+#if defined(EQ_ALGO_ONLY) || (EQ_ENABLE_AUDIO_FEATURE_ANALYZER != 0)
+void EqualizerAnalyzerRuntime_Init(unsigned int *last_enabled)
+{
+    if (last_enabled != 0)
+    {
+        *last_enabled = 0U;
+    }
+}
+
+int EqualizerAnalyzerRuntime_Decide(
+    unsigned int *last_enabled,
+    unsigned int requested_enabled,
+    unsigned int reset_requested,
+    int audio_safe,
+    int builder_eligible)
+{
+    unsigned int requested;
+
+    if ((last_enabled == 0) || (audio_safe == 0))
+    {
+        return EQ_ANALYZER_ACTION_NONE;
+    }
+    requested = (requested_enabled != 0U) ? 1U : 0U;
+    if ((*last_enabled != 0U) && (requested == 0U))
+    {
+        *last_enabled = 0U;
+        return EQ_ANALYZER_ACTION_DISABLE;
+    }
+    if ((*last_enabled == 0U) && (requested != 0U))
+    {
+        if (builder_eligible != 0)
+        {
+            return EQ_ANALYZER_ACTION_NONE;
+        }
+        *last_enabled = 1U;
+        return EQ_ANALYZER_ACTION_ENABLE_RESET;
+    }
+    if ((reset_requested != 0U) && (builder_eligible == 0))
+    {
+        return EQ_ANALYZER_ACTION_MANUAL_RESET;
+    }
+    return EQ_ANALYZER_ACTION_NONE;
+}
+
+void EqualizerUartFeatureAudit_Init(EQ_UART_FEATURE_AUDIT *audit)
+{
+    if (audit != 0)
+    {
+        memset(audit, 0, sizeof(*audit));
+    }
+}
+
+void EqualizerUartFeatureAudit_Begin(
+    EQ_UART_FEATURE_AUDIT *audit,
+    unsigned long process_frames,
+    unsigned long deadline,
+    unsigned long latency,
+    unsigned long overlap,
+    unsigned long dropped,
+    unsigned int flags_before)
+{
+    if (audit == 0)
+    {
+        return;
+    }
+    audit->baseline_process_frames = process_frames;
+    audit->baseline_deadline = deadline;
+    audit->baseline_latency = latency;
+    audit->baseline_overlap = overlap;
+    audit->baseline_dropped = dropped;
+    audit->deadline_delta = 0UL;
+    audit->latency_delta = 0UL;
+    audit->overlap_delta = 0UL;
+    audit->dropped_delta = 0UL;
+    audit->flags_before = flags_before;
+    audit->pending = 0U;
+    audit->complete = 0U;
+    audit->audio_arrived = 0U;
+}
+
+void EqualizerUartFeatureAudit_EndWrite(
+    EQ_UART_FEATURE_AUDIT *audit,
+    unsigned int flags_after)
+{
+    if (audit == 0)
+    {
+        return;
+    }
+    if ((audit->flags_before == 0U) && (flags_after != 0U))
+    {
+        audit->audio_arrived = 1U;
+    }
+    audit->pending = 1U;
+    audit->complete = 0U;
+}
+
+int EqualizerUartFeatureAudit_CompleteAfterFrame(
+    EQ_UART_FEATURE_AUDIT *audit,
+    unsigned long process_frames,
+    unsigned long deadline,
+    unsigned long latency,
+    unsigned long overlap,
+    unsigned long dropped)
+{
+    if ((audit == 0) || (audit->pending == 0U) ||
+        (process_frames <= audit->baseline_process_frames))
+    {
+        return 0;
+    }
+    audit->deadline_delta = deadline - audit->baseline_deadline;
+    audit->latency_delta = latency - audit->baseline_latency;
+    audit->overlap_delta = overlap - audit->baseline_overlap;
+    audit->dropped_delta = dropped - audit->baseline_dropped;
+    audit->pending = 0U;
+    audit->complete = 1U;
+    return 1;
+}
+#endif
+
 int EqualizerBackgroundService_Decide(
     const EQ_BACKGROUND_SERVICE_STATE *state,
     unsigned long processed_frame,
@@ -1115,6 +1292,61 @@ static void EQ_EndFrameService(void)
     EQ_FrameServicePending = 0U;
 }
 
+#if EQ_ENABLE_AUDIO_FEATURE_ANALYZER != 0
+static void EQ_ClearPublishedAnalyzerState(void)
+{
+    EQ_DebugAnalyzerPending = 0U;
+    EQ_DebugAnalyzerValid = 0U;
+    EQ_DebugAnalyzerWarmup = 0U;
+    EQ_DebugAnalyzerAnalysisCount = 0UL;
+    EQ_DebugAnalyzerPeakDbfs = -240.0f;
+    EQ_DebugAnalyzerRmsDbfs = -240.0f;
+    EQ_DebugAnalyzerBassDb = 0.0f;
+    EQ_DebugAnalyzerMudDb = 0.0f;
+    EQ_DebugAnalyzerPresenceDb = 0.0f;
+    EQ_DebugAnalyzerBrightnessDb = 0.0f;
+    EQ_DebugUartFeatureRequest = 0U;
+    EQ_AnalyzerLastDeferredFrame = ~0UL;
+    EqualizerUartFeatureAudit_Init(&EQ_UartFeatureAudit);
+    EQ_SyncUartFeatureAuditDebug();
+}
+
+static void EQ_ResetAnalyzerRuntime(void)
+{
+    AudioFeatureAnalyzer_Reset(&EQ_AudioAnalyzerState);
+    memset(EQ_AnalyzerInput, 0, sizeof(EQ_AnalyzerInput));
+    EQ_ClearPublishedAnalyzerState();
+}
+
+static int EQ_ServiceAnalyzerControl(int builder_eligible,
+                                     unsigned char flag_ad_done)
+{
+    int action;
+    int audio_safe;
+
+    audio_safe = EqualizerBackgroundService_IsAudioSafeFinalCheck(
+        FLAG_AD, FLAG_DA, flag_ad_done, EQ_FrameServicePending);
+    action = EqualizerAnalyzerRuntime_Decide(
+        &EQ_AnalyzerLastEnabled,
+        EQ_DebugAnalyzerEnabled,
+        EQ_DebugAnalyzerResetRequest,
+        audio_safe,
+        builder_eligible);
+    if (action == EQ_ANALYZER_ACTION_DISABLE)
+    {
+        EQ_ClearPublishedAnalyzerState();
+        return 1;
+    }
+    if ((action == EQ_ANALYZER_ACTION_ENABLE_RESET) ||
+        (action == EQ_ANALYZER_ACTION_MANUAL_RESET))
+    {
+        EQ_ResetAnalyzerRuntime();
+        EQ_DebugAnalyzerResetRequest = 0U;
+        return 1;
+    }
+    return 0;
+}
+
 static void EQ_RecordAnalyzerDeferred(void)
 {
     if (EQ_AnalyzerLastDeferredFrame != EQ_DebugProcessFrames)
@@ -1128,7 +1360,8 @@ static void EQ_ObserveAnalyzerInputFrame(void)
 {
     int cadence_result;
 
-    if (EQ_DebugAnalyzerEnabled == 0U)
+    if ((EQ_DebugAnalyzerEnabled == 0U) ||
+        (EQ_AnalyzerLastEnabled == 0U))
     {
         return;
     }
@@ -1195,8 +1428,14 @@ static int EQ_ServiceAnalyzer(void)
     {
         EQ_PublishAnalyzerSnapshot();
     }
+    else if (result < 0)
+    {
+        EQ_DebugAnalyzerValid = 0U;
+        EQ_DebugAnalyzerWarmup = 0U;
+    }
     return result;
 }
+#endif /* EQ_ENABLE_AUDIO_FEATURE_ANALYZER */
 
 static void EQ_CaptureAdcFrame(void)
 {
@@ -1231,7 +1470,9 @@ static void EQ_CaptureAdcFrame(void)
         memcpy(EQ_AD_Buffer8, AD_CH8_Buf1, 2 * ADC_SAMPLE_1024);
     }
 
+#if EQ_ENABLE_AUDIO_FEATURE_ANALYZER != 0
     EQ_ObserveAnalyzerInputFrame();
+#endif
 
 #if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
     cycle_start = TSCL;
@@ -1318,11 +1559,15 @@ void Equalizer_Flow_Example(void)
     unsigned char flag_ad_done;
     unsigned int builder_audio_before;
     unsigned int builder_audio_after;
+#if EQ_ENABLE_AUDIO_FEATURE_ANALYZER != 0
     unsigned int analyzer_audio_before;
     unsigned int analyzer_audio_after;
+#endif
     int background_kind;
     int analyzer_eligible;
+#if EQ_ENABLE_AUDIO_FEATURE_ANALYZER != 0
     int analyzer_result;
+#endif
     int builder_eligible;
     int builder_result;
     int direct_path;
@@ -1369,10 +1614,13 @@ void Equalizer_Flow_Example(void)
     memset(&EQ_ControlMailbox, 0, sizeof(EQ_ControlMailbox));
     EqualizerControl_Init(&EQ_BoardControl, &EQ_BoardState);
     EqualizerBackgroundService_Init(&EQ_BackgroundService);
+#if EQ_ENABLE_AUDIO_FEATURE_ANALYZER != 0
     AudioFeatureAnalyzer_Init(&EQ_AudioAnalyzerState);
     memset(EQ_AnalyzerInput, 0, sizeof(EQ_AnalyzerInput));
-    EQ_DebugAnalyzerPending = 0U;
-    EQ_AnalyzerLastDeferredFrame = ~0UL;
+    EqualizerAnalyzerRuntime_Init(&EQ_AnalyzerLastEnabled);
+    EQ_ClearPublishedAnalyzerState();
+    EQ_DebugAnalyzerResetRequest = 0U;
+#endif
     EQ_AppliedDiagPath = EQ_DIAG_PRESET;
     EQ_LastServicedMode = EQ_PRESET_FLAT;
     EQ_UpdateDebugGains();
@@ -1439,6 +1687,9 @@ void Equalizer_Flow_Example(void)
             EQ_FillDacInactiveBuffer();
             EQ_EndFrameActiveSegment();
             EQ_EndFrameService();
+#if EQ_ENABLE_AUDIO_FEATURE_ANALYZER != 0
+            EQ_CompleteUartFeatureAudit();
+#endif
             if (EQ_DebugInitStage < 11UL)
             {
                 EQ_DebugInitStage = 11UL;
@@ -1457,6 +1708,17 @@ void Equalizer_Flow_Example(void)
             direct_path = EQ_ServiceModeTimed();
             if (direct_path != 0)
             {
+#if EQ_ENABLE_AUDIO_FEATURE_ANALYZER != 0
+                builder_eligible = EqualizerControl_BuilderEligible(
+                    &EQ_BoardControl, &EQ_BoardState);
+                if (EQ_ServiceAnalyzerControl(
+                        builder_eligible, flag_ad_done))
+                {
+                    EqualizerBackgroundService_Record(
+                        &EQ_BackgroundService, EQ_DebugProcessFrames,
+                        EQ_BACKGROUND_ANALYZER);
+                }
+#endif
                 continue;
             }
             EqualizerControl_ServiceMailbox(
@@ -1536,21 +1798,32 @@ void Equalizer_Flow_Example(void)
 
             builder_eligible = EqualizerControl_BuilderEligible(
                 &EQ_BoardControl, &EQ_BoardState);
-            if (EQ_DebugAnalyzerEnabled == 0U)
+#if EQ_ENABLE_AUDIO_FEATURE_ANALYZER != 0
+            if (EQ_ServiceAnalyzerControl(
+                    builder_eligible, flag_ad_done))
             {
-                EQ_DebugAnalyzerPending = 0U;
+                EqualizerBackgroundService_Record(
+                    &EQ_BackgroundService, EQ_DebugProcessFrames,
+                    EQ_BACKGROUND_ANALYZER);
+                continue;
             }
             analyzer_eligible = EqualizerAnalyzer_CanService(
                 FLAG_AD, FLAG_DA, flag_ad_done,
                 EQ_FrameServicePending,
                 builder_eligible,
-                EQ_DebugAnalyzerEnabled,
+                EQ_AnalyzerLastEnabled,
                 EQ_DebugAnalyzerPending);
             uart_eligible =
-                (EQ_DebugUartFeatureRequest != 0U) &&
+                (EQ_DebugAnalyzerEnabled != 0U) &&
                 (EQ_DebugAnalyzerValid != 0U) &&
+                (EQ_DebugAnalyzerWarmup != 0U) &&
+                (EQ_DebugUartFeatureRequest != 0U) &&
                 (builder_eligible == 0) &&
                 (analyzer_eligible == 0);
+#else
+            analyzer_eligible = 0;
+            uart_eligible = 0;
+#endif
 #if EQ_ENABLE_LCD_DISPLAY != 0
             lcd_eligible = 0;
             if (EqualizerLcdPolicy_CanService(
@@ -1608,12 +1881,14 @@ void Equalizer_Flow_Example(void)
             {
                 EQ_DebugBuilderDeferredAudioCount++;
             }
-            if ((EQ_DebugAnalyzerEnabled != 0U) &&
+#if EQ_ENABLE_AUDIO_FEATURE_ANALYZER != 0
+            if ((EQ_AnalyzerLastEnabled != 0U) &&
                 (EQ_DebugAnalyzerPending != 0U) &&
                 (builder_eligible != 0))
             {
                 EQ_RecordAnalyzerDeferred();
             }
+#endif
             if (background_kind == EQ_BACKGROUND_BUILDER)
             {
                 unsigned long builder_cycles;
@@ -1662,13 +1937,14 @@ void Equalizer_Flow_Example(void)
                 EQ_UpdateDebugGains();
                 continue;
             }
+#if EQ_ENABLE_AUDIO_FEATURE_ANALYZER != 0
             if (background_kind == EQ_BACKGROUND_ANALYZER)
             {
                 if (!EqualizerAnalyzer_CanService(
                         FLAG_AD, FLAG_DA, flag_ad_done,
                         EQ_FrameServicePending,
                         builder_eligible,
-                        EQ_DebugAnalyzerEnabled,
+                        EQ_AnalyzerLastEnabled,
                         EQ_DebugAnalyzerPending))
                 {
                     EQ_RecordAnalyzerDeferred();
@@ -1702,17 +1978,20 @@ void Equalizer_Flow_Example(void)
                          FLAG_AD, FLAG_DA, flag_ad_done,
                          EQ_FrameServicePending) == 0) ||
                     (builder_eligible != 0) ||
+                    (EQ_DebugAnalyzerEnabled == 0U) ||
                     (EQ_DebugAnalyzerValid == 0U) ||
+                    (EQ_DebugAnalyzerWarmup == 0U) ||
                     (EQ_DebugUartFeatureRequest == 0U))
                 {
                     continue;
                 }
-                EQ_UartReportFeatureOnce();
+                EQ_UartReportFeatureOnce(flag_ad_done);
                 EqualizerBackgroundService_Record(
                     &EQ_BackgroundService, EQ_DebugProcessFrames,
                     EQ_BACKGROUND_UART);
                 continue;
             }
+#endif
 #if EQ_ENABLE_LCD_DISPLAY != 0
             if (background_kind == EQ_BACKGROUND_LCD)
             {
@@ -1760,7 +2039,8 @@ void Equalizer_Flow_Example(void)
             EQ_DebugLcdDeferredAudioCount++;
         }
 #endif
-        if ((EQ_DebugAnalyzerEnabled != 0U) &&
+#if EQ_ENABLE_AUDIO_FEATURE_ANALYZER != 0
+        if ((EQ_AnalyzerLastEnabled != 0U) &&
             (EQ_DebugAnalyzerPending != 0U) &&
             ((FLAG_AD != 0) || (FLAG_DA != 0) ||
              (flag_ad_done != 0) ||
@@ -1768,6 +2048,7 @@ void Equalizer_Flow_Example(void)
         {
             EQ_RecordAnalyzerDeferred();
         }
+#endif
     }
 }
 

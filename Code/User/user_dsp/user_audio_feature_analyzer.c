@@ -7,8 +7,11 @@
 
 #include "user_audio_feature_analyzer.h"
 #include "user_spectral_fft.h"
+#include "float.h"
 #include "math.h"
 #include "string.h"
+
+#if defined(EQ_ALGO_ONLY) || (EQ_ENABLE_AUDIO_FEATURE_ANALYZER != 0)
 
 #define AUDIO_FEATURE_PI              3.14159265358979323846f
 #define AUDIO_FEATURE_PCM_SCALE       (1.0f / 32768.0f)
@@ -22,6 +25,13 @@ static float AudioFeature_AmplitudeDbfs(float value)
         value = AUDIO_FEATURE_AMPLITUDE_FLOOR;
     }
     return 20.0f * log10f(value);
+}
+
+static int AudioFeature_IsFinite(float value)
+{
+    return (value == value) &&
+           (value <= FLT_MAX) &&
+           (value >= -FLT_MAX);
 }
 
 static int AudioFeature_BandForFrequency(float frequency_hz)
@@ -56,18 +66,19 @@ static float AudioFeature_Smooth(float previous,
     return alpha * previous + (1.0f - alpha) * current;
 }
 
-static void AudioFeature_UpdateRelative(AUDIO_FEATURE_ANALYZER *state)
+static void AudioFeature_ComputeRelative(
+    const float density[AUDIO_FEATURE_NUM_BANDS],
+    float global_density,
+    float relative_db[AUDIO_FEATURE_NUM_BANDS])
 {
     int band;
     float denominator;
 
-    denominator = state->smoothed_global_density +
-                  AUDIO_FEATURE_POWER_EPSILON;
+    denominator = global_density + AUDIO_FEATURE_POWER_EPSILON;
     for (band = 0; band < AUDIO_FEATURE_NUM_BANDS; band++)
     {
-        state->relative_db[band] = 10.0f * log10f(
-            (state->smoothed_density[band] +
-             AUDIO_FEATURE_POWER_EPSILON) / denominator);
+        relative_db[band] = 10.0f * log10f(
+            (density[band] + AUDIO_FEATURE_POWER_EPSILON) / denominator);
     }
 }
 
@@ -147,6 +158,8 @@ int AudioFeatureAnalyzer_SetSmoothing(AUDIO_FEATURE_ANALYZER *state,
                                       float release_alpha)
 {
     if ((state == 0) || (state->initialized == 0) ||
+        (!AudioFeature_IsFinite(attack_alpha)) ||
+        (!AudioFeature_IsFinite(release_alpha)) ||
         (attack_alpha < 0.0f) || (attack_alpha >= 1.0f) ||
         (release_alpha < 0.0f) || (release_alpha >= 1.0f))
     {
@@ -185,16 +198,24 @@ int AudioFeatureAnalyzer_AnalyzeObservedFrame(
     int global_count;
     float band_power[AUDIO_FEATURE_NUM_BANDS];
     float global_power;
+    float global_density;
+    float smoothed_global_density;
     float mean;
     float peak;
+    float peak_dbfs;
+    float rms_dbfs;
     float rms_power;
     float power_scale;
+    float raw_density[AUDIO_FEATURE_NUM_BANDS];
+    float smoothed_density[AUDIO_FEATURE_NUM_BANDS];
+    float relative_db[AUDIO_FEATURE_NUM_BANDS];
+    int valid;
 
     if ((state == 0) || (input == 0) ||
         (sample_count != AUDIO_FEATURE_FRAME_LEN) ||
         (state->initialized == 0))
     {
-        return -1;
+        return AUDIO_FEATURE_ANALYZE_ERROR_ARGUMENT;
     }
 
     mean = 0.0f;
@@ -222,14 +243,17 @@ int AudioFeatureAnalyzer_AnalyzeObservedFrame(
         state->fft_im[index] = 0.0f;
     }
     rms_power /= (float)AUDIO_FEATURE_FRAME_LEN;
-    state->peak_dbfs = AudioFeature_AmplitudeDbfs(peak);
-    state->rms_dbfs = AudioFeature_AmplitudeDbfs(sqrtf(rms_power));
+    peak_dbfs = AudioFeature_AmplitudeDbfs(peak);
+    rms_dbfs = AudioFeature_AmplitudeDbfs(sqrtf(rms_power));
 
     if (SpectralFFT_Forward(state->fft_re, state->fft_im,
                             state->twiddle_re, state->twiddle_im,
                             AUDIO_FEATURE_FFT_SIZE) == 0)
     {
-        return -2;
+        state->valid = 0;
+        state->warmup_complete = 0;
+        state->valid_analysis_count = 0UL;
+        return AUDIO_FEATURE_ANALYZE_ERROR_FFT;
     }
     state->analysis_count++;
     for (band = 0; band < AUDIO_FEATURE_NUM_BANDS; band++)
@@ -263,30 +287,66 @@ int AudioFeatureAnalyzer_AnalyzeObservedFrame(
         }
     }
 
-    state->valid = (state->rms_dbfs >= AUDIO_FEATURE_SILENCE_DBFS) ? 1 : 0;
+    valid = (rms_dbfs >= AUDIO_FEATURE_SILENCE_DBFS) ? 1 : 0;
     for (band = 0; band < AUDIO_FEATURE_NUM_BANDS; band++)
     {
         float current_density;
 
         current_density = 0.0f;
-        if ((state->valid != 0) && (band_counts[band] > 0))
+        if ((valid != 0) && (band_counts[band] > 0))
         {
             current_density = band_power[band] / (float)band_counts[band];
         }
-        state->raw_density[band] = current_density;
-        state->smoothed_density[band] = AudioFeature_Smooth(
+        raw_density[band] = current_density;
+        smoothed_density[band] = AudioFeature_Smooth(
             state->smoothed_density[band], current_density,
             state->attack_alpha, state->release_alpha);
     }
-    state->global_density = 0.0f;
-    if ((state->valid != 0) && (global_count > 0))
+    global_density = 0.0f;
+    if ((valid != 0) && (global_count > 0))
     {
-        state->global_density = global_power / (float)global_count;
+        global_density = global_power / (float)global_count;
     }
-    state->smoothed_global_density = AudioFeature_Smooth(
-        state->smoothed_global_density, state->global_density,
+    smoothed_global_density = AudioFeature_Smooth(
+        state->smoothed_global_density, global_density,
         state->attack_alpha, state->release_alpha);
-    AudioFeature_UpdateRelative(state);
+    AudioFeature_ComputeRelative(
+        smoothed_density, smoothed_global_density, relative_db);
+
+    if ((!AudioFeature_IsFinite(peak_dbfs)) ||
+        (!AudioFeature_IsFinite(rms_dbfs)) ||
+        (!AudioFeature_IsFinite(global_density)) ||
+        (!AudioFeature_IsFinite(smoothed_global_density)))
+    {
+        state->valid = 0;
+        state->warmup_complete = 0;
+        state->valid_analysis_count = 0UL;
+        return AUDIO_FEATURE_ANALYZE_ERROR_NONFINITE;
+    }
+    for (band = 0; band < AUDIO_FEATURE_NUM_BANDS; band++)
+    {
+        if ((!AudioFeature_IsFinite(raw_density[band])) ||
+            (!AudioFeature_IsFinite(smoothed_density[band])) ||
+            (!AudioFeature_IsFinite(relative_db[band])))
+        {
+            state->valid = 0;
+            state->warmup_complete = 0;
+            state->valid_analysis_count = 0UL;
+            return AUDIO_FEATURE_ANALYZE_ERROR_NONFINITE;
+        }
+    }
+
+    state->peak_dbfs = peak_dbfs;
+    state->rms_dbfs = rms_dbfs;
+    state->global_density = global_density;
+    state->smoothed_global_density = smoothed_global_density;
+    state->valid = valid;
+    for (band = 0; band < AUDIO_FEATURE_NUM_BANDS; band++)
+    {
+        state->raw_density[band] = raw_density[band];
+        state->smoothed_density[band] = smoothed_density[band];
+        state->relative_db[band] = relative_db[band];
+    }
 
     if (state->valid != 0)
     {
@@ -352,3 +412,5 @@ void AudioFeatureAnalyzer_GetSnapshot(const AUDIO_FEATURE_ANALYZER *state,
     snapshot->valid = state->valid;
     snapshot->warmup_complete = state->warmup_complete;
 }
+
+#endif /* EQ_ALGO_ONLY || EQ_ENABLE_AUDIO_FEATURE_ANALYZER */

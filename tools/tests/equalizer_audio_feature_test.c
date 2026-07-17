@@ -635,6 +635,50 @@ static void TestAttackFasterThanRelease(void)
            attack_progress / release_progress);
 }
 
+static void TestResetRestartsHistory(void)
+{
+    AUDIO_FEATURE_ANALYZER state;
+    AUDIO_FEATURE_SNAPSHOT snapshot;
+    short frame[AUDIO_FEATURE_FRAME_LEN];
+    int index;
+
+    FillSine(frame, 20, PeakFromDbfs(-18.0f));
+    AudioFeatureAnalyzer_Init(&state);
+    Check(AudioFeatureAnalyzer_SetSmoothing(&state, 0.0f, 0.0f) == 1,
+          "reset test accepts zero smoothing");
+    for (index = 0; index < 3; index++)
+    {
+        Check(AudioFeatureAnalyzer_AnalyzeObservedFrame(
+                  &state, frame, AUDIO_FEATURE_FRAME_LEN) == 1,
+              "reset setup analysis succeeds");
+    }
+    AudioFeatureAnalyzer_GetSnapshot(&state, &snapshot);
+    Check(snapshot.analysis_count == 3UL,
+          "reset setup reaches three analyses");
+    Check(snapshot.warmup_complete == 1,
+          "reset setup reaches warmup");
+
+    AudioFeatureAnalyzer_Reset(&state);
+    AudioFeatureAnalyzer_GetSnapshot(&state, &snapshot);
+    Check(snapshot.analysis_count == 0UL,
+          "reset clears analysis count");
+    Check(snapshot.valid_analysis_count == 0UL,
+          "reset clears valid analysis count");
+    Check(snapshot.valid == 0,
+          "reset clears valid");
+    Check(snapshot.warmup_complete == 0,
+          "reset clears warmup");
+
+    Check(AudioFeatureAnalyzer_AnalyzeObservedFrame(
+              &state, frame, AUDIO_FEATURE_FRAME_LEN) == 1,
+          "first post-reset analysis succeeds");
+    AudioFeatureAnalyzer_GetSnapshot(&state, &snapshot);
+    Check(snapshot.analysis_count == 1UL,
+          "post-reset analysis count restarts at one");
+    Check(snapshot.warmup_complete == 0,
+          "post-reset warmup restarts from cold state");
+}
+
 static void TestInvalidCallsAreBounded(void)
 {
     AUDIO_FEATURE_ANALYZER state;
@@ -643,6 +687,8 @@ static void TestInvalidCallsAreBounded(void)
     AUDIO_FEATURE_SNAPSHOT snapshot;
     AUDIO_FEATURE_SNAPSHOT zero_snapshot;
     short frame[AUDIO_FEATURE_FRAME_LEN];
+    float invalid_values[3];
+    int invalid_index;
 
     FillSine(frame, 41, PeakFromDbfs(-18.0f));
     AudioFeatureAnalyzer_Init(0);
@@ -703,6 +749,43 @@ static void TestInvalidCallsAreBounded(void)
           "release coefficient of one is rejected");
     invalid_call_checks += 5;
 
+    invalid_values[0] = NAN;
+    invalid_values[1] = INFINITY;
+    invalid_values[2] = -INFINITY;
+    for (invalid_index = 0; invalid_index < 3; invalid_index++)
+    {
+        before = state;
+        Check(AudioFeatureAnalyzer_SetSmoothing(
+                  &state, invalid_values[invalid_index], 0.5f) == 0,
+              "non-finite attack coefficient is rejected");
+        Check(memcmp(&state, &before, sizeof(state)) == 0,
+              "rejected attack coefficient leaves state unchanged");
+        Check(AudioFeatureAnalyzer_SetSmoothing(
+                  &state, 0.5f, invalid_values[invalid_index]) == 0,
+              "non-finite release coefficient is rejected");
+        Check(memcmp(&state, &before, sizeof(state)) == 0,
+              "rejected release coefficient leaves state unchanged");
+        invalid_call_checks += 2;
+    }
+
+    AudioFeatureAnalyzer_Init(&state);
+    Check(AudioFeatureAnalyzer_SetSmoothing(&state, 0.0f, 0.0f) == 1,
+          "finite validation setup accepts zero smoothing");
+    Check(AudioFeatureAnalyzer_AnalyzeObservedFrame(
+              &state, frame, AUDIO_FEATURE_FRAME_LEN) == 1,
+          "finite validation setup frame succeeds");
+    state.attack_alpha = NAN;
+    state.release_alpha = NAN;
+    Check(AudioFeatureAnalyzer_AnalyzeObservedFrame(
+              &state, frame, AUDIO_FEATURE_FRAME_LEN) ==
+              AUDIO_FEATURE_ANALYZE_ERROR_NONFINITE,
+          "non-finite analysis is rejected with a distinct error");
+    Check(state.valid == 0,
+          "non-finite analysis invalidates the analyzer");
+    AudioFeatureAnalyzer_GetSnapshot(&state, &snapshot);
+    Check(SnapshotIsFinite(&snapshot),
+          "non-finite analysis never publishes NaN or infinity");
+
     printf("invalid_call_checks=%d input_immutable_checks=%d\n",
            invalid_call_checks, input_immutable_checks);
 }
@@ -717,6 +800,7 @@ int main(void)
     TestCadencePeriodEight();
     TestSplitObserveAndAnalyze();
     TestAttackFasterThanRelease();
+    TestResetRestartsHistory();
     TestInvalidCallsAreBounded();
 
     printf("failures=%d\n", failures);

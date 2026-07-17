@@ -9,6 +9,10 @@
 
 #include "user_equalizer_control.h"
 
+#ifndef EQ_ENABLE_AUDIO_FEATURE_ANALYZER
+#define EQ_ENABLE_AUDIO_FEATURE_ANALYZER 0
+#endif
+
 #define EQ_DIAG_RAW_COPY       0
 #define EQ_DIAG_FLOAT_COPY     1
 #define EQ_DIAG_FLAT           2
@@ -45,6 +49,11 @@
 #define EQ_BACKGROUND_ANALYZER      3
 #define EQ_BACKGROUND_UART          4
 
+#define EQ_ANALYZER_ACTION_NONE         0
+#define EQ_ANALYZER_ACTION_DISABLE      1
+#define EQ_ANALYZER_ACTION_ENABLE_RESET 2
+#define EQ_ANALYZER_ACTION_MANUAL_RESET 3
+
 typedef struct
 {
     unsigned long consumed_frame;
@@ -66,6 +75,23 @@ typedef struct
     unsigned long previous_overlaps;
     unsigned long previous_dropped;
 } EQ_LCD_FAULT_POLICY;
+
+typedef struct
+{
+    unsigned long baseline_process_frames;
+    unsigned long baseline_deadline;
+    unsigned long baseline_latency;
+    unsigned long baseline_overlap;
+    unsigned long baseline_dropped;
+    unsigned long deadline_delta;
+    unsigned long latency_delta;
+    unsigned long overlap_delta;
+    unsigned long dropped_delta;
+    unsigned int flags_before;
+    unsigned int pending;
+    unsigned int complete;
+    unsigned int audio_arrived;
+} EQ_UART_FEATURE_AUDIT;
 
 extern volatile unsigned long EQ_DebugAdFrames;
 extern volatile unsigned long EQ_DebugDaFrames;
@@ -93,6 +119,7 @@ extern volatile unsigned long EQ_DebugFrameLatencyDeadlineMissCount;
 extern volatile unsigned long EQ_DebugFrameServiceOverlapCount;
 extern volatile unsigned long EQ_DebugFrameServiceDroppedCount;
 extern volatile unsigned int EQ_DebugAnalyzerEnabled;
+extern volatile unsigned int EQ_DebugAnalyzerResetRequest;
 extern volatile unsigned int EQ_DebugAnalyzerPending;
 extern volatile unsigned int EQ_DebugAnalyzerValid;
 extern volatile unsigned int EQ_DebugAnalyzerWarmup;
@@ -114,6 +141,10 @@ extern volatile unsigned long EQ_DebugUartFeatureDeadlineDelta;
 extern volatile unsigned long EQ_DebugUartFeatureLatencyMissDelta;
 extern volatile unsigned long EQ_DebugUartFeatureOverlapDelta;
 extern volatile unsigned long EQ_DebugUartFeatureDroppedDelta;
+extern volatile unsigned int EQ_DebugUartFeatureAuditPending;
+extern volatile unsigned int EQ_DebugUartFeatureAuditComplete;
+extern volatile unsigned int EQ_DebugUartFeatureAudioArrived;
+extern volatile unsigned long EQ_DebugUartFeatureBaselineFrame;
 extern volatile int EQ_DebugMode;
 extern volatile int EQ_DebugDiagPath;
 extern volatile int EQ_DebugRequestedMode;
@@ -245,6 +276,32 @@ int EqualizerAnalyzer_CanService(
     int builder_eligible,
     int analyzer_enabled,
     int analyzer_pending);
+void EqualizerAnalyzerRuntime_Init(unsigned int *last_enabled);
+int EqualizerAnalyzerRuntime_Decide(
+    unsigned int *last_enabled,
+    unsigned int requested_enabled,
+    unsigned int reset_requested,
+    int audio_safe,
+    int builder_eligible);
+void EqualizerUartFeatureAudit_Init(EQ_UART_FEATURE_AUDIT *audit);
+void EqualizerUartFeatureAudit_Begin(
+    EQ_UART_FEATURE_AUDIT *audit,
+    unsigned long process_frames,
+    unsigned long deadline,
+    unsigned long latency,
+    unsigned long overlap,
+    unsigned long dropped,
+    unsigned int flags_before);
+void EqualizerUartFeatureAudit_EndWrite(
+    EQ_UART_FEATURE_AUDIT *audit,
+    unsigned int flags_after);
+int EqualizerUartFeatureAudit_CompleteAfterFrame(
+    EQ_UART_FEATURE_AUDIT *audit,
+    unsigned long process_frames,
+    unsigned long deadline,
+    unsigned long latency,
+    unsigned long overlap,
+    unsigned long dropped);
 int EqualizerBackgroundService_Decide(
     const EQ_BACKGROUND_SERVICE_STATE *state,
     unsigned long processed_frame,

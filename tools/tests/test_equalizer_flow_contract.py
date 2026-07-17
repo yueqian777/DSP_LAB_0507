@@ -465,8 +465,10 @@ class EqualizerFlowContractTest(unittest.TestCase):
         self.assertNotIn("TSCH =", self.source)
 
     def test_analyzer_defaults_off_and_has_watch_diagnostics(self) -> None:
+        self.assertIn("#define EQ_ENABLE_AUDIO_FEATURE_ANALYZER 0", self.header)
         self.assertIn("EQ_DebugAnalyzerEnabled = 0U", self.source)
         for name in (
+            "EQ_DebugAnalyzerResetRequest",
             "EQ_DebugAnalyzerPending",
             "EQ_DebugAnalyzerValid",
             "EQ_DebugAnalyzerWarmup",
@@ -483,9 +485,114 @@ class EqualizerFlowContractTest(unittest.TestCase):
             "EQ_DebugAnalyzerMudDb",
             "EQ_DebugAnalyzerPresenceDb",
             "EQ_DebugAnalyzerBrightnessDb",
+            "EQ_DebugUartFeatureAuditPending",
+            "EQ_DebugUartFeatureAuditComplete",
+            "EQ_DebugUartFeatureAudioArrived",
+            "EQ_DebugUartFeatureBaselineFrame",
         ):
             self.assertIn(name, self.source)
             self.assertIn(name, self.header)
+
+    def test_compile_time_analyzer_gate_covers_board_integration(self) -> None:
+        self.assertIn(
+            "#if EQ_ENABLE_AUDIO_FEATURE_ANALYZER != 0\n"
+            "#include \"user_audio_feature_analyzer.h\"",
+            self.source,
+        )
+        guarded_symbols = (
+            "static AUDIO_FEATURE_ANALYZER EQ_AudioAnalyzerState;",
+            "static short EQ_AnalyzerInput[AUDIO_FEATURE_FRAME_LEN];",
+            "AudioFeatureAnalyzer_Init(&EQ_AudioAnalyzerState);",
+            "EQ_ObserveAnalyzerInputFrame();",
+            "EQ_ServiceAnalyzer();",
+            "EQ_UartReportFeatureOnce(flag_ad_done);",
+        )
+        guard_stack: list[str] = []
+        guarded_lines: dict[str, bool] = {symbol: False for symbol in guarded_symbols}
+        for line in self.source.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("#if"):
+                guard_stack.append(stripped)
+            elif stripped.startswith("#endif"):
+                if guard_stack:
+                    guard_stack.pop()
+            for symbol in guarded_symbols:
+                if symbol in line:
+                    guarded_lines[symbol] = any(
+                        "EQ_ENABLE_AUDIO_FEATURE_ANALYZER != 0" in guard
+                        for guard in guard_stack
+                    )
+        for symbol in guarded_symbols:
+            self.assertTrue(guarded_lines[symbol], symbol)
+
+        uart_start = self.source.index(
+            "static void EQ_UartReportFeatureOnce(unsigned char flag_ad_done)"
+        )
+        uart_end = self.source.index(
+            "static void EQ_CompleteUartFeatureAudit(void)", uart_start
+        )
+        uart = self.source[uart_start:uart_end]
+        self.assertNotIn(
+            "EQ_DebugUartFeatureDeadlineDelta =", uart
+        )
+
+    def test_uart_requires_enabled_valid_warmup_and_request(self) -> None:
+        loop = self._runtime_loop()
+        start = loop.index("uart_eligible =")
+        end = loop.index(";", start)
+        eligibility = loop[start:end]
+        for condition in (
+            "EQ_DebugAnalyzerEnabled != 0U",
+            "EQ_DebugAnalyzerValid != 0U",
+            "EQ_DebugAnalyzerWarmup != 0U",
+            "EQ_DebugUartFeatureRequest != 0U",
+        ):
+            self.assertIn(condition, eligibility)
+
+    def test_analyzer_disable_and_reset_clear_stale_publication(self) -> None:
+        start = self.source.index(
+            "static void EQ_ClearPublishedAnalyzerState(void)"
+        )
+        end = self.source.index(
+            "static void EQ_ResetAnalyzerRuntime(void)", start
+        )
+        clear = self.source[start:end]
+        for assignment in (
+            "EQ_DebugAnalyzerPending = 0U;",
+            "EQ_DebugAnalyzerValid = 0U;",
+            "EQ_DebugAnalyzerWarmup = 0U;",
+            "EQ_DebugAnalyzerAnalysisCount = 0UL;",
+            "EQ_DebugUartFeatureRequest = 0U;",
+            "EQ_AnalyzerLastDeferredFrame = ~0UL;",
+            "EqualizerUartFeatureAudit_Init(&EQ_UartFeatureAudit);",
+            "EQ_SyncUartFeatureAuditDebug();",
+        ):
+            self.assertIn(assignment, clear)
+
+        service_start = self.source.index(
+            "static int EQ_ServiceAnalyzerControl("
+        )
+        service_end = self.source.index(
+            "static void EQ_RecordAnalyzerDeferred(void)", service_start
+        )
+        service = self.source[service_start:service_end]
+        self.assertIn("EQ_ANALYZER_ACTION_DISABLE", service)
+        self.assertIn("EQ_ANALYZER_ACTION_ENABLE_RESET", service)
+        self.assertIn("EQ_ANALYZER_ACTION_MANUAL_RESET", service)
+        self.assertNotIn("EQ_BoardState", service)
+        self.assertNotIn("Equalizer_Set", service)
+        self.assertNotIn("Equalizer_Apply", service)
+
+    def test_uart_audit_completes_after_frame_service(self) -> None:
+        da_start = self.source.index(
+            "if ((FLAG_DA == 1) && (flag_ad_done == 1))"
+        )
+        da_end = self.source.index("if ((FLAG_AD == 0)", da_start)
+        da_block = self.source[da_start:da_end]
+        self.assertLess(
+            da_block.index("EQ_EndFrameService();"),
+            da_block.index("EQ_CompleteUartFeatureAudit();"),
+        )
 
     def test_analyzer_cadence_observation_precedes_eq_but_fft_is_background(self) -> None:
         start = self.source.index("static void EQ_CaptureAdcFrame(void)")
@@ -535,7 +642,9 @@ class EqualizerFlowContractTest(unittest.TestCase):
         self.assertIn("EQ_UART_FEATURE_LINE_CAPACITY 72", self.source)
         self.assertNotIn("sprintf(", self.source)
         self.assertNotIn("UARTprintf(", self.source)
-        self.assertEqual(self.source.count("EQ_UartReportFeatureOnce();"), 1)
+        self.assertEqual(
+            self.source.count("EQ_UartReportFeatureOnce(flag_ad_done);"), 1
+        )
 
 
 if __name__ == "__main__":
