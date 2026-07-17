@@ -450,3 +450,142 @@ dropped, clip, Smart Bass saturation, and Smart Bass nonfinite counters were
 all zero. This debugger-polled objective test is not used as listening
 evidence and is distinct from both `SEGMENTED_30X10S` and the deferred
 `CONTINUOUS_300S` run.
+
+## 11. Dynamic Clarity V1 objective A-H validation
+
+**Date:** 2026-07-17
+
+**Exact feature commit:**
+`47337a0b9fe9b3f7025671806e3e3b2e8f269f56`
+
+**Result:** `MEASURED_ON_CURRENT_BOARD_OBJECTIVE_ONLY`
+
+No human-ear confirmation was performed. Subjective clarity, clicks, pumping,
+and general sound quality are explicitly `NOT_PERFORMED`. The result covers
+UART, Watch, internal PCM16 RAW capture, and runtime safety counters only.
+
+The loaded output was the clean build-matrix F artifact with Project 33,
+Analyzer ON, Smart Bass ON, Dynamic Clarity ON, and LCD OFF:
+
+```text
+DSP_LAB_PROJECT_SELECT=33
+EQ_ENABLE_AUDIO_FEATURE_ANALYZER=1
+EQ_ENABLE_SMART_BASS=1
+EQ_ENABLE_DYNAMIC_CLARITY=1
+EQ_ENABLE_LCD_DISPLAY=0
+EQ_USE_GENERATED_BUILD_ID=1
+```
+
+The output SHA-256 was
+`19026BDDC21BCA38F643A16859F37B6C7A8D3174E96664207828199ED01B38DC`.
+The C6000 build had zero compiler diagnostics and
+`<link_errors>0x0</link_errors>`. Map evidence placed Analyzer, Smart Bass,
+Dynamic Clarity, and EQ state in `.subband_l2` using 16488, 252, 260, and
+1064 bytes respectively; 242024 bytes remained free. UART captured
+`P33 BUILD 47337a0`, INIT 01 through 08, and INIT 11.
+
+### 11.1 A-D identity, trigger, mapping, and frequency bounds
+
+Runtime OFF ran for 60 seconds with AD/DA/process all at 3062 frames. Smart
+Bass and Dynamic Clarity remained at level zero and all safety counters were
+zero. Its 8192-sample input/output capture was byte-identical with SHA-256
+`B8722488486A8BB2690ACB7BC96F4F33FBFB4AEEE3A247D3EF2ABDF633AFC797`.
+
+The 1953.125 Hz Presence stimulus measured relative features
+`[-37, -44, 7, -36] dB` for Bass, Mud, Presence, and Brightness. Dynamic
+Clarity stayed at requested/applied level zero. Its RAW pair was also
+byte-identical with SHA-256
+`DE81746DF75F2BA6B4A3671692A410F8A3F0E3CFE5EDF9AE92E2F2FBE4C5E5FB`.
+
+A pure 390.625 Hz Mud tone measured Mud `14 dB`, Presence `-51 dB`, and
+masking `66 dB`, but correctly remained at level zero with
+`DYNAMIC_CLARITY_REASON_WEAK_PRESENCE`. This is required by the absolute
+Presence gate; a pure Mud tone cannot be a valid trigger without weakening
+the specified safety contract.
+
+The actual trigger therefore used a Mud-dominant fixed combination with both
+absolute gates satisfied. It measured Mud `13 dB`, Presence `-2 dB`, and
+masking `16 dB`. MEDIUM advanced only through levels 0, 1, 2, 3, and 4, then
+settled at level 4. Relative to runtime OFF, internal RAW transfer changed by
+`-1.962837 dB` at 390.625 Hz, `-0.046256 dB` at 1953.125 Hz,
+`-0.077097 dB` at 97.65625 Hz, and `+0.003331 dB` at 8007.8125 Hz.
+
+The fixed masking sweep used Analyzer band-density compensation for the 12
+Mud bins and 65 Presence bins:
+
+| Target masking | Board masking | Expected level | Requested/applied |
+| ---: | ---: | ---: | ---: |
+| 2 dB | 2 dB | 0 | 0 / 0 |
+| 5 dB | 5 dB | 0 | 0 / 0 |
+| 8 dB | 8 dB | 2 | 2 / 2 |
+| 12 dB | 12 dB | 3 | 3 / 3 |
+| 16 dB | 16 dB | 4 | 4 / 4 |
+
+The weak-Mud test measured Mud/Presence `-12/-20 dB` and stopped with reason
+4. The weak-Presence test measured `14/-28 dB` and stopped with reason 5.
+Both remained at level zero.
+
+### 11.2 E-F release and independent composition
+
+Switching the combined trigger to Presence released Dynamic Clarity through
+levels 4, 3, 2, 1, and 0. Every adjacent decrement occurred after exactly two
+new Dynamic Clarity decisions. Smart Bass independently followed the same
+adjacent release sequence for this stimulus. The final processing-active and
+transition flags were zero. The listening portion of E was not run.
+
+The three-frequency combined input measured Bass `18 dB`, Mud `3 dB`,
+Presence `-10 dB`, and masking `13 dB`. Smart Bass and Dynamic Clarity both
+settled independently at MEDIUM level 4. Across A-F, all ten base EQ gains,
+all mailbox/control tokens, response generations, and the complete builder
+fingerprint were unchanged. Builder slices stayed zero.
+
+### 11.3 G deterministic triple-transition windows
+
+Two deterministic windows were captured in one load session. The first began
+from FLAT with both dynamics at identity and overlapped FLAT to BASS with the
+first Smart Bass and Dynamic Clarity transitions. After both dynamics released
+to identity while BASS remained active, the second overlapped BASS to VOCAL
+with both first dynamic transitions. Both triple-overlap flags were observed.
+
+The two legal preset requests published mailbox stable sequences 2 and 4.
+At the end, request, observed, accepted, target, prepared, installed, and
+applied tokens were all 4. Builder generation, slices, cancel, and restart
+counts were all zero. The final VOCAL gains were
+`[-2,-1,0,1,2,3,2,1,0,-1]` dB.
+
+The two 8192-sample transition captures had zero clipped samples and zero
+repeated adjacent frames. Maximum adjacent output steps were `0.084046 FS`
+and `0.058838 FS`. Maximum observed cycles were:
+
+| Component | Maximum cycles |
+| --- | ---: |
+| Analyzer | 299524 |
+| Smart Bass | 438590 |
+| Dynamic Clarity | 2497790 |
+| Complete algorithm chain | 4295830 |
+| Frame service | 4789638 |
+| Frame latency | 4789896 |
+
+Deadline miss, latency miss, overlap, dropped, clip, both saturation counters,
+and both nonfinite counters remained zero.
+
+### 11.4 H uninterrupted 300-second window
+
+The fixed `music_like.wav` loop ran for one uninterrupted 300-second target
+window. There was no DSS halt, Watch read, or periodic UART feature request
+during the window. The single final snapshot is labeled `CONTINUOUS_300S`.
+
+Process frames advanced from 8560 to 23179, a delta of 14619. Analyzer,
+Smart Bass, and Dynamic Clarity decisions each advanced by 1827. Both dynamics
+ended at MEDIUM level 4. Control token 6 and builder slice count 0 were
+unchanged across the window. Maximum cycles at the final snapshot were
+299524 Analyzer, 438590 Smart Bass, 2497790 Dynamic Clarity, 4323000 complete
+algorithm, 4789638 frame service, and 4789896 frame latency. Every safety,
+clip, saturation, and nonfinite counter was zero.
+
+Formal JSON, UART, RAW, fixed stimuli, and capture metrics are retained under
+`%TEMP%\DSP_LAB_0507\dynamic_clarity_v1\47337a0\board_objective_20260717_194013`.
+`tools/run_dynamic_clarity_board.ps1 -AnalyzeOnly` reproduced all RAW and UART
+acceptance checks after the board disconnected. External analog THD, SNR,
+calibrated frequency response, SPL, and all subjective listening claims remain
+unmeasured.

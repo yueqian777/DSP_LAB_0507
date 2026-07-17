@@ -88,8 +88,10 @@ labeled `HOST_DIGITAL_SIMULATION`. These labels are not board measurements or
 analog THD evidence.
 
 Board results require a clean, exact-SHA CCS build plus UART/Watch/RAW capture.
-Until those steps are recorded in `equalizer_33_hardware_validation.md`, board
-status remains `PENDING_HARDWARE`.
+Commit `47337a0` completed objective A-H validation on the current board; the
+exact evidence and its limits are recorded in
+`equalizer_33_hardware_validation.md`. Human-ear judgments and external analog
+THD, SNR, calibrated frequency response, and SPL remain unmeasured.
 
 ## Host Verification
 
