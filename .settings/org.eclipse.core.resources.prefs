@@ -157,4 +157,10 @@ encoding//Debug/board_audio_test_outputs/run_20260707_155620/pc_audio/subdir_rul
 encoding//Debug/board_audio_test_outputs/run_20260707_155620/pc_audio/subdir_vars.mk=UTF-8
 encoding//Debug/makefile=UTF-8
 encoding//Debug/objects.mk=UTF-8
+encoding//Debug/results/memory/subdir_rules.mk=UTF-8
+encoding//Debug/results/memory/subdir_vars.mk=UTF-8
+encoding//Debug/results/thd/pc_wola/_build/subdir_rules.mk=UTF-8
+encoding//Debug/results/thd/pc_wola/_build/subdir_vars.mk=UTF-8
 encoding//Debug/sources.mk=UTF-8
+encoding//Debug/tools/thd/subdir_rules.mk=UTF-8
+encoding//Debug/tools/thd/subdir_vars.mk=UTF-8

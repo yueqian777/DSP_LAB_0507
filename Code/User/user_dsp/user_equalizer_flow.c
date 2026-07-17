@@ -16,6 +16,12 @@
 #include "dac_api.h"
 #include "key_api.h"
 #include "system.h"
+#include "uart_api.h"
+#include "uartStdio.h"
+
+#ifndef EQ_ENABLE_UART_DIAGNOSTICS
+#define EQ_ENABLE_UART_DIAGNOSTICS 1
+#endif
 
 #if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
 #include "c6x.h"
@@ -44,6 +50,32 @@ static unsigned int EQ_FrameServiceStartCycle = 0U;
 static unsigned int EQ_FrameActiveSegmentStartCycle = 0U;
 static unsigned long EQ_FrameActiveServiceCycles = 0UL;
 static unsigned char EQ_FrameServicePending = 0U;
+
+static void EQ_UartInit(void)
+{
+#if EQ_ENABLE_UART_DIAGNOSTICS != 0
+    Uart2_Init_Lite(UART_BAUD_115200);
+    UARTPuts("P33 UART 115200 8N1\r\n", -1);
+    UARTPuts("P33 BUILD " EQ_BUILD_GIT_SHA "\r\n", -1);
+#endif
+}
+
+static void EQ_UartReportStage(unsigned long stage)
+{
+#if EQ_ENABLE_UART_DIAGNOSTICS != 0
+    static char line[] = "P33 INIT 00\r\n";
+
+    if (stage > 99UL)
+    {
+        stage = 99UL;
+    }
+    line[9] = (char)('0' + (stage / 10UL));
+    line[10] = (char)('0' + (stage % 10UL));
+    UARTPuts(line, -1);
+#else
+    (void)stage;
+#endif
+}
 
 #endif
 
@@ -1038,15 +1070,20 @@ void Equalizer_Flow_Example(void)
     lcd_applied_mode = EQ_PRESET_NONE;
 #endif
     Sys_Init();
+    EQ_UartInit();
+    EQ_UartReportStage(1UL);
     Key_Init();
     EQ_KeepBuildFingerprint();
 
     Adc_Init(ADC_50KHZ, ADC_SAMPLE_1024);
     EQ_DebugInitStage = 2UL;
+    EQ_UartReportStage(2UL);
     Dac_Init(DAC_50KHZ, DAC_SAMPLE_1024, DAC_CHANNEL_ALL);
     EQ_DebugInitStage = 3UL;
+    EQ_UartReportStage(3UL);
     Equalizer_Init(&EQ_BoardState);
     EQ_DebugInitStage = 4UL;
+    EQ_UartReportStage(4UL);
     memset(&EQ_ControlMailbox, 0, sizeof(EQ_ControlMailbox));
     EqualizerControl_Init(&EQ_BoardControl, &EQ_BoardState);
     EqualizerBackgroundService_Init(&EQ_BackgroundService);
@@ -1073,6 +1110,7 @@ void Equalizer_Flow_Example(void)
 #endif
 
     EQ_DebugInitStage = 5UL;
+    EQ_UartReportStage(5UL);
 
 #if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
     TSCL = 0;
@@ -1080,10 +1118,13 @@ void Equalizer_Flow_Example(void)
 
     Adc_Start();
     EQ_DebugInitStage = 6UL;
+    EQ_UartReportStage(6UL);
     Dac_Start();
     EQ_DebugInitStage = 7UL;
+    EQ_UartReportStage(7UL);
 
     EQ_DebugInitStage = 8UL;
+    EQ_UartReportStage(8UL);
     while (1)
     {
         if (FLAG_AD == 1)
@@ -1115,6 +1156,7 @@ void Equalizer_Flow_Example(void)
             if (EQ_DebugInitStage < 11UL)
             {
                 EQ_DebugInitStage = 11UL;
+                EQ_UartReportStage(11UL);
             }
         }
 

@@ -186,6 +186,27 @@ class EqualizerFlowContractTest(unittest.TestCase):
         self.assertLess(da, idle)
         self.assertLess(idle, service)
 
+    def test_uart_diagnostics_follow_guide_without_frame_printf(self) -> None:
+        self.assertIn("#define EQ_ENABLE_UART_DIAGNOSTICS 1", self.source)
+        self.assertIn("Uart2_Init_Lite(UART_BAUD_115200);", self.source)
+        self.assertIn(
+            'UARTPuts("P33 UART 115200 8N1\\r\\n", -1);',
+            self.source,
+        )
+        self.assertNotIn("UARTprintf(", self.source)
+
+        loop = self._runtime_loop()
+        end_frame = loop.index("EQ_EndFrameService();")
+        stage_11 = loop.index("EQ_UartReportStage(11UL);", end_frame)
+        idle_service = loop.index(
+            "if ((FLAG_AD == 0) && (FLAG_DA == 0) && (flag_ad_done == 0))"
+        )
+        self.assertLess(end_frame, stage_11)
+        self.assertLess(stage_11, idle_service)
+
+        for stage in range(1, 9):
+            self.assertIn(f"EQ_UartReportStage({stage}UL);", self.source)
+
     def test_frame_service_spans_ad_and_dac_active_segments(self) -> None:
         ad = self.source.index("if (FLAG_AD == 1)")
         da = self.source.index("if ((FLAG_DA == 1) && (flag_ad_done == 1))", ad)
