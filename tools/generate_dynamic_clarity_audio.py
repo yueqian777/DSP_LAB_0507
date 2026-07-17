@@ -125,6 +125,37 @@ def main() -> int:
     )
     generated.append(write_wave(args.output_dir / "music_like.wav", music_like))
 
+    transition_dual = (
+        0.24 * sine(time, 400.0)
+        + 0.20 * sine(time, 1953.125)
+    )
+    generated.append(
+        write_wave(args.output_dir / "transition_dual.wav", transition_dual)
+    )
+
+    transition_music = (
+        0.20 * sine(time, 97.65625)
+        + 0.16 * sine(time, 400.0)
+        + 0.11 * sine(time, 976.5625)
+        + 0.09 * sine(time, 1953.125)
+        + 0.06 * sine(time, 5859.375)
+    )
+    generated.append(
+        write_wave(args.output_dir / "transition_music.wav", transition_music)
+    )
+
+    random_generator = np.random.default_rng(0x3317)
+    transition_noise_period_samples = 1024
+    transition_noise_period = random_generator.uniform(
+        -1.0, 1.0, size=transition_noise_period_samples
+    )
+    transition_noise = 0.24 * np.resize(
+        transition_noise_period, SAMPLE_COUNT
+    )
+    generated.append(
+        write_wave(args.output_dir / "transition_noise.wav", transition_noise)
+    )
+
     manifest = {
         "sample_rate": SAMPLE_RATE,
         "sample_count": SAMPLE_COUNT,
@@ -134,6 +165,7 @@ def main() -> int:
         "mud_presence_density_compensation": (
             MUD_PRESENCE_DENSITY_COMPENSATION
         ),
+        "transition_noise_period_samples": transition_noise_period_samples,
         "files": generated,
         "label": "HOST_GENERATED_FIXED_STIMULUS",
     }
