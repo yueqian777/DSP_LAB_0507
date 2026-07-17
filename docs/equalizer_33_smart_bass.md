@@ -12,10 +12,17 @@ Current implementation status:
 - `HOST_VERIFIED`: C harness and Python contracts pass.
 - `CCS_BUILD_VERIFIED`: Project 33 Analyzer + Smart Bass, LCD OFF, compiles and
   links with warning=0 and link errors=0.
-- `PENDING_HARDWARE`: Smart Bass runtime A-G validation is not claimed until a
-  clean committed output is loaded and measured on the current board.
+- `MEASURED_ON_CURRENT_BOARD_SMART_BASS_EB2EB1F`: the exact clean feature
+  output passed Smart Bass A-G validation on the current board.
 - `MEASURED_ON_CURRENT_BOARD_A490E80`: the Analyzer-only prerequisite build is
   recorded separately in `equalizer_33_hardware_validation.md`.
+
+The measured source commit is
+`eb2eb1f0e6274f253ac8d5e94704369f30955e6c`. Validation-report commit
+`45558565e8943889d11c2109813d88f3ab2a2f13` differs from that source commit
+only in `docs/equalizer_33_hardware_validation.md` and this document. It does
+not change the loaded DSP program. This closeout also leaves all source and
+build macros unchanged.
 
 Generated response/control CSV files are Host simulation artifacts and are
 written only to a temporary directory. They are not board measurements and
@@ -148,3 +155,9 @@ Watch, RAW, and stability evidence plus the separately labeled subjective
 operator observation are recorded in `docs/equalizer_33_hardware_validation.md`.
 External analog THD, SNR, calibrated frequency response, and SPL remain
 `PENDING_HARDWARE_MEASUREMENT`.
+
+The measured five-minute stability run is explicitly
+`SEGMENTED_30X10S`: thirty 10-second DSP windows with a short JTAG snapshot at
+each boundary. A no-halt `CONTINUOUS_300S` rerun is not claimed and is deferred
+because it adds limited evidence after the segmented run and the separate
+18-second no-halt operator window.

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "gate_status": "PASS",
+  "feature_sha": "eb2eb1f0e6274f253ac8d5e94704369f30955e6c",
+  "validation_report_sha": "45558565e8943889d11c2109813d88f3ab2a2f13",
+  "source_gate_sha256": "6e3deb16c1ad98aedc6a8f420dcf1baa72a0a8cdc9aea48bdb464b4f47c0cedf",
+  "stages": [
+    {"stage": "A-C", "status": "PASS", "result_sha256": "5d48859b118eb7300124525dac0f72492897677c89de7340f738e8a9d47723f7"},
+    {"stage": "D_OBJECTIVE", "status": "PASS", "result_sha256": "17ee6a36aa152e247461304e33b505406636cd5be3f54dcc5e276c8fb133ce9c"},
+    {"stage": "D_LISTEN", "status": "TECHNICAL_PASS", "result_sha256": "5080701b3c15c83505e6536a49d3a0e60b59ba8d9062664a82eb26ede5e132b8"},
+    {"stage": "E-F", "status": "PASS", "result_sha256": "b7c11d8cc128cc1eb8eeabf3f2388936ebf5ffbb7bc49b269b5c2d13c6d92d46"}
+  ],
+  "operator_observation": {
+    "status": "PASS",
+    "observation": "NO_SUSTAINED_PUMPING_OR_OBVIOUS_CLICKS",
+    "normal_audio_audible": true,
+    "source_sha256": "a2b1f00dd98b8ed4024d9df24f84bd10f564632672975ec9fb0232ea428089f3"
+  },
+  "safety_counters_all_zero": true
+}
