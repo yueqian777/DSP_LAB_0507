@@ -21,6 +21,14 @@
 #define EQ_ENABLE_DYNAMIC_CLARITY 0
 #endif
 
+#ifndef EQ_ENABLE_DYNAMIC_CLARITY_TIMING_DIAGNOSTICS
+#define EQ_ENABLE_DYNAMIC_CLARITY_TIMING_DIAGNOSTICS 0
+#endif
+
+#ifndef EQ_ENABLE_DYNAMIC_CLARITY_TRANSITION_CAPTURE
+#define EQ_ENABLE_DYNAMIC_CLARITY_TRANSITION_CAPTURE 0
+#endif
+
 #if (EQ_ENABLE_SMART_BASS != 0) && \
     (EQ_ENABLE_AUDIO_FEATURE_ANALYZER == 0)
 #error Smart Bass requires the audio feature analyzer.
@@ -30,6 +38,23 @@
     (EQ_ENABLE_AUDIO_FEATURE_ANALYZER == 0)
 #error Dynamic Clarity requires the audio feature analyzer.
 #endif
+
+#if (EQ_ENABLE_DYNAMIC_CLARITY_TIMING_DIAGNOSTICS != 0) && \
+    (EQ_ENABLE_DYNAMIC_CLARITY == 0)
+#error Dynamic Clarity timing diagnostics require Dynamic Clarity.
+#endif
+
+#if (EQ_ENABLE_DYNAMIC_CLARITY_TRANSITION_CAPTURE != 0) && \
+    (EQ_ENABLE_DYNAMIC_CLARITY == 0)
+#error Dynamic Clarity transition capture requires Dynamic Clarity.
+#endif
+
+#define DYNAMIC_CLARITY_PATH_IDENTITY                    0
+#define DYNAMIC_CLARITY_PATH_STABLE_FILTER               1
+#define DYNAMIC_CLARITY_PATH_TRANSITION_0_TO_FILTER      2
+#define DYNAMIC_CLARITY_PATH_TRANSITION_FILTER_TO_FILTER 3
+#define DYNAMIC_CLARITY_PATH_TRANSITION_FILTER_TO_0      4
+#define DYNAMIC_CLARITY_PATH_COUNT                       5
 
 #define EQ_DIAG_RAW_COPY       0
 #define EQ_DIAG_FLOAT_COPY     1
@@ -48,6 +73,9 @@
 #define EQ_CAPTURE_TRIGGER_LCD_JOB          0x01U
 #define EQ_CAPTURE_TRIGGER_MODE_SWITCH      0x02U
 #define EQ_CAPTURE_TRIGGER_AUDIO_DURING_LCD 0x04U
+#define EQ_CAPTURE_TRIGGER_DYNAMIC_CLARITY  0x08U
+
+#define EQ_DYNAMIC_CLARITY_CAPTURE_PREROLL_FRAMES 100U
 
 #define EQ_FRAME_SERVICE_BUDGET_MS \
     (1000.0f * (float)EQ_FRAME_LEN / EQ_SAMPLE_RATE)
@@ -201,6 +229,59 @@ extern volatile unsigned long EQ_DebugDynamicClarityLastCycles;
 extern volatile unsigned long EQ_DebugDynamicClarityMaxCycles;
 extern volatile unsigned long EQ_DebugDynamicClaritySaturationCount;
 extern volatile unsigned long EQ_DebugDynamicClarityNonFiniteCount;
+#if EQ_ENABLE_DYNAMIC_CLARITY_TRANSITION_CAPTURE != 0
+extern volatile unsigned int EQ_DebugDynamicClarityTransitionCaptureRequest;
+extern volatile unsigned int EQ_DebugDynamicClarityTransitionCaptureActive;
+extern volatile unsigned int EQ_DebugDynamicClarityTransitionCaptureDone;
+extern volatile unsigned int EQ_DebugDynamicClarityTransitionCaptureOverride;
+extern volatile int EQ_DebugDynamicClarityTransitionCaptureBaseLevel;
+extern volatile int EQ_DebugDynamicClarityTransitionCaptureTargetLevel;
+extern volatile int EQ_DebugDynamicClarityTransitionCaptureResult;
+extern volatile unsigned long
+    EQ_DebugDynamicClarityTransitionCaptureRequestFrame;
+extern volatile unsigned long
+    EQ_DebugDynamicClarityTransitionCaptureTriggerFrame;
+extern volatile unsigned long
+    EQ_DebugDynamicClarityTransitionCaptureDoneFrame;
+#endif
+#if EQ_ENABLE_DYNAMIC_CLARITY_TIMING_DIAGNOSTICS != 0
+extern volatile unsigned long
+    EQ_DebugDynamicClarityTimingFrameCount[DYNAMIC_CLARITY_PATH_COUNT];
+extern volatile unsigned long
+    EQ_DebugDynamicClarityTimingLastCycles[DYNAMIC_CLARITY_PATH_COUNT];
+extern volatile unsigned long
+    EQ_DebugDynamicClarityTimingMaxCycles[DYNAMIC_CLARITY_PATH_COUNT];
+extern volatile unsigned long
+    EQ_DebugDynamicClarityTimingMaxProcessFrame[DYNAMIC_CLARITY_PATH_COUNT];
+extern volatile int
+    EQ_DebugDynamicClarityTimingMaxActiveLevel[DYNAMIC_CLARITY_PATH_COUNT];
+extern volatile int
+    EQ_DebugDynamicClarityTimingMaxPendingLevel[DYNAMIC_CLARITY_PATH_COUNT];
+extern volatile int
+    EQ_DebugDynamicClarityTimingMaxTargetLevel[DYNAMIC_CLARITY_PATH_COUNT];
+extern volatile int
+    EQ_DebugDynamicClarityTimingMaxTransitionRemaining[DYNAMIC_CLARITY_PATH_COUNT];
+extern volatile unsigned long
+    EQ_DebugDynamicClarityTimingMaxAnalyzerCount[DYNAMIC_CLARITY_PATH_COUNT];
+extern volatile unsigned long
+    EQ_DebugDynamicClarityTimingMaxAdFrames[DYNAMIC_CLARITY_PATH_COUNT];
+extern volatile unsigned long
+    EQ_DebugDynamicClarityTimingMaxDaFrames[DYNAMIC_CLARITY_PATH_COUNT];
+extern volatile unsigned int
+    EQ_DebugDynamicClarityTimingMaxFlagAd[DYNAMIC_CLARITY_PATH_COUNT];
+extern volatile unsigned int
+    EQ_DebugDynamicClarityTimingMaxFlagDa[DYNAMIC_CLARITY_PATH_COUNT];
+extern volatile unsigned long
+    EQ_DebugDynamicClarityTimingMaxDeadlineCount[DYNAMIC_CLARITY_PATH_COUNT];
+extern volatile unsigned long
+    EQ_DebugDynamicClarityTimingMaxLatencyMissCount[DYNAMIC_CLARITY_PATH_COUNT];
+extern volatile unsigned long
+    EQ_DebugDynamicClarityTimingMaxOverlapCount[DYNAMIC_CLARITY_PATH_COUNT];
+extern volatile unsigned long
+    EQ_DebugDynamicClarityTimingMaxDroppedCount[DYNAMIC_CLARITY_PATH_COUNT];
+extern volatile unsigned long
+    EQ_DebugDynamicClarityTimingMaxUpdateCount[DYNAMIC_CLARITY_PATH_COUNT];
+#endif
 extern volatile unsigned int EQ_DebugUartFeatureRequest;
 extern volatile unsigned long EQ_DebugUartFeatureDeadlineDelta;
 extern volatile unsigned long EQ_DebugUartFeatureLatencyMissDelta;

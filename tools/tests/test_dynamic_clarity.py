@@ -334,6 +334,140 @@ class DynamicClarityTest(unittest.TestCase):
         self.assertIn("DynamicClarity_UpdateFromFeature(", publish_body)
         self.assertNotIn("EqualizerControl_", publish_body)
 
+    def test_timing_diagnostics_compile_gate_and_contract(self) -> None:
+        self.assertIn(
+            "#define EQ_ENABLE_DYNAMIC_CLARITY_TIMING_DIAGNOSTICS 0",
+            self.flow_header,
+        )
+        for path_name in (
+            "DYNAMIC_CLARITY_PATH_IDENTITY",
+            "DYNAMIC_CLARITY_PATH_STABLE_FILTER",
+            "DYNAMIC_CLARITY_PATH_TRANSITION_0_TO_FILTER",
+            "DYNAMIC_CLARITY_PATH_TRANSITION_FILTER_TO_FILTER",
+            "DYNAMIC_CLARITY_PATH_TRANSITION_FILTER_TO_0",
+        ):
+            self.assertIn(path_name, self.flow_header)
+
+        update_start = self.flow_source.index(
+            "static void EQ_UpdateDynamicClarityPathTiming("
+        )
+        update_end = self.flow_source.index("\n#endif", update_start)
+        update_body = self.flow_source[update_start:update_end]
+        self.assertNotIn("TSCL", update_body)
+        self.assertNotIn("for (", update_body)
+        self.assertNotIn("sqrt", update_body)
+        self.assertNotIn("Analyzer_Process", update_body)
+
+        capture_start = self.flow_source.index(
+            "static void EQ_CaptureAdcFrame(void)"
+        )
+        capture_end = self.flow_source.index(
+            "static void EQ_FillDacPingBuffer(void)", capture_start
+        )
+        capture = self.flow_source[capture_start:capture_end]
+        call_index = capture.index("DynamicClarity_ProcessFrame(")
+        pre_call = capture[:call_index]
+        post_call = capture[call_index:]
+        self.assertEqual(pre_call.count("dynamic_clarity_cycle_start = TSCL;"), 1)
+        self.assertEqual(
+            post_call.count("TSCL - dynamic_clarity_cycle_start"), 1
+        )
+
+        with tempfile.TemporaryDirectory(prefix="clarity_timing_gate_") as temp:
+            temp_path = pathlib.Path(temp)
+            off_object = temp_path / "timing_off.o"
+            on_object = temp_path / "timing_on.o"
+            common = (
+                "gcc -std=c99 -Wall -Wextra -Werror -c -DEQ_ALGO_ONLY "
+                "-DEQ_ENABLE_AUDIO_FEATURE_ANALYZER=1 "
+                "-DEQ_ENABLE_SMART_BASS=1 -DEQ_ENABLE_DYNAMIC_CLARITY=1 "
+                f"-I{shlex.quote(msys_path(INCLUDE))} "
+                f"{shlex.quote(msys_path(FLOW))}"
+            )
+            off_result = run_bash(
+                f"{common} -DEQ_ENABLE_DYNAMIC_CLARITY_TIMING_DIAGNOSTICS=0 "
+                f"-o {shlex.quote(msys_path(off_object))} && "
+                f"nm {shlex.quote(msys_path(off_object))}"
+            )
+            self.assertEqual(off_result.returncode, 0, off_result.stdout)
+            self.assertNotIn(
+                "EQ_DebugDynamicClarityTiming", off_result.stdout
+            )
+
+            on_result = run_bash(
+                f"{common} -DEQ_ENABLE_DYNAMIC_CLARITY_TIMING_DIAGNOSTICS=1 "
+                f"-o {shlex.quote(msys_path(on_object))} && "
+                f"nm {shlex.quote(msys_path(on_object))}"
+            )
+            self.assertEqual(on_result.returncode, 0, on_result.stdout)
+            self.assertIn(
+                "EQ_DebugDynamicClarityTimingMaxCycles", on_result.stdout
+            )
+            self.assertIn(
+                "EQ_DebugDynamicClarityTimingMaxUpdateCount",
+                on_result.stdout,
+            )
+
+            rejected = run_bash(
+                "gcc -std=c99 -Wall -Wextra -Werror -c -DEQ_ALGO_ONLY "
+                "-DEQ_ENABLE_AUDIO_FEATURE_ANALYZER=1 "
+                "-DEQ_ENABLE_DYNAMIC_CLARITY=0 "
+                "-DEQ_ENABLE_DYNAMIC_CLARITY_TIMING_DIAGNOSTICS=1 "
+                f"-I{shlex.quote(msys_path(INCLUDE))} "
+                f"{shlex.quote(msys_path(FLOW))} "
+                f"-o {shlex.quote(msys_path(temp_path / 'rejected.o'))}"
+            )
+            self.assertNotEqual(rejected.returncode, 0)
+            self.assertIn(
+                "timing diagnostics require Dynamic Clarity",
+                rejected.stdout,
+            )
+
+    def test_transition_capture_diagnostic_api(self) -> None:
+        self.assertIn(
+            "#define EQ_ENABLE_DYNAMIC_CLARITY_TRANSITION_CAPTURE 0",
+            self.dynamic_header,
+        )
+        self.assertIn(
+            "#define EQ_ENABLE_DYNAMIC_CLARITY_TRANSITION_CAPTURE 0",
+            self.flow_header,
+        )
+        with tempfile.TemporaryDirectory(prefix="clarity_capture_api_") as temp:
+            temp_path = pathlib.Path(temp)
+            harness = temp_path / "capture_api.c"
+            executable = temp_path / "capture_api.exe"
+            harness.write_text(
+                '#include "user_dynamic_clarity.h"\n'
+                "int main(void) {\n"
+                "  DYNAMIC_CLARITY_STATE state; short frame[1024] = {0}; int i;\n"
+                "  DynamicClarity_Init(&state);\n"
+                "  if (DynamicClarity_DiagnosticForceStableLevel(&state, 1) < 0) return 1;\n"
+                "  if (state.active_level != 1 || state.transition_active != 0) return 2;\n"
+                "  if (DynamicClarity_DiagnosticRequestLevel(&state, 2) != 1) return 3;\n"
+                "  if (state.pending_level != 2 || state.transition_active != 1) return 4;\n"
+                "  for (i = 0; i < 4; i++) DynamicClarity_ProcessFrame(&state, frame, frame, 1024);\n"
+                "  if (state.active_level != 2 || state.transition_active != 0) return 5;\n"
+                "  if (DynamicClarity_DiagnosticForceStableLevel(&state, 1) < 0) return 6;\n"
+                "  if (DynamicClarity_DiagnosticRequestLevel(&state, 0) != 1) return 7;\n"
+                "  for (i = 0; i < 4; i++) DynamicClarity_ProcessFrame(&state, frame, frame, 1024);\n"
+                "  return (state.active_level == 0 && state.transition_active == 0) ? 0 : 8;\n"
+                "}\n",
+                encoding="ascii",
+            )
+            result = run_bash(
+                "gcc -std=c99 -Wall -Wextra -Werror -DEQ_ALGO_ONLY "
+                "-DEQ_ENABLE_AUDIO_FEATURE_ANALYZER=1 "
+                "-DEQ_ENABLE_DYNAMIC_CLARITY=1 "
+                "-DEQ_ENABLE_DYNAMIC_CLARITY_TRANSITION_CAPTURE=1 "
+                f"-I{shlex.quote(msys_path(INCLUDE))} "
+                f"{shlex.quote(msys_path(EQUALIZER))} "
+                f"{shlex.quote(msys_path(DYNAMIC_CLARITY))} "
+                f"{shlex.quote(msys_path(harness))} -lm -o "
+                f"{shlex.quote(msys_path(executable))} && "
+                f"{shlex.quote(msys_path(executable))}"
+            )
+            self.assertEqual(result.returncode, 0, result.stdout)
+
     def test_response_and_control_evaluator(self) -> None:
         with tempfile.TemporaryDirectory(prefix="dynamic_clarity_eval_") as temp:
             temp_path = pathlib.Path(temp)

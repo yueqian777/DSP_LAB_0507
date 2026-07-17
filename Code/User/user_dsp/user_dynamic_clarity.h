@@ -14,6 +14,10 @@
 #define EQ_ENABLE_DYNAMIC_CLARITY 0
 #endif
 
+#ifndef EQ_ENABLE_DYNAMIC_CLARITY_TRANSITION_CAPTURE
+#define EQ_ENABLE_DYNAMIC_CLARITY_TRANSITION_CAPTURE 0
+#endif
+
 #if (EQ_ENABLE_DYNAMIC_CLARITY != 0) && \
     (EQ_ENABLE_AUDIO_FEATURE_ANALYZER == 0)
 #error Dynamic Clarity requires the audio feature analyzer.
@@ -122,5 +126,11 @@ float DynamicClarity_GetRequestedGainDb(
 float DynamicClarity_GetTransitionProgress(
     const DYNAMIC_CLARITY_STATE *state);
 int DynamicClarity_GetReason(const DYNAMIC_CLARITY_STATE *state);
+#if EQ_ENABLE_DYNAMIC_CLARITY_TRANSITION_CAPTURE != 0
+int DynamicClarity_DiagnosticForceStableLevel(
+    DYNAMIC_CLARITY_STATE *state, int level);
+int DynamicClarity_DiagnosticRequestLevel(
+    DYNAMIC_CLARITY_STATE *state, int level);
+#endif
 
 #endif /* _USER_DYNAMIC_CLARITY_H_ */

@@ -11,6 +11,7 @@
 #endif
 #include "user_smart_bass.h"
 #include "user_dynamic_clarity.h"
+#include "user_dynamic_clarity_benchmark.h"
 #include "user_equalizer_display.h"
 #include "user_equalizer_response.h"
 #include "equalizer_build_id.h"
@@ -71,6 +72,10 @@ static unsigned int EQ_SmartBassAnalyzerFault = 1U;
 #if EQ_ENABLE_DYNAMIC_CLARITY != 0
 static DYNAMIC_CLARITY_STATE EQ_DynamicClarityState;
 static unsigned int EQ_DynamicClarityAnalyzerFault = 1U;
+#if EQ_ENABLE_DYNAMIC_CLARITY_TRANSITION_CAPTURE != 0
+static unsigned int EQ_DynamicClarityCapturePhase = 0U;
+static unsigned int EQ_DynamicClarityCapturePrerollRemaining = 0U;
+#endif
 #endif
 static EQ_CONTROL_STATE EQ_BoardControl;
 static EQ_BACKGROUND_SERVICE_STATE EQ_BackgroundService;
@@ -396,6 +401,59 @@ volatile unsigned long EQ_DebugDynamicClarityLastCycles = 0UL;
 volatile unsigned long EQ_DebugDynamicClarityMaxCycles = 0UL;
 volatile unsigned long EQ_DebugDynamicClaritySaturationCount = 0UL;
 volatile unsigned long EQ_DebugDynamicClarityNonFiniteCount = 0UL;
+#if EQ_ENABLE_DYNAMIC_CLARITY_TRANSITION_CAPTURE != 0
+volatile unsigned int EQ_DebugDynamicClarityTransitionCaptureRequest = 0U;
+volatile unsigned int EQ_DebugDynamicClarityTransitionCaptureActive = 0U;
+volatile unsigned int EQ_DebugDynamicClarityTransitionCaptureDone = 0U;
+volatile unsigned int EQ_DebugDynamicClarityTransitionCaptureOverride = 0U;
+volatile int EQ_DebugDynamicClarityTransitionCaptureBaseLevel = 0;
+volatile int EQ_DebugDynamicClarityTransitionCaptureTargetLevel = 0;
+volatile int EQ_DebugDynamicClarityTransitionCaptureResult = 0;
+volatile unsigned long
+    EQ_DebugDynamicClarityTransitionCaptureRequestFrame = 0UL;
+volatile unsigned long
+    EQ_DebugDynamicClarityTransitionCaptureTriggerFrame = 0UL;
+volatile unsigned long
+    EQ_DebugDynamicClarityTransitionCaptureDoneFrame = 0UL;
+#endif
+#if EQ_ENABLE_DYNAMIC_CLARITY_TIMING_DIAGNOSTICS != 0
+volatile unsigned long
+    EQ_DebugDynamicClarityTimingFrameCount[DYNAMIC_CLARITY_PATH_COUNT];
+volatile unsigned long
+    EQ_DebugDynamicClarityTimingLastCycles[DYNAMIC_CLARITY_PATH_COUNT];
+volatile unsigned long
+    EQ_DebugDynamicClarityTimingMaxCycles[DYNAMIC_CLARITY_PATH_COUNT];
+volatile unsigned long
+    EQ_DebugDynamicClarityTimingMaxProcessFrame[DYNAMIC_CLARITY_PATH_COUNT];
+volatile int
+    EQ_DebugDynamicClarityTimingMaxActiveLevel[DYNAMIC_CLARITY_PATH_COUNT];
+volatile int
+    EQ_DebugDynamicClarityTimingMaxPendingLevel[DYNAMIC_CLARITY_PATH_COUNT];
+volatile int
+    EQ_DebugDynamicClarityTimingMaxTargetLevel[DYNAMIC_CLARITY_PATH_COUNT];
+volatile int
+    EQ_DebugDynamicClarityTimingMaxTransitionRemaining[DYNAMIC_CLARITY_PATH_COUNT];
+volatile unsigned long
+    EQ_DebugDynamicClarityTimingMaxAnalyzerCount[DYNAMIC_CLARITY_PATH_COUNT];
+volatile unsigned long
+    EQ_DebugDynamicClarityTimingMaxAdFrames[DYNAMIC_CLARITY_PATH_COUNT];
+volatile unsigned long
+    EQ_DebugDynamicClarityTimingMaxDaFrames[DYNAMIC_CLARITY_PATH_COUNT];
+volatile unsigned int
+    EQ_DebugDynamicClarityTimingMaxFlagAd[DYNAMIC_CLARITY_PATH_COUNT];
+volatile unsigned int
+    EQ_DebugDynamicClarityTimingMaxFlagDa[DYNAMIC_CLARITY_PATH_COUNT];
+volatile unsigned long
+    EQ_DebugDynamicClarityTimingMaxDeadlineCount[DYNAMIC_CLARITY_PATH_COUNT];
+volatile unsigned long
+    EQ_DebugDynamicClarityTimingMaxLatencyMissCount[DYNAMIC_CLARITY_PATH_COUNT];
+volatile unsigned long
+    EQ_DebugDynamicClarityTimingMaxOverlapCount[DYNAMIC_CLARITY_PATH_COUNT];
+volatile unsigned long
+    EQ_DebugDynamicClarityTimingMaxDroppedCount[DYNAMIC_CLARITY_PATH_COUNT];
+volatile unsigned long
+    EQ_DebugDynamicClarityTimingMaxUpdateCount[DYNAMIC_CLARITY_PATH_COUNT];
+#endif
 volatile unsigned int EQ_DebugUartFeatureRequest = 0U;
 volatile unsigned long EQ_DebugUartFeatureDeadlineDelta = 0UL;
 volatile unsigned long EQ_DebugUartFeatureLatencyMissDelta = 0UL;
@@ -555,7 +613,11 @@ static int EQ_CaptureSourceValid(unsigned int source)
 {
     return (source == EQ_CAPTURE_TRIGGER_LCD_JOB) ||
            (source == EQ_CAPTURE_TRIGGER_MODE_SWITCH) ||
-           (source == EQ_CAPTURE_TRIGGER_AUDIO_DURING_LCD);
+           (source == EQ_CAPTURE_TRIGGER_AUDIO_DURING_LCD)
+#if EQ_ENABLE_DYNAMIC_CLARITY_TRANSITION_CAPTURE != 0
+           || (source == EQ_CAPTURE_TRIGGER_DYNAMIC_CLARITY)
+#endif
+           ;
 }
 
 static void EQ_CaptureAcceptRequest(void)
@@ -1515,6 +1577,188 @@ static void EQ_UpdateDynamicClarityTiming(unsigned long cycles)
         EQ_DebugDynamicClarityMaxCycles = cycles;
     }
 }
+
+#if EQ_ENABLE_DYNAMIC_CLARITY_TRANSITION_CAPTURE != 0
+static void EQ_ServiceDynamicClarityTransitionCapture(void)
+{
+    int result;
+
+    if ((EQ_DebugDynamicClarityTransitionCaptureRequest != 0U) &&
+        (EQ_DebugDynamicClarityTransitionCaptureActive == 0U))
+    {
+        EqualizerCapture_Reset();
+        result = DynamicClarity_DiagnosticForceStableLevel(
+            &EQ_DynamicClarityState,
+            EQ_DebugDynamicClarityTransitionCaptureBaseLevel);
+        EQ_DebugDynamicClarityTransitionCaptureResult = result;
+        EQ_DebugDynamicClarityTransitionCaptureRequest = 0U;
+        EQ_DebugDynamicClarityTransitionCaptureDone = 0U;
+        EQ_DebugDynamicClarityTransitionCaptureOverride = 1U;
+        EQ_DebugDynamicClarityTransitionCaptureActive = 1U;
+        EQ_DebugDynamicClarityTransitionCaptureRequestFrame =
+            EQ_DebugProcessFrames + 1UL;
+        EQ_DebugDynamicClarityTransitionCaptureTriggerFrame = 0UL;
+        EQ_DebugDynamicClarityTransitionCaptureDoneFrame = 0UL;
+        EQ_DynamicClarityCapturePrerollRemaining =
+            EQ_DYNAMIC_CLARITY_CAPTURE_PREROLL_FRAMES;
+        EQ_DynamicClarityCapturePhase = 1U;
+        return;
+    }
+    if (EQ_DebugDynamicClarityTransitionCaptureActive == 0U)
+    {
+        return;
+    }
+
+    if (EQ_DynamicClarityCapturePhase == 1U)
+    {
+        if (EQ_DynamicClarityCapturePrerollRemaining != 0U)
+        {
+            EQ_DynamicClarityCapturePrerollRemaining--;
+        }
+        if (EQ_DynamicClarityCapturePrerollRemaining == 0U)
+        {
+            EQ_TriggerCaptureRequest =
+                EQ_CAPTURE_TRIGGER_DYNAMIC_CLARITY;
+            EQ_DynamicClarityCapturePhase = 2U;
+        }
+        return;
+    }
+
+    if ((EQ_DynamicClarityCapturePhase == 2U) &&
+        (EQ_TriggerCaptureArmedReady != 0U))
+    {
+        if (EQ_DebugDynamicClarityTransitionCaptureTargetLevel !=
+            EQ_DebugDynamicClarityTransitionCaptureBaseLevel)
+        {
+            result = DynamicClarity_DiagnosticRequestLevel(
+                &EQ_DynamicClarityState,
+                EQ_DebugDynamicClarityTransitionCaptureTargetLevel);
+            EQ_DebugDynamicClarityTransitionCaptureResult = result;
+            if (result != DYNAMIC_CLARITY_RESULT_UPDATED)
+            {
+                EQ_DebugDynamicClarityTransitionCaptureActive = 0U;
+                EQ_DynamicClarityCapturePhase = 0U;
+                return;
+            }
+        }
+        EqualizerCapture_NotifyEvent(
+            EQ_CAPTURE_TRIGGER_DYNAMIC_CLARITY);
+        EQ_DebugDynamicClarityTransitionCaptureTriggerFrame =
+            EQ_DebugProcessFrames + 1UL;
+        EQ_DynamicClarityCapturePhase = 3U;
+        return;
+    }
+
+    if ((EQ_DynamicClarityCapturePhase == 3U) &&
+        (EQ_TriggerCaptureReady != 0U))
+    {
+        EQ_DebugDynamicClarityTransitionCaptureDone = 1U;
+        EQ_DebugDynamicClarityTransitionCaptureActive = 0U;
+        EQ_DebugDynamicClarityTransitionCaptureDoneFrame =
+            EQ_DebugProcessFrames;
+        EQ_DynamicClarityCapturePhase = 0U;
+    }
+}
+#endif
+
+#if EQ_ENABLE_DYNAMIC_CLARITY_TIMING_DIAGNOSTICS != 0
+static int EQ_ClassifyDynamicClarityPath(
+    const DYNAMIC_CLARITY_STATE *state)
+{
+    if (state->transition_active == 0)
+    {
+        return (state->active_level == 0) ?
+            DYNAMIC_CLARITY_PATH_IDENTITY :
+            DYNAMIC_CLARITY_PATH_STABLE_FILTER;
+    }
+    if (state->active_level == 0)
+    {
+        return DYNAMIC_CLARITY_PATH_TRANSITION_0_TO_FILTER;
+    }
+    if (state->pending_level == 0)
+    {
+        return DYNAMIC_CLARITY_PATH_TRANSITION_FILTER_TO_0;
+    }
+    return DYNAMIC_CLARITY_PATH_TRANSITION_FILTER_TO_FILTER;
+}
+
+static void EQ_ResetDynamicClarityTimingDiagnostics(void)
+{
+    memset((void *)EQ_DebugDynamicClarityTimingFrameCount, 0,
+           sizeof(EQ_DebugDynamicClarityTimingFrameCount));
+    memset((void *)EQ_DebugDynamicClarityTimingLastCycles, 0,
+           sizeof(EQ_DebugDynamicClarityTimingLastCycles));
+    memset((void *)EQ_DebugDynamicClarityTimingMaxCycles, 0,
+           sizeof(EQ_DebugDynamicClarityTimingMaxCycles));
+    memset((void *)EQ_DebugDynamicClarityTimingMaxProcessFrame, 0,
+           sizeof(EQ_DebugDynamicClarityTimingMaxProcessFrame));
+    memset((void *)EQ_DebugDynamicClarityTimingMaxActiveLevel, 0,
+           sizeof(EQ_DebugDynamicClarityTimingMaxActiveLevel));
+    memset((void *)EQ_DebugDynamicClarityTimingMaxPendingLevel, 0,
+           sizeof(EQ_DebugDynamicClarityTimingMaxPendingLevel));
+    memset((void *)EQ_DebugDynamicClarityTimingMaxTargetLevel, 0,
+           sizeof(EQ_DebugDynamicClarityTimingMaxTargetLevel));
+    memset((void *)EQ_DebugDynamicClarityTimingMaxTransitionRemaining, 0,
+           sizeof(EQ_DebugDynamicClarityTimingMaxTransitionRemaining));
+    memset((void *)EQ_DebugDynamicClarityTimingMaxAnalyzerCount, 0,
+           sizeof(EQ_DebugDynamicClarityTimingMaxAnalyzerCount));
+    memset((void *)EQ_DebugDynamicClarityTimingMaxAdFrames, 0,
+           sizeof(EQ_DebugDynamicClarityTimingMaxAdFrames));
+    memset((void *)EQ_DebugDynamicClarityTimingMaxDaFrames, 0,
+           sizeof(EQ_DebugDynamicClarityTimingMaxDaFrames));
+    memset((void *)EQ_DebugDynamicClarityTimingMaxFlagAd, 0,
+           sizeof(EQ_DebugDynamicClarityTimingMaxFlagAd));
+    memset((void *)EQ_DebugDynamicClarityTimingMaxFlagDa, 0,
+           sizeof(EQ_DebugDynamicClarityTimingMaxFlagDa));
+    memset((void *)EQ_DebugDynamicClarityTimingMaxDeadlineCount, 0,
+           sizeof(EQ_DebugDynamicClarityTimingMaxDeadlineCount));
+    memset((void *)EQ_DebugDynamicClarityTimingMaxLatencyMissCount, 0,
+           sizeof(EQ_DebugDynamicClarityTimingMaxLatencyMissCount));
+    memset((void *)EQ_DebugDynamicClarityTimingMaxOverlapCount, 0,
+           sizeof(EQ_DebugDynamicClarityTimingMaxOverlapCount));
+    memset((void *)EQ_DebugDynamicClarityTimingMaxDroppedCount, 0,
+           sizeof(EQ_DebugDynamicClarityTimingMaxDroppedCount));
+    memset((void *)EQ_DebugDynamicClarityTimingMaxUpdateCount, 0,
+           sizeof(EQ_DebugDynamicClarityTimingMaxUpdateCount));
+}
+
+static void EQ_UpdateDynamicClarityPathTiming(
+    int path, unsigned long cycles,
+    int active_level, int pending_level, int target_level,
+    int transition_remaining)
+{
+    EQ_DebugDynamicClarityTimingFrameCount[path]++;
+    EQ_DebugDynamicClarityTimingLastCycles[path] = cycles;
+    if (cycles > EQ_DebugDynamicClarityTimingMaxCycles[path])
+    {
+        EQ_DebugDynamicClarityTimingMaxCycles[path] = cycles;
+        EQ_DebugDynamicClarityTimingMaxProcessFrame[path] =
+            EQ_DebugProcessFrames + 1UL;
+        EQ_DebugDynamicClarityTimingMaxActiveLevel[path] = active_level;
+        EQ_DebugDynamicClarityTimingMaxPendingLevel[path] = pending_level;
+        EQ_DebugDynamicClarityTimingMaxTargetLevel[path] = target_level;
+        EQ_DebugDynamicClarityTimingMaxTransitionRemaining[path] =
+            transition_remaining;
+        EQ_DebugDynamicClarityTimingMaxAnalyzerCount[path] =
+            EQ_DebugAnalyzerAnalysisCount;
+        EQ_DebugDynamicClarityTimingMaxAdFrames[path] = EQ_DebugAdFrames;
+        EQ_DebugDynamicClarityTimingMaxDaFrames[path] = EQ_DebugDaFrames;
+        EQ_DebugDynamicClarityTimingMaxFlagAd[path] =
+            (unsigned int)FLAG_AD;
+        EQ_DebugDynamicClarityTimingMaxFlagDa[path] =
+            (unsigned int)FLAG_DA;
+        EQ_DebugDynamicClarityTimingMaxDeadlineCount[path] =
+            EQ_DebugDeadlineMissCount;
+        EQ_DebugDynamicClarityTimingMaxLatencyMissCount[path] =
+            EQ_DebugFrameLatencyDeadlineMissCount;
+        EQ_DebugDynamicClarityTimingMaxOverlapCount[path] =
+            EQ_DebugFrameServiceOverlapCount;
+        EQ_DebugDynamicClarityTimingMaxDroppedCount[path] =
+            EQ_DebugFrameServiceDroppedCount;
+        EQ_DebugDynamicClarityTimingMaxUpdateCount[path]++;
+    }
+}
+#endif
 #endif
 
 #if EQ_ENABLE_AUDIO_FEATURE_ANALYZER != 0
@@ -1638,8 +1882,13 @@ static void EQ_PublishAnalyzerSnapshot(void)
     EQ_DynamicClarityAnalyzerFault =
         (snapshot.valid != 0) ? 0U : 1U;
     EQ_ServiceDynamicClarityRuntimeControl();
+#if EQ_ENABLE_DYNAMIC_CLARITY_TRANSITION_CAPTURE != 0
+    if (EQ_DebugDynamicClarityTransitionCaptureOverride == 0U)
+#endif
+    {
     (void)DynamicClarity_UpdateFromFeature(
         &EQ_DynamicClarityState, &snapshot);
+    }
     EQ_SyncDynamicClarityDebug();
 #endif
 }
@@ -1708,6 +1957,13 @@ static void EQ_CaptureAdcFrame(void)
 #endif
 #if EQ_ENABLE_DYNAMIC_CLARITY != 0
     unsigned long dynamic_clarity_cycles;
+#if EQ_ENABLE_DYNAMIC_CLARITY_TIMING_DIAGNOSTICS != 0
+    int dynamic_clarity_path;
+    int dynamic_clarity_active_level;
+    int dynamic_clarity_pending_level;
+    int dynamic_clarity_target_level;
+    int dynamic_clarity_transition_remaining;
+#endif
 #endif
 
     if (AD_Ping_Pong == AD_BUFFER_PONG)
@@ -1766,6 +2022,18 @@ static void EQ_CaptureAdcFrame(void)
     EQ_SyncSmartBassDebug();
 #endif
 #if EQ_ENABLE_DYNAMIC_CLARITY != 0
+#if EQ_ENABLE_DYNAMIC_CLARITY_TRANSITION_CAPTURE != 0
+    EQ_ServiceDynamicClarityTransitionCapture();
+#endif
+#if EQ_ENABLE_DYNAMIC_CLARITY_TIMING_DIAGNOSTICS != 0
+    dynamic_clarity_path =
+        EQ_ClassifyDynamicClarityPath(&EQ_DynamicClarityState);
+    dynamic_clarity_active_level = EQ_DynamicClarityState.active_level;
+    dynamic_clarity_pending_level = EQ_DynamicClarityState.pending_level;
+    dynamic_clarity_target_level = EQ_DynamicClarityState.target_level;
+    dynamic_clarity_transition_remaining =
+        EQ_DynamicClarityState.transition_remaining;
+#endif
 #if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
     dynamic_clarity_cycle_start = TSCL;
 #endif
@@ -1779,6 +2047,13 @@ static void EQ_CaptureAdcFrame(void)
     dynamic_clarity_cycles = 0UL;
 #endif
     EQ_UpdateDynamicClarityTiming(dynamic_clarity_cycles);
+#if EQ_ENABLE_DYNAMIC_CLARITY_TIMING_DIAGNOSTICS != 0
+    EQ_UpdateDynamicClarityPathTiming(
+        dynamic_clarity_path, dynamic_clarity_cycles,
+        dynamic_clarity_active_level, dynamic_clarity_pending_level,
+        dynamic_clarity_target_level,
+        dynamic_clarity_transition_remaining);
+#endif
     EQ_SyncDynamicClarityDebug();
 #endif
     mode_change_after = Equalizer_GetModeChangeCount(&EQ_BoardState);
@@ -1888,6 +2163,9 @@ void Equalizer_Flow_Example(void)
 #endif
 
     flag_ad_done = 0;
+#if EQ_ENABLE_DYNAMIC_CLARITY_BENCHMARK != 0
+    DynamicClarityBenchmark_Run();
+#endif
     EQ_DebugInitStage = 1UL;
     EQ_DebugFlagAdDone = 0U;
 #if EQ_ENABLE_LCD_DISPLAY != 0
@@ -1939,6 +2217,18 @@ void Equalizer_Flow_Example(void)
         DYNAMIC_CLARITY_STRENGTH_MEDIUM;
     EQ_DebugDynamicClarityLastCycles = 0UL;
     EQ_DebugDynamicClarityMaxCycles = 0UL;
+#if EQ_ENABLE_DYNAMIC_CLARITY_TRANSITION_CAPTURE != 0
+    EQ_DynamicClarityCapturePhase = 0U;
+    EQ_DynamicClarityCapturePrerollRemaining = 0U;
+    EQ_DebugDynamicClarityTransitionCaptureRequest = 0U;
+    EQ_DebugDynamicClarityTransitionCaptureActive = 0U;
+    EQ_DebugDynamicClarityTransitionCaptureDone = 0U;
+    EQ_DebugDynamicClarityTransitionCaptureOverride = 0U;
+    EQ_DebugDynamicClarityTransitionCaptureResult = 0;
+#endif
+#if EQ_ENABLE_DYNAMIC_CLARITY_TIMING_DIAGNOSTICS != 0
+    EQ_ResetDynamicClarityTimingDiagnostics();
+#endif
     EQ_SyncDynamicClarityDebug();
 #endif
     EQ_AppliedDiagPath = EQ_DIAG_PRESET;
