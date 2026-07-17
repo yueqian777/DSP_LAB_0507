@@ -161,3 +161,9 @@ The measured five-minute stability run is explicitly
 each boundary. A no-halt `CONTINUOUS_300S` rerun is not claimed and is deferred
 because it adds limited evidence after the segmented run and the separate
 18-second no-halt operator window.
+
+A short supplemental combined-transition stress run is also measured on
+eb2eb1f. It observed ten-band FLAT-to-BASS and BASS-to-VOCAL transitions
+overlapping Smart Bass adjacent-level transitions with every safety counter
+remaining zero. It is objective debugger-polled evidence, not a continuous or
+subjective audio-quality claim.

@@ -66,6 +66,14 @@
     "status": "DEFERRED_NOT_CLAIMED",
     "reason": "Limited incremental value after SEGMENTED_30X10S and a no-halt operator window"
   },
+  "supplemental_board_tests": [
+    {
+      "name": "COMBINED_TRANSITION_STRESS",
+      "status": "MEASURED_ON_CURRENT_BOARD",
+      "summary": "combined_transition_stress_summary.json",
+      "source_result_sha256": "16abd38b59aef466ccf26310b0ff51e7991c97cc5c4ff98b20407f401f3be47d"
+    }
+  ],
   "raw_artifacts_committed": false,
   "local_artifact_root": "%TEMP%/DSP_LAB_0507/smart_bass_v1/eb2eb1f",
   "local_artifact_hashes": "sha256_manifest.txt"

@@ -428,3 +428,25 @@ evidence is retained under
 `%TEMP%\DSP_LAB_0507\smart_bass_v1\eb2eb1f`. The A-G gate file is
 `hardware_gate_A_to_F.json`, and the G result directory is
 `board_G_formal_20260717_172449`.
+
+### 10.5 Combined transition stress
+
+A short supplemental run used the same exact eb2eb1f
+`Project33_SmartBass` output and the 97.65625 Hz integer-bin Bass stimulus.
+It started from FLAT with Smart Bass enabled at MEDIUM. The test submitted
+FLAT to BASS while the level 0 to 1 Smart Bass transition was active, then
+submitted BASS to VOCAL while the level 1 to 2 transition was active.
+
+Both overlap windows were directly observed: at process frame 187 the EQ
+transition target was BASS while Smart Bass transition-active was one, and at
+process frame 196 the EQ target was VOCAL while Smart Bass transition-active
+was one. The run settled in VOCAL with no EQ transition target, Smart Bass
+level 4, and no Smart Bass transition active.
+
+Maximum Analyzer, Smart Bass, algorithm, frame-service, and frame-latency
+counts were 299574, 437614, 1811815, 2248570, and 2248834 cycles. AD, DA, and
+process counts ended at 265, 264, and 264. Deadline, latency miss, overlap,
+dropped, clip, Smart Bass saturation, and Smart Bass nonfinite counters were
+all zero. This debugger-polled objective test is not used as listening
+evidence and is distinct from both `SEGMENTED_30X10S` and the deferred
+`CONTINUOUS_300S` run.
