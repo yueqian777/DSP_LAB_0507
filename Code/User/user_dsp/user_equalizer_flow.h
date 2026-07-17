@@ -17,9 +17,18 @@
 #define EQ_ENABLE_SMART_BASS 0
 #endif
 
+#ifndef EQ_ENABLE_DYNAMIC_CLARITY
+#define EQ_ENABLE_DYNAMIC_CLARITY 0
+#endif
+
 #if (EQ_ENABLE_SMART_BASS != 0) && \
     (EQ_ENABLE_AUDIO_FEATURE_ANALYZER == 0)
 #error Smart Bass requires the audio feature analyzer.
+#endif
+
+#if (EQ_ENABLE_DYNAMIC_CLARITY != 0) && \
+    (EQ_ENABLE_AUDIO_FEATURE_ANALYZER == 0)
+#error Dynamic Clarity requires the audio feature analyzer.
 #endif
 
 #define EQ_DIAG_RAW_COPY       0
@@ -168,6 +177,30 @@ extern volatile unsigned long EQ_DebugSmartBassMaxCycles;
 extern volatile unsigned long EQ_DebugSmartBassSaturationCount;
 extern volatile unsigned long EQ_DebugSmartBassNonFiniteCount;
 extern volatile int EQ_DebugSmartBassReason;
+extern volatile const unsigned int EQ_DebugDynamicClarityCompiled;
+extern volatile unsigned int EQ_DebugDynamicClarityEnabled;
+extern volatile int EQ_DebugDynamicClarityStrength;
+extern volatile unsigned int EQ_DebugDynamicClarityProcessingActive;
+extern volatile float EQ_DebugDynamicClarityMudDb;
+extern volatile float EQ_DebugDynamicClarityPresenceDb;
+extern volatile float EQ_DebugDynamicClarityMaskingDb;
+extern volatile float EQ_DebugDynamicClarityRmsDbfs;
+extern volatile int EQ_DebugDynamicClarityRequestedLevel;
+extern volatile int EQ_DebugDynamicClarityAppliedLevel;
+extern volatile int EQ_DebugDynamicClarityPendingLevel;
+extern volatile float EQ_DebugDynamicClarityRequestedGainDb;
+extern volatile float EQ_DebugDynamicClarityAppliedGainDb;
+extern volatile unsigned int EQ_DebugDynamicClarityTransitionActive;
+extern volatile float EQ_DebugDynamicClarityTransitionProgress;
+extern volatile int EQ_DebugDynamicClarityReason;
+extern volatile unsigned long EQ_DebugDynamicClarityDecisionCount;
+extern volatile unsigned long EQ_DebugDynamicClarityLevelChangeCount;
+extern volatile unsigned long EQ_DebugDynamicClarityTransitionCount;
+extern volatile unsigned long EQ_DebugDynamicClarityInvalidReleaseCount;
+extern volatile unsigned long EQ_DebugDynamicClarityLastCycles;
+extern volatile unsigned long EQ_DebugDynamicClarityMaxCycles;
+extern volatile unsigned long EQ_DebugDynamicClaritySaturationCount;
+extern volatile unsigned long EQ_DebugDynamicClarityNonFiniteCount;
 extern volatile unsigned int EQ_DebugUartFeatureRequest;
 extern volatile unsigned long EQ_DebugUartFeatureDeadlineDelta;
 extern volatile unsigned long EQ_DebugUartFeatureLatencyMissDelta;

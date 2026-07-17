@@ -15,6 +15,7 @@
 #define EQ_EPS 1.0e-20f
 #define EQ_Q_FACTOR 3.0f
 #define EQ_RBJ_BANDWIDTH_OCTAVES 1.0f
+#define EQ_RBJ_MAX_BANDWIDTH_OCTAVES 8.0f
 #define EQ_RBJ_SHELF_SLOPE 1.0f
 
 typedef struct
@@ -284,12 +285,12 @@ static int EQ_BiquadIsStable(const EQ_BIQUAD *c)
     return ((r1 < 1.0f) && (r2 < 1.0f));
 }
 
-static void EQ_NormalizeBiquad(EQ_BIQUAD *c, float a0)
+static int EQ_NormalizeBiquad(EQ_BIQUAD *c, float a0)
 {
     if ((EQ_IsFinite(a0) == 0) || (EQ_Abs(a0) < EQ_EPS))
     {
         EQ_SetIdentity(c);
-        return;
+        return 0;
     }
 
     c->b0 /= a0;
@@ -300,10 +301,15 @@ static void EQ_NormalizeBiquad(EQ_BIQUAD *c, float a0)
     if ((EQ_BiquadIsFinite(c) == 0) || (EQ_BiquadIsStable(c) == 0))
     {
         EQ_SetIdentity(c);
+        return 0;
     }
+    return 1;
 }
 
-static void EQ_DesignRbjPeaking(EQ_BIQUAD *c, float f0_hz, float gain_db)
+static int EQ_DesignRbjPeakingWithBandwidth(EQ_BIQUAD *c,
+                                            float f0_hz,
+                                            float gain_db,
+                                            float bandwidth_octaves)
 {
     float a;
     float w0;
@@ -315,7 +321,7 @@ static void EQ_DesignRbjPeaking(EQ_BIQUAD *c, float f0_hz, float gain_db)
     if (EQ_Abs(gain_db) < 1.0e-7f)
     {
         EQ_SetIdentity(c);
-        return;
+        return 1;
     }
 
     a = powf(10.0f, gain_db / 40.0f);
@@ -325,17 +331,17 @@ static void EQ_DesignRbjPeaking(EQ_BIQUAD *c, float f0_hz, float gain_db)
     if (EQ_Abs(sin_w0) < EQ_EPS)
     {
         EQ_SetIdentity(c);
-        return;
+        return 0;
     }
     alpha = sin_w0 * sinhf((EQ_LN2 * 0.5f) *
-                           EQ_RBJ_BANDWIDTH_OCTAVES * w0 / sin_w0);
+                           bandwidth_octaves * w0 / sin_w0);
     c->b0 = 1.0f + alpha * a;
     c->b1 = -2.0f * cos_w0;
     c->b2 = 1.0f - alpha * a;
     a0 = 1.0f + alpha / a;
     c->a1 = -2.0f * cos_w0;
     c->a2 = 1.0f - alpha / a;
-    EQ_NormalizeBiquad(c, a0);
+    return EQ_NormalizeBiquad(c, a0);
 }
 
 static void EQ_DesignRbjShelf(EQ_BIQUAD *c, float f0_hz, float gain_db,
@@ -382,7 +388,13 @@ static void EQ_DesignRbjShelf(EQ_BIQUAD *c, float f0_hz, float gain_db,
         c->a1 = 2.0f * ((a - 1.0f) - (a + 1.0f) * cos_w0);
         c->a2 = (a + 1.0f) - (a - 1.0f) * cos_w0 - two_sqrt_a_alpha;
     }
-    EQ_NormalizeBiquad(c, a0);
+    (void)EQ_NormalizeBiquad(c, a0);
+}
+
+static void EQ_DesignRbjPeaking(EQ_BIQUAD *c, float f0_hz, float gain_db)
+{
+    (void)EQ_DesignRbjPeakingWithBandwidth(
+        c, f0_hz, gain_db, EQ_RBJ_BANDWIDTH_OCTAVES);
 }
 
 int Equalizer_DesignRbjLowShelfAt(EQ_BIQUAD *section_out,
@@ -403,6 +415,32 @@ int Equalizer_DesignRbjLowShelfAt(EQ_BIQUAD *section_out,
 
     EQ_DesignRbjShelf(section_out, frequency_hz, gain_db, 0,
                       shelf_slope);
+    return ((EQ_BiquadIsFinite(section_out) != 0) &&
+            (EQ_BiquadIsStable(section_out) != 0)) ? 1 : 0;
+}
+
+int Equalizer_DesignRbjPeakingAt(EQ_BIQUAD *section_out,
+                                 float frequency_hz,
+                                 float gain_db,
+                                 float bandwidth_octaves)
+{
+    if ((section_out == 0) || (EQ_IsFinite(frequency_hz) == 0) ||
+        (EQ_IsFinite(gain_db) == 0) ||
+        (EQ_IsFinite(bandwidth_octaves) == 0) ||
+        (frequency_hz <= 0.0f) ||
+        (frequency_hz >= (EQ_SAMPLE_RATE * 0.5f)) ||
+        (gain_db < EQ_GAIN_MIN_DB) || (gain_db > EQ_GAIN_MAX_DB) ||
+        (bandwidth_octaves <= 0.0f) ||
+        (bandwidth_octaves > EQ_RBJ_MAX_BANDWIDTH_OCTAVES))
+    {
+        return 0;
+    }
+
+    if (!EQ_DesignRbjPeakingWithBandwidth(
+            section_out, frequency_hz, gain_db, bandwidth_octaves))
+    {
+        return 0;
+    }
     return ((EQ_BiquadIsFinite(section_out) != 0) &&
             (EQ_BiquadIsStable(section_out) != 0)) ? 1 : 0;
 }

@@ -220,6 +220,10 @@ int Equalizer_DesignRbjLowShelfAt(EQ_BIQUAD *section_out,
                                   float frequency_hz,
                                   float gain_db,
                                   float shelf_slope);
+int Equalizer_DesignRbjPeakingAt(EQ_BIQUAD *section_out,
+                                 float frequency_hz,
+                                 float gain_db,
+                                 float bandwidth_octaves);
 int Equalizer_GetBiquadResponseComplex(const EQ_BIQUAD *section,
                                        float frequency_hz,
                                        double *real_out,

@@ -10,6 +10,7 @@
 #include "user_audio_feature_analyzer.h"
 #endif
 #include "user_smart_bass.h"
+#include "user_dynamic_clarity.h"
 #include "user_equalizer_display.h"
 #include "user_equalizer_response.h"
 #include "equalizer_build_id.h"
@@ -54,6 +55,9 @@ static short EQ_DA_Buffer1[DAC_SAMPLE_1024];
 #if EQ_ENABLE_SMART_BASS != 0
 #pragma DATA_SECTION(EQ_SmartBassState, ".subband_l2")
 #endif
+#if EQ_ENABLE_DYNAMIC_CLARITY != 0
+#pragma DATA_SECTION(EQ_DynamicClarityState, ".subband_l2")
+#endif
 #endif
 static EQ_STATE EQ_BoardState;
 #if EQ_ENABLE_AUDIO_FEATURE_ANALYZER != 0
@@ -63,6 +67,10 @@ static short EQ_AnalyzerInput[AUDIO_FEATURE_FRAME_LEN];
 #if EQ_ENABLE_SMART_BASS != 0
 static SMART_BASS_STATE EQ_SmartBassState;
 static unsigned int EQ_SmartBassAnalyzerFault = 1U;
+#endif
+#if EQ_ENABLE_DYNAMIC_CLARITY != 0
+static DYNAMIC_CLARITY_STATE EQ_DynamicClarityState;
+static unsigned int EQ_DynamicClarityAnalyzerFault = 1U;
 #endif
 static EQ_CONTROL_STATE EQ_BoardControl;
 static EQ_BACKGROUND_SERVICE_STATE EQ_BackgroundService;
@@ -361,6 +369,33 @@ volatile unsigned long EQ_DebugSmartBassMaxCycles = 0UL;
 volatile unsigned long EQ_DebugSmartBassSaturationCount = 0UL;
 volatile unsigned long EQ_DebugSmartBassNonFiniteCount = 0UL;
 volatile int EQ_DebugSmartBassReason = SMART_BASS_REASON_DISABLED;
+volatile const unsigned int EQ_DebugDynamicClarityCompiled =
+    EQ_ENABLE_DYNAMIC_CLARITY;
+volatile unsigned int EQ_DebugDynamicClarityEnabled = 0U;
+volatile int EQ_DebugDynamicClarityStrength =
+    DYNAMIC_CLARITY_STRENGTH_MEDIUM;
+volatile unsigned int EQ_DebugDynamicClarityProcessingActive = 0U;
+volatile float EQ_DebugDynamicClarityMudDb = 0.0f;
+volatile float EQ_DebugDynamicClarityPresenceDb = 0.0f;
+volatile float EQ_DebugDynamicClarityMaskingDb = 0.0f;
+volatile float EQ_DebugDynamicClarityRmsDbfs = -240.0f;
+volatile int EQ_DebugDynamicClarityRequestedLevel = 0;
+volatile int EQ_DebugDynamicClarityAppliedLevel = 0;
+volatile int EQ_DebugDynamicClarityPendingLevel = 0;
+volatile float EQ_DebugDynamicClarityRequestedGainDb = 0.0f;
+volatile float EQ_DebugDynamicClarityAppliedGainDb = 0.0f;
+volatile unsigned int EQ_DebugDynamicClarityTransitionActive = 0U;
+volatile float EQ_DebugDynamicClarityTransitionProgress = 0.0f;
+volatile int EQ_DebugDynamicClarityReason =
+    DYNAMIC_CLARITY_REASON_DISABLED;
+volatile unsigned long EQ_DebugDynamicClarityDecisionCount = 0UL;
+volatile unsigned long EQ_DebugDynamicClarityLevelChangeCount = 0UL;
+volatile unsigned long EQ_DebugDynamicClarityTransitionCount = 0UL;
+volatile unsigned long EQ_DebugDynamicClarityInvalidReleaseCount = 0UL;
+volatile unsigned long EQ_DebugDynamicClarityLastCycles = 0UL;
+volatile unsigned long EQ_DebugDynamicClarityMaxCycles = 0UL;
+volatile unsigned long EQ_DebugDynamicClaritySaturationCount = 0UL;
+volatile unsigned long EQ_DebugDynamicClarityNonFiniteCount = 0UL;
 volatile unsigned int EQ_DebugUartFeatureRequest = 0U;
 volatile unsigned long EQ_DebugUartFeatureDeadlineDelta = 0UL;
 volatile unsigned long EQ_DebugUartFeatureLatencyMissDelta = 0UL;
@@ -1399,6 +1434,89 @@ static void EQ_UpdateSmartBassTiming(unsigned long cycles)
 }
 #endif
 
+#if EQ_ENABLE_DYNAMIC_CLARITY != 0
+static void EQ_SyncDynamicClarityDebug(void)
+{
+    EQ_DebugDynamicClarityProcessingActive =
+        (unsigned int)EQ_DynamicClarityState.processing_active;
+    EQ_DebugDynamicClarityMudDb =
+        EQ_DynamicClarityState.latest_mud_relative_db;
+    EQ_DebugDynamicClarityPresenceDb =
+        EQ_DynamicClarityState.latest_presence_relative_db;
+    EQ_DebugDynamicClarityMaskingDb =
+        EQ_DynamicClarityState.latest_masking_db;
+    EQ_DebugDynamicClarityRmsDbfs =
+        EQ_DynamicClarityState.latest_rms_dbfs;
+    EQ_DebugDynamicClarityRequestedLevel =
+        EQ_DynamicClarityState.target_level;
+    EQ_DebugDynamicClarityAppliedLevel =
+        EQ_DynamicClarityState.active_level;
+    EQ_DebugDynamicClarityPendingLevel =
+        EQ_DynamicClarityState.pending_level;
+    EQ_DebugDynamicClarityRequestedGainDb =
+        DynamicClarity_GetRequestedGainDb(&EQ_DynamicClarityState);
+    EQ_DebugDynamicClarityAppliedGainDb =
+        DynamicClarity_GetAppliedGainDb(&EQ_DynamicClarityState);
+    EQ_DebugDynamicClarityTransitionActive =
+        (unsigned int)EQ_DynamicClarityState.transition_active;
+    EQ_DebugDynamicClarityTransitionProgress =
+        DynamicClarity_GetTransitionProgress(&EQ_DynamicClarityState);
+    EQ_DebugDynamicClarityReason =
+        DynamicClarity_GetReason(&EQ_DynamicClarityState);
+    EQ_DebugDynamicClarityDecisionCount =
+        EQ_DynamicClarityState.decision_count;
+    EQ_DebugDynamicClarityLevelChangeCount =
+        EQ_DynamicClarityState.level_change_count;
+    EQ_DebugDynamicClarityTransitionCount =
+        EQ_DynamicClarityState.transition_count;
+    EQ_DebugDynamicClarityInvalidReleaseCount =
+        EQ_DynamicClarityState.invalid_release_count;
+    EQ_DebugDynamicClaritySaturationCount =
+        EQ_DynamicClarityState.saturation_count;
+    EQ_DebugDynamicClarityNonFiniteCount =
+        EQ_DynamicClarityState.nonfinite_count;
+}
+
+static void EQ_ServiceDynamicClarityRuntimeControl(void)
+{
+    int requested_enabled;
+
+    EQ_DebugDynamicClarityEnabled =
+        (EQ_DebugDynamicClarityEnabled != 0U) ? 1U : 0U;
+    (void)DynamicClarity_SetStrength(
+        &EQ_DynamicClarityState, EQ_DebugDynamicClarityStrength);
+    EQ_DebugDynamicClarityStrength = EQ_DynamicClarityState.strength;
+    requested_enabled =
+        ((EQ_DebugDynamicClarityEnabled != 0U) &&
+         (EQ_DebugAnalyzerEnabled != 0U) &&
+         (EQ_AnalyzerLastEnabled != 0U) &&
+         (EQ_DynamicClarityAnalyzerFault == 0U)) ? 1 : 0;
+    (void)DynamicClarity_SetEnabled(
+        &EQ_DynamicClarityState, requested_enabled);
+}
+
+static void EQ_MarkDynamicClarityAnalyzerUnavailable(void)
+{
+    EQ_DynamicClarityAnalyzerFault = 1U;
+    if (EQ_DynamicClarityState.initialized != 0)
+    {
+        DynamicClarity_InvalidateAnalysisEpoch(
+            &EQ_DynamicClarityState);
+        (void)DynamicClarity_SetEnabled(&EQ_DynamicClarityState, 0);
+        EQ_SyncDynamicClarityDebug();
+    }
+}
+
+static void EQ_UpdateDynamicClarityTiming(unsigned long cycles)
+{
+    EQ_DebugDynamicClarityLastCycles = cycles;
+    if (cycles > EQ_DebugDynamicClarityMaxCycles)
+    {
+        EQ_DebugDynamicClarityMaxCycles = cycles;
+    }
+}
+#endif
+
 #if EQ_ENABLE_AUDIO_FEATURE_ANALYZER != 0
 static void EQ_ClearPublishedAnalyzerState(void)
 {
@@ -1418,6 +1536,9 @@ static void EQ_ClearPublishedAnalyzerState(void)
     EQ_SyncUartFeatureAuditDebug();
 #if EQ_ENABLE_SMART_BASS != 0
     EQ_MarkSmartBassAnalyzerUnavailable();
+#endif
+#if EQ_ENABLE_DYNAMIC_CLARITY != 0
+    EQ_MarkDynamicClarityAnalyzerUnavailable();
 #endif
 }
 
@@ -1513,6 +1634,14 @@ static void EQ_PublishAnalyzerSnapshot(void)
     (void)SmartBass_UpdateFromFeature(&EQ_SmartBassState, &snapshot);
     EQ_SyncSmartBassDebug();
 #endif
+#if EQ_ENABLE_DYNAMIC_CLARITY != 0
+    EQ_DynamicClarityAnalyzerFault =
+        (snapshot.valid != 0) ? 0U : 1U;
+    EQ_ServiceDynamicClarityRuntimeControl();
+    (void)DynamicClarity_UpdateFromFeature(
+        &EQ_DynamicClarityState, &snapshot);
+    EQ_SyncDynamicClarityDebug();
+#endif
 }
 
 static int EQ_ServiceAnalyzer(void)
@@ -1551,6 +1680,9 @@ static int EQ_ServiceAnalyzer(void)
 #if EQ_ENABLE_SMART_BASS != 0
         EQ_MarkSmartBassAnalyzerUnavailable();
 #endif
+#if EQ_ENABLE_DYNAMIC_CLARITY != 0
+        EQ_MarkDynamicClarityAnalyzerUnavailable();
+#endif
     }
     return result;
 }
@@ -1567,9 +1699,15 @@ static void EQ_CaptureAdcFrame(void)
 #if EQ_ENABLE_SMART_BASS != 0
     unsigned int smart_bass_cycle_start;
 #endif
+#if EQ_ENABLE_DYNAMIC_CLARITY != 0
+    unsigned int dynamic_clarity_cycle_start;
+#endif
 #endif
 #if EQ_ENABLE_SMART_BASS != 0
     unsigned long smart_bass_cycles;
+#endif
+#if EQ_ENABLE_DYNAMIC_CLARITY != 0
+    unsigned long dynamic_clarity_cycles;
 #endif
 
     if (AD_Ping_Pong == AD_BUFFER_PONG)
@@ -1605,6 +1743,9 @@ static void EQ_CaptureAdcFrame(void)
 #if EQ_ENABLE_SMART_BASS != 0
     EQ_ServiceSmartBassRuntimeControl();
 #endif
+#if EQ_ENABLE_DYNAMIC_CLARITY != 0
+    EQ_ServiceDynamicClarityRuntimeControl();
+#endif
     mode_change_before = Equalizer_GetModeChangeCount(&EQ_BoardState);
     Equalizer_ProcessFrame(&EQ_BoardState, EQ_AD_Buffer1, EQ_DA_Buffer1,
                            ADC_SAMPLE_1024);
@@ -1623,6 +1764,22 @@ static void EQ_CaptureAdcFrame(void)
 #endif
     EQ_UpdateSmartBassTiming(smart_bass_cycles);
     EQ_SyncSmartBassDebug();
+#endif
+#if EQ_ENABLE_DYNAMIC_CLARITY != 0
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+    dynamic_clarity_cycle_start = TSCL;
+#endif
+    (void)DynamicClarity_ProcessFrame(
+        &EQ_DynamicClarityState, EQ_DA_Buffer1, EQ_DA_Buffer1,
+        ADC_SAMPLE_1024);
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+    dynamic_clarity_cycles =
+        (unsigned long)(TSCL - dynamic_clarity_cycle_start);
+#else
+    dynamic_clarity_cycles = 0UL;
+#endif
+    EQ_UpdateDynamicClarityTiming(dynamic_clarity_cycles);
+    EQ_SyncDynamicClarityDebug();
 #endif
     mode_change_after = Equalizer_GetModeChangeCount(&EQ_BoardState);
     EQ_DebugProcessFrames++;
@@ -1773,6 +1930,16 @@ void Equalizer_Flow_Example(void)
     EQ_DebugSmartBassLastCycles = 0UL;
     EQ_DebugSmartBassMaxCycles = 0UL;
     EQ_SyncSmartBassDebug();
+#endif
+#if EQ_ENABLE_DYNAMIC_CLARITY != 0
+    DynamicClarity_Init(&EQ_DynamicClarityState);
+    EQ_DynamicClarityAnalyzerFault = 1U;
+    EQ_DebugDynamicClarityEnabled = 0U;
+    EQ_DebugDynamicClarityStrength =
+        DYNAMIC_CLARITY_STRENGTH_MEDIUM;
+    EQ_DebugDynamicClarityLastCycles = 0UL;
+    EQ_DebugDynamicClarityMaxCycles = 0UL;
+    EQ_SyncDynamicClarityDebug();
 #endif
     EQ_AppliedDiagPath = EQ_DIAG_PRESET;
     EQ_LastServicedMode = EQ_PRESET_FLAT;
