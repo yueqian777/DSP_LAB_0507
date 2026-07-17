@@ -82,6 +82,14 @@ class EqualizerAudioFeatureTest(unittest.TestCase):
             return float(match.group(1))
 
         self.assertEqual(metric("silence_valid"), 0.0)
+        self.assertAlmostEqual(metric("tone_bass_hz"), 97.65625, delta=0.001)
+        self.assertAlmostEqual(metric("tone_mud_hz"), 390.625, delta=0.001)
+        self.assertAlmostEqual(
+            metric("tone_presence_hz"), 1953.125, delta=0.001
+        )
+        self.assertAlmostEqual(
+            metric("tone_brightness_hz"), 8007.8125, delta=0.001
+        )
         self.assertGreaterEqual(metric("tone_dominance_min_db"), 12.0)
         self.assertAlmostEqual(metric("bass_boost_db"), 12.041, delta=0.01)
         self.assertAlmostEqual(metric("rms_delta_db"), 6.0206, delta=0.15)
@@ -96,6 +104,11 @@ class EqualizerAudioFeatureTest(unittest.TestCase):
         self.assertRegex(
             result.stdout,
             r"cadence_updates=10\s+cadence_frames=80\s+cadence_period=8",
+        )
+        self.assertRegex(
+            result.stdout,
+            r"split_due=10\s+split_analyses=10\s+split_frames=80\s+"
+            r"split_skipped=70",
         )
         self.assertRegex(result.stdout, r"failures=0(?:\s|$)")
 

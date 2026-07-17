@@ -73,6 +73,11 @@ int AudioFeatureAnalyzer_SetPeriod(AUDIO_FEATURE_ANALYZER *state,
 int AudioFeatureAnalyzer_SetSmoothing(AUDIO_FEATURE_ANALYZER *state,
                                       float attack_alpha,
                                       float release_alpha);
+int AudioFeatureAnalyzer_ObserveFrame(AUDIO_FEATURE_ANALYZER *state);
+int AudioFeatureAnalyzer_AnalyzeObservedFrame(
+    AUDIO_FEATURE_ANALYZER *state,
+    const short *input,
+    int sample_count);
 int AudioFeatureAnalyzer_ProcessFrame(AUDIO_FEATURE_ANALYZER *state,
                                       const short *input,
                                       int sample_count);

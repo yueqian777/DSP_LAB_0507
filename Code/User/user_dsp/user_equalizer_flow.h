@@ -42,6 +42,8 @@
 #define EQ_BACKGROUND_NONE          0
 #define EQ_BACKGROUND_BUILDER       1
 #define EQ_BACKGROUND_LCD           2
+#define EQ_BACKGROUND_ANALYZER      3
+#define EQ_BACKGROUND_UART          4
 
 typedef struct
 {
@@ -90,6 +92,28 @@ extern volatile unsigned long EQ_DebugDeadlineMissCount;
 extern volatile unsigned long EQ_DebugFrameLatencyDeadlineMissCount;
 extern volatile unsigned long EQ_DebugFrameServiceOverlapCount;
 extern volatile unsigned long EQ_DebugFrameServiceDroppedCount;
+extern volatile unsigned int EQ_DebugAnalyzerEnabled;
+extern volatile unsigned int EQ_DebugAnalyzerPending;
+extern volatile unsigned int EQ_DebugAnalyzerValid;
+extern volatile unsigned int EQ_DebugAnalyzerWarmup;
+extern volatile unsigned long EQ_DebugAnalyzerRunCount;
+extern volatile unsigned long EQ_DebugAnalyzerAnalysisCount;
+extern volatile unsigned long EQ_DebugAnalyzerDeferredCount;
+extern volatile unsigned long EQ_DebugAnalyzerPendingOverwriteCount;
+extern volatile unsigned long EQ_DebugAnalyzerAudioArrivedCount;
+extern volatile unsigned long EQ_DebugAnalyzerLastCycles;
+extern volatile unsigned long EQ_DebugAnalyzerMaxCycles;
+extern volatile float EQ_DebugAnalyzerPeakDbfs;
+extern volatile float EQ_DebugAnalyzerRmsDbfs;
+extern volatile float EQ_DebugAnalyzerBassDb;
+extern volatile float EQ_DebugAnalyzerMudDb;
+extern volatile float EQ_DebugAnalyzerPresenceDb;
+extern volatile float EQ_DebugAnalyzerBrightnessDb;
+extern volatile unsigned int EQ_DebugUartFeatureRequest;
+extern volatile unsigned long EQ_DebugUartFeatureDeadlineDelta;
+extern volatile unsigned long EQ_DebugUartFeatureLatencyMissDelta;
+extern volatile unsigned long EQ_DebugUartFeatureOverlapDelta;
+extern volatile unsigned long EQ_DebugUartFeatureDroppedDelta;
 extern volatile int EQ_DebugMode;
 extern volatile int EQ_DebugDiagPath;
 extern volatile int EQ_DebugRequestedMode;
@@ -213,6 +237,14 @@ int EqualizerBackgroundService_IsAudioSafeFinalCheck(
     int final_flag_da,
     int final_flag_ad_done,
     int final_frame_service_pending);
+int EqualizerAnalyzer_CanService(
+    int final_flag_ad,
+    int final_flag_da,
+    int final_flag_ad_done,
+    int final_frame_service_pending,
+    int builder_eligible,
+    int analyzer_enabled,
+    int analyzer_pending);
 int EqualizerBackgroundService_Decide(
     const EQ_BACKGROUND_SERVICE_STATE *state,
     unsigned long processed_frame,
@@ -221,6 +253,8 @@ int EqualizerBackgroundService_Decide(
     int final_flag_ad_done,
     int final_frame_service_pending,
     int builder_eligible,
+    int analyzer_eligible,
+    int uart_eligible,
     int lcd_eligible);
 void EqualizerBackgroundService_Record(
     EQ_BACKGROUND_SERVICE_STATE *state,

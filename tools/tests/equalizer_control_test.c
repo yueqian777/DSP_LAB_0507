@@ -316,39 +316,48 @@ static void test_background_budget(void)
 {
     EQ_BACKGROUND_SERVICE_STATE state;
 
+    CHECK(EqualizerAnalyzer_CanService(0, 0, 0, 0, 0, 1, 1));
+    CHECK(!EqualizerAnalyzer_CanService(1, 0, 0, 0, 0, 1, 1));
+    CHECK(!EqualizerAnalyzer_CanService(0, 1, 0, 0, 0, 1, 1));
+    CHECK(!EqualizerAnalyzer_CanService(0, 0, 1, 0, 0, 1, 1));
+    CHECK(!EqualizerAnalyzer_CanService(0, 0, 0, 1, 0, 1, 1));
+    CHECK(!EqualizerAnalyzer_CanService(0, 0, 0, 0, 1, 1, 1));
+    CHECK(!EqualizerAnalyzer_CanService(0, 0, 0, 0, 0, 0, 1));
+    CHECK(!EqualizerAnalyzer_CanService(0, 0, 0, 0, 0, 1, 0));
+
     EqualizerBackgroundService_Init(&state);
     CHECK(EqualizerBackgroundService_Decide(
-        &state, 0UL, 0, 0, 0, 0, 1, 1) ==
+        &state, 0UL, 0, 0, 0, 0, 1, 1, 1, 1) ==
           EQ_BACKGROUND_BUILDER);
     EqualizerBackgroundService_Record(
         &state, 0UL, EQ_BACKGROUND_BUILDER);
     CHECK(EqualizerBackgroundService_Decide(
-        &state, 0UL, 0, 0, 0, 0, 1, 1) ==
+        &state, 0UL, 0, 0, 0, 0, 1, 1, 1, 1) ==
           EQ_BACKGROUND_NONE);
     CHECK(EqualizerBackgroundService_Decide(
-        &state, 1UL, 0, 0, 0, 0, 1, 1) ==
-          EQ_BACKGROUND_LCD);
-    EqualizerBackgroundService_Record(&state, 1UL, EQ_BACKGROUND_LCD);
-    CHECK(EqualizerBackgroundService_Decide(
-        &state, 2UL, 0, 0, 0, 0, 1, 1) ==
+        &state, 1UL, 0, 0, 0, 0, 1, 1, 1, 1) ==
           EQ_BACKGROUND_BUILDER);
+    EqualizerBackgroundService_Record(&state, 1UL, EQ_BACKGROUND_BUILDER);
     CHECK(EqualizerBackgroundService_Decide(
-        &state, 2UL, 0, 0, 0, 0, 0, 1) ==
+        &state, 2UL, 0, 0, 0, 0, 0, 1, 1, 1) ==
+          EQ_BACKGROUND_ANALYZER);
+    CHECK(EqualizerBackgroundService_Decide(
+        &state, 2UL, 0, 0, 0, 0, 0, 0, 1, 1) ==
+          EQ_BACKGROUND_UART);
+    CHECK(EqualizerBackgroundService_Decide(
+        &state, 2UL, 0, 0, 0, 0, 0, 0, 0, 1) ==
           EQ_BACKGROUND_LCD);
     CHECK(EqualizerBackgroundService_Decide(
-        &state, 2UL, 0, 0, 0, 0, 1, 0) ==
-          EQ_BACKGROUND_BUILDER);
-    CHECK(EqualizerBackgroundService_Decide(
-        &state, 3UL, 1, 0, 0, 0, 1, 1) ==
+        &state, 3UL, 1, 0, 0, 0, 1, 1, 1, 1) ==
           EQ_BACKGROUND_NONE);
     CHECK(EqualizerBackgroundService_Decide(
-        &state, 3UL, 0, 1, 0, 0, 1, 1) ==
+        &state, 3UL, 0, 1, 0, 0, 1, 1, 1, 1) ==
           EQ_BACKGROUND_NONE);
     CHECK(EqualizerBackgroundService_Decide(
-        &state, 3UL, 0, 0, 1, 0, 1, 1) ==
+        &state, 3UL, 0, 0, 1, 0, 1, 1, 1, 1) ==
           EQ_BACKGROUND_NONE);
     CHECK(EqualizerBackgroundService_Decide(
-        &state, 3UL, 0, 0, 0, 1, 1, 1) ==
+        &state, 3UL, 0, 0, 0, 1, 1, 1, 1, 1) ==
           EQ_BACKGROUND_NONE);
     CHECK(state.consumed_frame == 1UL);
 }

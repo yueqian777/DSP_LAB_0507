@@ -157,9 +157,27 @@ int AudioFeatureAnalyzer_SetSmoothing(AUDIO_FEATURE_ANALYZER *state,
     return 1;
 }
 
-int AudioFeatureAnalyzer_ProcessFrame(AUDIO_FEATURE_ANALYZER *state,
-                                      const short *input,
-                                      int sample_count)
+int AudioFeatureAnalyzer_ObserveFrame(AUDIO_FEATURE_ANALYZER *state)
+{
+    if ((state == 0) || (state->initialized == 0) ||
+        (state->period_frames == 0U))
+    {
+        return -1;
+    }
+
+    state->input_frame_count++;
+    if ((state->input_frame_count % state->period_frames) != 0UL)
+    {
+        state->skipped_frame_count++;
+        return 0;
+    }
+    return 1;
+}
+
+int AudioFeatureAnalyzer_AnalyzeObservedFrame(
+    AUDIO_FEATURE_ANALYZER *state,
+    const short *input,
+    int sample_count)
 {
     int index;
     int band;
@@ -174,18 +192,10 @@ int AudioFeatureAnalyzer_ProcessFrame(AUDIO_FEATURE_ANALYZER *state,
 
     if ((state == 0) || (input == 0) ||
         (sample_count != AUDIO_FEATURE_FRAME_LEN) ||
-        (state->initialized == 0) || (state->period_frames == 0U))
+        (state->initialized == 0))
     {
         return -1;
     }
-
-    state->input_frame_count++;
-    if ((state->input_frame_count % state->period_frames) != 0UL)
-    {
-        state->skipped_frame_count++;
-        return 0;
-    }
-    state->analysis_count++;
 
     mean = 0.0f;
     for (index = 0; index < AUDIO_FEATURE_FRAME_LEN; index++)
@@ -221,6 +231,7 @@ int AudioFeatureAnalyzer_ProcessFrame(AUDIO_FEATURE_ANALYZER *state,
     {
         return -2;
     }
+    state->analysis_count++;
     for (band = 0; band < AUDIO_FEATURE_NUM_BANDS; band++)
     {
         band_power[band] = 0.0f;
@@ -286,6 +297,28 @@ int AudioFeatureAnalyzer_ProcessFrame(AUDIO_FEATURE_ANALYZER *state,
         }
     }
     return 1;
+}
+
+int AudioFeatureAnalyzer_ProcessFrame(AUDIO_FEATURE_ANALYZER *state,
+                                      const short *input,
+                                      int sample_count)
+{
+    int cadence_result;
+
+    if ((state == 0) || (input == 0) ||
+        (sample_count != AUDIO_FEATURE_FRAME_LEN) ||
+        (state->initialized == 0) || (state->period_frames == 0U))
+    {
+        return -1;
+    }
+
+    cadence_result = AudioFeatureAnalyzer_ObserveFrame(state);
+    if (cadence_result <= 0)
+    {
+        return cadence_result;
+    }
+    return AudioFeatureAnalyzer_AnalyzeObservedFrame(
+        state, input, sample_count);
 }
 
 void AudioFeatureAnalyzer_GetSnapshot(const AUDIO_FEATURE_ANALYZER *state,

@@ -8,7 +8,9 @@ The module has no ADC, DAC, UART, LCD, Touch, equalizer, control mailbox, or
 builder dependency. It cannot modify the audio path.
 
 The default cadence is one analysis per eight input frames. The caller owns
-the analyzer state and decides when background execution is safe.
+the analyzer state and decides when background execution is safe. Project 3.3
+starts with `EQ_DebugAnalyzerEnabled=0`; only an explicit CCS Watch write can
+enable capture and analysis.
 
 ## Signal Processing
 
@@ -69,17 +71,56 @@ Projects 3.2 and 3.3 call the same `user_spectral_fft` butterfly and twiddle
 implementation. The common module owns no mutable state. Project 3.2 retains
 its private 512-point WOLA history and scratch arrays; this analyzer retains
 separate 1024-point arrays. A frozen legacy-kernel host regression requires
-bit-exact 512-point twiddles and FFT output before the extraction is accepted.
+bit-exact 512-point twiddles, FFT output, and 12 consecutive 50%-overlap WOLA
+output hops before the extraction is accepted.
 
-The current Project 3.3 LCD-OFF map has 0x3FBD0 bytes free in `DSPL2RAM`, so a
-future Project 3.3 integration may place one analyzer state in
-`.subband_l2`. Project 3.2 has a different L2 footprint; its WOLA state is not
-reused or resized by this module.
+The integrated Project 3.3 LCD-OFF map uses `0x4C98` bytes in `DSPL2RAM` and
+leaves `0x3B368` bytes free. Its analyzer state and one 1024-sample pending
+PCM snapshot are placed in `.subband_l2`. Project 3.2 has a different L2
+footprint; its WOLA state is not reused or resized by this module.
+
+## Board Scheduling
+
+`EQ_CaptureAdcFrame` copies the current CH1 input to `EQ_AD_Buffer1`, observes
+the cadence, and copies a due frame to the analyzer snapshot. It never runs an
+FFT. If a due snapshot is already pending, the newest snapshot replaces it and
+`EQ_DebugAnalyzerPendingOverwriteCount` increments.
+
+Heavy analysis is a shared-budget background payload. The fixed priority is:
+
+1. audio AD/DA frame service;
+2. EQ control/install;
+3. one custom-builder slice;
+4. one analyzer FFT;
+5. one explicitly requested UART feature line;
+6. one LCD job.
+
+The analyzer branch rechecks `FLAG_AD`, `FLAG_DA`, `flag_ad_done`, and
+`EQ_FrameServicePending` immediately before execution. Builder eligibility
+must also be zero. Audio arrival during the FFT is recorded, and the loop
+returns directly to the audio checks after the analyzer payload.
+
+The optional UART line is emitted only when
+`EQ_DebugUartFeatureRequest=1`, a valid analyzer snapshot exists, and audio and
+builder work are idle. It uses one bounded, integer-only line shorter than 72
+bytes:
+
+```text
+P33 FEAT,<seq>,<rms_x10>,<bass_x10>,<mud_x10>,<presence_x10>,<brightness_x10>
+```
+
+The request clears after one line. There is no UART RX command, periodic
+telemetry, `sprintf`, floating-point formatting, or analyzer-side UART
+dependency.
 
 ## API Results
 
 - `AudioFeatureAnalyzer_ProcessFrame` returns `1` for a scheduled analysis,
   `0` for a cadence skip, and a negative value for invalid input.
+- `AudioFeatureAnalyzer_ObserveFrame` performs only cadence accounting and
+  returns `1` when the caller should capture the current input frame.
+- `AudioFeatureAnalyzer_AnalyzeObservedFrame` performs one heavy analysis of
+  an already captured due frame without incrementing the ADC-frame counter.
 - The setter APIs return `1` on success and `0` for invalid arguments.
 - `AudioFeatureAnalyzer_GetSnapshot` copies only measurements and counters;
   it does not expose mutable FFT scratch storage.

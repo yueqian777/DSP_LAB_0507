@@ -464,6 +464,79 @@ class EqualizerFlowContractTest(unittest.TestCase):
         self.assertIn("TSCL = 0;", self.source)
         self.assertNotIn("TSCH =", self.source)
 
+    def test_analyzer_defaults_off_and_has_watch_diagnostics(self) -> None:
+        self.assertIn("EQ_DebugAnalyzerEnabled = 0U", self.source)
+        for name in (
+            "EQ_DebugAnalyzerPending",
+            "EQ_DebugAnalyzerValid",
+            "EQ_DebugAnalyzerWarmup",
+            "EQ_DebugAnalyzerRunCount",
+            "EQ_DebugAnalyzerAnalysisCount",
+            "EQ_DebugAnalyzerDeferredCount",
+            "EQ_DebugAnalyzerPendingOverwriteCount",
+            "EQ_DebugAnalyzerAudioArrivedCount",
+            "EQ_DebugAnalyzerLastCycles",
+            "EQ_DebugAnalyzerMaxCycles",
+            "EQ_DebugAnalyzerPeakDbfs",
+            "EQ_DebugAnalyzerRmsDbfs",
+            "EQ_DebugAnalyzerBassDb",
+            "EQ_DebugAnalyzerMudDb",
+            "EQ_DebugAnalyzerPresenceDb",
+            "EQ_DebugAnalyzerBrightnessDb",
+        ):
+            self.assertIn(name, self.source)
+            self.assertIn(name, self.header)
+
+    def test_analyzer_cadence_observation_precedes_eq_but_fft_is_background(self) -> None:
+        start = self.source.index("static void EQ_CaptureAdcFrame(void)")
+        end = self.source.index("static void EQ_FillDacPingBuffer(void)", start)
+        capture = self.source[start:end]
+        observe = capture.index("EQ_ObserveAnalyzerInputFrame();")
+        process = capture.index("Equalizer_ProcessFrame(")
+        self.assertLess(observe, process)
+        self.assertNotIn("AudioFeatureAnalyzer_AnalyzeObservedFrame", capture)
+
+        service_start = self.source.index("static int EQ_ServiceAnalyzer(void)")
+        service_end = self.source.index("static void EQ_CaptureAdcFrame(void)", service_start)
+        service = self.source[service_start:service_end]
+        self.assertIn("AudioFeatureAnalyzer_AnalyzeObservedFrame(", service)
+        self.assertIn("EQ_AnalyzerInput", service)
+
+    def test_background_priority_is_builder_analyzer_uart_lcd(self) -> None:
+        self.assertIn("EQ_BACKGROUND_ANALYZER", self.header)
+        self.assertIn("EQ_BACKGROUND_UART", self.header)
+        start = self.source.index("int EqualizerBackgroundService_Decide(")
+        end = self.source.index("void EqualizerBackgroundService_Record(", start)
+        decide = self.source[start:end]
+        builder = decide.index("return EQ_BACKGROUND_BUILDER;")
+        analyzer = decide.index("return EQ_BACKGROUND_ANALYZER;")
+        uart = decide.index("return EQ_BACKGROUND_UART;")
+        lcd = decide.index("return EQ_BACKGROUND_LCD;")
+        self.assertLess(builder, analyzer)
+        self.assertLess(analyzer, uart)
+        self.assertLess(uart, lcd)
+
+    def test_analyzer_service_rechecks_audio_and_builder(self) -> None:
+        loop = self._runtime_loop()
+        service = loop.index("EQ_ServiceAnalyzer();")
+        block_start = loop.rfind(
+            "if (background_kind == EQ_BACKGROUND_ANALYZER)", 0, service
+        )
+        block_end = loop.index("continue;", service)
+        block = loop[block_start:block_end]
+        self.assertIn("EqualizerAnalyzer_CanService(", block)
+        self.assertIn("builder_eligible", block)
+        for flag in ("FLAG_AD", "FLAG_DA", "flag_ad_done", "EQ_FrameServicePending"):
+            self.assertIn(flag, block)
+
+    def test_uart_feature_report_is_single_bounded_integer_line(self) -> None:
+        self.assertIn("EQ_DebugUartFeatureRequest = 0U", self.source)
+        self.assertIn("P33 FEAT,", self.source)
+        self.assertIn("EQ_UART_FEATURE_LINE_CAPACITY 72", self.source)
+        self.assertNotIn("sprintf(", self.source)
+        self.assertNotIn("UARTprintf(", self.source)
+        self.assertEqual(self.source.count("EQ_UartReportFeatureOnce();"), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -70,7 +70,7 @@ static void FillSine(short *frame, int bin, float peak)
 
 static void FillFourTone(short *frame, const float *peaks)
 {
-    static const int bins[AUDIO_FEATURE_NUM_BANDS] = { 3, 10, 41, 164 };
+    static const int bins[AUDIO_FEATURE_NUM_BANDS] = { 2, 8, 40, 164 };
     int index;
     int band;
 
@@ -236,7 +236,7 @@ static void TestSilenceFiniteInvalidAndInputImmutable(void)
 
 static void TestToneDominanceAndBassBoost(void)
 {
-    static const int bins[AUDIO_FEATURE_NUM_BANDS] = { 3, 10, 41, 164 };
+    static const int bins[AUDIO_FEATURE_NUM_BANDS] = { 2, 8, 40, 164 };
     static const char *names[AUDIO_FEATURE_NUM_BANDS] =
         { "bass", "mud", "presence", "brightness" };
     AUDIO_FEATURE_SNAPSHOT snapshot;
@@ -512,6 +512,56 @@ static void TestCadencePeriodEight(void)
            snapshot.skipped_frame_count);
 }
 
+static void TestSplitObserveAndAnalyze(void)
+{
+    AUDIO_FEATURE_ANALYZER state;
+    AUDIO_FEATURE_SNAPSHOT snapshot;
+    short frame[AUDIO_FEATURE_FRAME_LEN];
+    int frame_index;
+    int due_count;
+    int result;
+
+    FillSine(frame, 40, PeakFromDbfs(-12.0f));
+    AudioFeatureAnalyzer_Init(&state);
+    Check(AudioFeatureAnalyzer_SetPeriod(&state, 8U) == 1,
+          "split analyzer accepts period eight");
+    due_count = 0;
+    for (frame_index = 0; frame_index < 80; frame_index++)
+    {
+        result = AudioFeatureAnalyzer_ObserveFrame(&state);
+        Check((result == 0) || (result == 1),
+              "split cadence observation is bounded");
+        if (result == 1)
+        {
+            due_count++;
+            Check(AudioFeatureAnalyzer_AnalyzeObservedFrame(
+                      &state, frame, AUDIO_FEATURE_FRAME_LEN) == 1,
+                  "split due frame performs one heavy analysis");
+        }
+    }
+    AudioFeatureAnalyzer_GetSnapshot(&state, &snapshot);
+    Check(due_count == 10, "split cadence exposes ten due frames");
+    Check(snapshot.input_frame_count == 80UL,
+          "split observation counts every actual frame");
+    Check(snapshot.analysis_count == 10UL,
+          "split heavy path counts only completed FFT analyses");
+    Check(snapshot.skipped_frame_count == 70UL,
+          "split cadence counts seventy skipped frames");
+
+    Check(AudioFeatureAnalyzer_AnalyzeObservedFrame(
+              &state, frame, AUDIO_FEATURE_FRAME_LEN) == 1,
+          "standalone heavy path accepts a captured due snapshot");
+    AudioFeatureAnalyzer_GetSnapshot(&state, &snapshot);
+    Check(snapshot.input_frame_count == 80UL,
+          "heavy analysis does not invent a new ADC frame");
+    Check(snapshot.analysis_count == 11UL,
+          "standalone heavy analysis increments only analysis count");
+    printf("split_due=%d split_analyses=%lu split_frames=%lu "
+           "split_skipped=%lu\n",
+           due_count, snapshot.analysis_count - 1UL,
+           snapshot.input_frame_count, snapshot.skipped_frame_count);
+}
+
 static void TestAttackFasterThanRelease(void)
 {
     AUDIO_FEATURE_ANALYZER attack_state;
@@ -665,6 +715,7 @@ int main(void)
     TestRelativeAmplitudeInvariance();
     TestSeededNoiseFairnessAndDeterminism();
     TestCadencePeriodEight();
+    TestSplitObserveAndAnalyze();
     TestAttackFasterThanRelease();
     TestInvalidCallsAreBounded();
 
