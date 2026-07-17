@@ -58,6 +58,7 @@ def compile_host(repo_root: Path, build_dir: Path, compiler: Path) -> tuple[Path
         "-DSUBBAND_ALGO_ONLY",
         f"-I{dsp_dir}",
         str(repo_root / "tools" / "thd" / "wola_thd_host.c"),
+        str(dsp_dir / "user_spectral_fft.c"),
         str(dsp_dir / "user_subband_wola.c"),
         str(dsp_dir / "user_subband_denoise.c"),
         str(dsp_dir / "user_subband_codec_loopback.c"),

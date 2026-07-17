@@ -8,6 +8,7 @@
 #include "user_subband_denoise.h"
 #include "user_subband_eval.h"
 #include "user_subband_codec_loopback.h"
+#include "user_spectral_fft.h"
 #include "math.h"
 #include "string.h"
 
@@ -84,88 +85,12 @@ static short Saturate_To_Short(float x)
     return (short)x;
 }
 
-static void Bit_Reverse(float *re, float *im)
-{
-    unsigned int i;
-    unsigned int j;
-
-    j = 0;
-    for (i = 1; i < (unsigned int)SUBBAND_NFFT; i++)
-    {
-        unsigned int bit;
-
-        bit = (unsigned int)SUBBAND_NFFT >> 1;
-        while ((j & bit) != 0U)
-        {
-            j ^= bit;
-            bit >>= 1;
-        }
-        j ^= bit;
-
-        if (i < j)
-        {
-            float tr;
-            float ti;
-
-            tr = re[i];
-            ti = im[i];
-            re[i] = re[j];
-            im[i] = im[j];
-            re[j] = tr;
-            im[j] = ti;
-        }
-    }
-}
-
 static void FFT_InPlace(float *re, float *im)
 {
-    int len;
-
-    Bit_Reverse(re, im);
-
-    for (len = 2; len <= SUBBAND_NFFT; len <<= 1)
-    {
-        int half;
-        int tw_step;
-        int start;
-
-        half = len >> 1;
-        tw_step = SUBBAND_NFFT / len;
-
-        for (start = 0; start < SUBBAND_NFFT; start += len)
-        {
-            int j;
-
-            for (j = 0; j < half; j++)
-            {
-                int even;
-                int odd;
-                int tw_idx;
-                float wr;
-                float wi;
-                float ur;
-                float ui;
-                float vr;
-                float vi;
-
-                even = start + j;
-                odd = even + half;
-                tw_idx = j * tw_step;
-                wr = SubbandWOLA_State.tw_re[tw_idx];
-                wi = SubbandWOLA_State.tw_im[tw_idx];
-
-                ur = re[even];
-                ui = im[even];
-                vr = re[odd] * wr - im[odd] * wi;
-                vi = re[odd] * wi + im[odd] * wr;
-
-                re[even] = ur + vr;
-                im[even] = ui + vi;
-                re[odd] = ur - vr;
-                im[odd] = ui - vi;
-            }
-        }
-    }
+    (void)SpectralFFT_Forward(re, im,
+                              SubbandWOLA_State.tw_re,
+                              SubbandWOLA_State.tw_im,
+                              SUBBAND_NFFT);
 }
 
 static void IFFT_InPlace(float *re, float *im)
@@ -386,12 +311,9 @@ void SubbandWOLA_Init(void)
         SubbandWOLA_State.window[i] = sqrtf(hann);
     }
 
-    for (i = 0; i < SUBBAND_NFFT / 2; i++)
-    {
-        phase = (-2.0f * SUBBAND_WOLA_PI * (float)i) / (float)SUBBAND_NFFT;
-        SubbandWOLA_State.tw_re[i] = cosf(phase);
-        SubbandWOLA_State.tw_im[i] = sinf(phase);
-    }
+    (void)SpectralFFT_GenerateTwiddles(SubbandWOLA_State.tw_re,
+                                       SubbandWOLA_State.tw_im,
+                                       SUBBAND_NFFT);
 
     SubbandWOLA_State.bypass = SUBBAND_BYPASS;
     SubbandWOLA_State.initialized = 1;
