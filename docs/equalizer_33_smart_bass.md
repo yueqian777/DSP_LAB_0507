@@ -141,6 +141,10 @@ remain near 0 dB, and the control trace to truly reach level 4 before release.
 The threshold-jitter region must cross the level 0/1 quantization boundary but
 may change the applied level at most once.
 
-The exact committed-SHA A-E CCS matrix and Smart Bass A-G board measurements
-are recorded only after the feature commit. Until then, all Smart Bass board
-items remain `PENDING_HARDWARE`.
+The exact committed-SHA A-E CCS matrix passed for commit `eb2eb1f`, with zero
+compiler diagnostics and zero linker errors. Smart Bass A-G board validation
+also passed on 2026-07-17 for the exact LCD-OFF feature build. Objective UART,
+Watch, RAW, and stability evidence plus the separately labeled subjective
+operator observation are recorded in `docs/equalizer_33_hardware_validation.md`.
+External analog THD, SNR, calibrated frequency response, and SPL remain
+`PENDING_HARDWARE_MEASUREMENT`.

@@ -328,3 +328,103 @@ The formal JSON, UART log, WAV stimuli, and build artifacts are retained under
 `%TEMP%\DSP_LAB_0507\smart_bass_v1\a490e80`. This establishes only the
 Analyzer/flow prerequisite for the exact a490e80 build. Smart Bass processing
 was compiled out and was not measured in this baseline.
+
+## 10. Smart Bass A-G validation
+
+**Date:** 2026-07-17
+
+**Exact feature commit:**
+`eb2eb1f0e6274f253ac8d5e94704369f30955e6c`
+
+**Result:** `MEASURED_ON_CURRENT_BOARD_SMART_BASS_EB2EB1F`
+
+The loaded output used Project 33, Analyzer ON, Smart Bass ON, and LCD OFF.
+It came from the exact-SHA build-matrix D artifact. Every formal DSS
+stage captured `P33 BUILD eb2eb1f`, INIT 01 through 08, and INIT 11 over
+UART2. The build diagnostics and linker XML were already zero-error before
+the board run.
+
+### 10.1 A-C identity and trigger
+
+With runtime Smart Bass disabled for 60 seconds, AD, DA, and process counts
+were all 2890. Applied level, processing-active, transition, Analyzer analysis
+count, deadline, latency miss, overlap, dropped, clip, saturation, and
+nonfinite counters were zero. The bypass service cost remained bounded: the
+last and maximum Smart Bass counts were 1388 and 1880 cycles.
+
+At 1953.125 Hz with FLAT base EQ, Presence was dominant at 7 dB and Smart
+Bass stayed at requested/applied level 0. The 8192-sample input and output RAW
+captures were byte-identical (SHA-256
+`4451813DDDE30B77364B4B24726DC8A167D8B4D7A623DC5E14EB07188AD9865B`), so
+the measured transfer difference was 0.000000 dB.
+
+At 97.65625 Hz, Bass was dominant at 19 dB. MEDIUM advanced only through
+adjacent levels 0, 1, 2, 3, and 4, then settled with a -2.0 dB requested
+shelf and no transition active. Relative to the Smart Bass OFF capture, the
+steady-state output transfer changed by -1.460741 dB at this frequency. This
+is a measurable attenuation and is consistent with a -2 dB low shelf whose
+corner is 125 Hz. No clip or safety counter increased.
+
+### 10.2 D debounce and operator observation
+
+Board calibration measured `mix12` at 4 dB and `mix14` at 7 dB Bass-relative
+level. Twelve alternating two-second source windows produced 152 new
+Analyzer decisions but only 12 adjacent Smart Bass level changes. The path
+stayed within levels 0 and 1 and ended at stable level 0. All objective safety
+counters remained zero.
+
+The operator test used a separate 18-second window with no debugger halt or
+Watch read while audio was running. The repeat processed 920 frames and kept
+Analyzer and Smart Bass decisions active. The operator reported normal audio
+was audible and no sustained pumping or obvious clicks were heard. This is
+recorded only as `SUBJECTIVE_OPERATOR_OBSERVATION`; it is not an analog
+distortion measurement.
+
+### 10.3 E-F release and BASS preset composition
+
+Switching from the Bass tone to the Presence tone released applied levels
+4, 3, 2, 1, and 0 through adjacent transitions. The six-second observation
+ended with requested/applied/pending level 0, transition 0, and
+processing-active 0. Deadline, latency miss, overlap, dropped, clip,
+saturation, and nonfinite counters remained zero.
+
+The BASS base preset remained `[3, 3, 2, 1, 0, 0, 0, 0, 0, 0]` dB before and
+after Smart Bass reached MEDIUM level 4. Builder slice count stayed at zero;
+control request, accepted, and applied tokens all stayed at 2. Smart Bass did
+not rewrite a ten-band gain, start the custom builder, or submit an EQ control
+request.
+
+### 10.4 G five-minute stability
+
+The fixed 10.24-second `music_like.wav` stimulus loop ran for thirty 10-second
+DSP windows. A short JTAG halt between windows captured each safety snapshot;
+the cumulative running time was 300 seconds. Process, AD, and DA frame counts
+all advanced from 283 to 14911, a delta of 14628. Analyzer analysis count and
+Smart Bass decision count both advanced by 1829. Input RMS remained -28 dBFS
+at the final checkpoint, and Smart Bass stayed at bounded MEDIUM level 4.
+
+| Maximum or counter | Result |
+| --- | ---: |
+| Analyzer cycles | 299890 |
+| Smart Bass cycles | 438088 |
+| Algorithm cycles | 785688 |
+| Frame-service cycles | 1220364 |
+| Frame-latency cycles | 1220618 |
+| Deadline miss | 0 |
+| Latency miss | 0 |
+| Service overlap | 0 |
+| Dropped frame | 0 |
+| Clip | 0 |
+| Smart Bass saturation | 0 |
+| Smart Bass nonfinite | 0 |
+
+The operator also confirmed normal audio was audible during G. This confirms
+the exact eb2eb1f digital flow and runtime diagnostics on the current board;
+external analog THD, SNR, calibrated frequency response, and SPL remain
+unmeasured.
+
+Formal JSON, UART, RAW, stimulus, operator-observation, build, and gate
+evidence is retained under
+`%TEMP%\DSP_LAB_0507\smart_bass_v1\eb2eb1f`. The A-G gate file is
+`hardware_gate_A_to_F.json`, and the G result directory is
+`board_G_formal_20260717_172449`.
