@@ -10,6 +10,10 @@
 
 #include "string.h"
 
+#if defined(EQ_ALGO_ONLY)
+#include "stdio.h"
+#endif
+
 #if (!defined(EQ_ALGO_ONLY))
 #include "lcd_api.h"
 #include "lcd_dma.h"
@@ -353,6 +357,10 @@ static unsigned long s_mock_cycle_clock = 0UL;
 static unsigned long s_mock_forced_job_cycles = 0UL;
 static EQ_LCD_HW_SNAPSHOT s_mock_hw_snapshot;
 static int s_mock_canary_failed = 0;
+static FILE *s_mock_trace_file = 0;
+static unsigned long s_mock_trace_record_count = 0UL;
+static int s_mock_trace_job = EQ_LCD_JOB_NONE;
+static unsigned long s_mock_trace_frame = 0UL;
 #endif
 
 static unsigned long EQ_BufferAddress(void)
@@ -637,6 +645,86 @@ static int EQ_CheckRect(int x, int y, int w, int h)
     return 1;
 }
 
+#if defined(EQ_ALGO_ONLY)
+static int EQ_TracePage(void)
+{
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+    if (s_mock_trace_job == EQ_UI_JOB_PAGE_TILE)
+    {
+        return s_ui_state.page_target;
+    }
+    return s_ui_state.displayed_page;
+#else
+    return EQ_UI_PAGE_DYNAMIC_STATUS;
+#endif
+}
+
+static void EQ_TraceJsonString(const char *text, int length)
+{
+    int index;
+
+    fputc('"', s_mock_trace_file);
+    for (index = 0; index < length; index++)
+    {
+        unsigned char value;
+
+        value = (unsigned char)text[index];
+        if ((value == '"') || (value == '\\'))
+        {
+            fputc('\\', s_mock_trace_file);
+            fputc((int)value, s_mock_trace_file);
+        }
+        else if (value == '\n')
+        {
+            fputs("\\n", s_mock_trace_file);
+        }
+        else if ((value >= 0x20U) && (value < 0x7FU))
+        {
+            fputc((int)value, s_mock_trace_file);
+        }
+        else
+        {
+            fprintf(s_mock_trace_file, "\\u%04X", (unsigned int)value);
+        }
+    }
+    fputc('"', s_mock_trace_file);
+}
+
+static void EQ_TracePrimitive(const char *operation,
+                              int x, int y, int w, int h, int color,
+                              const char *text, int text_length,
+                              int glyph_id, int font, int centered)
+{
+    if (s_mock_trace_file == 0)
+    {
+        return;
+    }
+    fprintf(s_mock_trace_file,
+            "{\"draw_sequence\":%lu,\"operation\":\"%s\","
+            "\"x\":%d,\"y\":%d,\"w\":%d,\"h\":%d,"
+            "\"color\":%d,\"job\":%d,\"page\":%d,"
+            "\"frame\":%lu,\"font\":%d,\"centered\":%d,"
+            "\"text_or_glyph_id\":",
+            s_mock_trace_record_count, operation,
+            x, y, w, h, color, s_mock_trace_job, EQ_TracePage(),
+            s_mock_trace_frame, font, centered);
+    if (text != 0)
+    {
+        EQ_TraceJsonString(text, text_length);
+    }
+    else if (glyph_id >= 0)
+    {
+        fprintf(s_mock_trace_file, "%d", glyph_id);
+    }
+    else
+    {
+        fputs("null", s_mock_trace_file);
+    }
+    fputs("}\n", s_mock_trace_file);
+    s_mock_trace_record_count++;
+}
+#endif
+
 #if !defined(EQ_ALGO_ONLY)
 static unsigned long EQ_MapColor(int color)
 {
@@ -704,7 +792,8 @@ static void EQ_LcdFillRect(int x, int y, int w, int h, int color)
     GrContextForegroundSet(&Lcd_Context, EQ_MapColor(color));
     GrRectFill(&Lcd_Context, &rect);
 #else
-    (void)color;
+    EQ_TracePrimitive("fill_rect", x, y, w, h, color,
+                      0, 0, -1, -1, 0);
     s_mock_primitive_count++;
 #endif
 }
@@ -727,7 +816,8 @@ static void EQ_LcdDrawRect(int x, int y, int w, int h, int color)
     GrContextForegroundSet(&Lcd_Context, EQ_MapColor(color));
     GrRectDraw(&Lcd_Context, &rect);
 #else
-    (void)color;
+    EQ_TracePrimitive("draw_rect", x, y, w, h, color,
+                      0, 0, -1, -1, 0);
     s_mock_primitive_count++;
 #endif
 }
@@ -742,7 +832,19 @@ static void EQ_LcdDrawLine(int x1, int y1, int x2, int y2, int color)
     GrContextForegroundSet(&Lcd_Context, EQ_MapColor(color));
     GrLineDraw(&Lcd_Context, x1, y1, x2, y2);
 #else
-    (void)color;
+    {
+        int left;
+        int top;
+        int width;
+        int height;
+
+        left = (x1 < x2) ? x1 : x2;
+        top = (y1 < y2) ? y1 : y2;
+        width = ((x1 < x2) ? x2 - x1 : x1 - x2) + 1;
+        height = ((y1 < y2) ? y2 - y1 : y1 - y2) + 1;
+        EQ_TracePrimitive("line", left, top, width, height, color,
+                          0, 0, -1, -1, 0);
+    }
     s_mock_primitive_count++;
 #endif
 }
@@ -757,7 +859,8 @@ static void EQ_LcdDrawHLine(int x1, int x2, int y, int color)
     GrContextForegroundSet(&Lcd_Context, EQ_MapColor(color));
     GrLineDrawH(&Lcd_Context, x1, x2, y);
 #else
-    (void)color;
+    EQ_TracePrimitive("line", x1, y, x2 - x1 + 1, 1, color,
+                      0, 0, -1, -1, 0);
     s_mock_primitive_count++;
 #endif
 }
@@ -788,10 +891,9 @@ static void EQ_LcdDrawText(const EQ_UI_RECT *rect, const char *text,
         GrStringDraw(&Lcd_Context, text, length, x, y, 0);
     }
 #else
-    (void)text;
-    (void)length;
-    (void)color;
-    (void)centered;
+    EQ_TracePrimitive("ascii_text", rect->x, rect->y,
+                      rect->w, rect->h, color,
+                      text, length, -1, font, centered);
     (void)x;
     (void)y;
     s_mock_primitive_count++;
@@ -880,6 +982,11 @@ static int EQ_DrawCnGlyph(int x, int y, unsigned char glyph, int color)
     {
         return x;
     }
+#if defined(EQ_ALGO_ONLY)
+    EQ_TracePrimitive("chinese_glyph", x, y,
+                      EQ_CN_GLYPH_SIZE, EQ_CN_GLYPH_SIZE, color,
+                      0, 0, (int)glyph, -1, 0);
+#endif
     for (row = 0; row < EQ_CN_GLYPH_SIZE; row++)
     {
         unsigned short bits;
@@ -2006,6 +2113,8 @@ static void EQ_DrawPageTile(void)
         if (tile == 0U)
         {
             EQ_DrawPageTitle(page);
+            EQ_LcdFillRect(0, 78, EQ_UI_PAGE_SWITCH_RECT.x, 34,
+                           EQ_COLOR_BG);
         }
         else if ((tile >= 1U) && (tile <= 5U))
         {
@@ -2241,6 +2350,8 @@ void EqualizerDisplay_Init(void)
     s_mock_primitive_count = 0UL;
     s_mock_cycle_clock = 0UL;
     s_mock_forced_job_cycles = 0UL;
+    s_mock_trace_job = EQ_LCD_JOB_NONE;
+    s_mock_trace_frame = 0UL;
     memset(&s_mock_hw_snapshot, 0, sizeof(s_mock_hw_snapshot));
     s_mock_hw_snapshot.frame_base = EQ_DebugLcdExpectedFrameBase;
     s_mock_hw_snapshot.frame_end = EQ_DebugLcdExpectedFrameEnd;
@@ -2397,9 +2508,17 @@ int EqualizerDisplay_ServiceOneJob(unsigned long process_frame)
     {
         return EQ_LCD_JOB_NONE;
     }
+#if defined(EQ_ALGO_ONLY)
+    s_mock_trace_job = job;
+    s_mock_trace_frame = process_frame;
+#endif
     start_cycles = EQ_ReadCycles();
     completed_fields = EQ_DrawJob(job);
     end_cycles = EQ_ReadCycles();
+#if defined(EQ_ALGO_ONLY)
+    s_mock_trace_job = EQ_LCD_JOB_NONE;
+    s_mock_trace_frame = 0UL;
+#endif
     EQ_EndDraw();
     elapsed_cycles = end_cycles - start_cycles;
     if ((job >= EQ_UI_JOB_DYNAMIC_0) &&
@@ -2485,6 +2604,37 @@ void EqualizerDisplay_AutoDisable(unsigned long reason)
 unsigned long EqualizerDisplay_TestPrimitiveCount(void)
 {
     return s_mock_primitive_count;
+}
+
+int EqualizerDisplay_TestTraceOpen(const char *path)
+{
+    if (s_mock_trace_file != 0)
+    {
+        fclose(s_mock_trace_file);
+        s_mock_trace_file = 0;
+    }
+    s_mock_trace_record_count = 0UL;
+    if (path == 0)
+    {
+        return 0;
+    }
+    s_mock_trace_file = fopen(path, "w");
+    return (s_mock_trace_file != 0) ? 1 : 0;
+}
+
+void EqualizerDisplay_TestTraceClose(void)
+{
+    if (s_mock_trace_file != 0)
+    {
+        fflush(s_mock_trace_file);
+        fclose(s_mock_trace_file);
+        s_mock_trace_file = 0;
+    }
+}
+
+unsigned long EqualizerDisplay_TestTraceRecordCount(void)
+{
+    return s_mock_trace_record_count;
 }
 
 void EqualizerDisplay_TestForceJobCycles(unsigned long cycles)

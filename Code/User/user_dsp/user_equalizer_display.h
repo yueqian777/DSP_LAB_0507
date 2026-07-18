@@ -206,6 +206,9 @@ void EqualizerDisplay_AutoDisable(unsigned long reason);
 
 #if defined(EQ_ALGO_ONLY)
 unsigned long EqualizerDisplay_TestPrimitiveCount(void);
+int EqualizerDisplay_TestTraceOpen(const char *path);
+void EqualizerDisplay_TestTraceClose(void);
+unsigned long EqualizerDisplay_TestTraceRecordCount(void);
 void EqualizerDisplay_TestForceJobCycles(unsigned long cycles);
 void EqualizerDisplay_TestSetHardwareSnapshot(
     const EQ_LCD_HW_SNAPSHOT *snapshot);
