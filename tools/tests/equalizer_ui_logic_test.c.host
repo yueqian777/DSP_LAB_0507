@@ -1,0 +1,227 @@
+#include "user_equalizer_ui_logic.h"
+
+#include <stdio.h>
+#include <string.h>
+
+#define JOB_BIT(job_) (1UL << ((job_) - 1))
+
+static int require_true(int condition, const char *message)
+{
+    if (!condition)
+    {
+        printf("equalizer_ui_logic FAIL: %s\n", message);
+        return 1;
+    }
+    return 0;
+}
+
+static void make_snapshot(EQ_UI_SNAPSHOT *snapshot)
+{
+    int band;
+
+    memset(snapshot, 0, sizeof(*snapshot));
+    snapshot->applied_preset = EQ_PRESET_FLAT;
+    snapshot->smart_strength = 2;
+    snapshot->clarity_strength = 2;
+    snapshot->guard_strength = 2;
+    snapshot->analyzer_valid = 1;
+    snapshot->analyzer_warm = 1;
+    for (band = 0; band < EQ_UI_ANALYZER_COUNT; band++)
+    {
+        snapshot->band_pixel[band] = EqualizerUi_DbTenthsToPixel(0);
+    }
+}
+
+static int flush_jobs(EQ_UI_STATE *state, unsigned long frame)
+{
+    int count;
+    int job;
+
+    count = 0;
+    while (EqualizerUiLogic_HasPending(state) && (count < 64))
+    {
+        job = EqualizerUiLogic_SelectJob(state);
+        if (job == EQ_UI_JOB_NONE)
+        {
+            return -1;
+        }
+        EqualizerUiLogic_CompleteJob(state, job, frame + (unsigned long)count);
+        count++;
+    }
+    return count;
+}
+
+int main(void)
+{
+    EQ_UI_STATE state;
+    EQ_UI_SNAPSHOT snapshot;
+    EQ_UI_TOUCH_TRANSFORM transform;
+    EQ_UI_TOUCH_STATE touch;
+    unsigned long expected;
+    int failures;
+    int action;
+    int rejected;
+    int x;
+    int y;
+    int i;
+    int pixel;
+
+    failures = 0;
+    failures += require_true(EqualizerUi_ValidateLayout(), "layout");
+
+    EqualizerUi_DefaultTouchTransform(&transform);
+    failures += require_true(EqualizerUi_MapTouchRawToScreen(
+        &transform, 0U, 0U, &x, &y) && x == 0 && y == 0, "map origin");
+    failures += require_true(EqualizerUi_MapTouchRawToScreen(
+        &transform, 799U, 479U, &x, &y) && x == 799 && y == 479,
+        "map far corner");
+    failures += require_true(EqualizerUi_MapTouchRawToScreen(
+        &transform, 400U, 240U, &x, &y) && x == 400 && y == 240,
+        "map center");
+    transform.flip_x = 1U;
+    transform.flip_y = 1U;
+    failures += require_true(EqualizerUi_MapTouchRawToScreen(
+        &transform, 0U, 0U, &x, &y) && x == 799 && y == 479,
+        "map flips");
+    EqualizerUi_DefaultTouchTransform(&transform);
+    transform.swap_xy = 1U;
+    transform.raw_x_max = 479U;
+    transform.raw_y_max = 799U;
+    failures += require_true(EqualizerUi_MapTouchRawToScreen(
+        &transform, 240U, 400U, &x, &y) && x == 400 && y == 240,
+        "map swap before scale");
+
+    EqualizerUiTouch_Init(&touch);
+    x = EQ_UI_HITBOXES[0].rect.x + 2;
+    y = EQ_UI_HITBOXES[0].rect.y + 2;
+    action = EqualizerUiTouch_Process(&touch, 1, x, y, &rejected);
+    failures += require_true(action == EQ_UI_ACTION_PRESET_FLAT && !rejected,
+                             "first press action");
+    action = EqualizerUiTouch_Process(&touch, 1, x, y, &rejected);
+    failures += require_true(action == EQ_UI_ACTION_NONE,
+                             "long press suppressed");
+    (void)EqualizerUiTouch_Process(&touch, 0, x, y, &rejected);
+    action = EqualizerUiTouch_Process(&touch, 1, x, y, &rejected);
+    failures += require_true(action == EQ_UI_ACTION_PRESET_FLAT,
+                             "release rearms");
+    (void)EqualizerUiTouch_Process(&touch, 0, x, y, &rejected);
+    action = EqualizerUiTouch_Process(&touch, 1, 799, 479, &rejected);
+    failures += require_true(action == EQ_UI_ACTION_NONE && rejected,
+                             "outside rejected once");
+
+    for (i = -5000; i < 5000; i++)
+    {
+        pixel = EqualizerUi_DbTenthsToPixel(i);
+        if ((pixel < EQ_UI_ANALYZER_BAR_TOP) ||
+            (pixel > EQ_UI_ANALYZER_BAR_BOTTOM))
+        {
+            failures += require_true(0, "analyzer clamp");
+            break;
+        }
+    }
+    failures += require_true(
+        EqualizerUi_DbTenthsToPixel(5000) == EQ_UI_ANALYZER_BAR_TOP,
+        "analyzer upper clamp");
+    failures += require_true(
+        EqualizerUi_DbTenthsToPixel(-5000) == EQ_UI_ANALYZER_BAR_BOTTOM,
+        "analyzer lower clamp");
+
+    EqualizerUiLogic_Init(&state);
+    make_snapshot(&snapshot);
+    EqualizerUiLogic_Request(&state, &snapshot, EQ_UI_RUNTIME_ALL, 1UL);
+    expected = (1UL << EQ_UI_JOB_COUNT) - 1UL;
+    failures += require_true(state.dirty_mask == expected,
+                             "initial jobs are independent");
+    failures += require_true(flush_jobs(&state, 1UL) == EQ_UI_JOB_COUNT,
+                             "one completion per job");
+    EqualizerUiLogic_Request(&state, &snapshot, EQ_UI_RUNTIME_ALL, 20UL);
+    failures += require_true(!EqualizerUiLogic_HasPending(&state),
+                             "unchanged snapshot clean");
+
+    snapshot.applied_preset = EQ_PRESET_BASS_BOOST;
+    EqualizerUiLogic_Request(&state, &snapshot, EQ_UI_RUNTIME_ALL, 21UL);
+    expected = JOB_BIT(EQ_UI_JOB_PRESET_0) |
+               JOB_BIT(EQ_UI_JOB_PRESET_0 + 1);
+    failures += require_true(state.dirty_mask == expected,
+                             "applied preset marks old and new only");
+    failures += require_true(flush_jobs(&state, 21UL) == 2,
+                             "two preset jobs");
+
+    snapshot.smart_level = 1;
+    EqualizerUiLogic_Request(&state, &snapshot,
+                             EQ_UI_RUNTIME_DYNAMICS, 30UL);
+    snapshot.smart_level = 3;
+    EqualizerUiLogic_Request(&state, &snapshot,
+                             EQ_UI_RUNTIME_DYNAMICS, 30UL);
+    failures += require_true(
+        state.dirty_mask == JOB_BIT(EQ_UI_JOB_DYNAMIC_0),
+        "latest dynamic request replaces old");
+    failures += require_true(
+        EqualizerUiLogic_DynamicFieldMask(&state, 0) ==
+        EQ_UI_DYNAMIC_FIELD_LEVEL, "level field only");
+    failures += require_true(state.displayed.smart_level == 0,
+                             "displayed unchanged before completion");
+    action = EqualizerUiLogic_SelectJob(&state);
+    EqualizerUiLogic_CompleteJob(&state, action, 30UL);
+    failures += require_true(state.displayed.smart_level == 3,
+                             "displayed latest after completion");
+
+    snapshot.smart_strength = 3;
+    EqualizerUiLogic_Request(&state, &snapshot,
+                             EQ_UI_RUNTIME_DYNAMICS, 31UL);
+    failures += require_true(
+        EqualizerUiLogic_DynamicFieldMask(&state, 0) ==
+        EQ_UI_DYNAMIC_FIELD_STRENGTH, "strength field only");
+    (void)flush_jobs(&state, 31UL);
+
+    EqualizerUiLogic_Request(&state, &snapshot,
+                             EQ_UI_RUNTIME_ANALYZER, 40UL);
+    (void)flush_jobs(&state, 40UL);
+    snapshot.band_pixel[2] = state.displayed.band_pixel[2] + 1;
+    EqualizerUiLogic_Request(&state, &snapshot,
+                             EQ_UI_RUNTIME_ANALYZER, 41UL);
+    failures += require_true(!EqualizerUiLogic_HasPending(&state),
+                             "one pixel jitter suppressed");
+    snapshot.band_pixel[2] = state.displayed.band_pixel[2] + 2;
+    EqualizerUiLogic_Request(&state, &snapshot,
+                             EQ_UI_RUNTIME_ANALYZER, 42UL);
+    failures += require_true(
+        state.dirty_mask == JOB_BIT(EQ_UI_JOB_ANALYZER_0 + 2),
+        "one analyzer band only");
+    (void)flush_jobs(&state, 42UL);
+
+    snapshot.smart_enabled = 1;
+    EqualizerUiLogic_Request(&state, &snapshot,
+                             EQ_UI_RUNTIME_CHAIN | EQ_UI_RUNTIME_DYNAMICS,
+                             50UL);
+    failures += require_true(
+        state.dirty_mask == (JOB_BIT(EQ_UI_JOB_CHAIN_0) |
+                             JOB_BIT(EQ_UI_JOB_DYNAMIC_0)),
+        "enabled change marks chain and dynamic independently");
+    action = EQ_UI_JOB_DYNAMIC_0;
+    EqualizerUiLogic_CompleteJob(&state, action, 50UL);
+    EqualizerUiLogic_Request(&state, &snapshot,
+                             EQ_UI_RUNTIME_CHAIN | EQ_UI_RUNTIME_DYNAMICS,
+                             51UL);
+    failures += require_true(
+        state.dirty_mask == JOB_BIT(EQ_UI_JOB_CHAIN_0),
+        "dynamic completion does not consume chain job");
+    (void)flush_jobs(&state, 51UL);
+
+    snapshot.analyzer_valid = 0;
+    snapshot.analyzer_warm = 0;
+    EqualizerUiLogic_Request(&state, &snapshot,
+                             EQ_UI_RUNTIME_ANALYZER, 60UL);
+    failures += require_true(
+        state.dirty_mask == (0x0FUL << (EQ_UI_JOB_ANALYZER_0 - 1)),
+        "analyzer invalidation marks four independent bars");
+    EqualizerUiLogic_CompleteJob(&state, EQ_UI_JOB_ANALYZER_0, 60UL);
+    EqualizerUiLogic_Request(&state, &snapshot,
+                             EQ_UI_RUNTIME_ANALYZER, 61UL);
+    failures += require_true(
+        state.dirty_mask == (0x0EUL << (EQ_UI_JOB_ANALYZER_0 - 1)),
+        "one bar completion does not consume other invalidations");
+
+    printf("equalizer_ui_logic failures=%d\n", failures);
+    return (failures == 0) ? 0 : 1;
+}

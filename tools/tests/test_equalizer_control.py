@@ -111,7 +111,7 @@ class EqualizerControlTest(unittest.TestCase):
         loop = self.flow[self.flow.index("while (1)"):]
         decide = loop.index("EqualizerBackgroundService_Decide(")
         builder = loop.index("EqualizerControl_ServiceOneBuilderSlice(", decide)
-        lcd = loop.index("EqualizerDisplay_ServiceOneJob();", decide)
+        lcd = loop.index("EqualizerDisplay_ServiceOneJob(", decide)
         decision_call = loop[decide:builder]
         for field in ("FLAG_AD", "FLAG_DA", "flag_ad_done",
                       "EQ_FrameServicePending"):
@@ -146,11 +146,11 @@ class EqualizerControlTest(unittest.TestCase):
         self.assertLess(install, decide)
         self.assertEqual(loop.count(
             "EqualizerControl_ServiceOneBuilderSlice("), 1)
-        self.assertEqual(loop.count("EqualizerDisplay_ServiceOneJob();"), 1)
+        self.assertEqual(loop.count("EqualizerDisplay_ServiceOneJob("), 1)
         self.assertLess(decide, loop.index(
             "EqualizerControl_ServiceOneBuilderSlice(", decide))
         self.assertLess(decide, loop.index(
-            "EqualizerDisplay_ServiceOneJob();", decide))
+            "EqualizerDisplay_ServiceOneJob(", decide))
 
     def test_post_start_has_no_direct_rbj_target_setter(self) -> None:
         post_start = self.flow[self.flow.index("Adc_Start();"):]

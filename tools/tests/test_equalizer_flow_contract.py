@@ -14,10 +14,6 @@ POLICY_HARNESS = r'''
 #include "user_equalizer_flow.h"
 #include <limits.h>
 
-#ifndef TEST_REFRESH_FRAMES
-#define TEST_REFRESH_FRAMES 25UL
-#endif
-
 static int require_true(int condition, int code)
 {
     return condition ? 0 : code;
@@ -28,90 +24,96 @@ int main(void)
     EQ_LCD_SERVICE_POLICY policy;
     EQ_LCD_FAULT_POLICY fault_policy;
     unsigned long reason;
-    unsigned long frame;
     int rc;
 
     EqualizerLcdPolicy_Init(&policy);
 
-    /* A frozen frame and every busy-audio guard reject service. */
-    rc = require_true(!EqualizerLcdPolicy_CanService(
-        &policy, 0UL, 0, 0, 0, 0, 1), 1);
-    if (rc != 0) return rc;
-    rc = require_true(!EqualizerLcdPolicy_CanService(
-        &policy, 1UL, 1, 0, 0, 0, 1), 2);
-    if (rc != 0) return rc;
-    rc = require_true(!EqualizerLcdPolicy_CanService(
-        &policy, 1UL, 0, 1, 0, 0, 1), 3);
-    if (rc != 0) return rc;
-    rc = require_true(!EqualizerLcdPolicy_CanService(
-        &policy, 1UL, 0, 0, 1, 0, 1), 4);
-    if (rc != 0) return rc;
-    rc = require_true(!EqualizerLcdPolicy_CanService(
-        &policy, 1UL, 0, 0, 0, 1, 1), 5);
-    if (rc != 0) return rc;
-    rc = require_true(!EqualizerLcdPolicy_CanService(
-        &policy, 1UL, 0, 0, 0, 0, 0), 6);
+    /* The first safe frame may service one pending job. */
+    rc = require_true(EqualizerLcdPolicy_CanService(
+        &policy, 0UL, 0, 0, 0, 0, 0, 0, 0, 0, 1), 1);
     if (rc != 0) return rc;
 
-    /* One real job consumes this frame; only the next frame permits one. */
-    rc = require_true(EqualizerLcdPolicy_CanService(
-        &policy, 1UL, 0, 0, 0, 0, 1), 7);
-    if (rc != 0) return rc;
-    /* Outer check was idle, but the immediate pre-draw snapshot became busy. */
+    /* Every audio/background guard and an empty queue reject service. */
     rc = require_true(!EqualizerLcdPolicy_CanService(
-        &policy, 1UL, 1, 0, 0, 0, 1), 70);
+        &policy, 1UL, 1, 0, 0, 0, 0, 0, 0, 0, 1), 2);
+    if (rc != 0) return rc;
+    rc = require_true(!EqualizerLcdPolicy_CanService(
+        &policy, 1UL, 0, 1, 0, 0, 0, 0, 0, 0, 1), 3);
+    if (rc != 0) return rc;
+    rc = require_true(!EqualizerLcdPolicy_CanService(
+        &policy, 1UL, 0, 0, 1, 0, 0, 0, 0, 0, 1), 4);
+    if (rc != 0) return rc;
+    rc = require_true(!EqualizerLcdPolicy_CanService(
+        &policy, 1UL, 0, 0, 0, 1, 0, 0, 0, 0, 1), 5);
+    if (rc != 0) return rc;
+    rc = require_true(!EqualizerLcdPolicy_CanService(
+        &policy, 1UL, 0, 0, 0, 0, 1, 0, 0, 0, 1), 6);
+    if (rc != 0) return rc;
+    rc = require_true(!EqualizerLcdPolicy_CanService(
+        &policy, 1UL, 0, 0, 0, 0, 0, 1, 0, 0, 1), 7);
+    if (rc != 0) return rc;
+    rc = require_true(!EqualizerLcdPolicy_CanService(
+        &policy, 1UL, 0, 0, 0, 0, 0, 0, 1, 0, 1), 8);
+    if (rc != 0) return rc;
+    rc = require_true(!EqualizerLcdPolicy_CanService(
+        &policy, 1UL, 0, 0, 0, 0, 0, 0, 0, 1, 1), 9);
+    if (rc != 0) return rc;
+    rc = require_true(!EqualizerLcdPolicy_CanService(
+        &policy, 1UL, 0, 0, 0, 0, 0, 0, 0, 0, 0), 10);
+    if (rc != 0) return rc;
+
+    /* A final pre-draw audio snapshot can still defer an eligible job. */
+    rc = require_true(EqualizerLcdPolicy_CanService(
+        &policy, 1UL, 0, 0, 0, 0, 0, 0, 0, 0, 1), 11);
     if (rc != 0) return rc;
     rc = require_true(EqualizerLcdPolicy_Decide(
         &policy, 1UL,
         0, 0, 0, 0,
         1, 0, 0, 0,
-        1) == EQ_LCD_POLICY_DEFER, 71);
+        0, 0, 0, 0,
+        1) == EQ_LCD_POLICY_DEFER, 12);
     if (rc != 0) return rc;
     rc = require_true(EqualizerLcdPolicy_Decide(
         &policy, 1UL,
         0, 0, 0, 0,
         0, 0, 0, 0,
-        1) == EQ_LCD_POLICY_SERVICE, 72);
+        0, 0, 0, 0,
+        1) == EQ_LCD_POLICY_SERVICE, 13);
     if (rc != 0) return rc;
+
+    /* A completed job leaves one whole processed frame between jobs. */
     EqualizerLcdPolicy_RecordService(&policy, 1UL, 1);
     rc = require_true(!EqualizerLcdPolicy_CanService(
-        &policy, 1UL, 0, 0, 0, 0, 1), 8);
+        &policy, 1UL, 0, 0, 0, 0, 0, 0, 0, 0, 1), 14);
+    if (rc != 0) return rc;
+    rc = require_true(!EqualizerLcdPolicy_CanService(
+        &policy, 2UL, 0, 0, 0, 0, 0, 0, 0, 0, 1), 15);
     if (rc != 0) return rc;
     rc = require_true(EqualizerLcdPolicy_CanService(
-        &policy, 2UL, 0, 0, 0, 0, 1), 9);
+        &policy, 3UL, 0, 0, 0, 0, 0, 0, 0, 0, 1), 16);
     if (rc != 0) return rc;
 
     /* Deferred accounting is latched once per processed frame. */
-    rc = require_true(EqualizerLcdPolicy_RecordDeferred(&policy, 2UL), 10);
+    rc = require_true(EqualizerLcdPolicy_RecordDeferred(&policy, 3UL), 17);
     if (rc != 0) return rc;
-    rc = require_true(!EqualizerLcdPolicy_RecordDeferred(&policy, 2UL), 11);
+    rc = require_true(!EqualizerLcdPolicy_RecordDeferred(&policy, 3UL), 18);
     if (rc != 0) return rc;
-    rc = require_true(EqualizerLcdPolicy_RecordDeferred(&policy, 3UL), 12);
+    rc = require_true(EqualizerLcdPolicy_RecordDeferred(&policy, 4UL), 19);
     if (rc != 0) return rc;
 
-    /* Periodic status is requested after 25 additional processed frames. */
-    EqualizerLcdPolicy_Init(&policy);
-    for (frame = 1UL; frame < TEST_REFRESH_FRAMES; frame++)
-    {
-        rc = require_true(
-            !EqualizerLcdPolicy_ShouldRequestStatus(&policy, frame),
-            20 + (int)frame);
-        if (rc != 0) return rc;
-    }
-    rc = require_true(EqualizerLcdPolicy_ShouldRequestStatus(
-        &policy, TEST_REFRESH_FRAMES), 45);
+    /* A touch/control action reserves three complete quiet frames. */
+    EqualizerLcdPolicy_RecordControlChange(&policy, 10UL);
+    rc = require_true(!EqualizerLcdPolicy_CanService(
+        &policy, 10UL, 0, 0, 0, 0, 0, 0, 0, 0, 1), 20);
     if (rc != 0) return rc;
-    rc = require_true(
-        !EqualizerLcdPolicy_ShouldRequestStatus(
-            &policy, TEST_REFRESH_FRAMES), 46);
+    rc = require_true(!EqualizerLcdPolicy_CanService(
+        &policy, 11UL, 0, 0, 0, 0, 0, 0, 0, 0, 1), 21);
     if (rc != 0) return rc;
-    rc = require_true(
-        !EqualizerLcdPolicy_ShouldRequestStatus(
-            &policy, (2UL * TEST_REFRESH_FRAMES) - 1UL), 47);
+    rc = require_true(!EqualizerLcdPolicy_CanService(
+        &policy, 12UL, 0, 0, 0, 0, 0, 0, 0, 0, 1), 22);
     if (rc != 0) return rc;
-    rc = require_true(
-        EqualizerLcdPolicy_ShouldRequestStatus(
-            &policy, 2UL * TEST_REFRESH_FRAMES), 48);
+    rc = require_true(EqualizerLcdPolicy_CanService(
+        &policy, 13UL, 0, 0, 0, 0, 0, 0, 0, 0, 1), 23);
     if (rc != 0) return rc;
 
     /* Fault decisions refresh all baselines on every call. */
@@ -255,7 +257,7 @@ class EqualizerFlowContractTest(unittest.TestCase):
 
     def test_capture_events_precede_the_next_processed_frame(self) -> None:
         loop = self._runtime_loop()
-        lcd_service = loop.index("EqualizerDisplay_ServiceOneJob();")
+        lcd_service = loop.index("EqualizerDisplay_ServiceOneJob(")
         lcd_notify = loop.index(
             "EQ_CAPTURE_TRIGGER_LCD_JOB", lcd_service
         )
@@ -316,18 +318,18 @@ class EqualizerFlowContractTest(unittest.TestCase):
         runtime = self.source.index("EqualizerDisplay_BeginRuntime();", init)
         adc_start = self.source.index("Adc_Start();", runtime)
         startup = self.source[init:adc_start]
-        runtime_rel = startup.index("EqualizerDisplay_BeginRuntime();")
-        gains = startup.index("EqualizerDisplay_RequestGains(&EQ_BoardState);")
-        status = startup.index("EqualizerDisplay_RequestStatus(", gains)
-        self.assertLess(runtime_rel, gains)
-        self.assertLess(gains, status)
+        snapshot = startup.index("EQ_BuildUiSnapshot(&lcd_snapshot);")
+        request = startup.index("EqualizerDisplay_RequestSnapshot(", snapshot)
+        runtime_rel = startup.index("EqualizerDisplay_BeginRuntime();", request)
+        self.assertLess(snapshot, request)
+        self.assertLess(request, runtime_rel)
         self.assertNotIn("EqualizerDisplay_ServiceOneJob", startup)
         self.assertNotIn("EqualizerDisplay_Update", startup)
 
     def test_runtime_uses_requests_not_direct_redraws(self) -> None:
         loop = self._runtime_loop()
-        self.assertIn("EqualizerDisplay_RequestGains(&EQ_BoardState);", loop)
-        self.assertIn("EqualizerDisplay_RequestStatus(", loop)
+        self.assertIn("EQ_BuildUiSnapshot(&lcd_snapshot);", loop)
+        self.assertIn("EqualizerDisplay_RequestSnapshot(", loop)
         for forbidden in (
             "EqualizerDisplay_UpdateAll(",
             "EqualizerDisplay_UpdateGains(",
@@ -338,17 +340,19 @@ class EqualizerFlowContractTest(unittest.TestCase):
 
     def test_service_block_is_guarded_and_returns_to_audio_top(self) -> None:
         loop = self._runtime_loop()
-        service = loop.index("EqualizerDisplay_ServiceOneJob();")
+        service = loop.index("EqualizerDisplay_ServiceOneJob(")
         block_start = loop.rfind("if (EqualizerLcdPolicy_CanService(", 0, service)
         block_end = loop.index("continue;", service) + len("continue;")
         block = loop[block_start:block_end]
         for guard in (
             "FLAG_AD, FLAG_DA, flag_ad_done",
             "EQ_FrameServicePending",
+            "audio_serviced",
+            "builder_serviced, analyzer_serviced",
             "EqualizerDisplay_HasPendingJob()",
         ):
             self.assertIn(guard, block)
-        self.assertEqual(loop.count("EqualizerDisplay_ServiceOneJob();"), 1)
+        self.assertEqual(loop.count("EqualizerDisplay_ServiceOneJob("), 1)
         self.assertIn("if (lcd_job != EQ_LCD_JOB_NONE)", block)
         self.assertIn("EqualizerLcdPolicy_RecordService(", block)
         self.assertIn("lcd_audio_before", block)
@@ -356,7 +360,7 @@ class EqualizerFlowContractTest(unittest.TestCase):
 
     def test_predraw_snapshot_reuses_policy_and_defers_if_audio_arrives(self) -> None:
         loop = self._runtime_loop()
-        service = loop.index("EqualizerDisplay_ServiceOneJob();")
+        service = loop.index("EqualizerDisplay_ServiceOneJob(")
         before = loop.rfind("lcd_audio_before =", 0, service)
         predraw = loop[before:service]
         self.assertIn("EqualizerLcdPolicy_Decide(", predraw)
@@ -427,31 +431,6 @@ class EqualizerFlowContractTest(unittest.TestCase):
                 result.returncode,
                 0,
                 f"host policy test failed\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}",
-            )
-
-            override_exe = Path(temp_dir) / "equalizer_flow_policy_override.exe"
-            override_command = (
-                "export PATH=/mingw64/bin:/usr/bin:$PATH; "
-                "gcc -std=c99 -Wall -Wextra -Werror -DEQ_ALGO_ONLY "
-                "-DEQ_LCD_REFRESH_FRAMES=3UL -DTEST_REFRESH_FRAMES=3UL "
-                f"-I{msys_path(ROOT / 'Code/User/user_dsp')} "
-                f"{msys_path(FLOW)} {msys_path(harness)} "
-                f"-o {msys_path(override_exe)} && {msys_path(override_exe)}"
-            )
-            override_result = subprocess.run(
-                [str(bash), "-lc", override_command],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                check=False,
-            )
-            self.assertEqual(
-                override_result.returncode,
-                0,
-                "override cadence test failed\n"
-                f"stdout:\n{override_result.stdout}\n"
-                f"stderr:\n{override_result.stderr}",
             )
 
     def test_frame_limit_uses_policy_state_not_shadow_variable(self) -> None:
