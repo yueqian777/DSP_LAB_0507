@@ -1,5 +1,6 @@
 #include <float.h>
 #include <math.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -1416,6 +1417,11 @@ static void TestPerformanceChangeBitExactContract(void)
     int case_index;
     int frame_index;
     int input_index;
+
+    Check(sizeof(HARSHNESS_GUARD_STATE) == 260U &&
+              offsetof(HARSHNESS_GUARD_STATE, active_state) == 140U &&
+              offsetof(HARSHNESS_GUARD_STATE, pending_state) == 148U,
+          "performance state layout remains aligned with sibling modules");
 
     for (input_index = 0; input_index < 2; input_index++)
     {

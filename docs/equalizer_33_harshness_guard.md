@@ -12,6 +12,8 @@ classifier. The implementation does not justify perceptual listening claims.
 | Baseline | `a4fc259a5c925f20ca94c331eac8e90338ce03a9` |
 | Feature commit | `dade304fdeec3fb1acc4be407efac32d37a321e3` |
 | Validation/tooling commit | `6ef2c86abe90c68b9148702e10c3b7ff4c745d28` |
+| Performance closure | `26f9eea` |
+| Analyzer-reset closure | `4fd96b6` |
 | Host implementation and contracts | `HOST_VERIFIED` |
 | Clean A-H CCS matrix at feature commit | `CCS_BUILD_VERIFIED` |
 | Objective board evidence | Versioned results described below |
@@ -97,6 +99,11 @@ equalizer control, response, evaluator, and Harshness Guard C regressions each
 reported `failures=0`. The shared FFT regression also matched the frozen
 Project 3.2 kernel in eight bit-exact cases and 12 WOLA hops.
 
+At closure commit `4fd96b6`, the required Harshness Guard, Smart Bass,
+Dynamic Clarity, Equalizer, hardware-tool contract, and shared FFT/WOLA suite
+ran 113 tests with zero failures. The Project 3.2 regression again passed all
+eight FFT cases and 12 WOLA hops.
+
 ## Board evidence boundary
 
 The complete objective A-I runner passed on clean build `6f58613`, reporting
@@ -111,25 +118,45 @@ full A-I rerun was stopped after the user shortened the pressure-test plan and
 is archived as `ABORTED_BY_USER_TIME_LIMIT`; it is not reported as a current
 A-I pass. The interrupted runner did not emit a final `board_result.json`.
 
-The benchmark's safety/completeness checks passed, but Guard warm P99 was up
-to 3.25403 times the comparison modules in the same isolated harness. This is
-recorded as an open relative-performance review rather than hidden by the
-overall artifact `pass` field. The measured Guard warm maximum was 1,008,406
-cycles, with audio services stopped and all module saturation/nonfinite
-counters zero.
+The user accepted the complete A-I result on build `6f58613` and explicitly
+waived another full rerun. This is
+`FULL_A_TO_I_RERUN_NOT_REQUIRED_BY_USER_DECISION`; the interrupted current-SHA
+attempt remains a historical time-limit stop, not a functional failure.
 
-Static inspection found similarly sized optimized C6000 functions
-(`DynamicClarity_ProcessFrame` 3992 bytes and
-`HarshnessGuard_ProcessFrame` 3892 bytes), with benchmark state in
-`.subband_l2`; this did not explain the P99 gap. No performance acceptance
-claim is made until instruction-cache or memory-layout behavior is isolated.
+The relative-performance review is closed. All three files used the same
+C6000 command (`-mv6740 -O3 -g --c89`) with no file-specific speed/size,
+floating-point, or software-pipeline option. The original Guard function had
+50 fixed-stack loads/stores versus 6 in each sibling, including one state-base
+spill and 42 reload sites from stack slot 3. Matching `active_state` and
+`pending_state` offsets to 140 and 148 removed every state-base reload without
+changing arithmetic. The final Guard and Dynamic Clarity executable ranges
+are both 3904 bytes (`nm6x` symbol size 3992), with identical `0x40` stack
+frames and 133/94 total loads/stores. The root-cause class is
+`REGISTER_SPILL_OR_ALIASING`, not benchmark unfairness or an extra runtime
+helper.
 
-The same clean commit was finally rebuilt as production profile G with LCD,
-benchmark, transition capture, and four-way diagnostics all disabled. It had
-zero warnings, `link_errors=0x0`, no diagnostic symbol hits, and SHA-256
-`45092DE91CC083CA22C0E1BE8A623DA78B0040D4FF1D449B87D8A64F4D102EDD`.
-A six-second boot check reached INIT 11 with all real-time safety counters
-zero, then left the DSP `RUNNING_DISCONNECTED`.
+The reduced 36-job board benchmark used two deterministic inputs, six paths,
+64 warm-up calls, and 4096 measured calls per job. Guard P99 maximum fell from
+1,007,913.55 to 336,201.3 cycles; Dynamic Clarity and Smart Bass measured
+336,205.3 and 336,200.2 cycles. The largest per-case Guard P99 ratio was
+1.004261. Twelve frozen PCM16 paths remained byte-exact, and all benchmark
+saturation/nonfinite counters were zero.
+
+Build `4fd96b6` was rebuilt as production profile G with LCD, benchmark,
+transition capture, and four-way diagnostics all disabled. It had zero
+warnings, `link_errors=0x0`, no diagnostic symbol hits, and SHA-256
+`FD90B297BFE73E89FDA27835331F1CE3E051147B1AE08FAD8A4473C980F54033`.
+A six-second boot check reached INIT 11 with deadline, latency miss, overlap,
+dropped, clip, all three saturation, and all three nonfinite counters zero,
+then left the DSP `RUNNING_DISCONNECTED`.
+
+Manual Analyzer reset now invalidates the consumed epoch and calls
+`HarshnessGuard_SetEnabled(..., 0)`. Existing filter history is retained while
+the current level releases through adjacent 80 ms transitions to level 0.
+A new valid/warm snapshot can re-enable the still-requested Watch setting and
+is consumed exactly once. The Host trajectory passed `3 -> 2 -> 1 -> 0` with
+zero saturation/nonfinite. The optional short board reset test was not run:
+`TARGETED_RESET_BOARD_TEST_NOT_PERFORMED`.
 
 Compact summaries are in `docs/evidence/harshness_guard_dade304/`. Large WAV,
 RAW, `.out`, map, linker XML, and full logs remain under `%TEMP%` and are

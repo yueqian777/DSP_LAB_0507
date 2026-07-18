@@ -20,6 +20,7 @@ RAW_ANALYZER = ROOT / "tools/analyze_harshness_guard_raw.py"
 TRANSITION_DSS = ROOT / "tools/dss/dss_harshness_guard_transition.js"
 TRANSITION_RUNNER = ROOT / "tools/run_harshness_guard_transition.ps1"
 TRANSITION_ANALYZER = ROOT / "tools/analyze_harshness_guard_transition.py"
+LEAVE_RUNNING_DSS = ROOT / "tools/dss/dss_project33_leave_running.js"
 
 
 def msys_path(path: pathlib.Path) -> str:
@@ -53,6 +54,7 @@ class HarshnessGuardHardwareRunnerTest(unittest.TestCase):
         cls.transition_dss = TRANSITION_DSS.read_text(encoding="utf-8")
         cls.transition_runner = TRANSITION_RUNNER.read_text(encoding="utf-8")
         cls.transition_analyzer = TRANSITION_ANALYZER.read_text(encoding="utf-8")
+        cls.leave_running_dss = LEAVE_RUNNING_DSS.read_text(encoding="utf-8")
 
     def test_transition_diagnostic_api_is_compile_gated_and_adjacent(self) -> None:
         self.assertIn(
@@ -213,6 +215,20 @@ class HarshnessGuardHardwareRunnerTest(unittest.TestCase):
             '"UNMEASURED"',
         ):
             self.assertIn(token, self.raw_analyzer)
+
+    def test_short_boot_checks_all_dynamic_safety_counters(self) -> None:
+        for symbol in (
+            "EQ_DebugSmartBassSaturationCount",
+            "EQ_DebugSmartBassNonFiniteCount",
+            "EQ_DebugDynamicClaritySaturationCount",
+            "EQ_DebugDynamicClarityNonFiniteCount",
+            "EQ_DebugHarshnessGuardSaturationCount",
+            "EQ_DebugHarshnessGuardNonFiniteCount",
+        ):
+            self.assertIn(symbol, self.leave_running_dss)
+        self.assertIn('Thread.sleep(6000);', self.leave_running_dss)
+        self.assertIn('final_target_state: "RUNNING_DISCONNECTED"',
+                      self.leave_running_dss)
 
     def test_powershell_and_python_syntax(self) -> None:
         for path in (BOARD_RUNNER, TRANSITION_RUNNER):

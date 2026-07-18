@@ -47,6 +47,9 @@ function numberValue(expression) {
 
 try {
     var initStage, deadline, latency, overlap, dropped, clip;
+    var smartSaturation, smartNonfinite;
+    var claritySaturation, clarityNonfinite;
+    var guardSaturation, guardNonfinite;
     script = ScriptingEnvironment.instance();
     debugServer = script.getServer("DebugServer.1");
     debugServer.setConfig(ccxml);
@@ -65,13 +68,32 @@ try {
     overlap = numberValue("EQ_DebugFrameServiceOverlapCount");
     dropped = numberValue("EQ_DebugFrameServiceDroppedCount");
     clip = numberValue("EQ_DebugClipCount");
+    smartSaturation = numberValue("EQ_DebugSmartBassSaturationCount");
+    smartNonfinite = numberValue("EQ_DebugSmartBassNonFiniteCount");
+    claritySaturation = numberValue(
+        "EQ_DebugDynamicClaritySaturationCount");
+    clarityNonfinite = numberValue(
+        "EQ_DebugDynamicClarityNonFiniteCount");
+    guardSaturation = numberValue(
+        "EQ_DebugHarshnessGuardSaturationCount");
+    guardNonfinite = numberValue(
+        "EQ_DebugHarshnessGuardNonFiniteCount");
     if (initStage != 11 || deadline != 0 || latency != 0 ||
-        overlap != 0 || dropped != 0 || clip != 0) {
+        overlap != 0 || dropped != 0 || clip != 0 ||
+        smartSaturation != 0 || smartNonfinite != 0 ||
+        claritySaturation != 0 || clarityNonfinite != 0 ||
+        guardSaturation != 0 || guardNonfinite != 0) {
         throw "Project 3.3 boot/safety verification failed";
     }
     save({ pass: true, init_stage: initStage, deadline: deadline,
            latency_miss: latency, overlap: overlap, dropped: dropped,
-           clip: clip, final_target_state: "RUNNING_DISCONNECTED",
+           clip: clip, smart_saturation: smartSaturation,
+           smart_nonfinite: smartNonfinite,
+           clarity_saturation: claritySaturation,
+           clarity_nonfinite: clarityNonfinite,
+           guard_saturation: guardSaturation,
+           guard_nonfinite: guardNonfinite,
+           final_target_state: "RUNNING_DISCONNECTED",
            subjective_observation: "NOT_PERFORMED" });
     debugSession.target.runAsynch();
     Thread.sleep(250);

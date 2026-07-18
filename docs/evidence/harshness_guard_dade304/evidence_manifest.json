@@ -4,20 +4,28 @@
   "baseline_sha": "a4fc259a5c925f20ca94c331eac8e90338ce03a9",
   "feature_sha": "dade304fdeec3fb1acc4be407efac32d37a321e3",
   "validation_tooling_sha": "6ef2c86abe90c68b9148702e10c3b7ff4c745d28",
+  "performance_closure_sha": "26f9eea",
+  "analyzer_reset_closure_sha": "4fd96b6",
   "report_commit_sha": "SELF_REFERENCE_OMITTED",
   "status": {
     "implementation": "HOST_VERIFIED",
     "clean_A_to_H_build_matrix": "CCS_BUILD_VERIFIED",
     "accepted_complete_A_to_I_build": "6f58613",
     "accepted_complete_A_to_I": "PASS",
+    "accepted_complete_A_to_I_remains_valid": true,
+    "full_A_to_I_rerun_required": false,
+    "rerun_waived_by_user": true,
+    "full_A_to_I_rerun_policy": "FULL_A_TO_I_RERUN_NOT_REQUIRED_BY_USER_DECISION",
     "current_sha_benchmark": "PASS",
+    "relative_performance_review": "CLOSED_REGISTER_SPILL_OR_ALIASING",
     "current_sha_objective_transition": "PASS",
     "current_sha_production_G_build_and_boot": "PASS",
     "current_sha_full_A_to_I_rerun": "ABORTED_BY_USER_TIME_LIMIT",
+    "targeted_reset_board_test": "TARGETED_RESET_BOARD_TEST_NOT_PERFORMED",
     "subjective_listening": "NOT_PERFORMED",
     "external_analog_THD_SNR_SPL": "UNMEASURED"
   },
-  "current_rerun_policy": "The 6ef2c86 A_to_I_150641 run is not formal PASS evidence because it was stopped before the runner emitted board_result.json.",
+  "current_rerun_policy": "The 6ef2c86 A_to_I_150641 run remains a historical ABORTED_BY_USER_TIME_LIMIT event. The user accepted the complete 6f58613 A-I run and explicitly waived another full rerun; this is not incomplete or failed validation.",
   "build_macros": {
     "default": "EQ_ENABLE_HARSHNESS_GUARD=0",
     "dependency": "EQ_ENABLE_HARSHNESS_GUARD=1 requires EQ_ENABLE_AUDIO_FEATURE_ANALYZER=1",
@@ -27,10 +35,10 @@
   "generator_versions": {
     "host_audio_and_eval": "tools/generate_harshness_guard_audio.py and tools/harshness_guard_response_eval.c @ dade304",
     "accepted_complete_board": "tools/run_harshness_guard_board.ps1 @ 6f58613",
-    "current_benchmark": "tools/run_harshness_guard_benchmark.ps1 plus tools/analyze_harshness_guard_benchmark.py @ 6ef2c86",
+    "current_benchmark": "tools/run_harshness_guard_benchmark.ps1 plus tools/analyze_harshness_guard_benchmark.py @ 4fd96b6",
     "current_transition": "tools/run_harshness_guard_transition.ps1 plus tools/analyze_harshness_guard_transition.py @ 6ef2c86",
     "current_interrupted_rerun": "tools/run_harshness_guard_board.ps1 @ 6ef2c86",
-    "current_production_G": "CCS gmake plus tools/dss/dss_project33_leave_running.js @ 6ef2c86"
+    "current_production_G": "CCS gmake plus tools/dss/dss_project33_leave_running.js @ 4fd96b6"
   },
   "retained_local_roots": [
     {"status":"HOST_VERIFIED","logical_path":"%TEMP%\\DSP_LAB_0507\\harshness_guard\\host\\dade304"},
@@ -39,12 +47,51 @@
     {"status":"PASS","logical_path":"%TEMP%\\DSP_LAB_0507\\harshness_guard\\board\\6ef2c86\\benchmark_145600"},
     {"status":"PASS","logical_path":"%TEMP%\\DSP_LAB_0507\\harshness_guard\\board\\6ef2c86\\transition_150424"},
     {"status":"ABORTED_BY_USER_TIME_LIMIT","logical_path":"%TEMP%\\DSP_LAB_0507\\harshness_guard\\board\\6ef2c86\\A_to_I_150641"},
-    {"status":"PASS","logical_path":"%TEMP%\\DSP_LAB_0507\\harshness_guard\\production\\6ef2c86"}
+    {"status":"PASS","logical_path":"%TEMP%\\DSP_LAB_0507\\harshness_guard\\production\\6ef2c86"},
+    {"status":"PASS","logical_path":"%TEMP%\\DSP_LAB_0507\\harshness_guard\\kernel_diag_20260718_164350"},
+    {"status":"PASS","logical_path":"%TEMP%\\DSP_LAB_0507\\harshness_guard\\production_4fd96b6_boot_all_safety.json"}
   ],
+  "closure_evidence": {
+    "host_regression": {
+      "project_33_python_tests": 113,
+      "failures": 0,
+      "project_32_fft_bit_exact_cases": 8,
+      "project_32_wola_bit_exact_hops": 12
+    },
+    "performance": {
+      "root_cause": "REGISTER_SPILL_OR_ALIASING",
+      "baseline_guard_p99_max": 1007913.55,
+      "final_guard_p99_max": 336201.3,
+      "final_guard_to_sibling_p99_ratio_max": 1.0042613636363635,
+      "acceptance_limit": 1.25,
+      "pcm16_byte_exact_cases": 12,
+      "board_saturation_nonfinite_total": 0
+    },
+    "analyzer_reset": {
+      "host_trajectory": [3, 2, 1, 0],
+      "filter_state_preserved": true,
+      "valid_warm_snapshot_reenables_watch_request": true,
+      "snapshot_epoch_consumed_once": true,
+      "saturation_nonfinite_total": 0,
+      "board_test": "TARGETED_RESET_BOARD_TEST_NOT_PERFORMED"
+    },
+    "production_G": {
+      "build_git_sha": "4fd96b6",
+      "build_dirty": 0,
+      "output_sha256": "FD90B297BFE73E89FDA27835331F1CE3E051147B1AE08FAD8A4473C980F54033",
+      "warnings": 0,
+      "link_errors": 0,
+      "diagnostic_symbol_hits": 0,
+      "boot_init_stage": 11,
+      "boot_safety_counter_total": 0,
+      "final_target_state": "RUNNING_DISCONNECTED"
+    }
+  },
   "external_inventory": {
     "file": "external_file_inventory.json",
     "file_count": 103,
     "total_bytes": 31782498,
+    "scope_note": "The 103-file inventory is the original feature archive. Current closure artifacts are referenced directly by retained_local_roots and are not claimed as inventory entries.",
     "fields": ["file_name", "bytes", "sha256", "logical_path", "generator_version", "status"]
   },
   "compact_files": [

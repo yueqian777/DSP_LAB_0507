@@ -1,28 +1,161 @@
 {
   "evidence_label": "BOARD_ISOLATED_THREE_MODULE_MICROBENCHMARK",
-  "build_git_sha": "6ef2c86",
-  "build_dirty": 0,
-  "artifact_pass": true,
-  "safety_and_completeness_pass": true,
-  "relative_performance_review": "OPEN",
-  "job_count": 84,
-  "frame_len": 1024,
-  "sample_rate_hz": 50000,
-  "warmup_calls_per_job": 64,
-  "measured_calls_per_job": 4096,
-  "host_elapsed_seconds": 295.6699649,
-  "audio_services_started": 0,
-  "modules": [
-    {"module":"dynamic_clarity","job_count":28,"min_cycles":590,"median_max_cycles":335449,"p95_max_cycles":335993,"p99_max_cycles":336218.15,"absolute_max_cycles":336753,"first_call_max_cycles":336358,"warm_max_cycles":336392},
-    {"module":"smart_bass","job_count":28,"min_cycles":592,"median_max_cycles":335442,"p95_max_cycles":335988,"p99_max_cycles":336207.15,"absolute_max_cycles":336824,"first_call_max_cycles":336664,"warm_max_cycles":336361},
-    {"module":"harshness_guard","job_count":28,"min_cycles":885,"median_max_cycles":1006563,"p95_max_cycles":1007554,"p99_max_cycles":1007913.55,"absolute_max_cycles":1008755,"first_call_max_cycles":1008211,"warm_max_cycles":1008406}
+  "review_status": "CLOSED",
+  "root_cause_classification": "REGISTER_SPILL_OR_ALIASING",
+  "root_cause": "The five-level Guard state placed mutable processing fields at different offsets from the two seven-level sibling states. TI code generation spilled and repeatedly reloaded the Guard state base: 72 total stack references versus 34 in each sibling. Padding the fixed coefficient region so mutable fields use the sibling offsets removed the extra stack slot and made the generated function size and cycle distribution match, without changing arithmetic.",
+  "benchmark_fairness": {
+    "result": "FAIR",
+    "timed_region": "ProcessFrame only",
+    "outside_timed_region": [
+      "state template restore",
+      "input-to-output memcpy",
+      "saturation/nonfinite baseline reads",
+      "statistics",
+      "checksum"
+    ],
+    "audio_services_started": 0
+  },
+  "compiler_contract": {
+    "compiler": "TI C6000 CGT 8.5.0.LTS",
+    "common_command": "cl6x --cmd_file=ccsIncludes.opt -mv6740 -O3 --define=c6748 --define=DEBUG -g --c89 --diag_warning=225 --diag_wrap=off --display_error_number --preproc_with_compile",
+    "optimization": "-O3",
+    "speed_size_option": "NOT_EXPLICIT",
+    "floating_point_mode": "NOT_EXPLICIT",
+    "function_subsections": "NOT_EXPLICIT",
+    "software_pipeline_option": "NOT_EXPLICIT",
+    "file_specific_option_difference": false,
+    "main_loops": "ALL_DISQUALIFIED_BY_CONTROL_CODE",
+    "initiation_interval": "NOT_APPLICABLE_NO_SOFTWARE_PIPELINE",
+    "visible_helpers": [
+      "memcpy on identity/copy path",
+      "__c6xabi_divf on transition path",
+      "module-local transition helper"
+    ],
+    "unexpected_conversion_or_arithmetic_helpers": false
+  },
+  "baseline": {
+    "build_git_sha": "6ef2c86",
+    "build_dirty": 0,
+    "job_count": 84,
+    "warmup_calls_per_job": 64,
+    "measured_calls_per_job": 4096,
+    "modules": [
+      {"module":"dynamic_clarity","min":590,"median_max":335449,"p95_max":335993,"p99_max":336218.15,"max":336753,"first_max":336358,"warm_max":336392},
+      {"module":"smart_bass","min":592,"median_max":335442,"p95_max":335988,"p99_max":336207.15,"max":336824,"first_max":336664,"warm_max":336361},
+      {"module":"harshness_guard","min":885,"median_max":1006563,"p95_max":1007554,"p99_max":1007913.55,"max":1008755,"first_max":1008211,"warm_max":1008406}
+    ],
+    "guard_to_dynamic_p99_ratio_max": 3.2540276662659777,
+    "guard_to_smart_p99_ratio_max": 3.2538299883823538,
+    "linked_functions": [
+      {"module":"dynamic_clarity","address":"0xc0173ca4","ofd_end":"0xc0174be4","ofd_executable_size_bytes":3904,"nm_symbol_size_bytes":3992,"section":"external DDR .text","entry_mod_32":4},
+      {"module":"harshness_guard","address":"0xc0175c90","ofd_end":"0xc0176b60","ofd_executable_size_bytes":3792,"nm_symbol_size_bytes":3892,"section":"external DDR .text","entry_mod_32":16},
+      {"module":"smart_bass","address":"0xc0177b20","ofd_end":"0xc0178a44","ofd_executable_size_bytes":3876,"nm_symbol_size_bytes":3992,"section":"external DDR .text","entry_mod_32":0}
+    ],
+    "generated_code": {
+      "dynamic_stack_references": 34,
+      "smart_stack_references": 34,
+      "guard_stack_references": 72,
+      "guard_stack_slot_3_references": 43,
+      "guard_state_base_stores": 1,
+      "guard_state_base_reloads": 42,
+      "dynamic_stack_frame_bytes": 64,
+      "smart_stack_frame_bytes": 64,
+      "guard_stack_frame_bytes": 72,
+      "dynamic_fixed_stack_load_store": 6,
+      "smart_fixed_stack_load_store": 6,
+      "guard_fixed_stack_load_store": 50,
+      "dynamic_total_load_store": [133, 94],
+      "smart_total_load_store": [133, 94],
+      "guard_total_load_store": [166, 96],
+      "dynamic_visible_fp_instructions": 120,
+      "smart_visible_fp_instructions": 120,
+      "guard_visible_fp_instructions": 140
+    },
+    "source_path": "%TEMP%\\DSP_LAB_0507\\harshness_guard\\board\\6ef2c86\\benchmark_145600"
+  },
+  "one_variable_ab": [
+    {
+      "build_git_sha": "8fb333e",
+      "processing_padding_floats": 2,
+      "guard_p99_max": 876312.0,
+      "guard_stack_references": 74,
+      "guard_to_dynamic_p99_ratio_max": 2.8085778087891375,
+      "guard_to_smart_p99_ratio_max": 2.80839010357475,
+      "result": "DIRECTION_CONFIRMED_NOT_CLOSED"
+    },
+    {
+      "build_git_sha": "4fd96b6",
+      "processing_padding_floats": 10,
+      "guard_p99_max": 336201.3,
+      "guard_stack_references": 34,
+      "guard_to_dynamic_p99_ratio_max": 1.0042613636363635,
+      "guard_to_smart_p99_ratio_max": 1.0042613636363635,
+      "result": "TARGET_MET"
+    }
   ],
-  "guard_to_dynamic_p99_ratio_max": 3.2540276662659777,
-  "guard_to_smart_p99_ratio_max": 3.2538299883823538,
-  "guard_higher_approx_95_comparison_count": 28,
-  "performance_note": "The artifact pass field covers capture completeness and safety. The significant relative P99 difference remains open for assembly or memory-layout analysis.",
-  "static_follow_up": {"dynamic_process_frame_bytes":3992,"harshness_guard_process_frame_bytes":3892,"benchmark_state_section":".subband_l2","conclusion":"No simple function-size explanation; instruction-cache or memory-layout cause remains open."},
-  "safety": {"dynamic_saturation":0,"dynamic_nonfinite":0,"smart_saturation":0,"smart_nonfinite":0,"harshness_saturation":0,"harshness_nonfinite":0},
-  "subjective_observation": "NOT_PERFORMED",
-  "source_path": "%TEMP%\\DSP_LAB_0507\\harshness_guard\\board\\6ef2c86\\benchmark_145600"
+  "final": {
+    "build_git_sha": "4fd96b6",
+    "build_dirty": 0,
+    "output_sha256": "8CC9159D3FEEE3E1C3A7ACDE0C48C23DC6C3E2FF1DE841BC7824608C9409A9AA",
+    "job_count": 36,
+    "inputs": [
+      "dual_400hz_1953_125hz",
+      "deterministic_pseudorandom"
+    ],
+    "cases": [
+      "level_0_identity",
+      "level_1_stable",
+      "level_medium_max_stable",
+      "transition_0_to_1",
+      "transition_1_to_2",
+      "transition_1_to_0"
+    ],
+    "warmup_calls_per_job": 64,
+    "measured_calls_per_job": 4096,
+    "host_elapsed_seconds": 68.9184908,
+    "modules": [
+      {"module":"dynamic_clarity","min":594,"median_max":335459.0,"p95_max":335986.0,"p99_max":336205.3,"max":336580,"first_max":335519,"warm_max":336259},
+      {"module":"smart_bass","min":594,"median_max":335458.0,"p95_max":335980.0,"p99_max":336200.2,"max":336591,"first_max":336216,"warm_max":336076},
+      {"module":"harshness_guard","min":594,"median_max":335455.0,"p95_max":335981.0,"p99_max":336201.3,"max":336525,"first_max":335835,"warm_max":336305}
+    ],
+    "guard_to_dynamic_p99_ratio_max": 1.0042613636363635,
+    "guard_to_smart_p99_ratio_max": 1.0042613636363635,
+    "acceptance_limit": 1.25,
+    "acceptance_pass": true,
+    "linked_functions": [
+      {"module":"dynamic_clarity","address":"0xc00b38a4","ofd_end":"0xc00b47e4","ofd_executable_size_bytes":3904,"nm_symbol_size_bytes":3992,"section":"external DDR .text","entry_mod_32":4},
+      {"module":"harshness_guard","address":"0xc00b58c4","ofd_end":"0xc00b6804","ofd_executable_size_bytes":3904,"nm_symbol_size_bytes":3992,"section":"external DDR .text","entry_mod_32":4},
+      {"module":"smart_bass","address":"0xc00b7800","ofd_end":"0xc00b8724","ofd_executable_size_bytes":3876,"nm_symbol_size_bytes":3992,"section":"external DDR .text","entry_mod_32":0}
+    ],
+    "generated_code": {
+      "guard_stack_frame_bytes": 64,
+      "guard_fixed_stack_load_store": 6,
+      "guard_state_base_stores": 0,
+      "guard_state_base_reloads": 0,
+      "guard_total_load_store": [133, 94],
+      "guard_visible_fp_instructions": 120,
+      "dynamic_guard_compared_opcode_lines": 1079,
+      "dynamic_guard_different_opcode_lines": 9,
+      "different_lines_explanation": "Five external-call displacements and four level-count constants"
+    },
+    "byte_exact_contract": {
+      "input_count": 2,
+      "case_count": 6,
+      "pcm16_hash_count": 12,
+      "all_hashes_match_frozen_baseline": true,
+      "endpoint_state_match": true,
+      "saturation_count": 0,
+      "nonfinite_count": 0
+    },
+    "board_safety": {
+      "dynamic_saturation": 0,
+      "dynamic_nonfinite": 0,
+      "smart_saturation": 0,
+      "smart_nonfinite": 0,
+      "harshness_saturation": 0,
+      "harshness_nonfinite": 0
+    },
+    "source_path": "%TEMP%\\DSP_LAB_0507\\harshness_guard\\kernel_diag_20260718_164350"
+  },
+  "subjective_observation": "NOT_PERFORMED"
 }

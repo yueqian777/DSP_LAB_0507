@@ -736,15 +736,18 @@ point. At level 4, the nearest 1 kHz and 16 kHz points are only -0.030544 and
 
 The clean `dade304` A-H CCS matrix covered Project 32 and all required Project
 3.3 feature combinations. All eight full builds exited zero, produced an
-output, had zero warnings, and reported `link_errors=0x0`. The Guard state was
-220 bytes in `.subband_l2`; the all-dynamics LCD-OFF/ON profiles each used
-20340 of 262144 bytes in that section.
+output, had zero warnings, and reported `link_errors=0x0`. At that feature
+commit the Guard state was 220 bytes and the all-dynamics profiles used 20340
+of 262144 `.subband_l2` bytes.
 
-The final production-G rebuild at `6ef2c86`, `dirty=0`, repeated the LCD-OFF
-all-dynamics compile/link check with diagnostics disabled: warnings=0,
-`link_errors=0x0`, and diagnostic symbol hits=0. Its six-second boot check
-reached INIT 11 with deadline, latency miss, overlap, dropped, and clip all
-zero, then left the target `RUNNING_DISCONNECTED`.
+Performance closure aligns the Guard mutable-state offsets without changing
+its coefficients or arithmetic. The state is now 260 bytes, matching Dynamic
+Clarity, and production G uses 20380 of 262144 `.subband_l2` bytes. The clean
+`4fd96b6`, `dirty=0` Project 32 and production-G builds both had warnings=0
+and `link_errors=0x0`; production G had diagnostic symbol hits=0. Its six-
+second boot reached INIT 11 with deadline, latency miss, overlap, dropped,
+clip, all three saturation, and all three nonfinite counters zero, then left
+the target `RUNNING_DISCONNECTED`.
 
 ### 13.2 Complete A-I objective run
 
@@ -775,20 +778,48 @@ slice count, and control tokens did not change because of a dynamic decision.
 
 ### 13.3 Current-SHA diagnostic closure
 
-Build `6ef2c86`, `dirty=0`, passed the isolated 84-job, three-module benchmark:
-64 warm-up calls and 4096 measured calls per case, with audio services stopped
-and all module safety counters zero. Guard warm maximum was 1,008,406 cycles.
-Its largest Guard-to-Dynamic and Guard-to-Smart P99 ratios were 3.254028 and
-3.253830. The analyzer marks all 28 comparisons Guard-higher at its approximate
-95 percent criterion. The benchmark artifact passes completeness and safety,
-but this relative-performance difference remains open for assembly or memory
-layout analysis.
+Build `6ef2c86`, `dirty=0`, passed the original isolated 84-job benchmark but
+exposed a maximum Guard P99 ratio of 3.254028. The wrapper was fair: state
+restore, input copy, counter reads, statistics, and checksum were outside the
+TSCL interval. All three source files used the same TI C6000 command:
+`--cmd_file=ccsIncludes.opt -mv6740 -O3 -g --c89`, with no explicit or
+file-specific speed/size, floating-point, function-subsection, or software-
+pipeline option.
 
-Static follow-up found the optimized C6000 process functions to be similar in
-size: Dynamic Clarity 3992 bytes and Harshness Guard 3892 bytes. Their
-benchmark state objects were both in `.subband_l2`. This rules out a simple
-source-size explanation but does not isolate instruction-cache placement or
-other memory effects, so no relative-performance acceptance claim is made.
+The archived benchmark functions were in external-DDR `.text` at
+`c0173ca4` Dynamic Clarity, `c0175c90` Harshness Guard, and `c0177b20` Smart
+Bass. Guard did not cross the 32 KiB boundary; Smart Bass did and remained
+fast. All three loops were disqualified from software pipelining by control
+code. They had the same visible call graph: `memcpy`, `__c6xabi_divf`, and the
+module's transition helper. There was no float/integer conversion helper or
+other extra per-sample Guard helper.
+
+The decisive generated-code difference was stack traffic. Baseline Guard had
+50 fixed-stack loads/stores versus 6 in each sibling: one state-base store and
+42 reload sites from stack slot 3. Its stack frame was `0x48` versus `0x40` in
+each sibling, with 166/96 total loads/stores versus 133/94. Matching
+`active_state=140` and `pending_state=148` to the two fast layouts removed all
+state-base reloads. Final Guard and Dynamic Clarity both have a 3904-byte OFD
+executable range (`nm6x` symbol size 3992), `0x40` frame, 6 fixed-stack
+loads/stores, and 133/94 total loads/stores. Of 1079 compared opcode lines,
+only 5 external call displacements and 4 level-count constants differ. The
+root-cause category is `REGISTER_SPILL_OR_ALIASING`.
+
+The final `4fd96b6`, `dirty=0` diagnostic used 36 jobs: three modules, two
+deterministic inputs, and identity, stable 1, stable MEDIUM, 0->1, 1->2, and
+1->0 paths. Every job used 64 warm-up and 4096 measured calls. Summary maxima:
+
+| Module | Min | Median | P95 | P99 | Max | First | Warm max |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Dynamic Clarity | 594 | 335459 | 335986 | 336205.3 | 336580 | 335519 | 336259 |
+| Smart Bass | 594 | 335458 | 335980 | 336200.2 | 336591 | 336216 | 336076 |
+| Harshness Guard | 594 | 335455 | 335981 | 336201.3 | 336525 | 335835 | 336305 |
+
+The largest Guard-to-Dynamic and Guard-to-Smart P99 ratios were both
+1.004261, below the 1.25 target. Twelve deterministic identity/stable/
+transition paths preserved their frozen PCM16 hashes, endpoint levels,
+transition counts, processing state, saturation count, and nonfinite count.
+All board benchmark safety counters were zero.
 
 The same build passed nine actual 0->1, 1->2, and 1->0 internal PCM16
 transitions across dual-tone, music-like, and deterministic periodic noise.
@@ -803,6 +834,20 @@ A new full A-I rerun under `6ef2c86` was stopped after the user requested a
 shorter pressure-test plan. It is `ABORTED_BY_USER_TIME_LIMIT`, not a passed
 current-SHA A-I result. The interrupted runner did not emit a final
 `board_result.json`.
+
+The complete A-I result on clean build `6f58613` remains accepted. The user
+explicitly decided not to rerun it:
+`FULL_A_TO_I_RERUN_NOT_REQUIRED_BY_USER_DECISION`. This is not incomplete or
+failed validation and is not a blocking issue.
+
+Manual Analyzer reset now sets the Guard analyzer fault, invalidates the
+consumed epoch, and disables the Guard request while retaining both filter
+states. Host state-machine evidence follows `3 -> 2 -> 1 -> 0` through three
+adjacent 80 ms releases, with monotonic applied gain and zero saturation/
+nonfinite. A new valid/warm epoch re-enables the still-requested Watch setting
+and starts one adjacent attack; replay of the same epoch is rejected. The
+optional short board reset test was not run:
+`TARGETED_RESET_BOARD_TEST_NOT_PERFORMED`.
 
 ### 13.4 Remaining boundary
 
