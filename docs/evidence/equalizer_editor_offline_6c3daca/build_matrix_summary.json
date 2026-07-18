@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "evidence_labels": ["TARGET_CLEAN_BUILD_PASS", "TARGET_LINK_MAP_AUDIT_PASS"],
+  "source_sha": "6c3daca0cfd645704446a60c5fe189ffeb0b8645",
+  "build_identity": {"version":"P33_FIX_V5","sha":"6c3daca","dirty":0},
+  "profiles": [
+    {"name":"A_project32","warning":0,"error":0,"link_errors":"0x0","text":122176,"const":14636,"bss":43,"subband_l2":257124,"ui":0,"editor":0,"touch":0,"jobs":0,"dynamic_hitboxes":0,"editor_hitboxes":0,"editor_symbols":0,"ui_subband":0,"framebuffers":1,"second_framebuffers":0,"out_size":884188,"out_sha256":"c33298a3c90883064de949af5f78d3cdc7f08a9975cd070cac090617fd7b4785"},
+    {"name":"B_project33_lcd_off","warning":0,"error":0,"link_errors":"0x0","text":123616,"const":1928,"bss":10,"subband_l2":20380,"ui":0,"editor":0,"touch":0,"jobs":0,"dynamic_hitboxes":0,"editor_hitboxes":0,"editor_symbols":0,"ui_subband":0,"framebuffers":0,"second_framebuffers":0,"out_size":750268,"out_sha256":"ee56b280169fc488fb010fd245a0d89c6763628e1e56861656820e54b9080256"},
+    {"name":"C_project33_static","warning":0,"error":0,"link_errors":"0x0","text":157568,"const":5272,"bss":30,"subband_l2":20380,"ui":312,"editor":0,"touch":0,"jobs":15,"dynamic_hitboxes":12,"editor_hitboxes":0,"editor_symbols":0,"ui_subband":0,"framebuffers":1,"second_framebuffers":0,"out_size":955756,"out_sha256":"f0f229714456e4c2ab705f8af6168833ce5856bb9c26267cee452918e42d86c2"},
+    {"name":"D_project33_dynamic","warning":0,"error":0,"link_errors":"0x0","text":158400,"const":7634,"bss":30,"subband_l2":20380,"ui":312,"editor":0,"touch":0,"jobs":15,"dynamic_hitboxes":12,"editor_hitboxes":0,"editor_symbols":0,"ui_subband":0,"framebuffers":1,"second_framebuffers":0,"out_size":969632,"out_sha256":"a2e0ca1f1c7676337ab6c0805a64bd3e965b4ed82e9bc5f369afb49f002bab79"},
+    {"name":"E_project33_touch","warning":0,"error":0,"link_errors":"0x0","text":178176,"const":14522,"bss":43,"subband_l2":20380,"ui":312,"editor":0,"touch":36,"jobs":15,"dynamic_hitboxes":12,"editor_hitboxes":0,"editor_symbols":0,"ui_subband":0,"framebuffers":1,"second_framebuffers":0,"out_size":1131060,"out_sha256":"7789497cdfa6749838af82d27f445a311f92d152ddc64d3c1cb63dd6d343565e"},
+    {"name":"F_project33_editor_readonly","warning":0,"error":0,"link_errors":"0x0","text":173824,"const":11714,"bss":30,"subband_l2":20380,"ui":556,"editor":64,"touch":0,"jobs":27,"dynamic_hitboxes":12,"editor_hitboxes":20,"editor_symbols":45,"ui_subband":0,"framebuffers":1,"second_framebuffers":0,"out_size":1037544,"out_sha256":"267270919c4cc2e4e7f2a53b5becd5f61915e55ba547e7c62a0851a6152c9090"},
+    {"name":"G_project33_editor_touch","warning":0,"error":0,"link_errors":"0x0","text":194336,"const":18602,"bss":43,"subband_l2":20380,"ui":556,"editor":64,"touch":36,"jobs":27,"dynamic_hitboxes":12,"editor_hitboxes":20,"editor_symbols":46,"ui_subband":0,"framebuffers":1,"second_framebuffers":0,"out_size":1203048,"out_sha256":"e1d41dacf8b8956c3f382c9d43fd3af008b559ce1809f3689256a5cad10b5aed"},
+    {"name":"H_project33_full","warning":0,"error":0,"link_errors":"0x0","text":194336,"const":18602,"bss":43,"subband_l2":20380,"ui":556,"editor":64,"touch":36,"jobs":27,"dynamic_hitboxes":12,"editor_hitboxes":20,"editor_symbols":46,"ui_subband":0,"framebuffers":1,"second_framebuffers":0,"out_size":1203048,"out_sha256":"13c8f75ccc43b1e34ff19d58a6d46cf23c6032a322768fdc06e1ac7a808e45b0"}
+  ],
+  "framebuffer_contract": {
+    "guarded_lcd_buffer_bytes": 768036,
+    "project33_lcd_off_linked_count": 0,
+    "lcd_on_linked_count": 1,
+    "second_framebuffer_hits": 0
+  },
+  "source_summary": {
+    "logical_path": "%TEMP%/equalizer_ui_build_matrix_editor_final_20260719_005102/build_matrix_summary.json",
+    "size_bytes": 20225,
+    "sha256": "7a21ff7bcd663cbb4bc69dfa348060cded9b00791730ef5dc0758601e8617c18"
+  },
+  "target_runtime_claim": false
+}

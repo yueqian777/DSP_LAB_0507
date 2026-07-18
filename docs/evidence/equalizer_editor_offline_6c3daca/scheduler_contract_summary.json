@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "evidence_label": "HOST_SCHEDULER_CONTRACT_PASS",
+  "feature_sha": "6c3daca0cfd645704446a60c5fe189ffeb0b8645",
+  "priority": [
+    "audio", "frame_service", "touch", "builder", "analyzer", "lcd", "uart"
+  ],
+  "checks": {
+    "max_one_background_kind_per_frame": true,
+    "builder_blocks_lcd": true,
+    "analyzer_blocks_lcd": true,
+    "touch_blocks_lcd": true,
+    "control_quiet_period": true,
+    "category_cooldown": true,
+    "analyzer_latest_wins": true,
+    "page_tile_eventually_serviced": true,
+    "editor_field_eventually_serviced": true,
+    "ten_band_jobs_eventually_complete": true,
+    "snapshot_requests_per_process_frame_max": 1
+  },
+  "stress_observations": {
+    "builder_service_count": 3,
+    "analyzer_service_count": 1126,
+    "lcd_service_count": 2640,
+    "failures": 0
+  },
+  "target_cycles_measured": false,
+  "realtime_board_claim": false
+}

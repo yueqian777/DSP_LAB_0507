@@ -155,3 +155,32 @@ transition-capture, four-way, and UART diagnostics were disabled. The final E
 output is 1107296 bytes with SHA-256
 `1677223adb4ffc7e98e977eb689e49aef58ae144e78aa72744e8d9e890987c49`.
 `EQ_DebugUiStateBytes=244` and `EQ_DebugTouchStateBytes=36` were retained in E.
+
+## Ten-band editor A-H clean matrix
+
+The final offline-editor matrix used exact feature source
+`6c3daca0cfd645704446a60c5fe189ffeb0b8645`, generated build identity
+`P33_FIX_V5`, and dirty=0. Every profile used clean plus `-B`; all had zero
+warnings, zero errors, and `link_errors=0x0`.
+
+| Profile | LCD/Touch/Editor/mask | `.text` | `.const` | `.bss` | `.subband_l2` | UI/Editor/Touch B | jobs | hitboxes D/E | FB |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| A Project 32 | 0/0/0/0 | 122176 | 14636 | 43 | 257124 | 0/0/0 | 0 | 0/0 | 1 |
+| B P33 LCD OFF | 0/0/0/0 | 123616 | 1928 | 10 | 20380 | 0/0/0 | 0 | 0/0 | 0 |
+| C P33 static | 1/0/0/0 | 157568 | 5272 | 30 | 20380 | 312/0/0 | 15 | 12/0 | 1 |
+| D P33 dynamic | 1/0/0/15 | 158400 | 7634 | 30 | 20380 | 312/0/0 | 15 | 12/0 | 1 |
+| E P33 Touch | 1/1/0/15 | 178176 | 14522 | 43 | 20380 | 312/0/36 | 15 | 12/0 | 1 |
+| F Editor read-only | 1/0/1/49 | 173824 | 11714 | 30 | 20380 | 556/64/0 | 27 | 12/20 | 1 |
+| G Editor Touch | 1/1/1/49 | 194336 | 18602 | 43 | 20380 | 556/64/36 | 27 | 12/20 | 1 |
+| H full dual page | 1/1/1/63 | 194336 | 18602 | 43 | 20380 | 556/64/36 | 27 | 12/20 | 1 |
+
+Matched Editor overhead is 15424 bytes `.text`, 4080 `.const`, zero `.bss`,
+and zero `.subband_l2` for F-D; G-E is 16160, 4080, zero, and zero. Both are
+inside the soft budgets. UI plus editor state is 620 bytes; with Touch it is
+656 bytes. Editor-OFF profiles contain zero editor runtime symbols. No UI
+symbol or object enters `.subband_l2`. B intentionally links no framebuffer;
+A and C-H link the existing single 768036-byte guarded `Lcd_Buffer`, and no
+profile contains a second framebuffer candidate.
+
+These results are `TARGET_CLEAN_BUILD_PASS` and
+`TARGET_LINK_MAP_AUDIT_PASS`. They do not show that H ran on a target.

@@ -112,3 +112,19 @@ second framebuffer.
 defaults remain LCD=0, Touch=0, and runtime mask=0. The current UI state is 312
 bytes; touch state plus transform is 36 bytes. The A-E matrix keeps Project 3.3
 `.subband_l2` at 20,380 bytes for LCD OFF, static, dynamic, and Touch profiles.
+
+## Offline ten-band editor extension
+
+The values above describe the preserved editor-OFF Status UI. Feature source
+`6c3daca0cfd645704446a60c5fe189ffeb0b8645` adds an optional second page behind
+`EQ_ENABLE_TEN_BAND_EDITOR`, which still defaults to 0. Editor ON uses 27 jobs:
+the original 15, ten applied-gain strip jobs, editor fields, and page tiles.
+The editor state is 64 bytes; complete UI and editor state is 620 bytes in the
+TI C6000 map, or 656 bytes with Touch state and transform.
+
+Dynamic page state remains independent from editor applied/draft/submitted
+state. Page construction is tiled and latest-wins; one service draws one tile
+and never clears the full framebuffer. The editor columns render applied gains
+only. Snapshot construction is event-driven and limited to one request per
+processed frame. Host renderer trace proves fixed bounds and call ordering,
+but is an `OFFLINE_RENDER_PREVIEW`, not a photograph or real-LCD pass.

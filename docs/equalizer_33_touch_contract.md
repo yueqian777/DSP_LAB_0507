@@ -60,3 +60,23 @@ DOWN samples, 51 RELEASE samples, and zero I2C errors. Because no operator
 confirmed those presses, their source is unresolved and they are not evidence
 of physical hitbox accuracy. Visual and physical-touch validation remains
 `PENDING_OPERATOR_TOUCH_VALIDATION`.
+
+## Optional editor page
+
+Feature source `6c3daca0cfd645704446a60c5fe189ffeb0b8645` makes hit testing page-aware.
+The preserved Dynamic Status page now has 12 hitboxes, adding the fixed page
+switch. Editor builds add a separate 20-hitbox table: five presets, ten band
+selectors, minus, plus, Apply, Reset Flat, and page switch. Cross-page
+coordinate reuse is permitted; each individual table is bounded and
+non-overlapping.
+
+Band selectors change only the selected index. Minus and plus change the local
+draft by one half-dB step and retain the existing press/release latch, so a
+held press cannot repeat. Apply submits one SET_ALL request and Reset submits
+RESET_FLAT. While page tiles are incomplete, old-page content actions are
+rejected and counted; page switch remains latest-wins.
+
+`EQ_ENABLE_TEN_BAND_EDITOR_TOUCH` defaults to 0 and is rejected unless both
+the editor and Project 3.3 Touch are enabled. These Host contracts do not prove
+the physical transform, hitbox feel, controller noise behavior, or actual LCD
+alignment; those remain `PENDING_HARDWARE`.

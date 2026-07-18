@@ -126,3 +126,18 @@ The prepared dynamic runner is
 builds the exact no-Touch profile, uses PC default line-out only, records the
 objective counters, disconnects DSS, and leaves the DSP running. It was not
 executed after the hardware was removed.
+
+## Offline Stage B continuation
+
+The original Stage A record above is retained. With hardware unavailable, its
+current acceptance state is `PARTIAL_PASS_AND_PENDING_HARDWARE`: only the
+static alignment gate passed. This permits Stage B offline implementation but
+does not waive Stage B hardware acceptance.
+
+The optional ten-band editor was implemented at feature source
+`6c3daca0cfd645704446a60c5fe189ffeb0b8645` and validated by Host renderer
+trace, fixed-coordinate geometry tests, and CCS map inspection. It does not
+change the historical conclusion: hardened Dynamic Status, physical Touch,
+editor visuals, and combined endurance remain `PENDING_HARDWARE`. In
+particular, an offline PNG cannot prove that the dynamic or editor page no
+longer drifts on the physical LCD.

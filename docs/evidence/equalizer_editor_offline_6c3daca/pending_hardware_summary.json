@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "feature_sha": "6c3daca0cfd645704446a60c5fe189ffeb0b8645",
+  "stage_a_hardware_acceptance": "PARTIAL_PASS_AND_PENDING_HARDWARE",
+  "historical_static_alignment": {
+    "source_sha": "67a22ef",
+    "duration_ms": 600000,
+    "status": "PASS_STATIC_ONLY",
+    "operator_visual_observation": "PASS_STATIC_ONLY"
+  },
+  "prepared_runner": "tools/run_equalizer_ten_band_editor_hardware.ps1",
+  "prepared_dss": "tools/dss/dss_equalizer_ten_band_editor.js",
+  "current_run_status": "NOT_RUN_NO_HARDWARE",
+  "pending": [
+    "exact_feature_sha_dirty_zero_load_and_INIT_11",
+    "hardened_dynamic_status_ten_minutes",
+    "physical_touch_band_plus_minus_apply_reset_and_page_switch",
+    "custom_apply_reset_and_latest_wins_on_board",
+    "real_lcd_chinese_glyphs_applied_columns_tiles_and_alignment",
+    "lcd_job_cycles_frame_latency_deadline_overlap_dropped_clip",
+    "raster_fifo_frame_address_and_canary_under_editor_load",
+    "combined_audio_analyzer_dynamics_preset_touch_editor_ten_minutes",
+    "adc_dac_and_external_analog_thd_snr_response_spl",
+    "operator_audibility_and_touch_feel"
+  ],
+  "measured_on_current_board_for_editor": false,
+  "board_pass_claimed": false
+}

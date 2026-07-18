@@ -963,3 +963,26 @@ remain `PENDING_HARDWARE`. Stage A is not complete and Stage B ten-band editor
 work has not started. Compact evidence is under
 `docs/evidence/equalizer_lcd_stability_46bc54e/`; details are in
 `docs/equalizer_33_lcd_drift_diagnosis.md`.
+
+## 16. Ten-band editor offline implementation
+
+The statement in section 15.3 records the state when hardware was removed.
+Stage B offline work was subsequently allowed while Stage A remained
+`PARTIAL_PASS_AND_PENDING_HARDWARE`. Feature source
+`6c3daca0cfd645704446a60c5fe189ffeb0b8645` implements the optional editor and
+passes Host contracts, deterministic PCM16 checks, renderer trace, and CCS
+clean-build/map inspection.
+
+No DSS target script was run for this feature source, no output was downloaded,
+and no board counters, cycles, Touch events, or LCD observations were captured.
+The prepared runner `tools/run_equalizer_ten_band_editor_hardware.ps1` and DSS
+contract `tools/dss/dss_equalizer_ten_band_editor.js` therefore remain
+`NOT_RUN_NO_HARDWARE`.
+
+The following gates remain `PENDING_HARDWARE`: exact-SHA INIT 11; hardened
+Dynamic Status; physical ten-band Touch and press/release behavior; CUSTOM
+Apply and Reset Flat; real Chinese glyphs, applied columns, page tiles, and
+visual alignment; LCD job cycles and frame latency; raster/FIFO/address/canary
+checks under editor load; and ten-minute combined endurance. Offline PCM16
+does not include ADC/DAC or prove analog THD, SNR, frequency response, SPL, or
+audible transition quality.

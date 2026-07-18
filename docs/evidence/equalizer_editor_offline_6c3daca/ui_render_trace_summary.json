@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "evidence_label": "UI_RENDER_TRACE_PASS",
+  "source_commit": "6c3daca0cfd645704446a60c5fe189ffeb0b8645",
+  "screen": {"width": 800, "height": 480},
+  "preview_count": 10,
+  "trace_record_count": 19406,
+  "chinese_glyph_record_count": 555,
+  "bounds_failures": 0,
+  "combined_trace": {
+    "logical_path": "%TEMP%/equalizer_ui_preview_6c3daca_20260719_005120/draw_trace.jsonl",
+    "size_bytes": 3676953,
+    "sha256": "1055f3e5b1839b7dab2240c116ad81f0b9c96c8b90ce1f8aaecf475d13154d3d"
+  },
+  "actual_project_renderer_calls": true,
+  "system_chinese_font_used": false,
+  "physical_lcd_capture": false
+}

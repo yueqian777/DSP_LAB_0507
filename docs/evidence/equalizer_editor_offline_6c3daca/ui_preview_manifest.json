@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "evidence_label": "OFFLINE_RENDER_PREVIEW",
+  "source_commit": "6c3daca0cfd645704446a60c5fe189ffeb0b8645",
+  "bounds_failures": 0,
+  "previews": [
+    {"name":"dynamic_status_initial","primitives":1647,"pixel_sha256":"47345eca327ebf11c3db35f446f8b8d48e82b496fcb3ce506465e0aa3433864d"},
+    {"name":"dynamic_status_all_armed","primitives":1653,"pixel_sha256":"4d13ab36c4065f560903814432a772cdcf4aef445bfd77ecdd33a8f0f1368835"},
+    {"name":"dynamic_status_all_active","primitives":1653,"pixel_sha256":"9f85beff9d6df185c178c9f16edd785f850eb4e5218ca2d228b86709bd7c372c"},
+    {"name":"eq_editor_flat","primitives":2080,"pixel_sha256":"df2be1ce8c698a699e5bd512c13760f8e5a3fe900954e95fd12a92d706c8628d"},
+    {"name":"eq_editor_vocal","primitives":2088,"pixel_sha256":"ad7a287a077779459066fe4d409399948dfc388a287e4b0ad9f9f94dc3afc067"},
+    {"name":"eq_editor_draft_125hz_plus2","primitives":2080,"pixel_sha256":"3376ad7f381e59c1b0a9a5c6625edde053700030d5fb178a99ce51f3d2af4116"},
+    {"name":"eq_editor_building_custom","primitives":2080,"pixel_sha256":"11615d4ff4f13ee04ff8641cbd502e83ae77ebb1c0825c020ad48b31e61badbb"},
+    {"name":"eq_editor_custom_applied","primitives":2088,"pixel_sha256":"6dd318d9825c954a323bee241969867d95eb618aec848dbfc2de8878a7bc4edd"},
+    {"name":"eq_editor_gain_limits","primitives":2090,"pixel_sha256":"d6552e3f21ad047cd28b57564acdee4393854c8603a4b72e524c9489c599af94"},
+    {"name":"page_transition_intermediate","primitives":1947,"pixel_sha256":"98ccd5d86cd11b407ae5195b6218d5ac3bd358f6b4b0ea1743413a8c6d80470e"}
+  ],
+  "local_directory": "%TEMP%/equalizer_ui_preview_6c3daca_20260719_005120",
+  "local_file_count": 33,
+  "local_total_size_bytes": 6788482,
+  "source_manifest_sha256": "27fa8634247e1fa675da54e33e76091d2671fbf897394389aa0eeffe4e42887a",
+  "physical_lcd_capture": false
+}

@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "evidence_label": "TARGET_LINK_MAP_AUDIT_PASS",
+  "source_sha": "6c3daca0cfd645704446a60c5fe189ffeb0b8645",
+  "comparisons": [
+    {
+      "name": "F_editor_readonly_minus_D_dynamic",
+      "text_delta_bytes": 15424,
+      "const_delta_bytes": 4080,
+      "bss_delta_bytes": 0,
+      "subband_l2_delta_bytes": 0
+    },
+    {
+      "name": "G_editor_touch_minus_E_touch",
+      "text_delta_bytes": 16160,
+      "const_delta_bytes": 4080,
+      "bss_delta_bytes": 0,
+      "subband_l2_delta_bytes": 0
+    }
+  ],
+  "state_bytes": {
+    "editor": 64,
+    "ui_in_editor_build": 556,
+    "ui_plus_editor": 620,
+    "touch_plus_transform": 36,
+    "combined_ui_editor_touch": 656
+  },
+  "soft_budgets": {
+    "editor_state_max": 512,
+    "total_ui_state_max": 1536,
+    "bss_delta_max": 4096,
+    "const_delta_max": 12288,
+    "text_delta_max": 32768,
+    "subband_l2_delta_required": 0
+  },
+  "all_soft_budgets_met": true,
+  "editor_off_runtime_symbol_hits": 0,
+  "ui_subband_symbol_hits": 0,
+  "second_framebuffer_symbol_hits": 0
+}
