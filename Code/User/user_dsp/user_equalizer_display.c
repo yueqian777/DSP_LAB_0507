@@ -23,8 +23,8 @@
 #define EQ_UI_TITLE_W 760
 #define EQ_UI_TITLE_H 24
 
-#define EQ_UI_ANALYZER_INNER_X_OFFSET 16
-#define EQ_UI_ANALYZER_INNER_W 54
+#define EQ_UI_ANALYZER_INNER_X_OFFSET 24
+#define EQ_UI_ANALYZER_INNER_W 28
 #define EQ_UI_ANALYZER_VALUE_X_OFFSET 76
 #define EQ_UI_ANALYZER_VALUE_Y_OFFSET 80
 #define EQ_UI_ANALYZER_VALUE_W 42
@@ -866,18 +866,25 @@ static int EQ_DynamicLevel(int index)
     return s_ui_state.requested.guard_level;
 }
 
-static void EQ_DrawDynamicJob(int index)
+static unsigned int EQ_DrawDynamicJob(int index)
 {
     unsigned int fields;
+    unsigned int selected_field;
     int enabled;
     int strength;
     char buffer[3];
     int length;
 
     fields = EqualizerUiLogic_DynamicFieldMask(&s_ui_state, index);
+    if ((fields & EQ_UI_DYNAMIC_FIELD_ENABLED) != 0U)
+        selected_field = EQ_UI_DYNAMIC_FIELD_ENABLED;
+    else if ((fields & EQ_UI_DYNAMIC_FIELD_STRENGTH) != 0U)
+        selected_field = EQ_UI_DYNAMIC_FIELD_STRENGTH;
+    else
+        selected_field = fields & EQ_UI_DYNAMIC_FIELD_LEVEL;
     enabled = EQ_DynamicEnabled(index);
     strength = EQ_DynamicStrength(index);
-    if ((fields & EQ_UI_DYNAMIC_FIELD_ENABLED) != 0U)
+    if ((selected_field & EQ_UI_DYNAMIC_FIELD_ENABLED) != 0U)
     {
         EQ_ClearInside(&EQ_UI_DYNAMIC_TOGGLE_RECTS[index]);
 #if EQ_LCD_USE_CHINESE
@@ -891,7 +898,7 @@ static void EQ_DrawDynamicJob(int index)
                        enabled ? EQ_COLOR_ACTIVE : EQ_COLOR_MUTED, 1);
 #endif
     }
-    if ((fields & EQ_UI_DYNAMIC_FIELD_STRENGTH) != 0U)
+    if ((selected_field & EQ_UI_DYNAMIC_FIELD_STRENGTH) != 0U)
     {
         EQ_ClearInside(&EQ_UI_DYNAMIC_STRENGTH_RECTS[index]);
 #if EQ_LCD_USE_CHINESE
@@ -911,16 +918,17 @@ static void EQ_DrawDynamicJob(int index)
                            "MID", 3, EQ_FONT_SMALL, EQ_COLOR_TEXT, 1);
 #endif
     }
-    if ((fields & EQ_UI_DYNAMIC_FIELD_LEVEL) != 0U)
+    if ((selected_field & EQ_UI_DYNAMIC_FIELD_LEVEL) != 0U)
     {
         EQ_ClearInside(&EQ_UI_DYNAMIC_LEVEL_RECTS[index]);
         length = EQ_FormatLevel(buffer, EQ_DynamicLevel(index));
         EQ_LcdDrawText(&EQ_UI_DYNAMIC_LEVEL_RECTS[index],
-                       buffer, length, EQ_FONT_SMALL, EQ_COLOR_TEXT, 1);
+                        buffer, length, EQ_FONT_SMALL, EQ_COLOR_TEXT, 1);
     }
+    return selected_field;
 }
 
-static void EQ_DrawJob(int job)
+static unsigned int EQ_DrawJob(int job)
 {
     if ((job >= EQ_UI_JOB_PRESET_0) && (job <= EQ_UI_JOB_PRESET_4))
     {
@@ -938,8 +946,9 @@ static void EQ_DrawJob(int job)
     else if ((job >= EQ_UI_JOB_DYNAMIC_0) &&
              (job <= EQ_UI_JOB_DYNAMIC_2))
     {
-        EQ_DrawDynamicJob(job - EQ_UI_JOB_DYNAMIC_0);
+        return EQ_DrawDynamicJob(job - EQ_UI_JOB_DYNAMIC_0);
     }
+    return 0U;
 }
 
 static unsigned long EQ_ReadCycles(void)
@@ -1095,6 +1104,7 @@ int EqualizerDisplay_ServiceOneJob(unsigned long process_frame)
     unsigned long end_cycles;
     unsigned long elapsed_cycles;
     unsigned long tenths_ms;
+    unsigned int completed_fields;
 
     job = EqualizerUiLogic_SelectJob(&s_ui_state);
     if (job == EQ_LCD_JOB_NONE)
@@ -1106,11 +1116,20 @@ int EqualizerDisplay_ServiceOneJob(unsigned long process_frame)
         return EQ_LCD_JOB_NONE;
     }
     start_cycles = EQ_ReadCycles();
-    EQ_DrawJob(job);
+    completed_fields = EQ_DrawJob(job);
     end_cycles = EQ_ReadCycles();
     EQ_EndDraw();
     elapsed_cycles = end_cycles - start_cycles;
-    EqualizerUiLogic_CompleteJob(&s_ui_state, job, process_frame);
+    if ((job >= EQ_UI_JOB_DYNAMIC_0) &&
+        (job <= EQ_UI_JOB_DYNAMIC_2))
+    {
+        EqualizerUiLogic_CompleteDynamicField(
+            &s_ui_state, job, completed_fields, process_frame);
+    }
+    else
+    {
+        EqualizerUiLogic_CompleteJob(&s_ui_state, job, process_frame);
+    }
     EQ_DebugLcdPendingMask = s_ui_state.dirty_mask;
     category = EQ_JobCategory(job);
     index = job - 1;

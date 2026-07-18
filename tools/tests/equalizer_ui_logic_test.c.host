@@ -166,6 +166,41 @@ int main(void)
     failures += require_true(state.displayed.smart_level == 3,
                              "displayed latest after completion");
 
+    snapshot.clarity_enabled = 1;
+    snapshot.clarity_strength = 3;
+    snapshot.clarity_level = 2;
+    EqualizerUiLogic_Request(&state, &snapshot,
+                             EQ_UI_RUNTIME_DYNAMICS, 31UL);
+    failures += require_true(
+        EqualizerUiLogic_DynamicFieldMask(&state, 1) ==
+        EQ_UI_DYNAMIC_FIELD_ALL, "dynamic fields start independently");
+    EqualizerUiLogic_CompleteDynamicField(
+        &state, EQ_UI_JOB_DYNAMIC_0 + 1,
+        EQ_UI_DYNAMIC_FIELD_ENABLED, 31UL);
+    EqualizerUiLogic_Request(&state, &snapshot,
+                             EQ_UI_RUNTIME_DYNAMICS, 31UL);
+    failures += require_true(
+        EqualizerUiLogic_DynamicFieldMask(&state, 1) ==
+        (EQ_UI_DYNAMIC_FIELD_STRENGTH | EQ_UI_DYNAMIC_FIELD_LEVEL),
+        "completed dynamic field is not requeued");
+    failures += require_true(
+        state.displayed.clarity_enabled == 1 &&
+        state.displayed.clarity_strength != 3 &&
+        state.displayed.clarity_level != 2,
+        "partial dynamic completion updates one field");
+    EqualizerUiLogic_CompleteDynamicField(
+        &state, EQ_UI_JOB_DYNAMIC_0 + 1,
+        EQ_UI_DYNAMIC_FIELD_STRENGTH, 31UL);
+    EqualizerUiLogic_CompleteDynamicField(
+        &state, EQ_UI_JOB_DYNAMIC_0 + 1,
+        EQ_UI_DYNAMIC_FIELD_LEVEL, 31UL);
+    snapshot.clarity_enabled = 0;
+    snapshot.clarity_strength = 2;
+    snapshot.clarity_level = 0;
+    EqualizerUiLogic_Request(&state, &snapshot,
+                             EQ_UI_RUNTIME_DYNAMICS, 31UL);
+    (void)flush_jobs(&state, 31UL);
+
     snapshot.smart_strength = 3;
     EqualizerUiLogic_Request(&state, &snapshot,
                              EQ_UI_RUNTIME_DYNAMICS, 31UL);

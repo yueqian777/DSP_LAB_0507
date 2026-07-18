@@ -137,7 +137,7 @@ class EqualizerUiSourceContractTest(unittest.TestCase):
         self.assertEqual(loop.count("EqualizerDisplay_ServiceOneJob("), 1)
 
     def test_runtime_renderer_has_no_full_layout_path(self) -> None:
-        start = self.display.index("static void EQ_DrawJob(int job)")
+        start = self.display.index("static unsigned int EQ_DrawJob(int job)")
         end = self.display.index("static unsigned long EQ_ReadCycles", start)
         runtime = self.display[start:end]
         self.assertNotIn("EQ_DrawPresetStatic", runtime)

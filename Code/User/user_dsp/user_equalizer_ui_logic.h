@@ -96,6 +96,7 @@ typedef struct
     unsigned char chain_displayed_enabled[EQ_UI_CHAIN_COUNT];
     unsigned char analyzer_displayed_valid[EQ_UI_ANALYZER_COUNT];
     unsigned char analyzer_displayed_warm[EQ_UI_ANALYZER_COUNT];
+    unsigned char dynamic_displayed_field_valid[EQ_UI_DYNAMIC_COUNT];
 } EQ_UI_STATE;
 
 typedef struct
@@ -157,6 +158,9 @@ unsigned int EqualizerUiLogic_DynamicFieldMask(
     const EQ_UI_STATE *state, int dynamic_index);
 void EqualizerUiLogic_CompleteJob(EQ_UI_STATE *state, int job,
                                   unsigned long process_frame);
+void EqualizerUiLogic_CompleteDynamicField(
+    EQ_UI_STATE *state, int job, unsigned int completed_fields,
+    unsigned long process_frame);
 void EqualizerUiLogic_Cancel(EQ_UI_STATE *state);
 
 int EqualizerUi_DbTenthsToPixel(int tenths_db);

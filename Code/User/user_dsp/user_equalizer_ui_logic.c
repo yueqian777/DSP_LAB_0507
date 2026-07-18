@@ -227,17 +227,20 @@ static void EQ_UI_RecomputeDynamics(EQ_UI_STATE *state)
         if (((state->runtime_mask & EQ_UI_RUNTIME_DYNAMICS) != 0U) &&
             (state->requested_valid != 0U))
         {
-            if ((EQ_UI_JobDisplayed(state, job) == 0) ||
+            if (((state->dynamic_displayed_field_valid[index] &
+                  EQ_UI_DYNAMIC_FIELD_ENABLED) == 0U) ||
                 (requested_enabled[index] != displayed_enabled[index]))
             {
                 fields |= EQ_UI_DYNAMIC_FIELD_ENABLED;
             }
-            if ((EQ_UI_JobDisplayed(state, job) == 0) ||
+            if (((state->dynamic_displayed_field_valid[index] &
+                  EQ_UI_DYNAMIC_FIELD_STRENGTH) == 0U) ||
                 (requested_strength[index] != displayed_strength[index]))
             {
                 fields |= EQ_UI_DYNAMIC_FIELD_STRENGTH;
             }
-            if ((EQ_UI_JobDisplayed(state, job) == 0) ||
+            if (((state->dynamic_displayed_field_valid[index] &
+                  EQ_UI_DYNAMIC_FIELD_LEVEL) == 0U) ||
                 (requested_level[index] != displayed_level[index]))
             {
                 fields |= EQ_UI_DYNAMIC_FIELD_LEVEL;
@@ -428,10 +431,17 @@ void EqualizerUiLogic_CompleteJob(EQ_UI_STATE *state, int job,
                                   unsigned long process_frame)
 {
     int index;
-    unsigned int fields;
 
     if ((state == 0) || (job < 1) || (job > EQ_UI_JOB_COUNT))
     {
+        return;
+    }
+    if ((job >= EQ_UI_JOB_DYNAMIC_0) &&
+        (job <= EQ_UI_JOB_DYNAMIC_2))
+    {
+        index = job - EQ_UI_JOB_DYNAMIC_0;
+        EqualizerUiLogic_CompleteDynamicField(
+            state, job, state->dynamic_field_mask[index], process_frame);
         return;
     }
     state->dirty_mask &= ~EQ_UI_JOB_BIT(job);
@@ -478,39 +488,71 @@ void EqualizerUiLogic_CompleteJob(EQ_UI_STATE *state, int job,
                 state->requested.analyzer_warm;
         }
     }
-    else if ((job >= EQ_UI_JOB_DYNAMIC_0) &&
-             (job <= EQ_UI_JOB_DYNAMIC_2))
+}
+
+void EqualizerUiLogic_CompleteDynamicField(
+    EQ_UI_STATE *state, int job, unsigned int completed_fields,
+    unsigned long process_frame)
+{
+    int index;
+    unsigned int fields;
+
+    (void)process_frame;
+    if ((state == 0) || (job < EQ_UI_JOB_DYNAMIC_0) ||
+        (job > EQ_UI_JOB_DYNAMIC_2))
     {
-        index = job - EQ_UI_JOB_DYNAMIC_0;
-        fields = state->dynamic_field_mask[index];
-        if (index == 0)
+        return;
+    }
+    index = job - EQ_UI_JOB_DYNAMIC_0;
+    fields = completed_fields & state->dynamic_field_mask[index] &
+             EQ_UI_DYNAMIC_FIELD_ALL;
+    if (fields == 0U)
+    {
+        return;
+    }
+    if (index == 0)
+    {
+        if ((fields & EQ_UI_DYNAMIC_FIELD_ENABLED) != 0U)
+            state->displayed.smart_enabled = state->requested.smart_enabled;
+        if ((fields & EQ_UI_DYNAMIC_FIELD_STRENGTH) != 0U)
+            state->displayed.smart_strength = state->requested.smart_strength;
+        if ((fields & EQ_UI_DYNAMIC_FIELD_LEVEL) != 0U)
+            state->displayed.smart_level = state->requested.smart_level;
+    }
+    else if (index == 1)
+    {
+        if ((fields & EQ_UI_DYNAMIC_FIELD_ENABLED) != 0U)
         {
-            if ((fields & EQ_UI_DYNAMIC_FIELD_ENABLED) != 0U)
-                state->displayed.smart_enabled = state->requested.smart_enabled;
-            if ((fields & EQ_UI_DYNAMIC_FIELD_STRENGTH) != 0U)
-                state->displayed.smart_strength = state->requested.smart_strength;
-            if ((fields & EQ_UI_DYNAMIC_FIELD_LEVEL) != 0U)
-                state->displayed.smart_level = state->requested.smart_level;
+            state->displayed.clarity_enabled =
+                state->requested.clarity_enabled;
         }
-        else if (index == 1)
+        if ((fields & EQ_UI_DYNAMIC_FIELD_STRENGTH) != 0U)
         {
-            if ((fields & EQ_UI_DYNAMIC_FIELD_ENABLED) != 0U)
-                state->displayed.clarity_enabled = state->requested.clarity_enabled;
-            if ((fields & EQ_UI_DYNAMIC_FIELD_STRENGTH) != 0U)
-                state->displayed.clarity_strength = state->requested.clarity_strength;
-            if ((fields & EQ_UI_DYNAMIC_FIELD_LEVEL) != 0U)
-                state->displayed.clarity_level = state->requested.clarity_level;
+            state->displayed.clarity_strength =
+                state->requested.clarity_strength;
         }
-        else
+        if ((fields & EQ_UI_DYNAMIC_FIELD_LEVEL) != 0U)
         {
-            if ((fields & EQ_UI_DYNAMIC_FIELD_ENABLED) != 0U)
-                state->displayed.guard_enabled = state->requested.guard_enabled;
-            if ((fields & EQ_UI_DYNAMIC_FIELD_STRENGTH) != 0U)
-                state->displayed.guard_strength = state->requested.guard_strength;
-            if ((fields & EQ_UI_DYNAMIC_FIELD_LEVEL) != 0U)
-                state->displayed.guard_level = state->requested.guard_level;
+            state->displayed.clarity_level =
+                state->requested.clarity_level;
         }
-        state->dynamic_field_mask[index] = 0U;
+    }
+    else
+    {
+        if ((fields & EQ_UI_DYNAMIC_FIELD_ENABLED) != 0U)
+            state->displayed.guard_enabled = state->requested.guard_enabled;
+        if ((fields & EQ_UI_DYNAMIC_FIELD_STRENGTH) != 0U)
+            state->displayed.guard_strength = state->requested.guard_strength;
+        if ((fields & EQ_UI_DYNAMIC_FIELD_LEVEL) != 0U)
+            state->displayed.guard_level = state->requested.guard_level;
+    }
+    state->dynamic_displayed_field_valid[index] |=
+        (unsigned char)fields;
+    state->dynamic_field_mask[index] &= ~fields;
+    if (state->dynamic_field_mask[index] == 0U)
+    {
+        state->dirty_mask &= ~EQ_UI_JOB_BIT(job);
+        state->displayed_valid_mask |= EQ_UI_JOB_BIT(job);
     }
 }
 

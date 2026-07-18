@@ -80,7 +80,9 @@ int main(void)
                              "service one job");
     failures += require_true(EQ_DebugLcdJobCount == 1UL,
                              "one service one count");
-    failures += require_true(flush_jobs(2UL) == EQ_LCD_JOB_COUNT - 1,
+    failures += require_true(
+        flush_jobs(2UL) == EQ_LCD_JOB_COUNT - 1 +
+                          (2 * EQ_UI_DYNAMIC_COUNT),
                              "remaining jobs bounded");
     failures += require_true(EQ_DebugLcdBoundsFailureCount == 0UL,
                              "runtime bounds");
