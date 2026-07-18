@@ -1907,6 +1907,8 @@ static void EQ_MarkHarshnessGuardAnalyzerReset(void)
     {
         HarshnessGuard_InvalidateAnalysisEpoch(
             &EQ_HarshnessGuardState);
+        (void)HarshnessGuard_SetEnabled(
+            &EQ_HarshnessGuardState, 0);
         EQ_SyncHarshnessGuardDebug();
     }
 }

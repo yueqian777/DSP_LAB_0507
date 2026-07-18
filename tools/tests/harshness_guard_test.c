@@ -1464,6 +1464,115 @@ static void TestPerformanceChangeBitExactContract(void)
            "performance_change_bitexact=1\n");
 }
 
+static void TestAnalyzerResetReleaseContract(void)
+{
+    HARSHNESS_GUARD_STATE state;
+    AUDIO_FEATURE_SNAPSHOT snapshot;
+    HARSHNESS_GUARD_DF2T_STATE state_before_reset;
+    short frame[TEST_FRAME_LEN];
+    float applied_gain;
+    float previous_applied_gain;
+    float previous_progress;
+    unsigned long released_transition_count;
+    unsigned long snapshot_epoch;
+    int active_level;
+    int frame_index;
+    int runtime_watch_enabled;
+
+    runtime_watch_enabled = 1;
+    HarshnessGuard_Init(&state);
+    (void)HarshnessGuard_SetStrength(
+        &state, HARSHNESS_GUARD_STRENGTH_MEDIUM);
+    (void)HarshnessGuard_SetEnabled(&state, 1);
+    DriveGuardToLevel(&state, 3);
+    FillDualTone(frame);
+    (void)HarshnessGuard_ProcessFrame(&state, frame, frame, 256);
+    state_before_reset = state.active_state;
+
+    HarshnessGuard_InvalidateAnalysisEpoch(&state);
+    (void)HarshnessGuard_SetEnabled(&state, 0);
+    Check(state.requested_enabled == 0 && state.force_release != 0,
+          "analyzer reset disables Guard and starts force release");
+    Check(state.active_level == 3 && state.pending_level == 2 &&
+              state.transition_active != 0,
+          "analyzer reset starts only the adjacent three-to-two release");
+    Check(state.active_state.s1 == state_before_reset.s1 &&
+              state.active_state.s2 == state_before_reset.s2 &&
+              state.pending_state.s1 == state_before_reset.s1 &&
+              state.pending_state.s2 == state_before_reset.s2,
+          "analyzer reset preserves active filter history");
+
+    memset(frame, 0, sizeof(frame));
+    active_level = state.active_level;
+    previous_progress = -1.0f;
+    previous_applied_gain = HarshnessGuard_GetAppliedGainDb(&state);
+    frame_index = 0;
+    while ((state.processing_active != 0) && (frame_index < 64))
+    {
+        int before_active;
+        int before_pending;
+        float progress;
+
+        before_active = state.active_level;
+        before_pending = state.pending_level;
+        (void)HarshnessGuard_ProcessFrame(&state, frame, frame, 256);
+        applied_gain = HarshnessGuard_GetAppliedGainDb(&state);
+        Check(applied_gain >= previous_applied_gain,
+              "analyzer reset applied gain releases monotonically");
+        previous_applied_gain = applied_gain;
+        if ((state.active_level == before_active) &&
+            (state.pending_level == before_pending) &&
+            (state.transition_active != 0))
+        {
+            progress = HarshnessGuard_GetTransitionProgress(&state);
+            Check(progress >= previous_progress,
+                  "analyzer reset transition progress is monotonic");
+            previous_progress = progress;
+        }
+        else
+        {
+            Check((state.active_level == (active_level - 1)) ||
+                      ((state.active_level == active_level) &&
+                       (state.transition_active == 0)),
+                  "analyzer reset completes at most one adjacent level");
+            active_level = state.active_level;
+            previous_progress = -1.0f;
+        }
+        frame_index++;
+    }
+    Check(frame_index < 64 && state.active_level == 0 &&
+              state.pending_level == 0 &&
+              state.processing_active == 0 &&
+              state.transition_active == 0,
+          "analyzer reset release reaches transparent level zero");
+    Check(state.saturation_count == 0UL &&
+              state.nonfinite_count == 0UL,
+          "analyzer reset release keeps safety counters zero");
+    Check(runtime_watch_enabled == 1,
+          "analyzer reset leaves the runtime Watch request enabled");
+
+    released_transition_count = state.transition_count;
+    (void)HarshnessGuard_SetEnabled(&state, runtime_watch_enabled);
+    snapshot = MakeSnapshot(22.0f, 0.0f, -18.0f, 1, 1);
+    snapshot_epoch = snapshot.analysis_count;
+    Check(HarshnessGuard_UpdateFromFeature(&state, &snapshot) ==
+              HARSHNESS_GUARD_RESULT_UPDATED &&
+              state.requested_enabled == 1 &&
+              state.transition_active != 0 &&
+              state.pending_level == 1,
+          "new valid warm snapshot re-enables adjacent Guard attack");
+    Check(HarshnessGuard_UpdateFromFeature(&state, &snapshot) ==
+              HARSHNESS_GUARD_RESULT_NO_CHANGE &&
+              state.latest_analysis_count == snapshot_epoch,
+          "new analyzer epoch is consumed once after reset");
+    Check(state.transition_count == released_transition_count + 1UL,
+          "post-reset snapshot starts exactly one new transition");
+
+    printf("analyzer_reset_trajectory=3,2,1,0 "
+           "watch_enabled=1 reenabled=1 epoch_once=1 "
+           "saturation=0 nonfinite=0\n");
+}
+
 int main(void)
 {
     TestInitializationAndIdentity();
@@ -1475,6 +1584,7 @@ int main(void)
     TestPcm16ChainsAThroughG();
     TestGuardOffRegressions();
     TestPerformanceChangeBitExactContract();
+    TestAnalyzerResetReleaseContract();
 
     printf("harshness_guard failures=%d\n", failures);
     if (failures == 0)

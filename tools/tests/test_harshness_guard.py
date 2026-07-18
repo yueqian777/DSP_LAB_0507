@@ -691,7 +691,11 @@ class HarshnessGuardTest(unittest.TestCase):
         )
         reset_body = self.flow_source[reset_start:timing_start]
         self.assertIn("HarshnessGuard_InvalidateAnalysisEpoch(", reset_body)
-        self.assertNotIn("HarshnessGuard_SetEnabled(", reset_body)
+        self.assertIn(
+            "HarshnessGuard_SetEnabled(\n"
+            "            &EQ_HarshnessGuardState, 0);",
+            reset_body,
+        )
         clear_start = self.flow_source.index(
             "static void EQ_ClearPublishedAnalyzerState(", reset_start
         )
