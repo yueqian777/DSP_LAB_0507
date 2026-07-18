@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "evidence_label": "MEASURED_ON_CURRENT_BOARD_OBJECTIVE_ONLY",
+  "source_sha": "5d1525ae984acb53765e00cf678874189d2aaf30",
+  "duration_ms": 60000,
+  "clock_hz": 456000000,
+  "job_order": ["preset_flat","preset_bass","preset_vocal","preset_treble","preset_v_shape","chain_bass","chain_clr","chain_hf","analyzer_bass","analyzer_mud","analyzer_presence","analyzer_brightness","dynamic_smart","dynamic_clarity","dynamic_guard"],
+  "count_before": [1,1,1,1,1,1,1,1,3,3,4,3,3,3,3],
+  "count_after": [6,9,11,13,12,8,6,1,5,3,34,9,55,40,18],
+  "count_delta": [5,8,10,12,11,7,5,0,2,0,30,6,52,37,15],
+  "last_cycles_post_run_snapshot": [327861,328656,328590,329393,331334,922169,710814,546955,1290239,1184073,1287791,1175664,1174682,1192501,1300042],
+  "max_cycles": [328065,329036,328986,330782,340020,924186,713916,546955,1800578,1453551,1360689,1386224,1377976,1403866,1378508],
+  "categories": [
+    {"name":"preset","count_after":51,"count_delta":46,"last_cycles_post_run_snapshot":329393,"max_cycles":340020},
+    {"name":"dynamic","count_after":113,"count_delta":104,"last_cycles_post_run_snapshot":1174682,"max_cycles":1403866},
+    {"name":"chain","count_after":15,"count_delta":12,"last_cycles_post_run_snapshot":710814,"max_cycles":924186},
+    {"name":"analyzer","count_after":51,"count_delta":38,"last_cycles_post_run_snapshot":1287791,"max_cycles":1800578}
+  ],
+  "runtime_job_delta": 200,
+  "over_2ms_delta": 149,
+  "over_5ms_total": 0,
+  "deferred_by_audio_delta": 327,
+  "audio_arrived_during_draw_delta": 5,
+  "unexpected_full_redraw_total": 0,
+  "auto_disabled_total": 0,
+  "last_value_note": "Last cycles were captured after the stress. The snapshot connection allowed nine extra UI jobs; exact stress counts/deltas and maxima come from the stress summary."
+}
+

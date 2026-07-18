@@ -136,3 +136,22 @@ zero with zero warnings and `link_errors=0x0`. Benchmark, transition-capture,
 and four-way diagnostic symbol searches all returned zero hits. The output
 SHA-256 was
 `45092DE91CC083CA22C0E1BE8A623DA78B0040D4FF1D449B87D8A64F4D102EDD`.
+
+## Status UI A-E clean matrix
+
+The final status-UI matrix used build `5d1525a`, generated identity
+`P33_FIX_V5`, dirty=0. Every profile was cleaned and rebuilt with `-B`.
+
+| Profile | Project/LCD/Touch/mask | warning | link | `.text` | `.const` | `.bss` | `.subband_l2` | LCD/Touch/UI symbols |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| A | 32/0/0/n/a | 0 | 0x0 | 122176 | 14636 | 43 | 257124 | 0/0/0 |
+| B | 33/0/0/0 | 0 | 0x0 | 123616 | 1928 | 10 | 20380 | 0/0/0 |
+| C | 33/1/0/0 | 0 | 0x0 | 153632 | 7618 | 30 | 20380 | 28/0/19 |
+| D | 33/1/0/15 | 0 | 0x0 | 153632 | 7618 | 30 | 20380 | 28/0/19 |
+| E | 33/1/1/15 | 0 | 0x0 | 173120 | 14506 | 43 | 20380 | 28/11/19 |
+
+All three dynamic stages and Analyzer were enabled in B-E. Timing, benchmark,
+transition-capture, four-way, and UART diagnostics were disabled. The final E
+output is 1107296 bytes with SHA-256
+`1677223adb4ffc7e98e977eb689e49aef58ae144e78aa72744e8d9e890987c49`.
+`EQ_DebugUiStateBytes=244` and `EQ_DebugTouchStateBytes=36` were retained in E.

@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "evidence_label": "PENDING_OPERATOR_TOUCH_VALIDATION",
+  "source_sha": "5d1525ae984acb53765e00cf678874189d2aaf30",
+  "stress_window": {
+    "operator_touch_requested": false,
+    "action_count_before": 0,
+    "action_count_after": 10,
+    "rejected_count_before": 0,
+    "rejected_count_after": 6,
+    "touch_max_cycles": 802888
+  },
+  "post_run_diagnostic": {
+    "raw_x": 678,
+    "raw_y": 37,
+    "screen_x": 678,
+    "screen_y": 37,
+    "pressed": 0,
+    "last_action": 5,
+    "last_action_name": "preset_v_shape",
+    "scan_count": 152,
+    "ready_count": 146,
+    "down_count": 95,
+    "release_count": 51,
+    "i2c_error_count": 0,
+    "interrupt_count": 378
+  },
+  "host_contracts": "PASS",
+  "interpretation": "The source of the unconfirmed controller events is unresolved. They are not a physical hitbox or one-action-per-press pass."
+}
+

@@ -1,0 +1,6 @@
+Project 3.3 status UI evidence
+Build: 5d1525a, dirty=0
+Production A-E matrix: EQ_ENABLE_UART_DIAGNOSTICS=0
+UART capture: NOT_PERFORMED
+Reason: UI timing and audio safety were captured through objective DSS Watch counters.
+No UART performance or content claim is made by this evidence set.

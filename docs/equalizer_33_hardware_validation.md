@@ -855,3 +855,65 @@ Subjective listening is `NOT_PERFORMED`. External analog THD, SNR, calibrated
 frequency response, and SPL are `UNMEASURED`. The compact archive is
 `docs/evidence/harshness_guard_dade304/`; large local artifacts remain under
 `%TEMP%` and are referenced by SHA-256 rather than committed.
+
+## 14. Project 3.3 status UI objective validation
+
+### 14.1 Provenance and scope
+
+The final UI board run used clean build
+`5d1525ae984acb53765e00cf678874189d2aaf30`, E profile, generated dirty=0.
+The exact loaded `.out` SHA-256 was
+`1677223adb4ffc7e98e977eb689e49aef58ae144e78aa72744e8d9e890987c49`.
+PC default line-out supplied a generated 50 kHz multi-tone to ADC CH1. DSS
+changed existing preset and dynamic request variables and read Watch counters.
+It made no visual, physical-touch, or listening assertion.
+
+An intermediate `41d8a1b` run stopped correctly when Analyzer job 9 reached
+2691228 cycles, above the 2280000-cycle hard limit. Audio safety counters were
+zero. The inner mutable bar width was then reduced without changing Analyzer
+math, frequency bands, smoothing, cadence, dB mapping, or outer layout.
+
+### 14.2 Final 60-second E-profile window
+
+**Result:** `MEASURED_ON_CURRENT_BOARD_OBJECTIVE_ONLY`, PASS.
+
+The window processed 2935 frames and 367 Analyzer publications. Input/output
+peaks were 792/790 PCM16 counts, proving nonzero CH1 traffic. Maximum algorithm,
+frame-service, and frame-latency times were 4778400, 5217075, and 5217496
+cycles, all below the 9338880-cycle frame budget.
+
+| LCD category | Count at end | Window delta | Last cycles, post-run snapshot | Max cycles | Max ms |
+|---|---:|---:|---:|---:|---:|
+| Preset | 51 | 46 | 329393 | 340020 | 0.746 |
+| Dynamic | 113 | 104 | 1174682 | 1403866 | 3.079 |
+| Chain | 15 | 12 | 710814 | 924186 | 2.027 |
+| Analyzer | 51 | 38 | 1287791 | 1800578 | 3.949 |
+
+The Last column was read after the completed stress through an address-only
+DSS snapshot. That connection allowed nine additional UI jobs, so Last is a
+post-run diagnostic value; Count/Delta and Max come from the exact stress
+summary. The additional jobs did not increase any recorded maximum.
+
+The stress completed 200 runtime jobs. It recorded 149 new >2 ms warnings,
+zero >5 ms jobs, 327 audio deferrals, five audio-arrived-during-draw events,
+zero unexpected full redraws, and zero LCD auto-disables. UI state was 244
+bytes; Touch state plus transform was 36 bytes.
+
+Deadline, latency miss, overlap, dropped, clip, all three dynamic-stage
+saturation counters, and all three nonfinite counters were zero. Therefore the
+five audio-arrived-during-draw observations did not produce an audio safety
+failure.
+
+### 14.3 Touch and remaining boundary
+
+No operator touch was requested. The controller nevertheless recorded 10
+accepted and 6 rejected actions in the stress window. A post-run diagnostic
+reported 95 DOWN, 51 RELEASE, zero I2C errors, and final raw/screen coordinate
+`(678,37)` with last action V-SHAPE. These may be unconfirmed physical or
+spurious controller events; they are not accepted as a physical Touch pass.
+
+Chinese glyph appearance, complete static-page alignment, lack of visible
+flicker, and physical hitbox accuracy remain
+`PENDING_OPERATOR_TOUCH_VALIDATION`. No new full A-I run or 300-second run was
+performed. External analog THD, SNR, calibrated response, and SPL remain
+unmeasured. The compact archive is `docs/evidence/equalizer_ui_5d1525a/`.
