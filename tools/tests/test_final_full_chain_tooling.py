@@ -22,7 +22,7 @@ class FinalFullChainToolingContractTest(unittest.TestCase):
             "SUBBAND_DENOISE_DebugMcraSpeechProbAvgX1000000",
             "SUBBAND_DebugInputMeanSquareAvg",
             "SUBBAND_DebugOutputMeanSquareAvg",
-            "final_full_chain_240_rerun.csv",
+            "board_missing_tests_rerun.csv",
         ):
             self.assertIn(token, script)
         self.assertNotIn(".delete()", script)
@@ -48,6 +48,8 @@ class FinalFullChainToolingContractTest(unittest.TestCase):
         self.assertTrue(processor.exists())
         source = processor.read_text(encoding="utf-8")
         self.assertIn("NOT_MEASURED_AUDIO_CAPTURE_UNAVAILABLE", source)
+        self.assertIn('CSV_PATH = OUT / "board_missing_tests_rerun.csv"', source)
+        self.assertNotIn('CSV_PATH = OUT / "final_full_chain_240_rerun.csv"', source)
         self.assertIn("valid_repeat", source)
         self.assertIn("final_full_chain_240_diagnostics.csv", source)
         self.assertIn("Input-level diagnosis", source)

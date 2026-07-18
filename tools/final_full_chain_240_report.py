@@ -13,7 +13,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "docs" / "eval_outputs"
-CSV_PATH = OUT / "final_full_chain_240_rerun.csv"
+CSV_PATH = OUT / "board_missing_tests_rerun.csv"
 DIAGNOSTICS_PATH = OUT / "final_full_chain_240_diagnostics.csv"
 AUDIO_PATH = OUT / "final_full_chain_240_audio_metrics.csv"
 SUMMARY_PATH = OUT / "final_full_chain_240_summary.md"
@@ -197,7 +197,7 @@ def main() -> None:
         "",
         "## Artifacts",
         "",
-        "- `docs/eval_outputs/final_full_chain_240_rerun.csv`",
+        "- `docs/eval_outputs/board_missing_tests_rerun.csv`",
         "- `docs/eval_outputs/final_full_chain_240_diagnostics.csv`",
         "- `docs/eval_outputs/final_full_chain_240_audio_metrics.csv`",
         "- `docs/eval_outputs/dss_final_full_chain.log`",
