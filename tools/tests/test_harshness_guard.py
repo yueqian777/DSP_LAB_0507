@@ -458,7 +458,7 @@ class HarshnessGuardTest(unittest.TestCase):
                 (temp_path / "audio_manifest.json").read_text(encoding="ascii")
             )
             files = manifest["files"]
-            self.assertEqual(len(files), 10)
+            self.assertEqual(len(files), 14)
             for entry in files:
                 path = temp_path / entry["file_name"]
                 self.assertTrue(path.is_file())
@@ -488,6 +488,23 @@ class HarshnessGuardTest(unittest.TestCase):
             combined = next(
                 entry for entry in files
                 if entry["file_name"] == "all_dynamic_trigger.wav"
+            )
+            noise = next(
+                entry for entry in files
+                if entry["file_name"] == "transition_noise.wav"
+            )
+            self.assertEqual(manifest["transition_noise_period_samples"], 1024)
+            self.assertEqual(noise["period_samples"], 1024)
+            with wave.open(str(temp_path / noise["file_name"]), "rb") as source:
+                noise_pcm = source.readframes(source.getnframes())
+            period_bytes = 1024 * 2
+            first_period = noise_pcm[:period_bytes]
+            self.assertTrue(first_period)
+            self.assertTrue(
+                all(
+                    noise_pcm[offset : offset + period_bytes] == first_period
+                    for offset in range(0, len(noise_pcm), period_bytes)
+                )
             )
 
         bass_mud = combined["bass_mud_phase"]
@@ -668,6 +685,22 @@ class HarshnessGuardTest(unittest.TestCase):
             "            &EQ_HarshnessGuardState, 0);",
             unavailable_body,
         )
+        reset_start = self.flow_source.index(
+            "static void EQ_MarkHarshnessGuardAnalyzerReset(void)",
+            unavailable_start,
+        )
+        reset_body = self.flow_source[reset_start:timing_start]
+        self.assertIn("HarshnessGuard_InvalidateAnalysisEpoch(", reset_body)
+        self.assertNotIn("HarshnessGuard_SetEnabled(", reset_body)
+        clear_start = self.flow_source.index(
+            "static void EQ_ClearPublishedAnalyzerState(", reset_start
+        )
+        reset_runtime = self.flow_source.index(
+            "static void EQ_ResetAnalyzerRuntime(void)", clear_start
+        )
+        clear_body = self.flow_source[clear_start:reset_runtime]
+        self.assertIn("EQ_MarkHarshnessGuardAnalyzerReset();", clear_body)
+        self.assertIn("EQ_MarkHarshnessGuardAnalyzerUnavailable();", clear_body)
         self.assertIn(
             "EQ_HarshnessGuardAnalyzerFault =\n"
             "        ((snapshot.valid != 0) &&\n"

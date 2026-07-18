@@ -84,6 +84,10 @@ static unsigned int EQ_DynamicClarityCapturePrerollRemaining = 0U;
 #if EQ_ENABLE_HARSHNESS_GUARD != 0
 static HARSHNESS_GUARD_STATE EQ_HarshnessGuardState;
 static unsigned int EQ_HarshnessGuardAnalyzerFault = 1U;
+#if EQ_ENABLE_HARSHNESS_GUARD_TRANSITION_CAPTURE != 0
+static unsigned int EQ_HarshnessGuardCapturePhase = 0U;
+static unsigned int EQ_HarshnessGuardCapturePrerollRemaining = 0U;
+#endif
 #endif
 static EQ_CONTROL_STATE EQ_BoardControl;
 static EQ_BACKGROUND_SERVICE_STATE EQ_BackgroundService;
@@ -436,6 +440,13 @@ volatile unsigned long EQ_DebugHarshnessGuardLastCycles = 0UL;
 volatile unsigned long EQ_DebugHarshnessGuardMaxCycles = 0UL;
 volatile unsigned long EQ_DebugHarshnessGuardSaturationCount = 0UL;
 volatile unsigned long EQ_DebugHarshnessGuardNonFiniteCount = 0UL;
+#if EQ_ENABLE_FOUR_WAY_TRANSITION_DIAGNOSTICS != 0
+volatile unsigned int EQ_DebugFourWayTransitionMask = 0U;
+volatile unsigned long EQ_DebugFourWayTransitionOverlapCount = 0UL;
+volatile unsigned long EQ_DebugFourWayTransitionFirstFrame = 0UL;
+volatile int EQ_DebugFourWayTransitionArmMode = EQ_PRESET_NONE;
+volatile unsigned long EQ_DebugFourWayTransitionArmCount = 0UL;
+#endif
 #if EQ_ENABLE_DYNAMIC_CLARITY_TRANSITION_CAPTURE != 0
 volatile unsigned int EQ_DebugDynamicClarityTransitionCaptureRequest = 0U;
 volatile unsigned int EQ_DebugDynamicClarityTransitionCaptureActive = 0U;
@@ -450,6 +461,21 @@ volatile unsigned long
     EQ_DebugDynamicClarityTransitionCaptureTriggerFrame = 0UL;
 volatile unsigned long
     EQ_DebugDynamicClarityTransitionCaptureDoneFrame = 0UL;
+#endif
+#if EQ_ENABLE_HARSHNESS_GUARD_TRANSITION_CAPTURE != 0
+volatile unsigned int EQ_DebugHarshnessGuardTransitionCaptureRequest = 0U;
+volatile unsigned int EQ_DebugHarshnessGuardTransitionCaptureActive = 0U;
+volatile unsigned int EQ_DebugHarshnessGuardTransitionCaptureDone = 0U;
+volatile unsigned int EQ_DebugHarshnessGuardTransitionCaptureOverride = 0U;
+volatile int EQ_DebugHarshnessGuardTransitionCaptureBaseLevel = 0;
+volatile int EQ_DebugHarshnessGuardTransitionCaptureTargetLevel = 0;
+volatile int EQ_DebugHarshnessGuardTransitionCaptureResult = 0;
+volatile unsigned long
+    EQ_DebugHarshnessGuardTransitionCaptureRequestFrame = 0UL;
+volatile unsigned long
+    EQ_DebugHarshnessGuardTransitionCaptureTriggerFrame = 0UL;
+volatile unsigned long
+    EQ_DebugHarshnessGuardTransitionCaptureDoneFrame = 0UL;
 #endif
 #if EQ_ENABLE_DYNAMIC_CLARITY_TIMING_DIAGNOSTICS != 0
 volatile unsigned long
@@ -651,6 +677,9 @@ static int EQ_CaptureSourceValid(unsigned int source)
            (source == EQ_CAPTURE_TRIGGER_AUDIO_DURING_LCD)
 #if EQ_ENABLE_DYNAMIC_CLARITY_TRANSITION_CAPTURE != 0
            || (source == EQ_CAPTURE_TRIGGER_DYNAMIC_CLARITY)
+#endif
+#if EQ_ENABLE_HARSHNESS_GUARD_TRANSITION_CAPTURE != 0
+           || (source == EQ_CAPTURE_TRIGGER_HARSHNESS_GUARD)
 #endif
            ;
 }
@@ -1871,6 +1900,17 @@ static void EQ_MarkHarshnessGuardAnalyzerUnavailable(void)
     }
 }
 
+static void EQ_MarkHarshnessGuardAnalyzerReset(void)
+{
+    EQ_HarshnessGuardAnalyzerFault = 1U;
+    if (EQ_HarshnessGuardState.initialized != 0)
+    {
+        HarshnessGuard_InvalidateAnalysisEpoch(
+            &EQ_HarshnessGuardState);
+        EQ_SyncHarshnessGuardDebug();
+    }
+}
+
 static void EQ_UpdateHarshnessGuardTiming(unsigned long cycles)
 {
     EQ_DebugHarshnessGuardLastCycles = cycles;
@@ -1879,10 +1919,140 @@ static void EQ_UpdateHarshnessGuardTiming(unsigned long cycles)
         EQ_DebugHarshnessGuardMaxCycles = cycles;
     }
 }
+
+#if EQ_ENABLE_FOUR_WAY_TRANSITION_DIAGNOSTICS != 0
+static void EQ_UpdateFourWayTransitionDiagnostics(void)
+{
+    unsigned int mask;
+    int armed_mode;
+
+    mask = 0U;
+    if (Equalizer_GetTransitionRemaining(&EQ_BoardState) > 0)
+    {
+        mask |= 0x01U;
+    }
+    if (EQ_SmartBassState.transition_active != 0)
+    {
+        mask |= 0x02U;
+    }
+    if (EQ_DynamicClarityState.transition_active != 0)
+    {
+        mask |= 0x04U;
+    }
+    if (EQ_HarshnessGuardState.transition_active != 0)
+    {
+        mask |= 0x08U;
+    }
+
+    armed_mode = EQ_DebugFourWayTransitionArmMode;
+    if ((armed_mode >= EQ_PRESET_FLAT) &&
+        (armed_mode < EQ_PRESET_COUNT) &&
+        ((mask & 0x0eU) == 0x0eU))
+    {
+        EQ_DebugMode = armed_mode;
+        EQ_DebugFourWayTransitionArmMode = EQ_PRESET_NONE;
+        EQ_DebugFourWayTransitionArmCount++;
+    }
+
+    EQ_DebugFourWayTransitionMask = mask;
+    if (mask == 0x0fU)
+    {
+        if (EQ_DebugFourWayTransitionOverlapCount == 0UL)
+        {
+            EQ_DebugFourWayTransitionFirstFrame =
+                EQ_DebugProcessFrames + 1UL;
+        }
+        EQ_DebugFourWayTransitionOverlapCount++;
+    }
+}
+#endif
+
+#if EQ_ENABLE_HARSHNESS_GUARD_TRANSITION_CAPTURE != 0
+static void EQ_ServiceHarshnessGuardTransitionCapture(void)
+{
+    int result;
+
+    if ((EQ_DebugHarshnessGuardTransitionCaptureRequest != 0U) &&
+        (EQ_DebugHarshnessGuardTransitionCaptureActive == 0U))
+    {
+        EqualizerCapture_Reset();
+        result = HarshnessGuard_DiagnosticForceStableLevel(
+            &EQ_HarshnessGuardState,
+            EQ_DebugHarshnessGuardTransitionCaptureBaseLevel);
+        EQ_DebugHarshnessGuardTransitionCaptureResult = result;
+        EQ_DebugHarshnessGuardTransitionCaptureRequest = 0U;
+        EQ_DebugHarshnessGuardTransitionCaptureDone = 0U;
+        EQ_DebugHarshnessGuardTransitionCaptureOverride = 1U;
+        EQ_DebugHarshnessGuardTransitionCaptureActive = 1U;
+        EQ_DebugHarshnessGuardTransitionCaptureRequestFrame =
+            EQ_DebugProcessFrames + 1UL;
+        EQ_DebugHarshnessGuardTransitionCaptureTriggerFrame = 0UL;
+        EQ_DebugHarshnessGuardTransitionCaptureDoneFrame = 0UL;
+        EQ_HarshnessGuardCapturePrerollRemaining =
+            EQ_HARSHNESS_GUARD_CAPTURE_PREROLL_FRAMES;
+        EQ_HarshnessGuardCapturePhase = 1U;
+        return;
+    }
+    if (EQ_DebugHarshnessGuardTransitionCaptureActive == 0U)
+    {
+        return;
+    }
+
+    if (EQ_HarshnessGuardCapturePhase == 1U)
+    {
+        if (EQ_HarshnessGuardCapturePrerollRemaining != 0U)
+        {
+            EQ_HarshnessGuardCapturePrerollRemaining--;
+        }
+        if (EQ_HarshnessGuardCapturePrerollRemaining == 0U)
+        {
+            EQ_TriggerCaptureRequest =
+                EQ_CAPTURE_TRIGGER_HARSHNESS_GUARD;
+            EQ_HarshnessGuardCapturePhase = 2U;
+        }
+        return;
+    }
+
+    if ((EQ_HarshnessGuardCapturePhase == 2U) &&
+        (EQ_TriggerCaptureArmedReady != 0U))
+    {
+        if (EQ_DebugHarshnessGuardTransitionCaptureTargetLevel !=
+            EQ_DebugHarshnessGuardTransitionCaptureBaseLevel)
+        {
+            result = HarshnessGuard_DiagnosticRequestLevel(
+                &EQ_HarshnessGuardState,
+                EQ_DebugHarshnessGuardTransitionCaptureTargetLevel);
+            EQ_DebugHarshnessGuardTransitionCaptureResult = result;
+            if (result != HARSHNESS_GUARD_RESULT_UPDATED)
+            {
+                EQ_DebugHarshnessGuardTransitionCaptureActive = 0U;
+                EQ_HarshnessGuardCapturePhase = 0U;
+                return;
+            }
+        }
+        EqualizerCapture_NotifyEvent(
+            EQ_CAPTURE_TRIGGER_HARSHNESS_GUARD);
+        EQ_DebugHarshnessGuardTransitionCaptureTriggerFrame =
+            EQ_DebugProcessFrames + 1UL;
+        EQ_HarshnessGuardCapturePhase = 3U;
+        return;
+    }
+
+    if ((EQ_HarshnessGuardCapturePhase == 3U) &&
+        (EQ_TriggerCaptureReady != 0U))
+    {
+        EQ_DebugHarshnessGuardTransitionCaptureDone = 1U;
+        EQ_DebugHarshnessGuardTransitionCaptureActive = 0U;
+        EQ_DebugHarshnessGuardTransitionCaptureDoneFrame =
+            EQ_DebugProcessFrames;
+        EQ_HarshnessGuardCapturePhase = 0U;
+    }
+}
+#endif
 #endif
 
 #if EQ_ENABLE_AUDIO_FEATURE_ANALYZER != 0
-static void EQ_ClearPublishedAnalyzerState(void)
+static void EQ_ClearPublishedAnalyzerState(int preserve_harshness_state)
 {
     EQ_DebugAnalyzerPending = 0U;
     EQ_DebugAnalyzerValid = 0U;
@@ -1905,7 +2075,14 @@ static void EQ_ClearPublishedAnalyzerState(void)
     EQ_MarkDynamicClarityAnalyzerUnavailable();
 #endif
 #if EQ_ENABLE_HARSHNESS_GUARD != 0
-    EQ_MarkHarshnessGuardAnalyzerUnavailable();
+    if (preserve_harshness_state != 0)
+    {
+        EQ_MarkHarshnessGuardAnalyzerReset();
+    }
+    else
+    {
+        EQ_MarkHarshnessGuardAnalyzerUnavailable();
+    }
 #endif
 }
 
@@ -1913,7 +2090,7 @@ static void EQ_ResetAnalyzerRuntime(void)
 {
     AudioFeatureAnalyzer_Reset(&EQ_AudioAnalyzerState);
     memset(EQ_AnalyzerInput, 0, sizeof(EQ_AnalyzerInput));
-    EQ_ClearPublishedAnalyzerState();
+    EQ_ClearPublishedAnalyzerState(1);
 }
 
 static int EQ_ServiceAnalyzerControl(int builder_eligible,
@@ -1932,7 +2109,7 @@ static int EQ_ServiceAnalyzerControl(int builder_eligible,
         builder_eligible);
     if (action == EQ_ANALYZER_ACTION_DISABLE)
     {
-        EQ_ClearPublishedAnalyzerState();
+        EQ_ClearPublishedAnalyzerState(0);
         return 1;
     }
     if ((action == EQ_ANALYZER_ACTION_ENABLE_RESET) ||
@@ -2019,8 +2196,13 @@ static void EQ_PublishAnalyzerSnapshot(void)
         ((snapshot.valid != 0) &&
          (snapshot.warmup_complete != 0)) ? 0U : 1U;
     EQ_ServiceHarshnessGuardRuntimeControl();
+#if EQ_ENABLE_HARSHNESS_GUARD_TRANSITION_CAPTURE != 0
+    if (EQ_DebugHarshnessGuardTransitionCaptureOverride == 0U)
+#endif
+    {
     (void)HarshnessGuard_UpdateFromFeature(
         &EQ_HarshnessGuardState, &snapshot);
+    }
     if (EQ_HarshnessGuardState.reason ==
         HARSHNESS_GUARD_REASON_INVALID)
     {
@@ -2206,6 +2388,9 @@ static void EQ_CaptureAdcFrame(void)
     EQ_SyncDynamicClarityDebug();
 #endif
 #if EQ_ENABLE_HARSHNESS_GUARD != 0
+#if EQ_ENABLE_HARSHNESS_GUARD_TRANSITION_CAPTURE != 0
+    EQ_ServiceHarshnessGuardTransitionCapture();
+#endif
 #if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
     harshness_guard_cycle_start = TSCL;
 #endif
@@ -2220,6 +2405,9 @@ static void EQ_CaptureAdcFrame(void)
 #endif
     EQ_UpdateHarshnessGuardTiming(harshness_guard_cycles);
     EQ_SyncHarshnessGuardDebug();
+#if EQ_ENABLE_FOUR_WAY_TRANSITION_DIAGNOSTICS != 0
+    EQ_UpdateFourWayTransitionDiagnostics();
+#endif
 #endif
     mode_change_after = Equalizer_GetModeChangeCount(&EQ_BoardState);
     EQ_DebugProcessFrames++;
@@ -2362,7 +2550,7 @@ void Equalizer_Flow_Example(void)
     AudioFeatureAnalyzer_Init(&EQ_AudioAnalyzerState);
     memset(EQ_AnalyzerInput, 0, sizeof(EQ_AnalyzerInput));
     EqualizerAnalyzerRuntime_Init(&EQ_AnalyzerLastEnabled);
-    EQ_ClearPublishedAnalyzerState();
+    EQ_ClearPublishedAnalyzerState(0);
     EQ_DebugAnalyzerResetRequest = 0U;
 #endif
 #if EQ_ENABLE_SMART_BASS != 0
@@ -2404,6 +2592,22 @@ void Equalizer_Flow_Example(void)
         HARSHNESS_GUARD_STRENGTH_MEDIUM;
     EQ_DebugHarshnessGuardLastCycles = 0UL;
     EQ_DebugHarshnessGuardMaxCycles = 0UL;
+#if EQ_ENABLE_FOUR_WAY_TRANSITION_DIAGNOSTICS != 0
+    EQ_DebugFourWayTransitionMask = 0U;
+    EQ_DebugFourWayTransitionOverlapCount = 0UL;
+    EQ_DebugFourWayTransitionFirstFrame = 0UL;
+    EQ_DebugFourWayTransitionArmMode = EQ_PRESET_NONE;
+    EQ_DebugFourWayTransitionArmCount = 0UL;
+#endif
+#if EQ_ENABLE_HARSHNESS_GUARD_TRANSITION_CAPTURE != 0
+    EQ_HarshnessGuardCapturePhase = 0U;
+    EQ_HarshnessGuardCapturePrerollRemaining = 0U;
+    EQ_DebugHarshnessGuardTransitionCaptureRequest = 0U;
+    EQ_DebugHarshnessGuardTransitionCaptureActive = 0U;
+    EQ_DebugHarshnessGuardTransitionCaptureDone = 0U;
+    EQ_DebugHarshnessGuardTransitionCaptureOverride = 0U;
+    EQ_DebugHarshnessGuardTransitionCaptureResult = 0;
+#endif
     EQ_SyncHarshnessGuardDebug();
 #endif
     EQ_AppliedDiagPath = EQ_DIAG_PRESET;

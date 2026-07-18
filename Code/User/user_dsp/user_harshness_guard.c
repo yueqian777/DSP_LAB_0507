@@ -700,4 +700,55 @@ int HarshnessGuard_GetReason(const HARSHNESS_GUARD_STATE *state)
     return state->reason;
 }
 
+#if EQ_ENABLE_HARSHNESS_GUARD_TRANSITION_CAPTURE != 0
+int HarshnessGuard_DiagnosticForceStableLevel(
+    HARSHNESS_GUARD_STATE *state, int level)
+{
+    int normalized;
+
+    if ((state == 0) || (state->initialized == 0))
+    {
+        return HARSHNESS_GUARD_RESULT_ERROR;
+    }
+    normalized = HarshnessGuard_ClampLevel(level);
+    HarshnessGuard_ClearFilterState(&state->active_state);
+    HarshnessGuard_ClearFilterState(&state->pending_state);
+    state->active_level = normalized;
+    state->target_level = normalized;
+    state->pending_level = normalized;
+    state->queued_level = normalized;
+    state->queued_level_valid = 0;
+    state->transition_active = 0;
+    state->transition_remaining = 0;
+    state->requested_enabled = 1;
+    state->processing_active = (normalized != 0) ? 1 : 0;
+    state->force_release = 0;
+    state->release_confirmation_count = 0;
+    return HARSHNESS_GUARD_RESULT_UPDATED;
+}
+
+int HarshnessGuard_DiagnosticRequestLevel(
+    HARSHNESS_GUARD_STATE *state, int level)
+{
+    int normalized;
+
+    if ((state == 0) || (state->initialized == 0))
+    {
+        return HARSHNESS_GUARD_RESULT_ERROR;
+    }
+    normalized = HarshnessGuard_ClampLevel(level);
+    if ((normalized > (state->active_level + 1)) ||
+        (normalized < (state->active_level - 1)))
+    {
+        return HARSHNESS_GUARD_RESULT_ERROR;
+    }
+    state->target_level = normalized;
+    state->queued_level_valid = 0;
+    state->force_release = 0;
+    return HarshnessGuard_StartTransition(state, normalized) ?
+        HARSHNESS_GUARD_RESULT_UPDATED :
+        HARSHNESS_GUARD_RESULT_NO_CHANGE;
+}
+#endif
+
 #endif /* EQ_ENABLE_HARSHNESS_GUARD */

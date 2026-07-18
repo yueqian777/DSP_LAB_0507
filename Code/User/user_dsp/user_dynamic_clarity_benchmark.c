@@ -1,8 +1,9 @@
 /**
  * user_dynamic_clarity_benchmark.c
  *
- * Board-only cycle capture for Dynamic Clarity and Smart Bass. This module is
- * absent from production behavior unless its explicit compile gate is set.
+ * Board-only cycle capture for Dynamic Clarity and Smart Bass. When the
+ * additional Harshness Guard benchmark gate is set, the same isolated runner
+ * measures all three modules before audio services start.
  */
 
 #include "user_equalizer_flow.h"
@@ -12,6 +13,9 @@
 
 #include "user_dynamic_clarity.h"
 #include "user_smart_bass.h"
+#if EQ_ENABLE_HARSHNESS_GUARD_BENCHMARK != 0
+#include "user_harshness_guard.h"
+#endif
 #include "math.h"
 #include "string.h"
 
@@ -23,6 +27,9 @@
 
 #define EQ_BENCHMARK_MODULE_DYNAMIC 0
 #define EQ_BENCHMARK_MODULE_SMART   1
+#if EQ_ENABLE_HARSHNESS_GUARD_BENCHMARK != 0
+#define EQ_BENCHMARK_MODULE_HARSHNESS 2
+#endif
 
 #define EQ_BENCHMARK_CASE_IDENTITY       0
 #define EQ_BENCHMARK_CASE_STABLE_1       1
@@ -40,6 +47,10 @@
 #pragma DATA_SECTION(EQ_BenchmarkDynamicTemplate, ".subband_l2")
 #pragma DATA_SECTION(EQ_BenchmarkSmartState, ".subband_l2")
 #pragma DATA_SECTION(EQ_BenchmarkSmartTemplate, ".subband_l2")
+#if EQ_ENABLE_HARSHNESS_GUARD_BENCHMARK != 0
+#pragma DATA_SECTION(EQ_BenchmarkHarshnessState, ".subband_l2")
+#pragma DATA_SECTION(EQ_BenchmarkHarshnessTemplate, ".subband_l2")
+#endif
 
 static short EQ_BenchmarkInput[EQ_DYNAMIC_CLARITY_BENCHMARK_FRAME_LEN];
 static short EQ_BenchmarkOutput[EQ_DYNAMIC_CLARITY_BENCHMARK_FRAME_LEN];
@@ -47,6 +58,10 @@ static DYNAMIC_CLARITY_STATE EQ_BenchmarkDynamicState;
 static DYNAMIC_CLARITY_STATE EQ_BenchmarkDynamicTemplate;
 static SMART_BASS_STATE EQ_BenchmarkSmartState;
 static SMART_BASS_STATE EQ_BenchmarkSmartTemplate;
+#if EQ_ENABLE_HARSHNESS_GUARD_BENCHMARK != 0
+static HARSHNESS_GUARD_STATE EQ_BenchmarkHarshnessState;
+static HARSHNESS_GUARD_STATE EQ_BenchmarkHarshnessTemplate;
+#endif
 
 volatile unsigned int EQ_DebugDynamicClarityBenchmarkCompiled = 1U;
 volatile unsigned int
@@ -76,6 +91,13 @@ volatile unsigned long
     EQ_DebugDynamicClarityBenchmarkSmartSaturationCount = 0UL;
 volatile unsigned long
     EQ_DebugDynamicClarityBenchmarkSmartNonFiniteCount = 0UL;
+#if EQ_ENABLE_HARSHNESS_GUARD_BENCHMARK != 0
+volatile unsigned int EQ_DebugHarshnessGuardBenchmarkCompiled = 1U;
+volatile unsigned long
+    EQ_DebugDynamicClarityBenchmarkHarshnessSaturationCount = 0UL;
+volatile unsigned long
+    EQ_DebugDynamicClarityBenchmarkHarshnessNonFiniteCount = 0UL;
+#endif
 
 static short EQ_BenchmarkRoundAndClamp(double value)
 {
@@ -138,9 +160,20 @@ static void EQ_BenchmarkPrepareInput(int input_index)
 }
 
 static void EQ_BenchmarkCaseLevels(
-    int case_index, int *active_level, int *pending_level,
+    int module_index, int case_index, int *active_level, int *pending_level,
     int *transition_active)
 {
+    int medium_level;
+
+    medium_level = 4;
+#if EQ_ENABLE_HARSHNESS_GUARD_BENCHMARK != 0
+    if (module_index == EQ_BENCHMARK_MODULE_HARSHNESS)
+    {
+        medium_level = 3;
+    }
+#else
+    (void)module_index;
+#endif
     *transition_active = 0;
     if (case_index == EQ_BENCHMARK_CASE_IDENTITY)
     {
@@ -154,8 +187,8 @@ static void EQ_BenchmarkCaseLevels(
     }
     else if (case_index == EQ_BENCHMARK_CASE_STABLE_4)
     {
-        *active_level = 4;
-        *pending_level = 4;
+        *active_level = medium_level;
+        *pending_level = medium_level;
     }
     else
     {
@@ -172,8 +205,8 @@ static void EQ_BenchmarkCaseLevels(
         }
         else if (case_index == EQ_BENCHMARK_CASE_TRANSITION_4_3)
         {
-            *active_level = 4;
-            *pending_level = 3;
+            *active_level = medium_level;
+            *pending_level = medium_level - 1;
         }
         else
         {
@@ -190,7 +223,8 @@ static void EQ_BenchmarkPrepareDynamicState(int case_index)
     int transition_active;
 
     DynamicClarity_Init(&EQ_BenchmarkDynamicState);
-    EQ_BenchmarkCaseLevels(case_index, &active_level, &pending_level,
+    EQ_BenchmarkCaseLevels(EQ_BENCHMARK_MODULE_DYNAMIC, case_index,
+                           &active_level, &pending_level,
                            &transition_active);
     EQ_BenchmarkDynamicState.active_level = active_level;
     EQ_BenchmarkDynamicState.target_level = pending_level;
@@ -216,7 +250,8 @@ static void EQ_BenchmarkPrepareSmartState(int case_index)
     int transition_active;
 
     SmartBass_Init(&EQ_BenchmarkSmartState);
-    EQ_BenchmarkCaseLevels(case_index, &active_level, &pending_level,
+    EQ_BenchmarkCaseLevels(EQ_BENCHMARK_MODULE_SMART, case_index,
+                           &active_level, &pending_level,
                            &transition_active);
     EQ_BenchmarkSmartState.active_level = active_level;
     EQ_BenchmarkSmartState.target_level = pending_level;
@@ -231,6 +266,35 @@ static void EQ_BenchmarkPrepareSmartState(int case_index)
     EQ_BenchmarkSmartState.pending_state = EQ_BenchmarkSmartState.active_state;
     EQ_BenchmarkSmartTemplate = EQ_BenchmarkSmartState;
 }
+
+#if EQ_ENABLE_HARSHNESS_GUARD_BENCHMARK != 0
+static void EQ_BenchmarkPrepareHarshnessState(int case_index)
+{
+    int active_level;
+    int pending_level;
+    int transition_active;
+
+    HarshnessGuard_Init(&EQ_BenchmarkHarshnessState);
+    EQ_BenchmarkCaseLevels(EQ_BENCHMARK_MODULE_HARSHNESS, case_index,
+                           &active_level, &pending_level,
+                           &transition_active);
+    EQ_BenchmarkHarshnessState.active_level = active_level;
+    EQ_BenchmarkHarshnessState.target_level = pending_level;
+    EQ_BenchmarkHarshnessState.pending_level = pending_level;
+    EQ_BenchmarkHarshnessState.requested_enabled = 1;
+    EQ_BenchmarkHarshnessState.processing_active =
+        ((active_level != 0) || (transition_active != 0)) ? 1 : 0;
+    EQ_BenchmarkHarshnessState.transition_active = transition_active;
+    EQ_BenchmarkHarshnessState.transition_total =
+        HARSHNESS_GUARD_TRANSITION_SAMPLES;
+    EQ_BenchmarkHarshnessState.transition_remaining =
+        (transition_active != 0) ?
+        HARSHNESS_GUARD_TRANSITION_SAMPLES : 0;
+    EQ_BenchmarkHarshnessState.pending_state =
+        EQ_BenchmarkHarshnessState.active_state;
+    EQ_BenchmarkHarshnessTemplate = EQ_BenchmarkHarshnessState;
+}
+#endif
 
 static int EQ_BenchmarkIsTransitionCase(int case_index)
 {
@@ -299,6 +363,40 @@ static unsigned long EQ_BenchmarkInvokeSmart(int reset_transition)
     return (unsigned long)cycle_start;
 }
 
+#if EQ_ENABLE_HARSHNESS_GUARD_BENCHMARK != 0
+static unsigned long EQ_BenchmarkInvokeHarshness(int reset_transition)
+{
+    unsigned int cycle_start;
+    unsigned long saturation_before;
+    unsigned long nonfinite_before;
+    int result;
+
+    if (reset_transition != 0)
+    {
+        EQ_BenchmarkHarshnessState = EQ_BenchmarkHarshnessTemplate;
+    }
+    memcpy(EQ_BenchmarkOutput, EQ_BenchmarkInput,
+           sizeof(EQ_BenchmarkOutput));
+    saturation_before = EQ_BenchmarkHarshnessState.saturation_count;
+    nonfinite_before = EQ_BenchmarkHarshnessState.nonfinite_count;
+    cycle_start = TSCL;
+    result = HarshnessGuard_ProcessFrame(
+        &EQ_BenchmarkHarshnessState,
+        EQ_BenchmarkOutput, EQ_BenchmarkOutput,
+        EQ_DYNAMIC_CLARITY_BENCHMARK_FRAME_LEN);
+    cycle_start = TSCL - cycle_start;
+    EQ_DebugDynamicClarityBenchmarkHarshnessSaturationCount +=
+        EQ_BenchmarkHarshnessState.saturation_count - saturation_before;
+    EQ_DebugDynamicClarityBenchmarkHarshnessNonFiniteCount +=
+        EQ_BenchmarkHarshnessState.nonfinite_count - nonfinite_before;
+    if (result < 0)
+    {
+        EQ_DebugDynamicClarityBenchmarkStatus = -3;
+    }
+    return (unsigned long)cycle_start;
+}
+#endif
+
 static unsigned long EQ_BenchmarkInvoke(
     int module_index, int reset_transition)
 {
@@ -306,6 +404,12 @@ static unsigned long EQ_BenchmarkInvoke(
     {
         return EQ_BenchmarkInvokeDynamic(reset_transition);
     }
+#if EQ_ENABLE_HARSHNESS_GUARD_BENCHMARK != 0
+    if (module_index == EQ_BENCHMARK_MODULE_HARSHNESS)
+    {
+        return EQ_BenchmarkInvokeHarshness(reset_transition);
+    }
+#endif
     return EQ_BenchmarkInvokeSmart(reset_transition);
 }
 
@@ -339,6 +443,12 @@ static void EQ_BenchmarkRunJob(
     {
         EQ_BenchmarkPrepareDynamicState(case_index);
     }
+#if EQ_ENABLE_HARSHNESS_GUARD_BENCHMARK != 0
+    else if (module_index == EQ_BENCHMARK_MODULE_HARSHNESS)
+    {
+        EQ_BenchmarkPrepareHarshnessState(case_index);
+    }
+#endif
     else
     {
         EQ_BenchmarkPrepareSmartState(case_index);
@@ -392,6 +502,10 @@ void DynamicClarityBenchmark_Run(void)
     EQ_DebugDynamicClarityBenchmarkDynamicNonFiniteCount = 0UL;
     EQ_DebugDynamicClarityBenchmarkSmartSaturationCount = 0UL;
     EQ_DebugDynamicClarityBenchmarkSmartNonFiniteCount = 0UL;
+#if EQ_ENABLE_HARSHNESS_GUARD_BENCHMARK != 0
+    EQ_DebugDynamicClarityBenchmarkHarshnessSaturationCount = 0UL;
+    EQ_DebugDynamicClarityBenchmarkHarshnessNonFiniteCount = 0UL;
+#endif
     TSCL = 0U;
 
     job_index = 0;
@@ -421,7 +535,13 @@ void DynamicClarityBenchmark_Run(void)
         (EQ_DebugDynamicClarityBenchmarkDynamicSaturationCount == 0UL) &&
         (EQ_DebugDynamicClarityBenchmarkDynamicNonFiniteCount == 0UL) &&
         (EQ_DebugDynamicClarityBenchmarkSmartSaturationCount == 0UL) &&
-        (EQ_DebugDynamicClarityBenchmarkSmartNonFiniteCount == 0UL))
+        (EQ_DebugDynamicClarityBenchmarkSmartNonFiniteCount == 0UL)
+#if EQ_ENABLE_HARSHNESS_GUARD_BENCHMARK != 0
+        &&
+        (EQ_DebugDynamicClarityBenchmarkHarshnessSaturationCount == 0UL) &&
+        (EQ_DebugDynamicClarityBenchmarkHarshnessNonFiniteCount == 0UL)
+#endif
+        )
     {
         EQ_DebugDynamicClarityBenchmarkStatus = 1;
     }

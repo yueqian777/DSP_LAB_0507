@@ -14,6 +14,10 @@
 #define EQ_ENABLE_HARSHNESS_GUARD 0
 #endif
 
+#ifndef EQ_ENABLE_HARSHNESS_GUARD_TRANSITION_CAPTURE
+#define EQ_ENABLE_HARSHNESS_GUARD_TRANSITION_CAPTURE 0
+#endif
+
 #if (EQ_ENABLE_HARSHNESS_GUARD != 0) && \
     (EQ_ENABLE_AUDIO_FEATURE_ANALYZER == 0)
 #error Harshness Guard requires the audio feature analyzer.
@@ -120,5 +124,11 @@ float HarshnessGuard_GetRequestedGainDb(
 float HarshnessGuard_GetTransitionProgress(
     const HARSHNESS_GUARD_STATE *state);
 int HarshnessGuard_GetReason(const HARSHNESS_GUARD_STATE *state);
+#if EQ_ENABLE_HARSHNESS_GUARD_TRANSITION_CAPTURE != 0
+int HarshnessGuard_DiagnosticForceStableLevel(
+    HARSHNESS_GUARD_STATE *state, int level);
+int HarshnessGuard_DiagnosticRequestLevel(
+    HARSHNESS_GUARD_STATE *state, int level);
+#endif
 
 #endif /* _USER_HARSHNESS_GUARD_H_ */

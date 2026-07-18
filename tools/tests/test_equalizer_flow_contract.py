@@ -571,7 +571,7 @@ class EqualizerFlowContractTest(unittest.TestCase):
 
     def test_analyzer_disable_and_reset_clear_stale_publication(self) -> None:
         start = self.source.index(
-            "static void EQ_ClearPublishedAnalyzerState(void)"
+            "static void EQ_ClearPublishedAnalyzerState("
         )
         end = self.source.index(
             "static void EQ_ResetAnalyzerRuntime(void)", start
@@ -599,7 +599,18 @@ class EqualizerFlowContractTest(unittest.TestCase):
         self.assertIn("EQ_ANALYZER_ACTION_DISABLE", service)
         self.assertIn("EQ_ANALYZER_ACTION_ENABLE_RESET", service)
         self.assertIn("EQ_ANALYZER_ACTION_MANUAL_RESET", service)
+        self.assertIn("EQ_ClearPublishedAnalyzerState(0);", service)
         self.assertNotIn("EQ_BoardState", service)
+
+        reset_start = self.source.index(
+            "static void EQ_ResetAnalyzerRuntime(void)", start
+        )
+        reset_end = self.source.index(
+            "static int EQ_ServiceAnalyzerControl(", reset_start
+        )
+        reset = self.source[reset_start:reset_end]
+        self.assertIn("EQ_ClearPublishedAnalyzerState(1);", reset)
+        self.assertNotIn("EQ_ClearPublishedAnalyzerState();", self.source)
         self.assertNotIn("Equalizer_Set", service)
         self.assertNotIn("Equalizer_Apply", service)
 

@@ -33,6 +33,14 @@
 #define EQ_ENABLE_DYNAMIC_CLARITY_TRANSITION_CAPTURE 0
 #endif
 
+#ifndef EQ_ENABLE_HARSHNESS_GUARD_TRANSITION_CAPTURE
+#define EQ_ENABLE_HARSHNESS_GUARD_TRANSITION_CAPTURE 0
+#endif
+
+#ifndef EQ_ENABLE_FOUR_WAY_TRANSITION_DIAGNOSTICS
+#define EQ_ENABLE_FOUR_WAY_TRANSITION_DIAGNOSTICS 0
+#endif
+
 #if (EQ_ENABLE_SMART_BASS != 0) && \
     (EQ_ENABLE_AUDIO_FEATURE_ANALYZER == 0)
 #error Smart Bass requires the audio feature analyzer.
@@ -56,6 +64,18 @@
 #if (EQ_ENABLE_DYNAMIC_CLARITY_TRANSITION_CAPTURE != 0) && \
     (EQ_ENABLE_DYNAMIC_CLARITY == 0)
 #error Dynamic Clarity transition capture requires Dynamic Clarity.
+#endif
+
+#if (EQ_ENABLE_HARSHNESS_GUARD_TRANSITION_CAPTURE != 0) && \
+    (EQ_ENABLE_HARSHNESS_GUARD == 0)
+#error Harshness Guard transition capture requires Harshness Guard.
+#endif
+
+#if (EQ_ENABLE_FOUR_WAY_TRANSITION_DIAGNOSTICS != 0) && \
+    ((EQ_ENABLE_SMART_BASS == 0) || \
+     (EQ_ENABLE_DYNAMIC_CLARITY == 0) || \
+     (EQ_ENABLE_HARSHNESS_GUARD == 0))
+#error Four-way transition diagnostics require all three dynamic modules.
 #endif
 
 #define DYNAMIC_CLARITY_PATH_IDENTITY                    0
@@ -83,8 +103,10 @@
 #define EQ_CAPTURE_TRIGGER_MODE_SWITCH      0x02U
 #define EQ_CAPTURE_TRIGGER_AUDIO_DURING_LCD 0x04U
 #define EQ_CAPTURE_TRIGGER_DYNAMIC_CLARITY  0x08U
+#define EQ_CAPTURE_TRIGGER_HARSHNESS_GUARD  0x10U
 
 #define EQ_DYNAMIC_CLARITY_CAPTURE_PREROLL_FRAMES 100U
+#define EQ_HARSHNESS_GUARD_CAPTURE_PREROLL_FRAMES 100U
 
 #define EQ_FRAME_SERVICE_BUDGET_MS \
     (1000.0f * (float)EQ_FRAME_LEN / EQ_SAMPLE_RATE)
@@ -262,6 +284,13 @@ extern volatile unsigned long EQ_DebugHarshnessGuardLastCycles;
 extern volatile unsigned long EQ_DebugHarshnessGuardMaxCycles;
 extern volatile unsigned long EQ_DebugHarshnessGuardSaturationCount;
 extern volatile unsigned long EQ_DebugHarshnessGuardNonFiniteCount;
+#if EQ_ENABLE_FOUR_WAY_TRANSITION_DIAGNOSTICS != 0
+extern volatile unsigned int EQ_DebugFourWayTransitionMask;
+extern volatile unsigned long EQ_DebugFourWayTransitionOverlapCount;
+extern volatile unsigned long EQ_DebugFourWayTransitionFirstFrame;
+extern volatile int EQ_DebugFourWayTransitionArmMode;
+extern volatile unsigned long EQ_DebugFourWayTransitionArmCount;
+#endif
 #if EQ_ENABLE_DYNAMIC_CLARITY_TRANSITION_CAPTURE != 0
 extern volatile unsigned int EQ_DebugDynamicClarityTransitionCaptureRequest;
 extern volatile unsigned int EQ_DebugDynamicClarityTransitionCaptureActive;
@@ -276,6 +305,21 @@ extern volatile unsigned long
     EQ_DebugDynamicClarityTransitionCaptureTriggerFrame;
 extern volatile unsigned long
     EQ_DebugDynamicClarityTransitionCaptureDoneFrame;
+#endif
+#if EQ_ENABLE_HARSHNESS_GUARD_TRANSITION_CAPTURE != 0
+extern volatile unsigned int EQ_DebugHarshnessGuardTransitionCaptureRequest;
+extern volatile unsigned int EQ_DebugHarshnessGuardTransitionCaptureActive;
+extern volatile unsigned int EQ_DebugHarshnessGuardTransitionCaptureDone;
+extern volatile unsigned int EQ_DebugHarshnessGuardTransitionCaptureOverride;
+extern volatile int EQ_DebugHarshnessGuardTransitionCaptureBaseLevel;
+extern volatile int EQ_DebugHarshnessGuardTransitionCaptureTargetLevel;
+extern volatile int EQ_DebugHarshnessGuardTransitionCaptureResult;
+extern volatile unsigned long
+    EQ_DebugHarshnessGuardTransitionCaptureRequestFrame;
+extern volatile unsigned long
+    EQ_DebugHarshnessGuardTransitionCaptureTriggerFrame;
+extern volatile unsigned long
+    EQ_DebugHarshnessGuardTransitionCaptureDoneFrame;
 #endif
 #if EQ_ENABLE_DYNAMIC_CLARITY_TIMING_DIAGNOSTICS != 0
 extern volatile unsigned long

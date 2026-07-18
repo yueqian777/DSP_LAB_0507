@@ -27,6 +27,15 @@ def sine(time: np.ndarray, frequency_hz: float, phase: float = 0.0) -> np.ndarra
     return np.sin(2.0 * np.pi * frequency_hz * time + phase)
 
 
+def deterministic_pseudorandom(sample_count: int) -> np.ndarray:
+    samples = np.empty(sample_count, dtype=np.float64)
+    state = 0x13579BDF
+    for index in range(sample_count):
+        state = (state * 1664525 + 1013904223) & 0xFFFFFFFF
+        samples[index] = (((state >> 16) & 0x3FFF) - 8192) / 8192.0
+    return 0.18 * samples
+
+
 def analyzer_measure(samples: np.ndarray) -> dict[str, float]:
     frame = np.asarray(samples[:FFT_SIZE], dtype=np.float64)
     centered = frame - np.mean(frame)
@@ -161,6 +170,13 @@ def main() -> int:
     )
     files.append(
         write_wave(
+            args.output_dir / "silence.wav",
+            np.zeros(SAMPLE_COUNT, dtype=np.float64),
+            {"stimulus": "silence"},
+        )
+    )
+    files.append(
+        write_wave(
             args.output_dir / "brightness_tone.wav",
             0.60 * tones["brightness"],
             {"stimulus": "brightness_tone"},
@@ -258,12 +274,44 @@ def main() -> int:
         )
     )
 
+    files.append(
+        write_wave(
+            args.output_dir / "transition_dual.wav",
+            mixed,
+            {"stimulus": "transition_dual"},
+        )
+    )
+    files.append(
+        write_wave(
+            args.output_dir / "transition_music.wav",
+            music_like,
+            {"stimulus": "transition_music", **phase_measurements},
+        )
+    )
+    transition_noise_period_samples = FFT_SIZE
+    transition_noise = np.resize(
+        deterministic_pseudorandom(transition_noise_period_samples),
+        SAMPLE_COUNT,
+    )
+    files.append(
+        write_wave(
+            args.output_dir / "transition_noise.wav",
+            transition_noise,
+            {
+                "stimulus": "transition_noise",
+                "generator": "LCG32_PERIODIC",
+                "period_samples": transition_noise_period_samples,
+            },
+        )
+    )
+
     manifest = {
         "evidence_label": "HOST_GENERATED_FIXED_STIMULUS",
         "sample_rate_hz": SAMPLE_RATE,
         "sample_count": SAMPLE_COUNT,
         "duration_seconds": SAMPLE_COUNT / SAMPLE_RATE,
         "fft_size": FFT_SIZE,
+        "transition_noise_period_samples": transition_noise_period_samples,
         "window": "Hann N-1",
         "power": "one-sided density with Analyzer band-bin compensation",
         "frequencies_hz": FREQUENCIES,
