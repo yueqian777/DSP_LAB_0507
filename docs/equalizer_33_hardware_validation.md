@@ -569,11 +569,12 @@ and `0.058838 FS`. Maximum observed cycles were:
 Deadline miss, latency miss, overlap, dropped, clip, both saturation counters,
 and both nonfinite counters remained zero.
 
-### 11.4 H uninterrupted 300-second window
+### 11.4 H approximately 300-second uninterrupted window
 
 The fixed `music_like.wav` loop ran for one uninterrupted 300-second target
 window. There was no DSS halt, Watch read, or periodic UART feature request
-during the window. The single final snapshot is labeled `CONTINUOUS_300S`.
+during the window. The single final snapshot was labeled `CONTINUOUS_300S`,
+but that label described the target rather than the measured DSP duration.
 
 Process frames advanced from 8560 to 23179, a delta of 14619. Analyzer,
 Smart Bass, and Dynamic Clarity decisions each advanced by 1827. Both dynamics
@@ -583,9 +584,124 @@ unchanged across the window. Maximum cycles at the final snapshot were
 algorithm, 4789638 frame service, and 4789896 frame latency. Every safety,
 clip, saturation, and nonfinite counter was zero.
 
+At 50 kHz with 1024 samples per frame, 14619 frames equal `299.39712 s`.
+Therefore this legacy result is an approximately 300-second uninterrupted run,
+not proof that at least 300 seconds of audio were processed. Section 12.3
+records the corrected measurement.
+
 Formal JSON, UART, RAW, fixed stimuli, and capture metrics are retained under
 `%TEMP%\DSP_LAB_0507\dynamic_clarity_v1\47337a0\board_objective_20260717_194013`.
 `tools/run_dynamic_clarity_board.ps1 -AnalyzeOnly` reproduced all RAW and UART
 acceptance checks after the board disconnected. External analog THD, SNR,
 calibrated frequency response, SPL, and all subjective listening claims remain
 unmeasured.
+
+## 12. Dynamic Clarity diagnostic closure
+
+**Date:** 2026-07-17
+
+**Feature SHA:** `47337a0b9fe9b3f7025671806e3e3b2e8f269f56`
+
+**Prior board-validation SHA:**
+`9e5190594048d3c00a68a2e78b9d59b5a03aca40`
+
+**Diagnostic commits:** `b8cb856`, `9afb130`
+
+The board diagnostic output reported `P33 BUILD 9e51905`, `dirty=1`, reached
+INIT 11, and had SHA-256
+`6D973DF562EA18279CBED90ECA0A4B21773D414AC4762C26985521F11AA01BC4`.
+That exact output hash is retained with every RAW and cycle file hash. The
+subsequent clean A-G compile/link matrix used `9afb130`, `dirty=0`; it was not
+loaded as part of this hardware run. This distinction prevents a clean build
+claim from being substituted for the exact diagnostic binary that ran.
+
+No algorithm parameter, threshold, gain table, center frequency, transition
+duration, Analyzer behavior, Smart Bass behavior, EQ bank, control token,
+I/O driver, LCD, Touch, Project 3.2 path, or `main.c` default was changed.
+
+### 12.1 Isolated and real-time cycle evidence
+
+The independent benchmark stopped audio services and measured 56 jobs: two
+modules, four fixed inputs, and seven identity/stable/transition cases. Each
+job used 64 warm-up calls and 4096 measured calls. INIT stayed zero, AD/DA
+flags stayed zero, audio services never started, and all four module safety
+counters stayed zero.
+
+Across all jobs, Dynamic Clarity had P99 maximum `336177.2` and absolute
+maximum `336505` cycles. Smart Bass had P99 maximum `336178.15` and absolute
+maximum `336474` cycles. The largest Dynamic-to-Smart P99 ratio was
+`1.007143`. First-call and warm maxima were also comparable.
+
+The real-time path maxima were:
+
+| Path | Max cycles | FLAG_AD | FLAG_DA |
+|---|---:|---:|---:|
+| Identity | 2199 | 0 | 1 |
+| Stable filter | 253122 | 0 | 1 |
+| 0 to filter | 2183186 | 0 | 1 |
+| Filter to filter | 2190175 | 0 | 1 |
+| Filter to 0 | 2183180 | 0 | 1 |
+
+Deadline, latency miss, overlap, dropped, clip, saturation, and nonfinite
+counters were zero. The approximately 2.19 million-cycle peaks also appeared
+in the no-debug-access continuous window. The root-cause category is therefore
+`C_INTERRUPT_OR_PREEMPTION_INCLUDED`: real-time TSCL intervals include DA
+service or interrupt preemption. The evidence does not support true filter
+compute cost, cold first-call behavior, or a debugger-only artifact.
+
+### 12.2 Objective transition evidence
+
+The `BOARD_INTERNAL_PCM_OBJECTIVE_TRANSIENT` test captured stable and actual
+0-to-1, 1-to-2, and 1-to-0 cases for deterministic dual-tone, music-like, and
+periodic pseudorandom inputs. All nine captures passed matched-input and
+digital-integrity checks.
+
+| Metric | Worst recorded value |
+|---|---:|
+| Minimum input correlation | 0.966769 |
+| Residual peak | -33.356119 dBFS |
+| Residual RMS | -46.877868 dBFS |
+| First-difference peak | -30.615934 dBFS |
+| Second-difference peak | -25.845146 dBFS |
+| 4-20 kHz boundary/internal ratio | 0.857015 dB |
+| Repeated adjacent frames | 0 |
+| Clipped samples | 0 |
+
+These numbers characterize board-internal PCM16 behavior only. No perceptual
+threshold is applied, and no claim is made about audible clicks, subjective
+clarity, or external analog output.
+
+### 12.3 Corrected uninterrupted runtime
+
+The corrected tool records host monotonic boundaries and DSP process-frame
+boundaries independently. Analyzer, Smart Bass, and Dynamic Clarity were ON;
+LCD was OFF; `music_like.wav` looped continuously. During the measurement
+window there were zero halts, Watch reads, RAW reads, periodic UART requests,
+or intermediate DSS accesses. Only the final status was read.
+
+| Time definition | Result |
+|---|---:|
+| Target wall time | 300.0 s |
+| Measured host elapsed | 303.0231563 s |
+| DSP frame delta | 14764 |
+| Measured DSP audio | 302.36672 s |
+
+The DSP therefore processed at least 300 seconds of audio in this corrected
+window. Analyzer, Smart Bass, and Dynamic Clarity counters each advanced from
+36 to 1882. All deadline, latency, overlap, dropped, clip, saturation, and
+nonfinite counters were zero. Subjective observation was `NOT_PERFORMED`.
+
+### 12.4 Clean build matrix and archive
+
+The clean `9afb130`, `dirty=0` A-G matrix covered Project 32; Project 33
+Baseline; Analyzer only; Analyzer plus Smart Bass; Analyzer plus Dynamic
+Clarity; both dynamics with LCD OFF; and both dynamics with LCD ON. All seven
+full builds had zero warnings and `link_errors=0x0`. Production F and G maps
+contained no benchmark or timing-diagnostic symbols. LCD ON was compile/link
+only and was not asserted as a board UI result.
+
+Compact, parseable evidence is under
+`docs/evidence/dynamic_clarity_47337a0/`. Its SHA-256 manifest references 88
+retained local files without committing WAV, RAW, `.out`, map, CSV, PNG, or
+cache artifacts. External analog THD, SNR, calibrated response, and SPL remain
+`UNMEASURED`; all subjective listening remains `NOT_PERFORMED`.

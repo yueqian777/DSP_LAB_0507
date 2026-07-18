@@ -1,0 +1,110 @@
+﻿{
+    "evidence_label":  "MEASURED_ON_CURRENT_BOARD_OBJECTIVE_ONLY",
+    "pass":  true,
+    "feature_commit":  "47337a0b9fe9b3f7025671806e3e3b2e8f269f56",
+    "validation_commit":  "9e5190594048d3c00a68a2e78b9d59b5a03aca40",
+    "output_sha256":  "19026BDDC21BCA38F643A16859F37B6C7A8D3174E96664207828199ED01B38DC",
+    "build":  {
+                  "sha":  "47337a0",
+                  "dirty":  0,
+                  "version":  "P33_FIX_V5"
+              },
+    "uart":  {
+                 "build_line":  "P33 BUILD 47337a0",
+                 "init_stage":  11
+             },
+    "runtime_off":  {
+                        "duration_seconds":  60,
+                        "process_frames":  3062,
+                        "byte_exact":  true,
+                        "sha256":  "B8722488486A8BB2690ACB7BC96F4F33FBFB4AEEE3A247D3EF2ABDF633AFC797"
+                    },
+    "presence_identity":  {
+                              "byte_exact":  true,
+                              "sha256":  "DE81746DF75F2BA6B4A3671692A410F8A3F0E3CFE5EDF9AE92E2F2FBE4C5E5FB"
+                          },
+    "mud_trigger":  {
+                        "mud_db":  13,
+                        "presence_db":  -2,
+                        "masking_db":  16,
+                        "applied_level":  4,
+                        "mud_transfer_db":  -1.962836550949372,
+                        "presence_transfer_db":  -0.04625609816825879,
+                        "bass_100hz_transfer_db":  -0.07709673785977192,
+                        "brightness_8khz_transfer_db":  0.0033309341256839205
+                    },
+    "mapping":  [
+                    {
+                        "target_masking_db":  2,
+                        "measured_masking_db":  2,
+                        "expected_level":  0,
+                        "requested_level":  0,
+                        "applied_level":  0
+                    },
+                    {
+                        "target_masking_db":  5,
+                        "measured_masking_db":  5,
+                        "expected_level":  0,
+                        "requested_level":  0,
+                        "applied_level":  0
+                    },
+                    {
+                        "target_masking_db":  8,
+                        "measured_masking_db":  8,
+                        "expected_level":  2,
+                        "requested_level":  2,
+                        "applied_level":  2
+                    },
+                    {
+                        "target_masking_db":  12,
+                        "measured_masking_db":  12,
+                        "expected_level":  3,
+                        "requested_level":  3,
+                        "applied_level":  3
+                    },
+                    {
+                        "target_masking_db":  16,
+                        "measured_masking_db":  16,
+                        "expected_level":  4,
+                        "requested_level":  4,
+                        "applied_level":  4
+                    }
+                ],
+    "triple_transition":  {
+                              "flat_to_bass_overlap":  true,
+                              "bass_to_vocal_overlap":  true,
+                              "flat_to_bass_repeated_frames":  0,
+                              "flat_to_bass_clip":  0,
+                              "bass_to_vocal_repeated_frames":  0,
+                              "bass_to_vocal_clip":  0
+                          },
+    "legacy_h":  {
+                     "label":  "APPROXIMATELY_300_SECOND_UNINTERRUPTED_RUN",
+                     "target_seconds":  300,
+                     "dsp_frame_delta":  14619,
+                     "dsp_elapsed_seconds":  299.39712,
+                     "superseded_by":  "continuous_runtime_summary.json"
+                 },
+    "maximum_cycles":  {
+                           "analyzer":  299524,
+                           "smart_bass":  438590,
+                           "dynamic_clarity":  2497790,
+                           "algorithm_chain":  4323000,
+                           "frame_service":  4789638,
+                           "frame_latency":  4789896
+                       },
+    "safety":  {
+                   "deadline":  0,
+                   "latency_miss":  0,
+                   "overlap":  0,
+                   "dropped":  0,
+                   "clip":  0,
+                   "smart_saturation":  0,
+                   "smart_nonfinite":  0,
+                   "clarity_saturation":  0,
+                   "clarity_nonfinite":  0
+               },
+    "subjective_observation":  "NOT_PERFORMED",
+    "external_analog_metrics":  "UNMEASURED",
+    "source_path":  "%TEMP%\\DSP_LAB_0507\\dynamic_clarity_v1\\47337a0\\board_objective_20260717_194013"
+}

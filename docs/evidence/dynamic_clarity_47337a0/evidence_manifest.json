@@ -1,0 +1,408 @@
+﻿{
+    "evidence_label":  "DYNAMIC_CLARITY_V1_OBJECTIVE_ARCHIVE",
+    "feature_sha":  "47337a0b9fe9b3f7025671806e3e3b2e8f269f56",
+    "validation_commit_sha":  "9e5190594048d3c00a68a2e78b9d59b5a03aca40",
+    "diagnostic_code_commit_sha":  "9afb130e14cbf9e22a8abaceb153da90623437d8",
+    "report_commit_sha":  "SELF (the docs commit containing this manifest)",
+    "report_parent_sha":  "9afb130e14cbf9e22a8abaceb153da90623437d8",
+    "build_macros":  {
+                         "diagnostic_transition":  "DSP_LAB_PROJECT_SELECT=33; ANALYZER=1; SMART_BASS=1; DYNAMIC_CLARITY=1; LCD=0; TIMING_DIAGNOSTICS=1; TRANSITION_CAPTURE=1; BENCHMARK=0",
+                         "diagnostic_benchmark":  "DSP_LAB_PROJECT_SELECT=33; ANALYZER=1; SMART_BASS=1; DYNAMIC_CLARITY=1; LCD=0; BENCHMARK=1",
+                         "production_matrix":  "TIMING_DIAGNOSTICS=0; TRANSITION_CAPTURE=0; BENCHMARK=0"
+                     },
+    "output_sha256":  {
+                          "feature_board":  "19026BDDC21BCA38F643A16859F37B6C7A8D3174E96664207828199ED01B38DC",
+                          "benchmark":  "45633C0521ACAA4B1404F15BCFEB493E30223D473DEA0085BBCFDF6CE9E8DB7E",
+                          "transition_and_continuous":  "6D973DF562EA18279CBED90ECA0A4B21773D414AC4762C26985521F11AA01BC4",
+                          "production_F_LCD_OFF":  "383FC11788DB84D6F79BFA1B06619F197B20172E0286012BD0D44C8B3E0784D4",
+                          "production_G_LCD_ON":  "9670492EA1624D8811F5F50F4317D6B6088EB1F8DD08737141E195F35E509BF7"
+                      },
+    "uart":  {
+                 "feature_build":  "47337a0",
+                 "diagnostic_build":  "9e51905",
+                 "init_stage":  11
+             },
+    "input_files":  [
+                        {
+                            "name":  "transition_dual.wav",
+                            "logical_path":  "transition/audio/transition_dual.wav",
+                            "sha256":  "BF347D0CB009CE5E1F1794A02E70468F25272327E1D317682115D2363F1F5BED",
+                            "bytes":  1024044
+                        },
+                        {
+                            "name":  "transition_music.wav",
+                            "logical_path":  "transition/audio/transition_music.wav",
+                            "sha256":  "2A51C7E44A6297A26E07FB96755D7F7B14BBE2A5902AD3FF20F5F2166F4BF486",
+                            "bytes":  1024044
+                        },
+                        {
+                            "name":  "transition_noise.wav",
+                            "logical_path":  "transition/audio/transition_noise.wav",
+                            "sha256":  "6A5C927EF970EAEDB0D1496C4AF8D15D7DBAE287806DD52C65D61C8AE678DC64",
+                            "bytes":  1024044
+                        },
+                        {
+                            "name":  "music_like.wav",
+                            "logical_path":  "transition/audio/music_like.wav",
+                            "sha256":  "128BB6BCE79FC0D86336DA016AEC2D1EB69F1BF7A684DBA71C9B796CDD8A66CE",
+                            "bytes":  1024044
+                        }
+                    ],
+    "raw_files":  [
+                      {
+                          "name":  "mud_dominant_off_input.raw",
+                          "logical_path":  "baseline/raw/mud_dominant_off_input.raw",
+                          "sha256":  "13D5A12285D0983F80403022A744ED157F4232188D48FE2D853D1F835274549C",
+                          "bytes":  16384
+                      },
+                      {
+                          "name":  "mud_dominant_off_output.raw",
+                          "logical_path":  "baseline/raw/mud_dominant_off_output.raw",
+                          "sha256":  "13D5A12285D0983F80403022A744ED157F4232188D48FE2D853D1F835274549C",
+                          "bytes":  16384
+                      },
+                      {
+                          "name":  "mud_dominant_on_input.raw",
+                          "logical_path":  "baseline/raw/mud_dominant_on_input.raw",
+                          "sha256":  "BDF6D324EF8DC33A8D2D958DD69308BD23ACAD2EAA3FB79885BDA0226C0E9BCD",
+                          "bytes":  16384
+                      },
+                      {
+                          "name":  "mud_dominant_on_output.raw",
+                          "logical_path":  "baseline/raw/mud_dominant_on_output.raw",
+                          "sha256":  "C37B48211A39F7ED70798F4BAD8FF9EFD99083A03AAD0F686D9AFEBA55275E55",
+                          "bytes":  16384
+                      },
+                      {
+                          "name":  "presence_identity_input.raw",
+                          "logical_path":  "baseline/raw/presence_identity_input.raw",
+                          "sha256":  "DE81746DF75F2BA6B4A3671692A410F8A3F0E3CFE5EDF9AE92E2F2FBE4C5E5FB",
+                          "bytes":  16384
+                      },
+                      {
+                          "name":  "presence_identity_output.raw",
+                          "logical_path":  "baseline/raw/presence_identity_output.raw",
+                          "sha256":  "DE81746DF75F2BA6B4A3671692A410F8A3F0E3CFE5EDF9AE92E2F2FBE4C5E5FB",
+                          "bytes":  16384
+                      },
+                      {
+                          "name":  "probe100_off_input.raw",
+                          "logical_path":  "baseline/raw/probe100_off_input.raw",
+                          "sha256":  "DA681EE30FFD4EC0F9843E4F1316F9304FC3725DFDD5091C8812B290413D29AF",
+                          "bytes":  16384
+                      },
+                      {
+                          "name":  "probe100_off_output.raw",
+                          "logical_path":  "baseline/raw/probe100_off_output.raw",
+                          "sha256":  "DA681EE30FFD4EC0F9843E4F1316F9304FC3725DFDD5091C8812B290413D29AF",
+                          "bytes":  16384
+                      },
+                      {
+                          "name":  "probe100_on_input.raw",
+                          "logical_path":  "baseline/raw/probe100_on_input.raw",
+                          "sha256":  "B07F3DC0D278519EBD5513E6ACAB343243564D916766B115790652E04628F7FF",
+                          "bytes":  16384
+                      },
+                      {
+                          "name":  "probe100_on_output.raw",
+                          "logical_path":  "baseline/raw/probe100_on_output.raw",
+                          "sha256":  "6C82228C46B13112616061C267EBD10FD6BE9A7BB6B723B6B00375737759D395",
+                          "bytes":  16384
+                      },
+                      {
+                          "name":  "probe8k_off_input.raw",
+                          "logical_path":  "baseline/raw/probe8k_off_input.raw",
+                          "sha256":  "637A2A28DEF0C38E7FAA7178F5D8BBC177C3D5C2674AF1D1F68C234C3A5220A3",
+                          "bytes":  16384
+                      },
+                      {
+                          "name":  "probe8k_off_output.raw",
+                          "logical_path":  "baseline/raw/probe8k_off_output.raw",
+                          "sha256":  "637A2A28DEF0C38E7FAA7178F5D8BBC177C3D5C2674AF1D1F68C234C3A5220A3",
+                          "bytes":  16384
+                      },
+                      {
+                          "name":  "probe8k_on_input.raw",
+                          "logical_path":  "baseline/raw/probe8k_on_input.raw",
+                          "sha256":  "DDE8E03CDA63DFE550B7DD2DA3144E0CF9861FAEF7A8A16604685BB5A4EEA38D",
+                          "bytes":  16384
+                      },
+                      {
+                          "name":  "probe8k_on_output.raw",
+                          "logical_path":  "baseline/raw/probe8k_on_output.raw",
+                          "sha256":  "FD44CB79BC74271FFBB52B4CB06F6AE729FBE95BEE31E3D2CF4C51FA67EA86E3",
+                          "bytes":  16384
+                      },
+                      {
+                          "name":  "runtime_off_identity_input.raw",
+                          "logical_path":  "baseline/raw/runtime_off_identity_input.raw",
+                          "sha256":  "B8722488486A8BB2690ACB7BC96F4F33FBFB4AEEE3A247D3EF2ABDF633AFC797",
+                          "bytes":  16384
+                      },
+                      {
+                          "name":  "runtime_off_identity_output.raw",
+                          "logical_path":  "baseline/raw/runtime_off_identity_output.raw",
+                          "sha256":  "B8722488486A8BB2690ACB7BC96F4F33FBFB4AEEE3A247D3EF2ABDF633AFC797",
+                          "bytes":  16384
+                      },
+                      {
+                          "name":  "triple_bass_to_vocal_input.raw",
+                          "logical_path":  "baseline/raw/triple_bass_to_vocal_input.raw",
+                          "sha256":  "36FFF55BA652741E49FEDF517E5E9BE3BB8BD45FADB4FD5EB34BDCC7DA228668",
+                          "bytes":  16384
+                      },
+                      {
+                          "name":  "triple_bass_to_vocal_output.raw",
+                          "logical_path":  "baseline/raw/triple_bass_to_vocal_output.raw",
+                          "sha256":  "FB0B3DDE7417384453325040D1AF5172D80E82354D9680B0E8F535F6EE015F53",
+                          "bytes":  16384
+                      },
+                      {
+                          "name":  "triple_flat_to_bass_input.raw",
+                          "logical_path":  "baseline/raw/triple_flat_to_bass_input.raw",
+                          "sha256":  "84D52FD2BE1799127E4ADFE7E30384E960E66023DE6F48DBA8B798E2CA1BFD63",
+                          "bytes":  16384
+                      },
+                      {
+                          "name":  "triple_flat_to_bass_output.raw",
+                          "logical_path":  "baseline/raw/triple_flat_to_bass_output.raw",
+                          "sha256":  "0B5548C2C4E7B612F4C827D2D6230D305F436041D5D7792B4197FD45D3BF88D5",
+                          "bytes":  16384
+                      },
+                      {
+                          "name":  "dynamic_clarity_benchmark_cycles.raw",
+                          "logical_path":  "benchmark/dynamic_clarity_benchmark_cycles.raw",
+                          "sha256":  "82357322DA8D433ABD58108D5823E9F59061D3AE7451CB38DEE1E1F2419FB599",
+                          "bytes":  917504
+                      },
+                      {
+                          "name":  "dual_stable_0_input.raw",
+                          "logical_path":  "transition/raw/dual_stable_0_input.raw",
+                          "sha256":  "FAAE83C768A4543811710C352190DD1E9159CAE861D6A7ABC636130D0E8C2F39",
+                          "bytes":  24576
+                      },
+                      {
+                          "name":  "dual_stable_0_output.raw",
+                          "logical_path":  "transition/raw/dual_stable_0_output.raw",
+                          "sha256":  "FAAE83C768A4543811710C352190DD1E9159CAE861D6A7ABC636130D0E8C2F39",
+                          "bytes":  24576
+                      },
+                      {
+                          "name":  "dual_stable_1_input.raw",
+                          "logical_path":  "transition/raw/dual_stable_1_input.raw",
+                          "sha256":  "FC45AE9CCBD2512B13A2B7BCEF13E3251AB1C204B596DF16CC8E28B602EA6D68",
+                          "bytes":  24576
+                      },
+                      {
+                          "name":  "dual_stable_1_output.raw",
+                          "logical_path":  "transition/raw/dual_stable_1_output.raw",
+                          "sha256":  "D5D0486993689FB8E2C238046CD8CB4F6CBB5F9539694DB1055CE7F1808F5E18",
+                          "bytes":  24576
+                      },
+                      {
+                          "name":  "dual_transition_0_to_1_input.raw",
+                          "logical_path":  "transition/raw/dual_transition_0_to_1_input.raw",
+                          "sha256":  "EC6112835A68E4C7F42D9CEAAA934EA7F984A911AEA8E2A4D880AE574D0BB6CC",
+                          "bytes":  24576
+                      },
+                      {
+                          "name":  "dual_transition_0_to_1_output.raw",
+                          "logical_path":  "transition/raw/dual_transition_0_to_1_output.raw",
+                          "sha256":  "B2B14B71BDADB37CDB3DBD0A750628E042EB56C53D078BF0FC59977D758D709F",
+                          "bytes":  24576
+                      },
+                      {
+                          "name":  "dual_transition_1_to_0_input.raw",
+                          "logical_path":  "transition/raw/dual_transition_1_to_0_input.raw",
+                          "sha256":  "4380B64551639548248C5791C400FFA8E7AA4AACB69AD8B41CC420CF76609BFE",
+                          "bytes":  24576
+                      },
+                      {
+                          "name":  "dual_transition_1_to_0_output.raw",
+                          "logical_path":  "transition/raw/dual_transition_1_to_0_output.raw",
+                          "sha256":  "C24A4DEFA9F23945C5F552F30856056E083EF6DC1EDE28A8634320BDB6ED3762",
+                          "bytes":  24576
+                      },
+                      {
+                          "name":  "dual_transition_1_to_2_input.raw",
+                          "logical_path":  "transition/raw/dual_transition_1_to_2_input.raw",
+                          "sha256":  "454ACD530F8B7883C15AB8A7874EB61144BBB423628F6C01F22A38EB082B2AC3",
+                          "bytes":  24576
+                      },
+                      {
+                          "name":  "dual_transition_1_to_2_output.raw",
+                          "logical_path":  "transition/raw/dual_transition_1_to_2_output.raw",
+                          "sha256":  "5C5EEDB1925731B9F596212BD4AE1F19BE5C107AC574F5A27CC0D85789441084",
+                          "bytes":  24576
+                      },
+                      {
+                          "name":  "music_stable_0_input.raw",
+                          "logical_path":  "transition/raw/music_stable_0_input.raw",
+                          "sha256":  "57F7A2ADE1161B4D6807C314F6D38F61910D68597C202211F34F39DCD45893D4",
+                          "bytes":  24576
+                      },
+                      {
+                          "name":  "music_stable_0_output.raw",
+                          "logical_path":  "transition/raw/music_stable_0_output.raw",
+                          "sha256":  "897EE6CC5219826846FDCB3FFCCEF903429C19E1601EF700B632D89A800D221E",
+                          "bytes":  24576
+                      },
+                      {
+                          "name":  "music_stable_1_input.raw",
+                          "logical_path":  "transition/raw/music_stable_1_input.raw",
+                          "sha256":  "00C0D006743330778E008AE0C8808F22626BA9E0CF5CF1772DB32F93CCB89DE6",
+                          "bytes":  24576
+                      },
+                      {
+                          "name":  "music_stable_1_output.raw",
+                          "logical_path":  "transition/raw/music_stable_1_output.raw",
+                          "sha256":  "30C302242893764EE5B8482381B3AEE3D341978E5C4DD43CE60FCCC0A67BE9F6",
+                          "bytes":  24576
+                      },
+                      {
+                          "name":  "music_transition_0_to_1_input.raw",
+                          "logical_path":  "transition/raw/music_transition_0_to_1_input.raw",
+                          "sha256":  "0C14931230B92795F7A64B0BEAA0F4145D5EAF2E2B79EF03E690D400452396E7",
+                          "bytes":  24576
+                      },
+                      {
+                          "name":  "music_transition_0_to_1_output.raw",
+                          "logical_path":  "transition/raw/music_transition_0_to_1_output.raw",
+                          "sha256":  "9E435F1CFBEB968A015E5623ABD308EFD2671A5DB8485CEA1069A9932A55CC5E",
+                          "bytes":  24576
+                      },
+                      {
+                          "name":  "music_transition_1_to_0_input.raw",
+                          "logical_path":  "transition/raw/music_transition_1_to_0_input.raw",
+                          "sha256":  "B647E285B25D2B05560F7DB531BAC9AD26E83CEA3639536E6070BB703F4403A1",
+                          "bytes":  24576
+                      },
+                      {
+                          "name":  "music_transition_1_to_0_output.raw",
+                          "logical_path":  "transition/raw/music_transition_1_to_0_output.raw",
+                          "sha256":  "5865399EFC7F330B6B04ED9971AF566E880DBC3C1EBFB24A395DB58C763777C9",
+                          "bytes":  24576
+                      },
+                      {
+                          "name":  "music_transition_1_to_2_input.raw",
+                          "logical_path":  "transition/raw/music_transition_1_to_2_input.raw",
+                          "sha256":  "16C1346556AB3CC9A3CFE45BC6A1C740E1572ADF67E3BFE56D975CBCBE3DC28A",
+                          "bytes":  24576
+                      },
+                      {
+                          "name":  "music_transition_1_to_2_output.raw",
+                          "logical_path":  "transition/raw/music_transition_1_to_2_output.raw",
+                          "sha256":  "595851E888C1B3032FEF0BBEB9B9AD988FC19C37F3FEDF75B707497C46D44239",
+                          "bytes":  24576
+                      },
+                      {
+                          "name":  "noise_stable_0_input.raw",
+                          "logical_path":  "transition/raw/noise_stable_0_input.raw",
+                          "sha256":  "69051899CC4043580F91883913C92648CC4EF6EF723945BA6FB93E7C9D25ECB4",
+                          "bytes":  24576
+                      },
+                      {
+                          "name":  "noise_stable_0_output.raw",
+                          "logical_path":  "transition/raw/noise_stable_0_output.raw",
+                          "sha256":  "DBA6F25EC3364E1A85907D1FE44FE16C70073F1755DF3BA214DCDD9CC7656B31",
+                          "bytes":  24576
+                      },
+                      {
+                          "name":  "noise_stable_1_input.raw",
+                          "logical_path":  "transition/raw/noise_stable_1_input.raw",
+                          "sha256":  "5A25C9560E34A138DBEAEE39AFC3C4F383FC5C4BF8B91F0098B04EE54A2D9F03",
+                          "bytes":  24576
+                      },
+                      {
+                          "name":  "noise_stable_1_output.raw",
+                          "logical_path":  "transition/raw/noise_stable_1_output.raw",
+                          "sha256":  "264845F80781732AA25A60D175C99F262C976DB67AB544B3DAC56F0760C79EFB",
+                          "bytes":  24576
+                      },
+                      {
+                          "name":  "noise_transition_0_to_1_input.raw",
+                          "logical_path":  "transition/raw/noise_transition_0_to_1_input.raw",
+                          "sha256":  "C4E6DB8BF40636D082C92627A8C17A33BB3112263D531328C1AEBCD07A76C5E5",
+                          "bytes":  24576
+                      },
+                      {
+                          "name":  "noise_transition_0_to_1_output.raw",
+                          "logical_path":  "transition/raw/noise_transition_0_to_1_output.raw",
+                          "sha256":  "CD7D02E96442B5A52456DDDC29333C34E4BD76A81771D7D18C0148CF85A5D4A5",
+                          "bytes":  24576
+                      },
+                      {
+                          "name":  "noise_transition_1_to_0_input.raw",
+                          "logical_path":  "transition/raw/noise_transition_1_to_0_input.raw",
+                          "sha256":  "8F9BCFA5CEE68A9900608C2496C3096BAE54284CA6482AE94A08A3020BDF402E",
+                          "bytes":  24576
+                      },
+                      {
+                          "name":  "noise_transition_1_to_0_output.raw",
+                          "logical_path":  "transition/raw/noise_transition_1_to_0_output.raw",
+                          "sha256":  "F8BE956E655F236E31B2F5EF19CCFFDA666687BCC80748E6ABE2192D699C9F3E",
+                          "bytes":  24576
+                      },
+                      {
+                          "name":  "noise_transition_1_to_2_input.raw",
+                          "logical_path":  "transition/raw/noise_transition_1_to_2_input.raw",
+                          "sha256":  "61B7E333DB47659B8DB1AC1EF8C4377301CF70FE4DC41F1E614E309856C00947",
+                          "bytes":  24576
+                      },
+                      {
+                          "name":  "noise_transition_1_to_2_output.raw",
+                          "logical_path":  "transition/raw/noise_transition_1_to_2_output.raw",
+                          "sha256":  "A2E06A9AF22CE0FA8D8A13BA21A31D7195F00F4009F91230E73384B17D117CBC",
+                          "bytes":  24576
+                      }
+                  ],
+    "local_raw_evidence_roots":  [
+                                     "%TEMP%\\DSP_LAB_0507\\dynamic_clarity_v1\\47337a0\\board_objective_20260717_194013",
+                                     "%TEMP%\\DSP_LAB_0507\\dynamic_clarity_benchmark\\20260717_class_v2",
+                                     "%TEMP%\\DSP_LAB_0507\\dynamic_clarity_transition\\20260717_class_v3",
+                                     "%TEMP%\\DSP_LAB_0507\\dynamic_clarity_continuous\\20260717_class_v2",
+                                     "%TEMP%\\DSP_LAB_0507\\dynamic_clarity_build_matrix\\9afb130"
+                                 ],
+    "analysis_script_versions":  {
+                                     "benchmark":  "1.0",
+                                     "transition":  "1.0"
+                                 },
+    "maximum_cycles":  {
+                           "feature_board":  {
+                                                 "analyzer":  299524,
+                                                 "smart_bass":  438590,
+                                                 "dynamic_clarity":  2497790,
+                                                 "algorithm_chain":  4323000,
+                                                 "frame_service":  4789638,
+                                                 "frame_latency":  4789896
+                                             },
+                           "diagnostic_transition":  {
+                                                         "dynamic_clarity":  2190175,
+                                                         "algorithm_chain":  2801904,
+                                                         "frame_service":  3299864,
+                                                         "frame_latency":  3300136
+                                                     }
+                       },
+    "safety":  {
+                   "deadline":  0,
+                   "latency_miss":  0,
+                   "overlap":  0,
+                   "dropped":  0,
+                   "clip":  0,
+                   "smart_saturation":  0,
+                   "smart_nonfinite":  0,
+                   "clarity_saturation":  0,
+                   "clarity_nonfinite":  0
+               },
+    "evidence_labels":  [
+                            "MEASURED_ON_CURRENT_BOARD_OBJECTIVE_ONLY",
+                            "BOARD_ISOLATED_FUNCTION_MICROBENCHMARK",
+                            "BOARD_MODE_TAGGED_CYCLE_DIAGNOSTICS",
+                            "BOARD_INTERNAL_PCM_OBJECTIVE_TRANSIENT",
+                            "BOARD_DYNAMIC_CLARITY_CONTINUOUS_300S",
+                            "CCS_BUILD_MATRIX_A_TO_G"
+                        ],
+    "root_cause_classification":  "C_INTERRUPT_OR_PREEMPTION_INCLUDED",
+    "subjective_observation":  "NOT_PERFORMED",
+    "external_analog_thd_snr_spl":  "UNMEASURED"
+}
