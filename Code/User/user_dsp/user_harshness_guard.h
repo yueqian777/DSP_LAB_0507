@@ -18,6 +18,10 @@
 #define EQ_ENABLE_HARSHNESS_GUARD_TRANSITION_CAPTURE 0
 #endif
 
+#ifndef EQ_ENABLE_HARSHNESS_GUARD_KERNEL_DIAGNOSTICS
+#define EQ_ENABLE_HARSHNESS_GUARD_KERNEL_DIAGNOSTICS 0
+#endif
+
 #if (EQ_ENABLE_HARSHNESS_GUARD != 0) && \
     (EQ_ENABLE_AUDIO_FEATURE_ANALYZER == 0)
 #error Harshness Guard requires the audio feature analyzer.
@@ -68,6 +72,8 @@ typedef struct
 typedef struct
 {
     HARSHNESS_GUARD_BIQUAD coefficient_table[HARSHNESS_GUARD_LEVEL_COUNT];
+    /* Match the mutable processing-state offsets of the sibling modules. */
+    float processing_bank_padding[10];
     HARSHNESS_GUARD_DF2T_STATE active_state;
     HARSHNESS_GUARD_DF2T_STATE pending_state;
 

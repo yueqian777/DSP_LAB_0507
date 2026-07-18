@@ -39,6 +39,18 @@ CASES = (
     "transition_medium_to_previous",
     "transition_1_to_0",
 )
+DIAGNOSTIC_INPUTS = (
+    "dual_400hz_1953_125hz",
+    "deterministic_pseudorandom",
+)
+DIAGNOSTIC_CASES = (
+    "level_0_identity",
+    "level_1_stable",
+    "level_medium_max_stable",
+    "transition_0_to_1",
+    "transition_1_to_2",
+    "transition_1_to_0",
+)
 MEASURED_COUNT = 4096
 JOB_COUNT = len(MODULES) * len(INPUTS) * len(CASES)
 
@@ -99,6 +111,9 @@ class HarshnessGuardBenchmarkTest(unittest.TestCase):
                 "#if EQ_ENABLE_HARSHNESS_GUARD_BENCHMARK != 0\n"
                 '#error "Harshness Guard benchmark default must be zero"\n'
                 "#endif\n"
+                "#if EQ_ENABLE_HARSHNESS_GUARD_KERNEL_DIAGNOSTICS != 0\n"
+                '#error "Kernel diagnostics default must be zero"\n'
+                "#endif\n"
                 "int main(void) { return 0; }\n",
                 encoding="ascii",
             )
@@ -124,6 +139,10 @@ class HarshnessGuardBenchmarkTest(unittest.TestCase):
                 "-DEQ_ENABLE_DYNAMIC_CLARITY_BENCHMARK=1 "
                 "-DEQ_ENABLE_HARSHNESS_GUARD_BENCHMARK=1"
             )
+            diagnostic_defines = (
+                f"{extended_defines} "
+                "-DEQ_ENABLE_HARSHNESS_GUARD_KERNEL_DIAGNOSTICS=1"
+            )
 
             self.run_msys(
                 "gcc -std=c89 -Wall -Wextra -Werror -DEQ_ALGO_ONLY "
@@ -148,6 +167,11 @@ class HarshnessGuardBenchmarkTest(unittest.TestCase):
                 f"-o {shlex.quote(temp_path + '/extended_contract.exe')}"
             )
             self.run_msys(
+                f"gcc {common} {diagnostic_defines} -DEXPECTED_MODULES=3 "
+                f"-DEXPECTED_JOBS=36 {contract_path} "
+                f"-o {shlex.quote(temp_path + '/diagnostic_contract.exe')}"
+            )
+            self.run_msys(
                 f"gcc {common} {old_defines} "
                 f"{shlex.quote(msys_path(BENCHMARK_C))} -c "
                 f"-o {shlex.quote(temp_path + '/old.o')} && "
@@ -162,6 +186,13 @@ class HarshnessGuardBenchmarkTest(unittest.TestCase):
                 "grep -q EQ_DebugHarshnessGuardBenchmarkCompiled && "
                 f"nm {shlex.quote(temp_path + '/extended.o')} | "
                 "grep -q EQ_DebugDynamicClarityBenchmarkHarshnessSaturationCount"
+            )
+            self.run_msys(
+                f"gcc {common} {diagnostic_defines} "
+                f"{shlex.quote(msys_path(BENCHMARK_C))} -c "
+                f"-o {shlex.quote(temp_path + '/diagnostic.o')} && "
+                f"nm {shlex.quote(temp_path + '/diagnostic.o')} | "
+                "grep -q EQ_DebugHarshnessGuardKernelDiagnosticsCompiled"
             )
 
             invalid = self.run_msys(
@@ -182,6 +213,9 @@ class HarshnessGuardBenchmarkTest(unittest.TestCase):
         source = BENCHMARK_C.read_text(encoding="ascii")
         flow = FLOW.read_text(encoding="ascii")
         self.assertIn("#define EQ_ENABLE_HARSHNESS_GUARD_BENCHMARK 0", header)
+        self.assertIn(
+            "#define EQ_ENABLE_HARSHNESS_GUARD_KERNEL_DIAGNOSTICS 0", header
+        )
         self.assertIn("EQ_DYNAMIC_CLARITY_BENCHMARK_WARMUP_COUNT    64", header)
         self.assertIn("EQ_DYNAMIC_CLARITY_BENCHMARK_MEASURED_COUNT  4096", header)
         self.assertIn("EQ_BENCHMARK_MODULE_HARSHNESS", source)
@@ -208,6 +242,7 @@ class HarshnessGuardBenchmarkTest(unittest.TestCase):
             "EQ_DebugDynamicClarityBenchmarkHarshnessSaturationCount",
             "EQ_DebugDynamicClarityBenchmarkHarshnessNonFiniteCount",
             "EQ_DebugDynamicClarityBenchmarkCycles",
+            "EQ_DebugHarshnessGuardKernelDiagnosticsCompiled",
         ):
             self.assertIn(symbol, dss)
         self.assertIn("WARMUP_COUNT = 64", dss)
@@ -228,6 +263,8 @@ class HarshnessGuardBenchmarkTest(unittest.TestCase):
         self.assertIn("EQ_ENABLE_DYNAMIC_CLARITY_BENCHMARK=1", runner)
         self.assertIn("EQ_ENABLE_HARSHNESS_GUARD_BENCHMARK=1", runner)
         self.assertIn("EQ_ENABLE_HARSHNESS_GUARD=1", runner)
+        self.assertIn("EQ_ENABLE_HARSHNESS_GUARD_KERNEL_DIAGNOSTICS", runner)
+        self.assertIn("KernelDiagnostics", runner)
         self.assertIn("ResultDir must stay under the current TEMP directory", runner)
 
         command = (
@@ -371,6 +408,85 @@ class HarshnessGuardBenchmarkTest(unittest.TestCase):
             "non-zero benchmark safety counter: harshness_saturation",
             safety_failure.stderr,
         )
+
+    def test_diagnostic_analyzer_uses_reduced_job_matrix(self) -> None:
+        job_count = len(MODULES) * len(DIAGNOSTIC_INPUTS) * len(
+            DIAGNOSTIC_CASES
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            result_dir = Path(directory)
+            first_calls: list[int] = []
+            warm_maxes: list[int] = []
+            checksums: list[int] = []
+            raw_path = result_dir / "harshness_guard_benchmark_cycles.raw"
+            with raw_path.open("wb") as stream:
+                job = 0
+                for module_index, _module in enumerate(MODULES):
+                    for input_index, _input in enumerate(DIAGNOSTIC_INPUTS):
+                        for case_index, _case in enumerate(DIAGNOSTIC_CASES):
+                            base = (
+                                (100, 80, 130)[module_index]
+                                + input_index * 7
+                                + case_index * 3
+                            )
+                            values = [
+                                base + (iteration % 17)
+                                for iteration in range(MEASURED_COUNT)
+                            ]
+                            stream.write(
+                                struct.pack(f"<{MEASURED_COUNT}I", *values)
+                            )
+                            first_calls.append(base + 70)
+                            warm_maxes.append(base + 40)
+                            checksums.append(job + 1)
+                            job += 1
+
+            board = {
+                "pass": True,
+                "kernel_diagnostics": True,
+                "modules": list(MODULES),
+                "inputs": list(DIAGNOSTIC_INPUTS),
+                "cases": list(DIAGNOSTIC_CASES),
+                "medium_max_level": {
+                    "dynamic_clarity": 4,
+                    "smart_bass": 4,
+                    "harshness_guard": 3,
+                },
+                "job_count": job_count,
+                "measured_count": MEASURED_COUNT,
+                "warmup_count": 64,
+                "first_call": first_calls,
+                "warm_max": warm_maxes,
+                "checksum": checksums,
+                "state": {
+                    "dynamic_saturation": 0,
+                    "dynamic_nonfinite": 0,
+                    "smart_saturation": 0,
+                    "smart_nonfinite": 0,
+                    "harshness_saturation": 0,
+                    "harshness_nonfinite": 0,
+                },
+            }
+            (result_dir / "harshness_guard_benchmark_board.json").write_text(
+                json.dumps(board), encoding="ascii"
+            )
+            subprocess.run(
+                [sys.executable, "-B", str(ANALYZER), str(result_dir)],
+                cwd=ROOT,
+                check=True,
+                text=True,
+                capture_output=True,
+            )
+            report = json.loads(
+                (result_dir / "harshness_guard_benchmark.json").read_text(
+                    encoding="ascii"
+                )
+            )
+
+        self.assertTrue(report["pass"])
+        self.assertTrue(report["kernel_diagnostics"])
+        self.assertEqual(len(report["jobs"]), 36)
+        self.assertEqual(len(report["comparisons"]), 12)
 
 
 if __name__ == "__main__":

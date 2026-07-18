@@ -16,9 +16,19 @@
 #define EQ_ENABLE_HARSHNESS_GUARD_BENCHMARK 0
 #endif
 
+#ifndef EQ_ENABLE_HARSHNESS_GUARD_KERNEL_DIAGNOSTICS
+#define EQ_ENABLE_HARSHNESS_GUARD_KERNEL_DIAGNOSTICS 0
+#endif
+
 #if (EQ_ENABLE_HARSHNESS_GUARD_BENCHMARK != 0) && \
     (EQ_ENABLE_DYNAMIC_CLARITY_BENCHMARK == 0)
 #error Harshness Guard benchmark requires the Dynamic Clarity benchmark.
+#endif
+
+#if (EQ_ENABLE_HARSHNESS_GUARD_KERNEL_DIAGNOSTICS != 0) && \
+    ((EQ_ENABLE_HARSHNESS_GUARD_BENCHMARK == 0) || \
+     (EQ_ENABLE_DYNAMIC_CLARITY_BENCHMARK == 0))
+#error Harshness Guard kernel diagnostics require all benchmark gates.
 #endif
 
 #if EQ_ENABLE_DYNAMIC_CLARITY_BENCHMARK != 0
@@ -32,8 +42,13 @@
 #error Harshness Guard benchmark requires Harshness Guard.
 #endif
 
+#if EQ_ENABLE_HARSHNESS_GUARD_KERNEL_DIAGNOSTICS != 0
+#define EQ_DYNAMIC_CLARITY_BENCHMARK_INPUT_COUNT     2
+#define EQ_DYNAMIC_CLARITY_BENCHMARK_CASE_COUNT      6
+#else
 #define EQ_DYNAMIC_CLARITY_BENCHMARK_INPUT_COUNT     4
 #define EQ_DYNAMIC_CLARITY_BENCHMARK_CASE_COUNT      7
+#endif
 #if EQ_ENABLE_HARSHNESS_GUARD_BENCHMARK != 0
 #define EQ_DYNAMIC_CLARITY_BENCHMARK_MODULE_COUNT    3
 #else
@@ -81,6 +96,10 @@ extern volatile unsigned long
     EQ_DebugDynamicClarityBenchmarkSmartNonFiniteCount;
 #if EQ_ENABLE_HARSHNESS_GUARD_BENCHMARK != 0
 extern volatile unsigned int EQ_DebugHarshnessGuardBenchmarkCompiled;
+#if EQ_ENABLE_HARSHNESS_GUARD_KERNEL_DIAGNOSTICS != 0
+extern volatile unsigned int
+    EQ_DebugHarshnessGuardKernelDiagnosticsCompiled;
+#endif
 extern volatile unsigned long
     EQ_DebugDynamicClarityBenchmarkHarshnessSaturationCount;
 extern volatile unsigned long

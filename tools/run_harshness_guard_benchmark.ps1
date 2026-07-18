@@ -1,7 +1,8 @@
 param(
     [string]$ResultDir = "",
     [string]$Program = "",
-    [switch]$SkipBuild
+    [switch]$SkipBuild,
+    [switch]$KernelDiagnostics
 )
 
 $ErrorActionPreference = "Stop"
@@ -37,6 +38,7 @@ foreach ($required in @($gmake,$dss,$js,$analyzer,$buildIdGenerator,$ccxml)) {
     }
 }
 
+$kernelDiagnosticsValue = if ($KernelDiagnostics) { "1" } else { "0" }
 $defines = @(
     "--define=DSP_LAB_PROJECT_SELECT=33",
     "--define=EQ_ENABLE_LCD_DISPLAY=0",
@@ -46,6 +48,7 @@ $defines = @(
     "--define=EQ_ENABLE_HARSHNESS_GUARD=1",
     "--define=EQ_ENABLE_DYNAMIC_CLARITY_BENCHMARK=1",
     "--define=EQ_ENABLE_HARSHNESS_GUARD_BENCHMARK=1",
+    "--define=EQ_ENABLE_HARSHNESS_GUARD_KERNEL_DIAGNOSTICS=$kernelDiagnosticsValue",
     "--define=EQ_USE_GENERATED_BUILD_ID=1"
 ) -join ' '
 
@@ -80,6 +83,7 @@ $env:DSP_TEST_PROGRAM = ($programCopy -replace '\\','/')
 $env:DSP_TEST_RESULT_DIR = ($resultPath -replace '\\','/')
 $env:DSP_TEST_OUTPUT_SHA256 = $outputHash
 $env:DSP_TEST_EXPECTED_SHA = $expectedSha
+$env:DSP_TEST_KERNEL_DIAGNOSTICS = $kernelDiagnosticsValue
 try {
     $command = 'call "{0}" "{1}"' -f $dss,$js
     $process = Start-Process -FilePath $env:ComSpec `
@@ -115,7 +119,8 @@ try {
 finally {
     Remove-Item Env:DSP_TEST_ROOT,Env:DSP_TEST_CCXML,
         Env:DSP_TEST_PROGRAM,Env:DSP_TEST_RESULT_DIR,
-        Env:DSP_TEST_OUTPUT_SHA256,Env:DSP_TEST_EXPECTED_SHA `
+        Env:DSP_TEST_OUTPUT_SHA256,Env:DSP_TEST_EXPECTED_SHA,
+        Env:DSP_TEST_KERNEL_DIAGNOSTICS `
         -ErrorAction SilentlyContinue
 }
 
@@ -131,5 +136,6 @@ if ($LASTEXITCODE -ne 0) {
     report = Join-Path $resultPath "harshness_guard_benchmark.json"
     output_sha256 = $outputHash
     expected_sha = $expectedSha
+    kernel_diagnostics = [bool]$KernelDiagnostics
     subjective_observation = "NOT_PERFORMED"
 } | ConvertTo-Json -Depth 4

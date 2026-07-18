@@ -7,7 +7,7 @@ import struct
 from pathlib import Path
 
 
-SCRIPT_VERSION = "1.0"
+SCRIPT_VERSION = "1.1"
 MODULES = ("dynamic_clarity", "smart_bass", "harshness_guard")
 INPUTS = (
     "tone_400hz",
@@ -22,6 +22,18 @@ CASES = (
     "transition_0_to_1",
     "transition_1_to_2",
     "transition_medium_to_previous",
+    "transition_1_to_0",
+)
+DIAGNOSTIC_INPUTS = (
+    "dual_400hz_1953_125hz",
+    "deterministic_pseudorandom",
+)
+DIAGNOSTIC_CASES = (
+    "level_0_identity",
+    "level_1_stable",
+    "level_medium_max_stable",
+    "transition_0_to_1",
+    "transition_1_to_2",
     "transition_1_to_0",
 )
 MEDIUM_MAX_LEVEL = {
@@ -90,9 +102,9 @@ def p99_significance(
     return "NOT_SEPARATED_APPROX_95_PERCENT"
 
 
-def load_cycles(path: Path) -> list[int]:
+def load_cycles(path: Path, job_count: int) -> list[int]:
     payload = path.read_bytes()
-    value_count = JOB_COUNT * MEASURED_COUNT
+    value_count = job_count * MEASURED_COUNT
     expected = value_count * 4
     if len(payload) != expected:
         raise ValueError(
@@ -106,7 +118,11 @@ def analyze(result_dir: Path) -> dict[str, object]:
     board = json.loads(board_path.read_text(encoding="utf-8"))
     if not board.get("pass"):
         raise ValueError(f"board benchmark failed: {board.get('error')}")
-    if int(board["job_count"]) != JOB_COUNT:
+    kernel_diagnostics = bool(board.get("kernel_diagnostics", False))
+    inputs = DIAGNOSTIC_INPUTS if kernel_diagnostics else INPUTS
+    cases = DIAGNOSTIC_CASES if kernel_diagnostics else CASES
+    job_count = len(MODULES) * len(inputs) * len(cases)
+    if int(board["job_count"]) != job_count:
         raise ValueError("board benchmark job count does not match analyzer")
     if int(board["measured_count"]) != MEASURED_COUNT:
         raise ValueError("board measured count does not match analyzer")
@@ -114,21 +130,27 @@ def analyze(result_dir: Path) -> dict[str, object]:
         raise ValueError("board warmup count does not match analyzer")
     if tuple(board["modules"]) != MODULES:
         raise ValueError("board module order does not match analyzer")
+    if tuple(board["inputs"]) != inputs:
+        raise ValueError("board input order does not match analyzer")
+    if tuple(board["cases"]) != cases:
+        raise ValueError("board case order does not match analyzer")
     if board["medium_max_level"] != MEDIUM_MAX_LEVEL:
         raise ValueError("board MEDIUM maximum levels do not match analyzer")
 
-    cycles = load_cycles(result_dir / "harshness_guard_benchmark_cycles.raw")
+    cycles = load_cycles(
+        result_dir / "harshness_guard_benchmark_cycles.raw", job_count
+    )
     first_calls = [int(value) for value in board["first_call"]]
     warm_maxes = [int(value) for value in board["warm_max"]]
-    if len(first_calls) != JOB_COUNT or len(warm_maxes) != JOB_COUNT:
+    if len(first_calls) != job_count or len(warm_maxes) != job_count:
         raise ValueError("board first-call or warm-max metadata is incomplete")
 
     jobs: list[dict[str, object]] = []
     by_key: dict[tuple[str, str, str], dict[str, object]] = {}
     job = 0
     for module in MODULES:
-        for input_name in INPUTS:
-            for case in CASES:
+        for input_name in inputs:
+            for case in cases:
                 offset = job * MEASURED_COUNT
                 metrics = summarize(
                     cycles[offset : offset + MEASURED_COUNT],
@@ -148,8 +170,8 @@ def analyze(result_dir: Path) -> dict[str, object]:
                 job += 1
 
     comparisons: list[dict[str, object]] = []
-    for input_name in INPUTS:
-        for case in CASES:
+    for input_name in inputs:
+        for case in cases:
             dynamic = by_key[("dynamic_clarity", input_name, case)]
             smart = by_key[("smart_bass", input_name, case)]
             guard = by_key[("harshness_guard", input_name, case)]
@@ -189,6 +211,7 @@ def analyze(result_dir: Path) -> dict[str, object]:
     return {
         "evidence_label": "BOARD_ISOLATED_THREE_MODULE_MICROBENCHMARK",
         "pass": True,
+        "kernel_diagnostics": kernel_diagnostics,
         "analyzer_version": SCRIPT_VERSION,
         "percentile_definition": "linear interpolation at (count-1)*p",
         "p99_significance_method": (

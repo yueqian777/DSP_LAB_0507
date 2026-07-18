@@ -16,6 +16,7 @@ var resultDir = env("DSP_TEST_RESULT_DIR",
                     String(System.getProperty("java.io.tmpdir")));
 var outputSha256 = env("DSP_TEST_OUTPUT_SHA256", "UNKNOWN");
 var expectedSha = env("DSP_TEST_EXPECTED_SHA", "UNKNOWN");
+var kernelDiagnostics = env("DSP_TEST_KERNEL_DIAGNOSTICS", "0") == "1";
 var cyclePath = resultDir + "/harshness_guard_benchmark_cycles.raw";
 var metadataPath = resultDir + "/harshness_guard_benchmark_board.json";
 var script = null;
@@ -23,20 +24,20 @@ var debugServer = null;
 var debugSession = null;
 
 var MODULES = ["dynamic_clarity", "smart_bass", "harshness_guard"];
-var INPUTS = [
-    "tone_400hz",
+var INPUTS = kernelDiagnostics ? [
     "dual_400hz_1953_125hz",
-    "music_like_multitone",
     "deterministic_pseudorandom"
+] : [
+    "tone_400hz", "dual_400hz_1953_125hz",
+    "music_like_multitone", "deterministic_pseudorandom"
 ];
-var CASES = [
-    "level_0_identity",
-    "level_1_stable",
-    "level_medium_max_stable",
-    "transition_0_to_1",
-    "transition_1_to_2",
-    "transition_medium_to_previous",
-    "transition_1_to_0"
+var CASES = kernelDiagnostics ? [
+    "level_0_identity", "level_1_stable", "level_medium_max_stable",
+    "transition_0_to_1", "transition_1_to_2", "transition_1_to_0"
+] : [
+    "level_0_identity", "level_1_stable", "level_medium_max_stable",
+    "transition_0_to_1", "transition_1_to_2",
+    "transition_medium_to_previous", "transition_1_to_0"
 ];
 var MEDIUM_MAX_LEVEL = {
     dynamic_clarity: 4,
@@ -119,6 +120,8 @@ function boardState() {
             "EQ_DebugDynamicClarityBenchmarkCompiled"),
         harshness_benchmark_compiled: numberValue(
             "EQ_DebugHarshnessGuardBenchmarkCompiled"),
+        kernel_diagnostics_compiled: kernelDiagnostics ? numberValue(
+            "EQ_DebugHarshnessGuardKernelDiagnosticsCompiled") : 0,
         audio_services_started: numberValue(
             "EQ_DebugDynamicClarityBenchmarkAudioServicesStarted"),
         started: numberValue("EQ_DebugDynamicClarityBenchmarkStarted"),
@@ -180,6 +183,9 @@ try {
     requireCondition(state.dynamic_benchmark_compiled == 1 &&
                      state.harshness_benchmark_compiled == 1,
                      "Three-module benchmark was not compiled");
+    requireCondition(!kernelDiagnostics ||
+                     state.kernel_diagnostics_compiled == 1,
+                     "Kernel diagnostics were not compiled");
     requireCondition(state.audio_services_started == 0,
                      "Benchmark audio service marker is not zero");
     requireCondition(state.started == 1 && state.running == 0 &&
@@ -212,6 +218,7 @@ try {
         output_sha256: outputSha256,
         build_git_sha: readCString("EQ_DebugBuildGitSha", 16),
         build_dirty: numberValue("EQ_DebugBuildDirty"),
+        kernel_diagnostics: kernelDiagnostics,
         host_elapsed_seconds: Number(hostEndNs - hostStartNs) / 1000000000.0,
         modules: MODULES,
         inputs: INPUTS,

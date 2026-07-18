@@ -93,6 +93,10 @@ volatile unsigned long
     EQ_DebugDynamicClarityBenchmarkSmartNonFiniteCount = 0UL;
 #if EQ_ENABLE_HARSHNESS_GUARD_BENCHMARK != 0
 volatile unsigned int EQ_DebugHarshnessGuardBenchmarkCompiled = 1U;
+#if EQ_ENABLE_HARSHNESS_GUARD_KERNEL_DIAGNOSTICS != 0
+volatile unsigned int
+    EQ_DebugHarshnessGuardKernelDiagnosticsCompiled = 1U;
+#endif
 volatile unsigned long
     EQ_DebugDynamicClarityBenchmarkHarshnessSaturationCount = 0UL;
 volatile unsigned long
@@ -132,6 +136,19 @@ static void EQ_BenchmarkPrepareInput(int input_index)
          sample < EQ_DYNAMIC_CLARITY_BENCHMARK_FRAME_LEN;
          sample++)
     {
+#if EQ_ENABLE_HARSHNESS_GUARD_KERNEL_DIAGNOSTICS != 0
+        if (input_index == 0)
+        {
+            value = 6000.0 * EQ_BenchmarkSine(400.0, sample) +
+                    6000.0 * EQ_BenchmarkSine(1953.125, sample);
+        }
+        else
+        {
+            random_state = random_state * 1664525U + 1013904223U;
+            value = (double)((int)((random_state >> 16) & 0x3fffU) -
+                             8192);
+        }
+#else
         if (input_index == 0)
         {
             value = 10000.0 * EQ_BenchmarkSine(400.0, sample);
@@ -155,8 +172,28 @@ static void EQ_BenchmarkPrepareInput(int input_index)
             value = (double)((int)((random_state >> 16) & 0x3fffU) -
                              8192);
         }
+#endif
         EQ_BenchmarkInput[sample] = EQ_BenchmarkRoundAndClamp(value);
     }
+}
+
+static int EQ_BenchmarkCaseId(int case_index)
+{
+#if EQ_ENABLE_HARSHNESS_GUARD_KERNEL_DIAGNOSTICS != 0
+    static const int diagnostic_case[6] =
+    {
+        EQ_BENCHMARK_CASE_IDENTITY,
+        EQ_BENCHMARK_CASE_STABLE_1,
+        EQ_BENCHMARK_CASE_STABLE_4,
+        EQ_BENCHMARK_CASE_TRANSITION_0_1,
+        EQ_BENCHMARK_CASE_TRANSITION_1_2,
+        EQ_BENCHMARK_CASE_TRANSITION_1_0
+    };
+
+    return diagnostic_case[case_index];
+#else
+    return case_index;
+#endif
 }
 
 static void EQ_BenchmarkCaseLevels(
@@ -438,6 +475,7 @@ static void EQ_BenchmarkRunJob(
     int reset_transition;
     int iteration;
 
+    case_index = EQ_BenchmarkCaseId(case_index);
     reset_transition = EQ_BenchmarkIsTransitionCase(case_index);
     if (module_index == EQ_BENCHMARK_MODULE_DYNAMIC)
     {

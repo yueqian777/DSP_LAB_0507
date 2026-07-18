@@ -123,6 +123,44 @@ static void FillWideband(short *frame)
     }
 }
 
+static void FillDualTone(short *frame)
+{
+    int index;
+
+    for (index = 0; index < TEST_FRAME_LEN; index++)
+    {
+        float value;
+
+        value = 6000.0f * sinf(2.0f * TEST_PI * 400.0f *
+                               (float)index /
+                               HARSHNESS_GUARD_SAMPLE_RATE) +
+                6000.0f * sinf(2.0f * TEST_PI * 1953.125f *
+                               (float)index /
+                               HARSHNESS_GUARD_SAMPLE_RATE);
+        frame[index] = (short)((value >= 0.0f) ?
+                               (value + 0.5f) : (value - 0.5f));
+    }
+}
+
+static unsigned long HashPcm16(unsigned long hash,
+                               const short *frame,
+                               int sample_count)
+{
+    int index;
+
+    for (index = 0; index < sample_count; index++)
+    {
+        unsigned short sample;
+
+        sample = (unsigned short)frame[index];
+        hash ^= (unsigned long)(sample & 0xffU);
+        hash *= 16777619UL;
+        hash ^= (unsigned long)((sample >> 8) & 0xffU);
+        hash *= 16777619UL;
+    }
+    return hash;
+}
+
 static float ProcessFloatBiquad(const EQ_BIQUAD *coefficient,
                                 float *s1,
                                 float *s2,
@@ -1324,6 +1362,108 @@ static void TestGuardOffRegressions(void)
            "chain_evidence_label=HOST_DIGITAL_SIMULATION\n");
 }
 
+static void PrepareBitExactCase(HARSHNESS_GUARD_STATE *state,
+                                int case_index)
+{
+    static const int active_level[6] = { 0, 1, 3, 0, 1, 1 };
+    static const int pending_level[6] = { 0, 1, 3, 1, 2, 0 };
+
+    HarshnessGuard_Init(state);
+    state->active_level = active_level[case_index];
+    state->target_level = pending_level[case_index];
+    state->pending_level = pending_level[case_index];
+    state->requested_enabled = 1;
+    state->processing_active =
+        ((active_level[case_index] != 0) || (case_index >= 3)) ? 1 : 0;
+    if (case_index >= 3)
+    {
+        state->transition_active = 1;
+        state->transition_total = HARSHNESS_GUARD_TRANSITION_SAMPLES;
+        state->transition_remaining = HARSHNESS_GUARD_TRANSITION_SAMPLES;
+    }
+}
+
+static void TestPerformanceChangeBitExactContract(void)
+{
+    static const char *case_name[6] =
+    {
+        "identity",
+        "stable_1",
+        "stable_3",
+        "transition_0_1",
+        "transition_1_2",
+        "transition_1_0"
+    };
+    static const unsigned long expected_hash[2][6] =
+    {
+        {
+            0xb5999dc5UL, 0x316eec19UL, 0xf92df550UL,
+            0x6c2d4223UL, 0x0fbd6c1bUL, 0x054d8607UL
+        },
+        {
+            0x137edc05UL, 0x2485a246UL, 0x798dd8d2UL,
+            0x0c4ba929UL, 0xf8c60523UL, 0x4c3dccd4UL
+        }
+    };
+    static const int expected_level[6] = { 0, 1, 3, 1, 2, 0 };
+    static const int expected_processing[6] = { 0, 1, 1, 1, 1, 0 };
+    static const unsigned long expected_transitions[6] =
+        { 0UL, 0UL, 0UL, 0UL, 0UL, 0UL };
+    HARSHNESS_GUARD_STATE state;
+    short input[TEST_FRAME_LEN];
+    short output[TEST_FRAME_LEN];
+    unsigned long hash;
+    int case_index;
+    int frame_index;
+    int input_index;
+
+    for (input_index = 0; input_index < 2; input_index++)
+    {
+        if (input_index == 0)
+        {
+            FillDualTone(input);
+        }
+        else
+        {
+            FillWideband(input);
+        }
+        for (case_index = 0; case_index < 6; case_index++)
+        {
+            PrepareBitExactCase(&state, case_index);
+            hash = 2166136261UL;
+            for (frame_index = 0; frame_index < 4; frame_index++)
+            {
+                (void)HarshnessGuard_ProcessFrame(
+                    &state, input, output, TEST_FRAME_LEN);
+                hash = HashPcm16(hash, output, TEST_FRAME_LEN);
+            }
+            Check(hash == expected_hash[input_index][case_index],
+                  "performance change preserves frozen PCM16 output hash");
+            Check(state.active_level == expected_level[case_index] &&
+                      state.pending_level == expected_level[case_index] &&
+                      state.target_level == expected_level[case_index] &&
+                      state.transition_active == 0,
+                  "bit-exact path reaches its deterministic endpoint");
+            Check(state.transition_count ==
+                      expected_transitions[case_index] &&
+                      state.processing_active ==
+                      expected_processing[case_index],
+                  "bit-exact path preserves transition and processing state");
+            Check(state.saturation_count == 0UL &&
+                      state.nonfinite_count == 0UL,
+                  "bit-exact path keeps safety counters zero");
+            printf("bitexact_case=%s input=%s hash=%08lx "
+                   "active=%d pending=%d target=%d transitions=%lu\n",
+                   case_name[case_index],
+                   (input_index == 0) ? "dual_tone" : "pseudorandom",
+                   hash, state.active_level, state.pending_level,
+                   state.target_level, state.transition_count);
+        }
+    }
+    printf("performance_change_bitexact_cases=12 "
+           "performance_change_bitexact=1\n");
+}
+
 int main(void)
 {
     TestInitializationAndIdentity();
@@ -1334,6 +1474,7 @@ int main(void)
     TestNumericalGuardsImmutabilityAndDeterminism();
     TestPcm16ChainsAThroughG();
     TestGuardOffRegressions();
+    TestPerformanceChangeBitExactContract();
 
     printf("harshness_guard failures=%d\n", failures);
     if (failures == 0)
