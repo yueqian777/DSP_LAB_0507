@@ -11,12 +11,13 @@ DSP_LAB_PROJECT_SELECT=33
 EQ_ENABLE_AUDIO_FEATURE_ANALYZER=0
 EQ_ENABLE_SMART_BASS=0
 EQ_ENABLE_DYNAMIC_CLARITY=0
+EQ_ENABLE_HARSHNESS_GUARD=0
 EQ_ENABLE_LCD_DISPLAY=0
 ```
 
 Use this profile to verify the base Project 3.3 equalizer without Analyzer,
-Smart Bass, Dynamic Clarity, or LCD state. All three feature-compiled Watch
-values must be zero.
+Smart Bass, Dynamic Clarity, Harshness Guard, or LCD state. All four
+feature-compiled Watch values must be zero.
 
 ## Project33_Analyzer
 
@@ -25,12 +26,14 @@ DSP_LAB_PROJECT_SELECT=33
 EQ_ENABLE_AUDIO_FEATURE_ANALYZER=1
 EQ_ENABLE_SMART_BASS=0
 EQ_ENABLE_DYNAMIC_CLARITY=0
+EQ_ENABLE_HARSHNESS_GUARD=0
 EQ_ENABLE_LCD_DISPLAY=0
 ```
 
 Use this profile for Analyzer-only cadence, feature, and UART-audit evidence.
 `EQ_DebugAnalyzerCompiled` must be one and
-`EQ_DebugSmartBassCompiled` and `EQ_DebugDynamicClarityCompiled` must be zero.
+`EQ_DebugSmartBassCompiled`, `EQ_DebugDynamicClarityCompiled`, and
+`EQ_DebugHarshnessGuardCompiled` must be zero.
 
 ## Project33_SmartBass
 
@@ -39,6 +42,7 @@ DSP_LAB_PROJECT_SELECT=33
 EQ_ENABLE_AUDIO_FEATURE_ANALYZER=1
 EQ_ENABLE_SMART_BASS=1
 EQ_ENABLE_DYNAMIC_CLARITY=0
+EQ_ENABLE_HARSHNESS_GUARD=0
 EQ_ENABLE_LCD_DISPLAY=0
 ```
 
@@ -64,11 +68,28 @@ DSP_LAB_PROJECT_SELECT=33
 EQ_ENABLE_AUDIO_FEATURE_ANALYZER=1
 EQ_ENABLE_SMART_BASS=0
 EQ_ENABLE_DYNAMIC_CLARITY=1
+EQ_ENABLE_HARSHNESS_GUARD=0
 EQ_ENABLE_LCD_DISPLAY=0
 ```
 
 This profile isolates the content-aware low-mid de-masking stage. Runtime
 enable remains zero until `EQ_DebugDynamicClarityEnabled` is set explicitly.
+
+## Project33_HarshnessGuard
+
+```text
+DSP_LAB_PROJECT_SELECT=33
+EQ_ENABLE_AUDIO_FEATURE_ANALYZER=1
+EQ_ENABLE_SMART_BASS=0
+EQ_ENABLE_DYNAMIC_CLARITY=0
+EQ_ENABLE_HARSHNESS_GUARD=1
+EQ_ENABLE_LCD_DISPLAY=0
+```
+
+This profile isolates the bounded high-frequency excess attenuation stage.
+Runtime enable remains zero until `EQ_DebugHarshnessGuardEnabled` is set.
+Harshness Guard requires the Analyzer but does not require either of the other
+dynamic stages.
 
 ## Project33_SmartBass_DynamicClarity
 
@@ -77,12 +98,41 @@ DSP_LAB_PROJECT_SELECT=33
 EQ_ENABLE_AUDIO_FEATURE_ANALYZER=1
 EQ_ENABLE_SMART_BASS=1
 EQ_ENABLE_DYNAMIC_CLARITY=1
+EQ_ENABLE_HARSHNESS_GUARD=1
 EQ_ENABLE_LCD_DISPLAY=0
 ```
 
-This profile validates both independent dynamic stages and is the required
-LCD-OFF profile for combined board timing tests. The compile/link-only LCD
+This profile validates all three independent dynamic stages and is the
+required LCD-OFF profile for combined board timing tests. The compile/link-only LCD
 profile uses the same macros with `EQ_ENABLE_LCD_DISPLAY=1`.
 
-Dynamic Clarity requires the Analyzer but does not require Smart Bass. Its
-compile-time and runtime defaults remain zero in all source headers.
+Dynamic Clarity and Harshness Guard require the Analyzer but do not require
+Smart Bass or each other. Their compile-time and runtime defaults remain zero
+in all source headers.
+
+## Harshness Guard A-H clean matrix
+
+The clean feature-commit matrix at `dade304` used explicit macros for Project
+32 and seven Project 3.3 profiles: Baseline, Analyzer only, Analyzer plus
+Smart Bass, Analyzer plus Dynamic Clarity, Analyzer plus Harshness Guard, all
+dynamics with LCD OFF, and all dynamics with LCD ON. All eight builds exited
+zero with warning count zero and `link_errors=0x0`.
+
+| Profile | `.subband_l2` used | Free | Feature state sizes |
+|---|---:|---:|---|
+| A Project 32 | 257124 | 5020 | none |
+| B P33 baseline | 1072 | 261072 | none |
+| C Analyzer | 19608 | 242536 | Analyzer 16488 |
+| D Analyzer + Smart | 19860 | 242284 | Analyzer 16488; Smart 252 |
+| E Analyzer + Clarity | 19868 | 242276 | Analyzer 16488; Clarity 260 |
+| F Analyzer + Guard | 19828 | 242316 | Analyzer 16488; Guard 220 |
+| G all, LCD OFF | 20340 | 241804 | 16488 + 252 + 260 + 220 |
+| H all, LCD ON | 20340 | 241804 | 16488 + 252 + 260 + 220 |
+
+Production profiles contained no benchmark or transition-capture symbols.
+
+The final clean profile G rebuild at validation commit `6ef2c86` also exited
+zero with zero warnings and `link_errors=0x0`. Benchmark, transition-capture,
+and four-way diagnostic symbol searches all returned zero hits. The output
+SHA-256 was
+`45092DE91CC083CA22C0E1BE8A623DA78B0040D4FF1D449B87D8A64F4D102EDD`.

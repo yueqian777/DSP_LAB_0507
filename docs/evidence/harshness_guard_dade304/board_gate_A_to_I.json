@@ -1,0 +1,36 @@
+{
+  "evidence_label": "HARSHNESS_GUARD_A_TO_I_VERSIONED_GATE",
+  "feature_sha": "dade304fdeec3fb1acc4be407efac32d37a321e3",
+  "accepted_complete_run": {
+    "build_git_sha": "6f58613",
+    "build_dirty": 0,
+    "pass": true,
+    "evidence_label": "MEASURED_ON_CURRENT_BOARD_OBJECTIVE_ONLY",
+    "init_stage": 11,
+    "gates": {
+      "A_runtime_off_identity": {"pass": true, "duration_seconds": 60, "byte_exact_samples": 8192},
+      "B_presence_no_false_trigger": {"pass": true, "applied_level": 0, "byte_exact_samples": 8192},
+      "C_brightness_trigger": {"pass": true, "applied_level": 3, "guard_center_transfer_db": -1.5086272754069616},
+      "D_mixed_mapping": {"pass": true, "measured_excess_db": [2, 7, 10, 14, 18], "applied_levels": [0, 0, 1, 2, 3]},
+      "E_debounce_release": {"pass": true, "final_level": 0, "release_analyses_per_level": 2},
+      "F_three_dynamic_modules": {"pass": true, "maximum_levels": {"smart_bass": 4, "dynamic_clarity": 4, "harshness_guard": 3}},
+      "G_four_way_transition": {"pass": true, "flat_to_bass_overlap": true, "bass_to_vocal_overlap": true, "observed_overlap_count": 4},
+      "H_objective_transient": {"pass": true, "replacement_current_artifact_build": "6ef2c86", "artifact": "transition_artifact_summary.json"},
+      "I_continuous_audio": {"pass": true, "target_wall_time_seconds": 300.0, "measured_host_elapsed_seconds": 301.0400227, "measured_dsp_audio_seconds": 300.38016}
+    },
+    "safety_counters_all_zero": true,
+    "subjective_observation": "NOT_PERFORMED",
+    "external_analog_metrics": "UNMEASURED",
+    "source_path": "%TEMP%\\DSP_LAB_0507\\harshness_guard\\board\\6f58613\\A_to_I_142224"
+  },
+  "current_sha_diagnostics": {
+    "build_git_sha": "6ef2c86",
+    "benchmark": "PASS",
+    "objective_transition": "PASS",
+    "production_G_build_and_boot": "PASS",
+    "full_A_to_I_rerun": "ABORTED_BY_USER_TIME_LIMIT",
+    "rerun_pass_claim_allowed": false,
+    "reason": "The user shortened the pressure-test plan and stopped the run before board_result.json was emitted.",
+    "source_path": "%TEMP%\\DSP_LAB_0507\\harshness_guard\\board\\6ef2c86\\A_to_I_150641"
+  }
+}

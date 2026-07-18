@@ -19,6 +19,10 @@
 **Current status:** Partial `MEASURED_ON_CURRENT_BOARD`; final initialization
 `FAIL`; remaining LCD and endurance work `PENDING_HARDWARE`.
 
+**Scope note (2026-07-18):** The status above belongs to the original Stage B
+run. Later feature-scoped results are recorded independently in Sections
+9-13; Section 13 is the Harshness Guard V1 objective archive.
+
 ## 1. Evidence boundary
 
 The connected chain was PC default line output -> ADC CH1 -> Project 3.3
@@ -705,3 +709,104 @@ Compact, parseable evidence is under
 retained local files without committing WAV, RAW, `.out`, map, CSV, PNG, or
 cache artifacts. External analog THD, SNR, calibrated response, and SPL remain
 `UNMEASURED`; all subjective listening remains `NOT_PERFORMED`.
+
+## 13. Harshness Guard V1 objective archive
+
+**Date:** 2026-07-18
+
+**Baseline SHA:** `a4fc259a5c925f20ca94c331eac8e90338ce03a9`
+
+**Feature SHA:** `dade304fdeec3fb1acc4be407efac32d37a321e3`
+
+**Validation/tooling SHA:** `6ef2c86abe90c68b9148702e10c3b7ff4c745d28`
+
+Harshness Guard is a relative-energy high-frequency protection rule:
+`Brightness relative dB - Presence relative dB`. It is not a perceptual
+harshness detector. Runtime defaults are disabled/MEDIUM. Five fixed 6 kHz,
+one-octave peaking banks provide 0, -0.5, -1.0, -1.5, and -2.0 dB levels with
+an 80 ms adjacent-state crossfade.
+
+### 13.1 Host and clean-build evidence
+
+The Host control export contains 128 finite rows and reaches levels 0 through
+4 without positive gain. The five 129-point responses measure 0.000000,
+-0.498891, -0.997781, -1.496661, and -1.995530 dB at the nearest 6 kHz grid
+point. At level 4, the nearest 1 kHz and 16 kHz points are only -0.030544 and
+-0.081999 dB respectively. These are digital model results only.
+
+The clean `dade304` A-H CCS matrix covered Project 32 and all required Project
+3.3 feature combinations. All eight full builds exited zero, produced an
+output, had zero warnings, and reported `link_errors=0x0`. The Guard state was
+220 bytes in `.subband_l2`; the all-dynamics LCD-OFF/ON profiles each used
+20340 of 262144 bytes in that section.
+
+The final production-G rebuild at `6ef2c86`, `dirty=0`, repeated the LCD-OFF
+all-dynamics compile/link check with diagnostics disabled: warnings=0,
+`link_errors=0x0`, and diagnostic symbol hits=0. Its six-second boot check
+reached INIT 11 with deadline, latency miss, overlap, dropped, and clip all
+zero, then left the target `RUNNING_DISCONNECTED`.
+
+### 13.2 Complete A-I objective run
+
+The completed A-I gate used clean build `6f58613`, `dirty=0`, with PC line-out
+to ADC CH1, DAC CH1 to the connected output path, 50 kHz, 1024-sample frames,
+and LCD OFF. UART reported `P33 BUILD 6f58613`, INIT 01 through 08, and INIT
+11. The runner's overall result was `pass=true` with evidence label
+`MEASURED_ON_CURRENT_BOARD_OBJECTIVE_ONLY`.
+
+| Gate | Objective result |
+|---|---|
+| A Runtime OFF | 60-second window; Guard identity; 8192 samples byte-exact |
+| B Presence | level 0; 8192 samples byte-exact; no false trigger |
+| C Brightness | MEDIUM reached level 3; center transfer -1.508627 dB |
+| D Mapping | measured 2/7/10/14/18 dB -> levels 0/0/1/2/3 |
+| E Release | silence completed adjacent release to level 0 |
+| F Combined | Smart 4, Clarity 4, Guard 3 observed; builder/control unchanged |
+| G Four-way | FLAT->BASS and BASS->VOCAL overlap observed; overlap count 4 |
+| H Transient | objective digital transient gate passed |
+| I Continuous | host 301.040023 s; DSP audio 300.38016 s; no debugger access |
+
+The worst maxima in that full objective run were Analyzer 301202, Smart Bass
+441040, Dynamic Clarity 438322, Harshness Guard 4027564, complete algorithm
+6278052, frame service 6718432, and frame latency 6718864 cycles. Deadline,
+latency miss, overlap, dropped, clip, all three saturation counters, and all
+three nonfinite counters were zero. The ten-band gains, builder generation and
+slice count, and control tokens did not change because of a dynamic decision.
+
+### 13.3 Current-SHA diagnostic closure
+
+Build `6ef2c86`, `dirty=0`, passed the isolated 84-job, three-module benchmark:
+64 warm-up calls and 4096 measured calls per case, with audio services stopped
+and all module safety counters zero. Guard warm maximum was 1,008,406 cycles.
+Its largest Guard-to-Dynamic and Guard-to-Smart P99 ratios were 3.254028 and
+3.253830. The analyzer marks all 28 comparisons Guard-higher at its approximate
+95 percent criterion. The benchmark artifact passes completeness and safety,
+but this relative-performance difference remains open for assembly or memory
+layout analysis.
+
+Static follow-up found the optimized C6000 process functions to be similar in
+size: Dynamic Clarity 3992 bytes and Harshness Guard 3892 bytes. Their
+benchmark state objects were both in `.subband_l2`. This rules out a simple
+source-size explanation but does not isolate instruction-cache placement or
+other memory effects, so no relative-performance acceptance claim is made.
+
+The same build passed nine actual 0->1, 1->2, and 1->0 internal PCM16
+transitions across dual-tone, music-like, and deterministic periodic noise.
+Worst objective values were residual peak -36.749399 dBFS, residual RMS
+-49.376686 dBFS, first difference -33.642987 dBFS, second difference
+-28.692639 dBFS, 4-20 kHz boundary/internal ratio 3.968835 dB, absolute DC
+step 0.000181662 full scale, and frame-boundary discontinuity 0.031341553 full
+scale. Repeated adjacent frames and clipped samples were zero; all real-time
+safety counters were zero. These values make no perceptual claim.
+
+A new full A-I rerun under `6ef2c86` was stopped after the user requested a
+shorter pressure-test plan. It is `ABORTED_BY_USER_TIME_LIMIT`, not a passed
+current-SHA A-I result. The interrupted runner did not emit a final
+`board_result.json`.
+
+### 13.4 Remaining boundary
+
+Subjective listening is `NOT_PERFORMED`. External analog THD, SNR, calibrated
+frequency response, and SPL are `UNMEASURED`. The compact archive is
+`docs/evidence/harshness_guard_dade304/`; large local artifacts remain under
+`%TEMP%` and are referenced by SHA-256 rather than committed.

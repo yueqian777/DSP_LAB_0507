@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "evidence_label": "HARSHNESS_GUARD_V1_COMPACT_ARCHIVE",
+  "baseline_sha": "a4fc259a5c925f20ca94c331eac8e90338ce03a9",
+  "feature_sha": "dade304fdeec3fb1acc4be407efac32d37a321e3",
+  "validation_tooling_sha": "6ef2c86abe90c68b9148702e10c3b7ff4c745d28",
+  "report_commit_sha": "SELF_REFERENCE_OMITTED",
+  "status": {
+    "implementation": "HOST_VERIFIED",
+    "clean_A_to_H_build_matrix": "CCS_BUILD_VERIFIED",
+    "accepted_complete_A_to_I_build": "6f58613",
+    "accepted_complete_A_to_I": "PASS",
+    "current_sha_benchmark": "PASS",
+    "current_sha_objective_transition": "PASS",
+    "current_sha_production_G_build_and_boot": "PASS",
+    "current_sha_full_A_to_I_rerun": "ABORTED_BY_USER_TIME_LIMIT",
+    "subjective_listening": "NOT_PERFORMED",
+    "external_analog_THD_SNR_SPL": "UNMEASURED"
+  },
+  "current_rerun_policy": "The 6ef2c86 A_to_I_150641 run is not formal PASS evidence because it was stopped before the runner emitted board_result.json.",
+  "build_macros": {
+    "default": "EQ_ENABLE_HARSHNESS_GUARD=0",
+    "dependency": "EQ_ENABLE_HARSHNESS_GUARD=1 requires EQ_ENABLE_AUDIO_FEATURE_ANALYZER=1",
+    "production_G": "PROJECT=33; ANALYZER=1; SMART_BASS=1; DYNAMIC_CLARITY=1; HARSHNESS_GUARD=1; LCD=0; diagnostics=0",
+    "production_H": "PROJECT=33; ANALYZER=1; SMART_BASS=1; DYNAMIC_CLARITY=1; HARSHNESS_GUARD=1; LCD=1; diagnostics=0"
+  },
+  "generator_versions": {
+    "host_audio_and_eval": "tools/generate_harshness_guard_audio.py and tools/harshness_guard_response_eval.c @ dade304",
+    "accepted_complete_board": "tools/run_harshness_guard_board.ps1 @ 6f58613",
+    "current_benchmark": "tools/run_harshness_guard_benchmark.ps1 plus tools/analyze_harshness_guard_benchmark.py @ 6ef2c86",
+    "current_transition": "tools/run_harshness_guard_transition.ps1 plus tools/analyze_harshness_guard_transition.py @ 6ef2c86",
+    "current_interrupted_rerun": "tools/run_harshness_guard_board.ps1 @ 6ef2c86",
+    "current_production_G": "CCS gmake plus tools/dss/dss_project33_leave_running.js @ 6ef2c86"
+  },
+  "retained_local_roots": [
+    {"status":"HOST_VERIFIED","logical_path":"%TEMP%\\DSP_LAB_0507\\harshness_guard\\host\\dade304"},
+    {"status":"CCS_BUILD_VERIFIED","logical_path":"%TEMP%\\DSP_LAB_0507\\harshness_guard\\build_matrix\\dade304"},
+    {"status":"PASS","logical_path":"%TEMP%\\DSP_LAB_0507\\harshness_guard\\board\\6f58613\\A_to_I_142224"},
+    {"status":"PASS","logical_path":"%TEMP%\\DSP_LAB_0507\\harshness_guard\\board\\6ef2c86\\benchmark_145600"},
+    {"status":"PASS","logical_path":"%TEMP%\\DSP_LAB_0507\\harshness_guard\\board\\6ef2c86\\transition_150424"},
+    {"status":"ABORTED_BY_USER_TIME_LIMIT","logical_path":"%TEMP%\\DSP_LAB_0507\\harshness_guard\\board\\6ef2c86\\A_to_I_150641"},
+    {"status":"PASS","logical_path":"%TEMP%\\DSP_LAB_0507\\harshness_guard\\production\\6ef2c86"}
+  ],
+  "external_inventory": {
+    "file": "external_file_inventory.json",
+    "file_count": 103,
+    "total_bytes": 31782498,
+    "fields": ["file_name", "bytes", "sha256", "logical_path", "generator_version", "status"]
+  },
+  "compact_files": [
+    "board_gate_A_to_I.json",
+    "build_matrix_summary.json",
+    "benchmark_summary.json",
+    "control_mapping_summary.json",
+    "transition_artifact_summary.json",
+    "continuous_runtime_summary.json",
+    "uart_summary.log",
+    "external_file_inventory.json",
+    "sha256_manifest.txt"
+  ],
+  "excluded_from_git": ["WAV", "RAW", ".out", "map", "linker XML", "full DSS and CCS logs", "TEMP directory"],
+  "evidence_boundary": "Host response/control data, CCS compile/link/map data, and objective board counters/PCM captures are distinct. No subjective or external analog inference is made."
+}

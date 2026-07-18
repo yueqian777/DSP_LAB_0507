@@ -1,0 +1,28 @@
+{
+  "evidence_label": "BOARD_ISOLATED_THREE_MODULE_MICROBENCHMARK",
+  "build_git_sha": "6ef2c86",
+  "build_dirty": 0,
+  "artifact_pass": true,
+  "safety_and_completeness_pass": true,
+  "relative_performance_review": "OPEN",
+  "job_count": 84,
+  "frame_len": 1024,
+  "sample_rate_hz": 50000,
+  "warmup_calls_per_job": 64,
+  "measured_calls_per_job": 4096,
+  "host_elapsed_seconds": 295.6699649,
+  "audio_services_started": 0,
+  "modules": [
+    {"module":"dynamic_clarity","job_count":28,"min_cycles":590,"median_max_cycles":335449,"p95_max_cycles":335993,"p99_max_cycles":336218.15,"absolute_max_cycles":336753,"first_call_max_cycles":336358,"warm_max_cycles":336392},
+    {"module":"smart_bass","job_count":28,"min_cycles":592,"median_max_cycles":335442,"p95_max_cycles":335988,"p99_max_cycles":336207.15,"absolute_max_cycles":336824,"first_call_max_cycles":336664,"warm_max_cycles":336361},
+    {"module":"harshness_guard","job_count":28,"min_cycles":885,"median_max_cycles":1006563,"p95_max_cycles":1007554,"p99_max_cycles":1007913.55,"absolute_max_cycles":1008755,"first_call_max_cycles":1008211,"warm_max_cycles":1008406}
+  ],
+  "guard_to_dynamic_p99_ratio_max": 3.2540276662659777,
+  "guard_to_smart_p99_ratio_max": 3.2538299883823538,
+  "guard_higher_approx_95_comparison_count": 28,
+  "performance_note": "The artifact pass field covers capture completeness and safety. The significant relative P99 difference remains open for assembly or memory-layout analysis.",
+  "static_follow_up": {"dynamic_process_frame_bytes":3992,"harshness_guard_process_frame_bytes":3892,"benchmark_state_section":".subband_l2","conclusion":"No simple function-size explanation; instruction-cache or memory-layout cause remains open."},
+  "safety": {"dynamic_saturation":0,"dynamic_nonfinite":0,"smart_saturation":0,"smart_nonfinite":0,"harshness_saturation":0,"harshness_nonfinite":0},
+  "subjective_observation": "NOT_PERFORMED",
+  "source_path": "%TEMP%\\DSP_LAB_0507\\harshness_guard\\board\\6ef2c86\\benchmark_145600"
+}

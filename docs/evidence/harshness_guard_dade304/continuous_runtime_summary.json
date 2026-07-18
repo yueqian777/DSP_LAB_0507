@@ -1,0 +1,19 @@
+{
+  "evidence_label": "CONTINUOUS_300S",
+  "accepted_run_build_git_sha": "6f58613",
+  "build_dirty": 0,
+  "pass": true,
+  "TARGET_WALL_TIME_SECONDS": 300.0,
+  "MEASURED_HOST_ELAPSED_SECONDS": 301.0400227,
+  "MEASURED_DSP_AUDIO_SECONDS": 300.38016,
+  "processed_at_least_300_seconds_of_dsp_audio": true,
+  "debugger_access_during_window": "NONE",
+  "start": {"analyzer_count":36,"smart_decision_count":1187,"clarity_decision_count":1187,"guard_decision_count":1187,"guard_level":3,"guard_transition_count":55},
+  "final": {"analyzer_count":1870,"smart_decision_count":3021,"clarity_decision_count":3021,"guard_decision_count":3021,"smart_level":2,"clarity_level":0,"guard_level":2,"smart_transition_count":424,"clarity_transition_count":263,"guard_transition_count":348},
+  "maximum_cycles": {"analyzer":301202,"smart_bass":441040,"dynamic_clarity":438322,"harshness_guard":4027564,"complete_algorithm":6278052,"frame_service":6718432,"frame_latency":6718864},
+  "safety_counters_all_zero": true,
+  "subjective_observation": "NOT_PERFORMED",
+  "external_analog_metrics": "UNMEASURED",
+  "source_path": "%TEMP%\\DSP_LAB_0507\\harshness_guard\\board\\6f58613\\A_to_I_142224",
+  "current_sha_rerun": {"build_git_sha":"6ef2c86","status":"ABORTED_BY_USER_TIME_LIMIT","formal_pass":false,"source_path":"%TEMP%\\DSP_LAB_0507\\harshness_guard\\board\\6ef2c86\\A_to_I_150641"}
+}
