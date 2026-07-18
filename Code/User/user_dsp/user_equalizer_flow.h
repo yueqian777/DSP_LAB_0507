@@ -21,6 +21,10 @@
 #define EQ_ENABLE_DYNAMIC_CLARITY 0
 #endif
 
+#ifndef EQ_ENABLE_HARSHNESS_GUARD
+#define EQ_ENABLE_HARSHNESS_GUARD 0
+#endif
+
 #ifndef EQ_ENABLE_DYNAMIC_CLARITY_TIMING_DIAGNOSTICS
 #define EQ_ENABLE_DYNAMIC_CLARITY_TIMING_DIAGNOSTICS 0
 #endif
@@ -37,6 +41,11 @@
 #if (EQ_ENABLE_DYNAMIC_CLARITY != 0) && \
     (EQ_ENABLE_AUDIO_FEATURE_ANALYZER == 0)
 #error Dynamic Clarity requires the audio feature analyzer.
+#endif
+
+#if (EQ_ENABLE_HARSHNESS_GUARD != 0) && \
+    (EQ_ENABLE_AUDIO_FEATURE_ANALYZER == 0)
+#error Harshness Guard requires the audio feature analyzer.
 #endif
 
 #if (EQ_ENABLE_DYNAMIC_CLARITY_TIMING_DIAGNOSTICS != 0) && \
@@ -229,6 +238,30 @@ extern volatile unsigned long EQ_DebugDynamicClarityLastCycles;
 extern volatile unsigned long EQ_DebugDynamicClarityMaxCycles;
 extern volatile unsigned long EQ_DebugDynamicClaritySaturationCount;
 extern volatile unsigned long EQ_DebugDynamicClarityNonFiniteCount;
+extern volatile const unsigned int EQ_DebugHarshnessGuardCompiled;
+extern volatile unsigned int EQ_DebugHarshnessGuardEnabled;
+extern volatile int EQ_DebugHarshnessGuardStrength;
+extern volatile unsigned int EQ_DebugHarshnessGuardProcessingActive;
+extern volatile float EQ_DebugHarshnessGuardBrightnessDb;
+extern volatile float EQ_DebugHarshnessGuardPresenceDb;
+extern volatile float EQ_DebugHarshnessGuardExcessDb;
+extern volatile float EQ_DebugHarshnessGuardRmsDbfs;
+extern volatile int EQ_DebugHarshnessGuardRequestedLevel;
+extern volatile int EQ_DebugHarshnessGuardAppliedLevel;
+extern volatile int EQ_DebugHarshnessGuardPendingLevel;
+extern volatile float EQ_DebugHarshnessGuardRequestedGainDb;
+extern volatile float EQ_DebugHarshnessGuardAppliedGainDb;
+extern volatile unsigned int EQ_DebugHarshnessGuardTransitionActive;
+extern volatile float EQ_DebugHarshnessGuardTransitionProgress;
+extern volatile int EQ_DebugHarshnessGuardReason;
+extern volatile unsigned long EQ_DebugHarshnessGuardDecisionCount;
+extern volatile unsigned long EQ_DebugHarshnessGuardLevelChangeCount;
+extern volatile unsigned long EQ_DebugHarshnessGuardTransitionCount;
+extern volatile unsigned long EQ_DebugHarshnessGuardInvalidReleaseCount;
+extern volatile unsigned long EQ_DebugHarshnessGuardLastCycles;
+extern volatile unsigned long EQ_DebugHarshnessGuardMaxCycles;
+extern volatile unsigned long EQ_DebugHarshnessGuardSaturationCount;
+extern volatile unsigned long EQ_DebugHarshnessGuardNonFiniteCount;
 #if EQ_ENABLE_DYNAMIC_CLARITY_TRANSITION_CAPTURE != 0
 extern volatile unsigned int EQ_DebugDynamicClarityTransitionCaptureRequest;
 extern volatile unsigned int EQ_DebugDynamicClarityTransitionCaptureActive;

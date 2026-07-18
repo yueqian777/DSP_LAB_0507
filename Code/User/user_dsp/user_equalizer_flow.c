@@ -11,6 +11,7 @@
 #endif
 #include "user_smart_bass.h"
 #include "user_dynamic_clarity.h"
+#include "user_harshness_guard.h"
 #include "user_dynamic_clarity_benchmark.h"
 #include "user_equalizer_display.h"
 #include "user_equalizer_response.h"
@@ -59,6 +60,9 @@ static short EQ_DA_Buffer1[DAC_SAMPLE_1024];
 #if EQ_ENABLE_DYNAMIC_CLARITY != 0
 #pragma DATA_SECTION(EQ_DynamicClarityState, ".subband_l2")
 #endif
+#if EQ_ENABLE_HARSHNESS_GUARD != 0
+#pragma DATA_SECTION(EQ_HarshnessGuardState, ".subband_l2")
+#endif
 #endif
 static EQ_STATE EQ_BoardState;
 #if EQ_ENABLE_AUDIO_FEATURE_ANALYZER != 0
@@ -76,6 +80,10 @@ static unsigned int EQ_DynamicClarityAnalyzerFault = 1U;
 static unsigned int EQ_DynamicClarityCapturePhase = 0U;
 static unsigned int EQ_DynamicClarityCapturePrerollRemaining = 0U;
 #endif
+#endif
+#if EQ_ENABLE_HARSHNESS_GUARD != 0
+static HARSHNESS_GUARD_STATE EQ_HarshnessGuardState;
+static unsigned int EQ_HarshnessGuardAnalyzerFault = 1U;
 #endif
 static EQ_CONTROL_STATE EQ_BoardControl;
 static EQ_BACKGROUND_SERVICE_STATE EQ_BackgroundService;
@@ -401,6 +409,33 @@ volatile unsigned long EQ_DebugDynamicClarityLastCycles = 0UL;
 volatile unsigned long EQ_DebugDynamicClarityMaxCycles = 0UL;
 volatile unsigned long EQ_DebugDynamicClaritySaturationCount = 0UL;
 volatile unsigned long EQ_DebugDynamicClarityNonFiniteCount = 0UL;
+volatile const unsigned int EQ_DebugHarshnessGuardCompiled =
+    EQ_ENABLE_HARSHNESS_GUARD;
+volatile unsigned int EQ_DebugHarshnessGuardEnabled = 0U;
+volatile int EQ_DebugHarshnessGuardStrength =
+    HARSHNESS_GUARD_STRENGTH_MEDIUM;
+volatile unsigned int EQ_DebugHarshnessGuardProcessingActive = 0U;
+volatile float EQ_DebugHarshnessGuardBrightnessDb = 0.0f;
+volatile float EQ_DebugHarshnessGuardPresenceDb = 0.0f;
+volatile float EQ_DebugHarshnessGuardExcessDb = 0.0f;
+volatile float EQ_DebugHarshnessGuardRmsDbfs = -240.0f;
+volatile int EQ_DebugHarshnessGuardRequestedLevel = 0;
+volatile int EQ_DebugHarshnessGuardAppliedLevel = 0;
+volatile int EQ_DebugHarshnessGuardPendingLevel = 0;
+volatile float EQ_DebugHarshnessGuardRequestedGainDb = 0.0f;
+volatile float EQ_DebugHarshnessGuardAppliedGainDb = 0.0f;
+volatile unsigned int EQ_DebugHarshnessGuardTransitionActive = 0U;
+volatile float EQ_DebugHarshnessGuardTransitionProgress = 0.0f;
+volatile int EQ_DebugHarshnessGuardReason =
+    HARSHNESS_GUARD_REASON_DISABLED;
+volatile unsigned long EQ_DebugHarshnessGuardDecisionCount = 0UL;
+volatile unsigned long EQ_DebugHarshnessGuardLevelChangeCount = 0UL;
+volatile unsigned long EQ_DebugHarshnessGuardTransitionCount = 0UL;
+volatile unsigned long EQ_DebugHarshnessGuardInvalidReleaseCount = 0UL;
+volatile unsigned long EQ_DebugHarshnessGuardLastCycles = 0UL;
+volatile unsigned long EQ_DebugHarshnessGuardMaxCycles = 0UL;
+volatile unsigned long EQ_DebugHarshnessGuardSaturationCount = 0UL;
+volatile unsigned long EQ_DebugHarshnessGuardNonFiniteCount = 0UL;
 #if EQ_ENABLE_DYNAMIC_CLARITY_TRANSITION_CAPTURE != 0
 volatile unsigned int EQ_DebugDynamicClarityTransitionCaptureRequest = 0U;
 volatile unsigned int EQ_DebugDynamicClarityTransitionCaptureActive = 0U;
@@ -1761,6 +1796,91 @@ static void EQ_UpdateDynamicClarityPathTiming(
 #endif
 #endif
 
+#if EQ_ENABLE_HARSHNESS_GUARD != 0
+static void EQ_SyncHarshnessGuardDebug(void)
+{
+    EQ_DebugHarshnessGuardProcessingActive =
+        (unsigned int)EQ_HarshnessGuardState.processing_active;
+    EQ_DebugHarshnessGuardBrightnessDb =
+        EQ_HarshnessGuardState.latest_brightness_relative_db;
+    EQ_DebugHarshnessGuardPresenceDb =
+        EQ_HarshnessGuardState.latest_presence_relative_db;
+    EQ_DebugHarshnessGuardExcessDb =
+        EQ_HarshnessGuardState.latest_harshness_db;
+    EQ_DebugHarshnessGuardRmsDbfs =
+        EQ_HarshnessGuardState.latest_rms_dbfs;
+    EQ_DebugHarshnessGuardRequestedLevel =
+        EQ_HarshnessGuardState.target_level;
+    EQ_DebugHarshnessGuardAppliedLevel =
+        EQ_HarshnessGuardState.active_level;
+    EQ_DebugHarshnessGuardPendingLevel =
+        EQ_HarshnessGuardState.pending_level;
+    EQ_DebugHarshnessGuardRequestedGainDb =
+        HarshnessGuard_GetRequestedGainDb(&EQ_HarshnessGuardState);
+    EQ_DebugHarshnessGuardAppliedGainDb =
+        HarshnessGuard_GetAppliedGainDb(&EQ_HarshnessGuardState);
+    EQ_DebugHarshnessGuardTransitionActive =
+        (unsigned int)EQ_HarshnessGuardState.transition_active;
+    EQ_DebugHarshnessGuardTransitionProgress =
+        HarshnessGuard_GetTransitionProgress(&EQ_HarshnessGuardState);
+    EQ_DebugHarshnessGuardReason =
+        HarshnessGuard_GetReason(&EQ_HarshnessGuardState);
+    EQ_DebugHarshnessGuardDecisionCount =
+        EQ_HarshnessGuardState.decision_count;
+    EQ_DebugHarshnessGuardLevelChangeCount =
+        EQ_HarshnessGuardState.level_change_count;
+    EQ_DebugHarshnessGuardTransitionCount =
+        EQ_HarshnessGuardState.transition_count;
+    EQ_DebugHarshnessGuardInvalidReleaseCount =
+        EQ_HarshnessGuardState.invalid_release_count;
+    EQ_DebugHarshnessGuardSaturationCount =
+        EQ_HarshnessGuardState.saturation_count;
+    EQ_DebugHarshnessGuardNonFiniteCount =
+        EQ_HarshnessGuardState.nonfinite_count;
+}
+
+static void EQ_ServiceHarshnessGuardRuntimeControl(void)
+{
+    int requested_enabled;
+
+    EQ_DebugHarshnessGuardEnabled =
+        (EQ_DebugHarshnessGuardEnabled != 0U) ? 1U : 0U;
+    (void)HarshnessGuard_SetStrength(
+        &EQ_HarshnessGuardState, EQ_DebugHarshnessGuardStrength);
+    EQ_DebugHarshnessGuardStrength = EQ_HarshnessGuardState.strength;
+    requested_enabled =
+        ((EQ_DebugHarshnessGuardEnabled != 0U) &&
+         (EQ_DebugAnalyzerEnabled != 0U) &&
+         (EQ_AnalyzerLastEnabled != 0U) &&
+         ((EQ_HarshnessGuardAnalyzerFault == 0U) ||
+          (EQ_HarshnessGuardState.requested_enabled != 0))) ? 1 : 0;
+    (void)HarshnessGuard_SetEnabled(
+        &EQ_HarshnessGuardState, requested_enabled);
+}
+
+static void EQ_MarkHarshnessGuardAnalyzerUnavailable(void)
+{
+    EQ_HarshnessGuardAnalyzerFault = 1U;
+    if (EQ_HarshnessGuardState.initialized != 0)
+    {
+        HarshnessGuard_InvalidateAnalysisEpoch(
+            &EQ_HarshnessGuardState);
+        (void)HarshnessGuard_SetEnabled(
+            &EQ_HarshnessGuardState, 0);
+        EQ_SyncHarshnessGuardDebug();
+    }
+}
+
+static void EQ_UpdateHarshnessGuardTiming(unsigned long cycles)
+{
+    EQ_DebugHarshnessGuardLastCycles = cycles;
+    if (cycles > EQ_DebugHarshnessGuardMaxCycles)
+    {
+        EQ_DebugHarshnessGuardMaxCycles = cycles;
+    }
+}
+#endif
+
 #if EQ_ENABLE_AUDIO_FEATURE_ANALYZER != 0
 static void EQ_ClearPublishedAnalyzerState(void)
 {
@@ -1783,6 +1903,9 @@ static void EQ_ClearPublishedAnalyzerState(void)
 #endif
 #if EQ_ENABLE_DYNAMIC_CLARITY != 0
     EQ_MarkDynamicClarityAnalyzerUnavailable();
+#endif
+#if EQ_ENABLE_HARSHNESS_GUARD != 0
+    EQ_MarkHarshnessGuardAnalyzerUnavailable();
 #endif
 }
 
@@ -1891,6 +2014,20 @@ static void EQ_PublishAnalyzerSnapshot(void)
     }
     EQ_SyncDynamicClarityDebug();
 #endif
+#if EQ_ENABLE_HARSHNESS_GUARD != 0
+    EQ_HarshnessGuardAnalyzerFault =
+        ((snapshot.valid != 0) &&
+         (snapshot.warmup_complete != 0)) ? 0U : 1U;
+    EQ_ServiceHarshnessGuardRuntimeControl();
+    (void)HarshnessGuard_UpdateFromFeature(
+        &EQ_HarshnessGuardState, &snapshot);
+    if (EQ_HarshnessGuardState.reason ==
+        HARSHNESS_GUARD_REASON_INVALID)
+    {
+        EQ_HarshnessGuardAnalyzerFault = 1U;
+    }
+    EQ_SyncHarshnessGuardDebug();
+#endif
 }
 
 static int EQ_ServiceAnalyzer(void)
@@ -1932,6 +2069,9 @@ static int EQ_ServiceAnalyzer(void)
 #if EQ_ENABLE_DYNAMIC_CLARITY != 0
         EQ_MarkDynamicClarityAnalyzerUnavailable();
 #endif
+#if EQ_ENABLE_HARSHNESS_GUARD != 0
+        EQ_MarkHarshnessGuardAnalyzerUnavailable();
+#endif
     }
     return result;
 }
@@ -1951,6 +2091,9 @@ static void EQ_CaptureAdcFrame(void)
 #if EQ_ENABLE_DYNAMIC_CLARITY != 0
     unsigned int dynamic_clarity_cycle_start;
 #endif
+#if EQ_ENABLE_HARSHNESS_GUARD != 0
+    unsigned int harshness_guard_cycle_start;
+#endif
 #endif
 #if EQ_ENABLE_SMART_BASS != 0
     unsigned long smart_bass_cycles;
@@ -1964,6 +2107,9 @@ static void EQ_CaptureAdcFrame(void)
     int dynamic_clarity_target_level;
     int dynamic_clarity_transition_remaining;
 #endif
+#endif
+#if EQ_ENABLE_HARSHNESS_GUARD != 0
+    unsigned long harshness_guard_cycles;
 #endif
 
     if (AD_Ping_Pong == AD_BUFFER_PONG)
@@ -2001,6 +2147,9 @@ static void EQ_CaptureAdcFrame(void)
 #endif
 #if EQ_ENABLE_DYNAMIC_CLARITY != 0
     EQ_ServiceDynamicClarityRuntimeControl();
+#endif
+#if EQ_ENABLE_HARSHNESS_GUARD != 0
+    EQ_ServiceHarshnessGuardRuntimeControl();
 #endif
     mode_change_before = Equalizer_GetModeChangeCount(&EQ_BoardState);
     Equalizer_ProcessFrame(&EQ_BoardState, EQ_AD_Buffer1, EQ_DA_Buffer1,
@@ -2055,6 +2204,22 @@ static void EQ_CaptureAdcFrame(void)
         dynamic_clarity_transition_remaining);
 #endif
     EQ_SyncDynamicClarityDebug();
+#endif
+#if EQ_ENABLE_HARSHNESS_GUARD != 0
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+    harshness_guard_cycle_start = TSCL;
+#endif
+    (void)HarshnessGuard_ProcessFrame(
+        &EQ_HarshnessGuardState, EQ_DA_Buffer1, EQ_DA_Buffer1,
+        ADC_SAMPLE_1024);
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+    harshness_guard_cycles =
+        (unsigned long)(TSCL - harshness_guard_cycle_start);
+#else
+    harshness_guard_cycles = 0UL;
+#endif
+    EQ_UpdateHarshnessGuardTiming(harshness_guard_cycles);
+    EQ_SyncHarshnessGuardDebug();
 #endif
     mode_change_after = Equalizer_GetModeChangeCount(&EQ_BoardState);
     EQ_DebugProcessFrames++;
@@ -2230,6 +2395,16 @@ void Equalizer_Flow_Example(void)
     EQ_ResetDynamicClarityTimingDiagnostics();
 #endif
     EQ_SyncDynamicClarityDebug();
+#endif
+#if EQ_ENABLE_HARSHNESS_GUARD != 0
+    HarshnessGuard_Init(&EQ_HarshnessGuardState);
+    EQ_HarshnessGuardAnalyzerFault = 1U;
+    EQ_DebugHarshnessGuardEnabled = 0U;
+    EQ_DebugHarshnessGuardStrength =
+        HARSHNESS_GUARD_STRENGTH_MEDIUM;
+    EQ_DebugHarshnessGuardLastCycles = 0UL;
+    EQ_DebugHarshnessGuardMaxCycles = 0UL;
+    EQ_SyncHarshnessGuardDebug();
 #endif
     EQ_AppliedDiagPath = EQ_DIAG_PRESET;
     EQ_LastServicedMode = EQ_PRESET_FLAT;
