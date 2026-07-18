@@ -1486,7 +1486,8 @@ static int EQ_ServiceUiTouch(unsigned char flag_ad_done,
     {
         EQ_DebugTouchPressed = 0U;
         (void)EqualizerUiTouch_Process(
-            &EQ_TouchState, 0, EQ_DebugTouchScreenX,
+            &EQ_TouchState, EQ_UI_PAGE_DYNAMIC_STATUS, 0,
+            0, EQ_DebugTouchScreenX,
             EQ_DebugTouchScreenY, &rejected);
         return 1;
     }
@@ -1514,7 +1515,8 @@ static int EQ_ServiceUiTouch(unsigned char flag_ad_done,
     EQ_DebugTouchPressed = 1U;
     rejected = 0;
     action = EqualizerUiTouch_Process(
-        &EQ_TouchState, 1, screen_x, screen_y, &rejected);
+        &EQ_TouchState, EQ_UI_PAGE_DYNAMIC_STATUS, 0,
+        1, screen_x, screen_y, &rejected);
     if (rejected != 0)
     {
         EQ_DebugTouchRejectedCount++;

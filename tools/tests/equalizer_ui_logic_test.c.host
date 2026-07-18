@@ -26,6 +26,12 @@ static void make_snapshot(EQ_UI_SNAPSHOT *snapshot)
     snapshot->guard_strength = 2;
     snapshot->analyzer_valid = 1;
     snapshot->analyzer_warm = 1;
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+    snapshot->page = EQ_UI_PAGE_DYNAMIC_STATUS;
+    snapshot->editor_selected_band = 0;
+    snapshot->editor_apply_status = EQ_UI_APPLY_APPLIED;
+    snapshot->editor_submitted_valid = 1U;
+#endif
     for (band = 0; band < EQ_UI_ANALYZER_COUNT; band++)
     {
         snapshot->band_pixel[band] = EQ_UI_ANALYZER_ZERO_PIXEL;
@@ -125,16 +131,20 @@ static int test_layout_and_touch(void)
         "map swap before scale");
 
     EqualizerUiTouch_Init(&touch);
-    x = EQ_UI_HITBOXES[0].rect.x + 2;
-    y = EQ_UI_HITBOXES[0].rect.y + 2;
-    action = EqualizerUiTouch_Process(&touch, 1, x, y, &rejected);
+    x = EQ_UI_DYNAMIC_HITBOXES[0].rect.x + 2;
+    y = EQ_UI_DYNAMIC_HITBOXES[0].rect.y + 2;
+    action = EqualizerUiTouch_Process(
+        &touch, EQ_UI_PAGE_DYNAMIC_STATUS, 0, 1, x, y, &rejected);
     failures += require_true(action == EQ_UI_ACTION_PRESET_FLAT && !rejected,
                              "first press action");
-    action = EqualizerUiTouch_Process(&touch, 1, x, y, &rejected);
+    action = EqualizerUiTouch_Process(
+        &touch, EQ_UI_PAGE_DYNAMIC_STATUS, 0, 1, x, y, &rejected);
     failures += require_true(action == EQ_UI_ACTION_NONE,
                              "long press suppressed");
-    (void)EqualizerUiTouch_Process(&touch, 0, x, y, &rejected);
-    action = EqualizerUiTouch_Process(&touch, 1, x, y, &rejected);
+    (void)EqualizerUiTouch_Process(
+        &touch, EQ_UI_PAGE_DYNAMIC_STATUS, 0, 0, x, y, &rejected);
+    action = EqualizerUiTouch_Process(
+        &touch, EQ_UI_PAGE_DYNAMIC_STATUS, 0, 1, x, y, &rejected);
     failures += require_true(action == EQ_UI_ACTION_PRESET_FLAT,
                              "release rearms");
 
@@ -169,7 +179,7 @@ static int test_jobs_and_dynamic_semantics(void)
     EqualizerUiLogic_Init(&state);
     make_snapshot(&snapshot);
     EqualizerUiLogic_Request(&state, &snapshot, EQ_UI_RUNTIME_ALL, 1UL);
-    expected = (1UL << EQ_UI_JOB_COUNT) - 1UL;
+    expected = (1UL << EQ_UI_JOB_DYNAMIC_2) - 1UL;
     failures += require_true(state.dirty_mask == expected,
                              "initial logical jobs independent");
     failures += require_true(flush_jobs(&state, 1UL) == 21,
@@ -490,6 +500,192 @@ static int test_service_gaps(void)
     return failures;
 }
 
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+static int test_editor_state_model(void)
+{
+    EQ_UI_EDITOR_STATE editor;
+    EQ_UI_GAIN_HALF_DB applied[EQ_NUM_BANDS];
+    float gains_db[EQ_NUM_BANDS];
+    int failures;
+    int band;
+
+    failures = 0;
+    memset(applied, 0, sizeof(applied));
+    EqualizerUiEditor_Init(&editor);
+    failures += require_true(sizeof(editor) <= 512U,
+                              "editor state budget");
+    failures += require_true(editor.selected_band == 0 &&
+        editor.applied_preset == EQ_PRESET_FLAT &&
+        editor.apply_status == EQ_UI_APPLY_APPLIED,
+        "editor defaults");
+    failures += require_true(EqualizerUiEditor_SelectBand(&editor, 2),
+                              "select 125 Hz");
+    for (band = 0; band < 4; band++)
+    {
+        failures += require_true(
+            EqualizerUiEditor_StepSelected(&editor, 1),
+            "half dB draft step");
+    }
+    failures += require_true(editor.draft_gain_half_db[2] == 4 &&
+        editor.draft_dirty != 0U && editor.draft_version == 4UL,
+        "draft is local half dB state");
+    failures += require_true(
+        EqualizerUiEditor_HasSubmittableDraft(&editor),
+        "draft can submit once");
+    EqualizerUiEditor_CopyDraftDb(&editor, gains_db);
+    failures += require_true(gains_db[2] == 2.0f,
+                              "transient float conversion");
+    EqualizerUiEditor_MarkSubmitted(&editor, 1U);
+    failures += require_true(!EqualizerUiEditor_HasSubmittableDraft(&editor) &&
+        editor.submitted_gain_half_db[2] == 4 &&
+        editor.apply_status == EQ_UI_APPLY_QUEUED,
+        "duplicate draft suppressed");
+    applied[2] = 4;
+    EqualizerUiEditor_ObserveApplied(
+        &editor, applied, EQ_PRESET_CUSTOM, 1U);
+    failures += require_true(editor.applied_preset == EQ_PRESET_CUSTOM &&
+        editor.applied_gain_half_db[2] == 4 &&
+        editor.draft_dirty == 0U &&
+        editor.apply_status == EQ_UI_APPLY_APPLIED,
+        "custom only becomes applied on applied sequence");
+    for (band = 0; band < 100; band++)
+    {
+        (void)EqualizerUiEditor_StepSelected(&editor, 1);
+    }
+    failures += require_true(editor.draft_gain_half_db[2] ==
+        EQ_UI_GAIN_HALF_DB_MAX, "upper gain clamp");
+    for (band = 0; band < 100; band++)
+    {
+        (void)EqualizerUiEditor_StepSelected(&editor, -1);
+    }
+    failures += require_true(editor.draft_gain_half_db[2] ==
+        EQ_UI_GAIN_HALF_DB_MIN, "lower gain clamp");
+    memset(applied, 0, sizeof(applied));
+    applied[0] = 6;
+    EqualizerUiEditor_ObserveApplied(
+        &editor, applied, EQ_PRESET_BASS_BOOST, 2U);
+    failures += require_true(editor.applied_preset == EQ_PRESET_BASS_BOOST &&
+        editor.draft_gain_half_db[0] == 6 &&
+        editor.submitted_gain_half_db[0] == 6 &&
+        editor.draft_dirty == 0U,
+        "fixed preset discards unsubmitted draft");
+    failures += require_true(EqualizerUi_GainDbToHalf(12.5f) == 24 &&
+        EqualizerUi_GainDbToHalf(-19.0f) == -36 &&
+        EqualizerUi_GainDbToHalf(2.24f) == 4,
+        "gain conversion clamps and rounds");
+    return failures;
+}
+
+static int test_editor_pages_jobs_and_touch(void)
+{
+    EQ_UI_STATE state;
+    EQ_UI_SNAPSHOT snapshot;
+    EQ_UI_TOUCH_STATE touch;
+    int failures;
+    int job;
+    int x;
+    int y;
+    int action;
+    int rejected;
+    int before;
+    int after;
+
+    failures = 0;
+    failures += require_true(EQ_UI_JOB_COUNT == 27,
+                              "editor job count");
+    EqualizerUiLogic_Init(&state);
+    make_snapshot(&snapshot);
+    EqualizerUiLogic_Request(&state, &snapshot, EQ_UI_RUNTIME_ALL, 0UL);
+    failures += require_true(flush_jobs(&state, 0UL) == 21,
+                              "dynamic page initial jobs");
+
+    snapshot.page = EQ_UI_PAGE_EQ_EDITOR;
+    EqualizerUiLogic_Request(&state, &snapshot, EQ_UI_RUNTIME_ALL, 1000UL);
+    failures += require_true(EqualizerUiLogic_IsPageBuilding(&state) &&
+        EqualizerUiLogic_GetDisplayedPage(&state) ==
+            EQ_UI_PAGE_DYNAMIC_STATUS &&
+        state.dirty_mask == JOB_BIT(EQ_UI_JOB_PAGE_TILE) &&
+        EqualizerUiLogic_GetPageTileCount(&state) ==
+            EQ_UI_PAGE_TILE_EDITOR_COUNT,
+        "page build starts as one tiled job");
+    job = EqualizerUiLogic_SelectJob(&state, 1000UL);
+    complete_one(&state, job, 1000UL);
+    snapshot.page = EQ_UI_PAGE_DYNAMIC_STATUS;
+    EqualizerUiLogic_Request(&state, &snapshot, EQ_UI_RUNTIME_ALL, 1001UL);
+    failures += require_true(EqualizerUiLogic_GetPageTileIndex(&state) == 0U &&
+        state.page_target == EQ_UI_PAGE_DYNAMIC_STATUS,
+        "page request is latest wins");
+    failures += require_true(flush_jobs(&state, 1002UL) ==
+        (int)EQ_UI_PAGE_TILE_DYNAMIC_COUNT,
+        "cancelled page rebuilds current page safely");
+
+    snapshot.page = EQ_UI_PAGE_EQ_EDITOR;
+    EqualizerUiLogic_Request(&state, &snapshot, EQ_UI_RUNTIME_ALL, 2000UL);
+    before = flush_jobs(&state, 2000UL);
+    failures += require_true(before == (int)EQ_UI_PAGE_TILE_EDITOR_COUNT &&
+        EqualizerUiLogic_GetDisplayedPage(&state) == EQ_UI_PAGE_EQ_EDITOR &&
+        !EqualizerUiLogic_IsPageBuilding(&state) &&
+        !EqualizerUiLogic_HasPending(&state),
+        "displayed page changes after final tile only");
+
+    snapshot.applied_preset = EQ_PRESET_CUSTOM;
+    snapshot.applied_gain_half_db[2] = 24;
+    snapshot.editor_selected_band = 2;
+    snapshot.editor_draft_version++;
+    snapshot.draft_gain_half_db[2] = 24;
+    EqualizerUiLogic_Request(&state, &snapshot, EQ_UI_RUNTIME_ALL, 3000UL);
+    failures += require_true(
+        (state.dirty_mask & JOB_BIT(EQ_UI_JOB_EDITOR_BAND_0 + 2)) != 0UL &&
+        (state.dirty_mask & JOB_BIT(EQ_UI_JOB_EDITOR_FIELDS)) != 0UL &&
+        (state.dirty_mask & (0x7FFFUL)) ==
+            (JOB_BIT(EQ_UI_JOB_PRESET_0)),
+        "custom editor dirties old preset, one band, shared fields");
+    before = state.editor_displayed_pixel[2];
+    job = EQ_UI_JOB_EDITOR_BAND_0 + 2;
+    EqualizerUiLogic_CompleteEditorBand(&state, job, 3000UL);
+    after = state.editor_displayed_pixel[2];
+    failures += require_true((before - after) > 0 &&
+        (before - after) <= EQ_UI_EDITOR_MAX_STRIP_HEIGHT,
+        "editor applied bar uses bounded differential strip");
+    failures += require_true(flush_jobs(&state, 3002UL) > 0 &&
+        !EqualizerUiLogic_HasPending(&state),
+        "editor jobs converge");
+    snapshot.smart_level = 3;
+    EqualizerUiLogic_Request(&state, &snapshot, EQ_UI_RUNTIME_ALL, 4000UL);
+    failures += require_true(!EqualizerUiLogic_HasPending(&state),
+                              "hidden dynamic page creates no content job");
+
+    failures += require_true(
+        EqualizerUi_HitTest(EQ_UI_PAGE_DYNAMIC_STATUS,
+            EQ_UI_DYNAMIC_TOGGLE_RECTS[0].x + 1,
+            EQ_UI_DYNAMIC_TOGGLE_RECTS[0].y + 1) ==
+            EQ_UI_ACTION_SMART_TOGGLE,
+        "dynamic page hitbox");
+    failures += require_true(
+        EqualizerUi_HitTest(EQ_UI_PAGE_EQ_EDITOR,
+            EQ_UI_EDITOR_BAND_RECTS[2].x + 1,
+            EQ_UI_EDITOR_BAND_RECTS[2].y + 1) ==
+            EQ_UI_ACTION_EDITOR_BAND_2,
+        "editor page hitbox");
+    EqualizerUiTouch_Init(&touch);
+    x = EQ_UI_EDITOR_BAND_RECTS[2].x + 1;
+    y = EQ_UI_EDITOR_BAND_RECTS[2].y + 1;
+    action = EqualizerUiTouch_Process(
+        &touch, EQ_UI_PAGE_EQ_EDITOR, 1, 1, x, y, &rejected);
+    failures += require_true(action == EQ_UI_ACTION_NONE && rejected,
+                              "content action rejected while page builds");
+    (void)EqualizerUiTouch_Process(
+        &touch, EQ_UI_PAGE_EQ_EDITOR, 1, 0, x, y, &rejected);
+    x = EQ_UI_PAGE_SWITCH_RECT.x + 1;
+    y = EQ_UI_PAGE_SWITCH_RECT.y + 1;
+    action = EqualizerUiTouch_Process(
+        &touch, EQ_UI_PAGE_EQ_EDITOR, 1, 1, x, y, &rejected);
+    failures += require_true(action == EQ_UI_ACTION_PAGE_SWITCH && !rejected,
+                              "page switch remains latest-wins while building");
+    return failures;
+}
+#endif
+
 int main(void)
 {
     int failures;
@@ -500,6 +696,10 @@ int main(void)
     failures += test_analyzer_transitions();
     failures += test_analyzer_value_throttle();
     failures += test_service_gaps();
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+    failures += test_editor_state_model();
+    failures += test_editor_pages_jobs_and_touch();
+#endif
     printf("equalizer_ui_logic failures=%d\n", failures);
     return (failures == 0) ? 0 : 1;
 }
