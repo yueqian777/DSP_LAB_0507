@@ -32,20 +32,24 @@ static void make_snapshot(EQ_UI_SNAPSHOT *snapshot)
 
 static int flush_jobs(unsigned long frame)
 {
+    unsigned long offset;
     int count;
     int job;
 
     count = 0;
-    while (EqualizerDisplay_HasPendingJob() && (count < 64))
+    for (offset = 0UL; offset < 4096UL; offset++)
     {
-        job = EqualizerDisplay_ServiceOneJob(frame + (unsigned long)count);
-        if (job == EQ_LCD_JOB_NONE)
+        if (!EqualizerDisplay_HasPendingJob())
         {
-            return -1;
+            return count;
         }
-        count++;
+        job = EqualizerDisplay_ServiceOneJob(frame + offset);
+        if (job != EQ_LCD_JOB_NONE)
+        {
+            count++;
+        }
     }
-    return count;
+    return -1;
 }
 
 int main(void)
@@ -53,14 +57,28 @@ int main(void)
     EQ_LCD_HW_SNAPSHOT hardware;
     EQ_UI_SNAPSHOT snapshot;
     unsigned long primitives;
+    unsigned long strip_count;
+    unsigned long value_count;
     unsigned long unexpected;
     int failures;
     int job;
 
     failures = 0;
     EqualizerDisplay_Init();
+    memset(&hardware, 0, sizeof(hardware));
+    hardware.frame_base = EQ_DebugLcdExpectedFrameBase;
+    hardware.frame_end = EQ_DebugLcdExpectedFrameEnd;
+    hardware.raster_control = 1UL;
+    hardware.raster_status = 0x04UL;
+    EqualizerDisplay_TestSetHardwareSnapshot(&hardware);
     failures += require_true(EqualizerDisplay_DrawStaticLayout() == 1,
-                             "first static draw");
+                              "first static draw");
+    failures += require_true(
+        EQ_DebugLcdStartupRasterStatus == 0x04UL &&
+        EQ_DebugLcdStartupStatusAfterClear == 0UL &&
+        EQ_DebugLcdStartupFaultClearCount == 1UL &&
+        EQ_DebugLcdFaultLatched == 0U,
+        "known startup sticky status clears before first audit");
     primitives = EqualizerDisplay_TestPrimitiveCount();
     failures += require_true(primitives > 0UL, "static primitives");
     failures += require_true(EQ_DebugLcdBoundsFailureCount == 0UL,
@@ -91,7 +109,7 @@ int main(void)
     failures += require_true(
         flush_jobs(2UL) == EQ_LCD_JOB_COUNT - 1 +
                           (2 * EQ_UI_DYNAMIC_COUNT),
-                             "remaining jobs bounded");
+                              "remaining jobs bounded");
     failures += require_true(EQ_DebugLcdBoundsFailureCount == 0UL,
                              "runtime bounds");
 
@@ -108,33 +126,111 @@ int main(void)
         "rejected static draw has no primitives");
 
     snapshot.applied_preset = EQ_PRESET_BASS_BOOST;
-    EqualizerDisplay_RequestSnapshot(&snapshot, 30UL);
-    failures += require_true(flush_jobs(30UL) == 2,
-                             "preset old and new jobs");
+    EqualizerDisplay_RequestSnapshot(&snapshot, 1000UL);
+    failures += require_true(flush_jobs(1000UL) == 2,
+                              "preset old and new jobs");
 
     snapshot.band_pixel[1] = EqualizerUi_DbTenthsToPixel(100);
     snapshot.band_value_db[1] = 10;
-    EqualizerDisplay_RequestSnapshot(&snapshot, 40UL);
-    failures += require_true(flush_jobs(40UL) == 1,
-                             "single analyzer job");
+    EqualizerDisplay_RequestSnapshot(&snapshot, 2000UL);
+    primitives = EqualizerDisplay_TestPrimitiveCount();
+    strip_count = EQ_DebugLcdAnalyzerStripCount;
+    value_count = EQ_DebugLcdAnalyzerValueCount;
+    job = EqualizerDisplay_ServiceOneJob(2000UL);
+    failures += require_true(job == EQ_UI_JOB_ANALYZER_0 + 1 &&
+        EQ_DebugLcdAnalyzerLastField == EQ_UI_ANALYZER_FIELD_VALUE,
+        "overdue analyzer text has bounded field priority");
+    failures += require_true(
+        EqualizerDisplay_TestPrimitiveCount() == primitives + 2UL &&
+        EQ_DebugLcdAnalyzerStripCount == strip_count &&
+        EQ_DebugLcdAnalyzerValueCount == value_count + 1UL,
+        "value service clears and redraws text without bar");
+    primitives = EqualizerDisplay_TestPrimitiveCount();
+    failures += require_true(
+        EqualizerDisplay_ServiceOneJob(2001UL) == EQ_LCD_JOB_NONE &&
+        EqualizerDisplay_TestPrimitiveCount() == primitives,
+        "analyzer category gap blocks same burst");
+    job = EqualizerDisplay_ServiceOneJob(2008UL);
+    failures += require_true(job == EQ_UI_JOB_ANALYZER_0 + 1 &&
+        EQ_DebugLcdAnalyzerLastField == EQ_UI_ANALYZER_FIELD_BAR &&
+        EqualizerDisplay_TestPrimitiveCount() == primitives + 1UL &&
+        EQ_DebugLcdAnalyzerStripCount == strip_count + 1UL,
+        "next analyzer service draws exactly one strip");
+    failures += require_true(
+        EQ_DebugLcdAnalyzerLastStripHeight == 16U &&
+        EQ_DebugLcdAnalyzerLastStripOperation ==
+         EQ_LCD_ANALYZER_STRIP_POSITIVE_FILL,
+        "positive strip is bounded differential fill");
+    failures += require_true(flush_jobs(2016UL) == 2 &&
+        EQ_DebugLcdAnalyzerStripCount == strip_count + 3UL &&
+        EQ_DebugLcdAnalyzerValueCount == value_count + 1UL,
+        "large analyzer move uses three strips then one value field");
+    failures += require_true(
+        EQ_DebugLcdAnalyzerMaxStripHeight <=
+         EQ_UI_ANALYZER_MAX_STRIP_HEIGHT,
+        "all analyzer strips stay within height limit");
+
+    snapshot.band_pixel[1] = EqualizerUi_DbTenthsToPixel(-100);
+    snapshot.band_value_db[1] = -10;
+    EqualizerDisplay_RequestSnapshot(&snapshot, 3000UL);
+    failures += require_true(
+        EqualizerDisplay_ServiceOneJob(3000UL) ==
+         EQ_UI_JOB_ANALYZER_0 + 1 &&
+        EQ_DebugLcdAnalyzerLastField == EQ_UI_ANALYZER_FIELD_VALUE,
+        "cross-zero value remains a separate field");
+    failures += require_true(
+        EqualizerDisplay_ServiceOneJob(3008UL) ==
+         EQ_UI_JOB_ANALYZER_0 + 1 &&
+        EQ_DebugLcdAnalyzerLastStripOperation ==
+         EQ_LCD_ANALYZER_STRIP_CLEAR,
+        "cross-zero first clears old positive direction");
+    (void)EqualizerDisplay_ServiceOneJob(3016UL);
+    (void)EqualizerDisplay_ServiceOneJob(3024UL);
+    failures += require_true(
+        EQ_DebugLcdAnalyzerLastStripOperation ==
+         EQ_LCD_ANALYZER_STRIP_CLEAR,
+        "cross-zero remains clear through zero boundary");
+    (void)EqualizerDisplay_ServiceOneJob(3032UL);
+    failures += require_true(
+        EQ_DebugLcdAnalyzerLastStripOperation ==
+         EQ_LCD_ANALYZER_STRIP_NEGATIVE_FILL,
+        "cross-zero next service fills new negative direction");
+    failures += require_true(flush_jobs(3040UL) == 2,
+                              "cross-zero completes in bounded fields");
+
+    snapshot.band_pixel[1] = EQ_UI_ANALYZER_ZERO_PIXEL;
+    snapshot.band_value_db[1] = 0;
+    EqualizerDisplay_RequestSnapshot(&snapshot, 4000UL);
+    failures += require_true(
+        EqualizerDisplay_ServiceOneJob(4000UL) ==
+         EQ_UI_JOB_ANALYZER_0 + 1 &&
+        EQ_DebugLcdAnalyzerLastField == EQ_UI_ANALYZER_FIELD_VALUE,
+        "negative shrink value remains separate");
+    failures += require_true(
+        EqualizerDisplay_ServiceOneJob(4008UL) ==
+         EQ_UI_JOB_ANALYZER_0 + 1 &&
+        EQ_DebugLcdAnalyzerLastStripOperation ==
+         EQ_LCD_ANALYZER_STRIP_CLEAR,
+        "negative shrink clears one differential strip");
+    (void)flush_jobs(4016UL);
 
     snapshot.smart_level = 2;
-    EqualizerDisplay_RequestSnapshot(&snapshot, 50UL);
-    failures += require_true(flush_jobs(50UL) == 1,
-                             "single dynamic row job");
+    EqualizerDisplay_RequestSnapshot(&snapshot, 5000UL);
+    failures += require_true(flush_jobs(5000UL) == 1,
+                              "single dynamic row job");
 
     snapshot.clarity_level = 1;
-    EqualizerDisplay_RequestSnapshot(&snapshot, 60UL);
+    EqualizerDisplay_RequestSnapshot(&snapshot, 6000UL);
     EqualizerDisplay_TestForceJobCycles(EQ_LCD_JOB_TARGET_CYCLES + 1UL);
-    failures += require_true(EqualizerDisplay_ServiceOneJob(60UL) !=
-                             EQ_LCD_JOB_NONE, "timed warning job");
+    failures += require_true(EqualizerDisplay_ServiceOneJob(6000UL) !=
+                              EQ_LCD_JOB_NONE, "timed warning job");
     failures += require_true(EQ_DebugLcdBudgetExceededCount == 1UL,
                              "two ms warning");
 
     snapshot.guard_level = 1;
-    EqualizerDisplay_RequestSnapshot(&snapshot, 70UL);
+    EqualizerDisplay_RequestSnapshot(&snapshot, 7000UL);
     EqualizerDisplay_TestForceJobCycles(EQ_LCD_JOB_HARD_CYCLES + 1UL);
-    failures += require_true(EqualizerDisplay_ServiceOneJob(70UL) !=
+    failures += require_true(EqualizerDisplay_ServiceOneJob(7000UL) !=
                              EQ_LCD_JOB_NONE, "timed hard job");
     failures += require_true(EQ_DebugLcdHardBudgetExceededCount == 1UL,
                              "five ms failure");

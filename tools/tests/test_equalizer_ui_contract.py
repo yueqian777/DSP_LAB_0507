@@ -8,6 +8,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 DSP = ROOT / "Code/User/user_dsp"
 LOGIC = DSP / "user_equalizer_ui_logic.c"
+LOGIC_HEADER = DSP / "user_equalizer_ui_logic.h"
 DISPLAY = DSP / "user_equalizer_display.c"
 DISPLAY_HEADER = DSP / "user_equalizer_display.h"
 FLOW = DSP / "user_equalizer_flow.c"
@@ -131,6 +132,7 @@ class EqualizerUiSourceContractTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.logic = LOGIC.read_text(encoding="utf-8")
+        cls.logic_header = LOGIC_HEADER.read_text(encoding="utf-8")
         cls.display = DISPLAY.read_text(encoding="utf-8")
         cls.header = DISPLAY_HEADER.read_text(encoding="utf-8")
         cls.flow = FLOW.read_text(encoding="utf-8")
@@ -156,6 +158,42 @@ class EqualizerUiSourceContractTest(unittest.TestCase):
         self.assertNotIn("EQ_DrawAnalyzerStatic", runtime)
         self.assertNotIn("EQ_DrawDynamicStatic", runtime)
         self.assertNotIn("EQ_UI_SCREEN_WIDTH, EQ_UI_SCREEN_HEIGHT", runtime)
+
+    def test_analyzer_renderer_is_one_bounded_differential_field(self) -> None:
+        start = self.display.index(
+            "static unsigned int EQ_DrawAnalyzerJob(int band)")
+        end = self.display.index("static int EQ_DynamicEnabled", start)
+        analyzer = self.display[start:end]
+        for token in (
+            "EqualizerUiLogic_AnalyzerNextField",
+            "EqualizerUiLogic_AnalyzerNextPixel",
+            "EQ_DebugLcdAnalyzerLastStripHeight",
+            "EQ_LCD_ANALYZER_STRIP_CLEAR",
+            "EQ_LCD_ANALYZER_STRIP_POSITIVE_FILL",
+            "EQ_LCD_ANALYZER_STRIP_NEGATIVE_FILL",
+        ):
+            self.assertIn(token, analyzer)
+        self.assertNotIn(
+            "bar_rect.x, bar_rect.y, bar_rect.w, bar_rect.h",
+            analyzer,
+        )
+        self.assertIn("EQ_UI_ANALYZER_MAX_STRIP_HEIGHT 16",
+                      self.logic_header)
+        self.assertIn("EQ_UI_ANALYZER_VALUE_MAX_AGE_FRAMES 50UL",
+                      self.logic_header)
+
+    def test_ui_snapshot_separates_user_enabled_from_activity(self) -> None:
+        start = self.flow.index("static void EQ_BuildUiSnapshot(")
+        end = self.flow.index("#endif", start)
+        snapshot = self.flow[start:end]
+        for token in (
+            "EQ_DebugSmartBassEnabled",
+            "EQ_DebugDynamicClarityEnabled",
+            "EQ_DebugHarshnessGuardEnabled",
+        ):
+            self.assertIn(token, snapshot)
+        self.assertNotIn("ProcessingActive", snapshot)
+        self.assertIn("EqualizerDisplay_HasEligibleJob(", self.flow)
 
     def test_renderer_uses_bounded_local_rectangles(self) -> None:
         self.assertNotIn("Lcd_Rectangle", self.display)
@@ -194,7 +232,7 @@ class EqualizerUiSourceContractTest(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, audit)
         clear_start = self.display.index(
-            "static void EQ_ClearAlignmentStartupFaultStatus(")
+            "static void EQ_ClearStartupFaultStatus(")
         clear_end = self.display.index(
             "static void EQ_CaptureFramebufferCanary", clear_start)
         startup_clear = self.display[clear_start:clear_end]
@@ -278,6 +316,14 @@ class EqualizerUiSourceContractTest(unittest.TestCase):
             "#define EQ_LCD_USE_CHINESE 1",
         ):
             self.assertIn(token, self.header)
+        for token in (
+            "#define EQ_UI_PRESET_MIN_GAP_FRAMES  2UL",
+            "#define EQ_UI_DYNAMIC_MIN_GAP_FRAMES 4UL",
+            "#define EQ_UI_CHAIN_MIN_GAP_FRAMES   8UL",
+            "#define EQ_UI_ANALYZER_MIN_GAP_FRAMES 8UL",
+            "#define EQ_UI_STEADY_MIN_GAP_FRAMES  7UL",
+        ):
+            self.assertIn(token, self.logic_header)
 
 
 if __name__ == "__main__":

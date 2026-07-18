@@ -87,6 +87,11 @@
 #define EQ_LCD_CATEGORY_ANALYZER 3
 #define EQ_LCD_CATEGORY_COUNT    4
 
+#define EQ_LCD_ANALYZER_STRIP_NONE          0U
+#define EQ_LCD_ANALYZER_STRIP_CLEAR         1U
+#define EQ_LCD_ANALYZER_STRIP_POSITIVE_FILL 2U
+#define EQ_LCD_ANALYZER_STRIP_NEGATIVE_FILL 3U
+
 typedef struct
 {
     unsigned long frame_base;
@@ -132,6 +137,14 @@ extern volatile unsigned long
 extern volatile unsigned long EQ_DebugLcdJobTypeCount[EQ_LCD_JOB_COUNT];
 extern volatile unsigned long EQ_DebugLcdJobTypeLastCycles[EQ_LCD_JOB_COUNT];
 extern volatile unsigned long EQ_DebugLcdJobTypeMaxCycles[EQ_LCD_JOB_COUNT];
+extern volatile int EQ_DebugLcdAnalyzerLastBand;
+extern volatile unsigned int EQ_DebugLcdAnalyzerLastField;
+extern volatile int EQ_DebugLcdAnalyzerLastStripY;
+extern volatile unsigned int EQ_DebugLcdAnalyzerLastStripHeight;
+extern volatile unsigned int EQ_DebugLcdAnalyzerLastStripOperation;
+extern volatile unsigned int EQ_DebugLcdAnalyzerMaxStripHeight;
+extern volatile unsigned long EQ_DebugLcdAnalyzerStripCount;
+extern volatile unsigned long EQ_DebugLcdAnalyzerValueCount;
 extern volatile const unsigned long EQ_DebugUiStateBytes;
 extern volatile unsigned long EQ_DebugLcdExpectedFrameBase;
 extern volatile unsigned long EQ_DebugLcdExpectedFrameEnd;
@@ -166,6 +179,7 @@ void EqualizerDisplay_BeginRuntime(void);
 void EqualizerDisplay_RequestSnapshot(const EQ_UI_SNAPSHOT *snapshot,
                                       unsigned long process_frame);
 int EqualizerDisplay_HasPendingJob(void);
+int EqualizerDisplay_HasEligibleJob(unsigned long process_frame);
 int EqualizerDisplay_ServiceOneJob(unsigned long process_frame);
 void EqualizerDisplay_AuditHardware(unsigned long process_frame, int force);
 void EqualizerDisplay_CancelRuntimeJobs(void);

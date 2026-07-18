@@ -349,7 +349,7 @@ class EqualizerFlowContractTest(unittest.TestCase):
             "EQ_FrameServicePending",
             "audio_serviced",
             "builder_serviced, analyzer_serviced",
-            "EqualizerDisplay_HasPendingJob()",
+            "lcd_has_eligible_job",
         ):
             self.assertIn(guard, block)
         self.assertEqual(loop.count("EqualizerDisplay_ServiceOneJob("), 1)
@@ -380,7 +380,8 @@ class EqualizerFlowContractTest(unittest.TestCase):
         deferred = loop.rindex("EQ_DebugLcdDeferredAudioCount++;")
         block_start = loop.rfind("else if (", 0, deferred)
         block = loop[block_start:deferred]
-        self.assertIn("EqualizerDisplay_HasPendingJob() != 0", block)
+        self.assertIn("EqualizerDisplay_HasEligibleJob(", block)
+        self.assertNotIn("EqualizerDisplay_HasPendingJob()", block)
         self.assertIn("FLAG_AD != 0", block)
         self.assertIn("FLAG_DA != 0", block)
         self.assertIn("flag_ad_done != 0", block)

@@ -40,12 +40,30 @@
 #define EQ_UI_DYNAMIC_FIELD_LEVEL    0x04U
 #define EQ_UI_DYNAMIC_FIELD_ALL      0x07U
 
+#define EQ_UI_ANALYZER_FIELD_BAR   0x01U
+#define EQ_UI_ANALYZER_FIELD_VALUE 0x02U
+#define EQ_UI_ANALYZER_FIELD_ALL   0x03U
+
 #define EQ_UI_ANALYZER_MIN_TENTHS_DB (-200)
 #define EQ_UI_ANALYZER_MAX_TENTHS_DB 200
 #define EQ_UI_ANALYZER_BAR_TOP       124
 #define EQ_UI_ANALYZER_BAR_BOTTOM    298
+#define EQ_UI_ANALYZER_DRAW_TOP      (EQ_UI_ANALYZER_BAR_TOP + 1)
+#define EQ_UI_ANALYZER_DRAW_BOTTOM   (EQ_UI_ANALYZER_BAR_BOTTOM - 1)
+#define EQ_UI_ANALYZER_ZERO_PIXEL \
+    ((EQ_UI_ANALYZER_BAR_TOP + EQ_UI_ANALYZER_BAR_BOTTOM) / 2)
 #define EQ_UI_ANALYZER_HYSTERESIS_PX 2
-#define EQ_UI_ANALYZER_MAX_AGE_FRAMES 50UL
+#define EQ_UI_ANALYZER_MAX_STRIP_HEIGHT 16
+#define EQ_UI_ANALYZER_VALUE_DELTA_DB 2
+#define EQ_UI_ANALYZER_VALUE_MAX_AGE_FRAMES 50UL
+#define EQ_UI_ANALYZER_MAX_AGE_FRAMES \
+    EQ_UI_ANALYZER_VALUE_MAX_AGE_FRAMES
+
+#define EQ_UI_PRESET_MIN_GAP_FRAMES  2UL
+#define EQ_UI_DYNAMIC_MIN_GAP_FRAMES 4UL
+#define EQ_UI_CHAIN_MIN_GAP_FRAMES   8UL
+#define EQ_UI_ANALYZER_MIN_GAP_FRAMES 8UL
+#define EQ_UI_STEADY_MIN_GAP_FRAMES  7UL
 
 typedef struct
 {
@@ -84,7 +102,12 @@ typedef struct
     unsigned long dirty_mask;
     unsigned long displayed_valid_mask;
     unsigned long band_last_display_frame[EQ_UI_ANALYZER_COUNT];
+    unsigned long band_last_value_frame[EQ_UI_ANALYZER_COUNT];
+    unsigned long category_last_service_frame[4];
+    unsigned long last_service_frame;
+    unsigned long request_frame;
     unsigned int dynamic_field_mask[EQ_UI_DYNAMIC_COUNT];
+    unsigned int analyzer_field_mask[EQ_UI_ANALYZER_COUNT];
     unsigned int runtime_mask;
     unsigned int requested_valid;
     unsigned int preset_cursor;
@@ -92,10 +115,13 @@ typedef struct
     unsigned int chain_cursor;
     unsigned int analyzer_cursor;
     unsigned int non_analyzer_streak;
+    unsigned int category_last_service_valid_mask;
+    unsigned int last_service_frame_valid;
     unsigned char preset_displayed_selected[EQ_UI_PRESET_COUNT];
     unsigned char chain_displayed_enabled[EQ_UI_CHAIN_COUNT];
     unsigned char analyzer_displayed_valid[EQ_UI_ANALYZER_COUNT];
     unsigned char analyzer_displayed_warm[EQ_UI_ANALYZER_COUNT];
+    unsigned char analyzer_displayed_field_valid[EQ_UI_ANALYZER_COUNT];
     unsigned char dynamic_displayed_field_valid[EQ_UI_DYNAMIC_COUNT];
 } EQ_UI_STATE;
 
@@ -153,13 +179,25 @@ void EqualizerUiLogic_Request(EQ_UI_STATE *state,
                               unsigned int runtime_mask,
                               unsigned long process_frame);
 int EqualizerUiLogic_HasPending(const EQ_UI_STATE *state);
-int EqualizerUiLogic_SelectJob(EQ_UI_STATE *state);
+int EqualizerUiLogic_HasEligibleJob(const EQ_UI_STATE *state,
+                                    unsigned long process_frame);
+int EqualizerUiLogic_SelectJob(EQ_UI_STATE *state,
+                               unsigned long process_frame);
 unsigned int EqualizerUiLogic_DynamicFieldMask(
     const EQ_UI_STATE *state, int dynamic_index);
+unsigned int EqualizerUiLogic_AnalyzerFieldMask(
+    const EQ_UI_STATE *state, int analyzer_index);
+unsigned int EqualizerUiLogic_AnalyzerNextField(
+    const EQ_UI_STATE *state, int analyzer_index);
+int EqualizerUiLogic_AnalyzerNextPixel(
+    const EQ_UI_STATE *state, int analyzer_index);
 void EqualizerUiLogic_CompleteJob(EQ_UI_STATE *state, int job,
                                   unsigned long process_frame);
 void EqualizerUiLogic_CompleteDynamicField(
     EQ_UI_STATE *state, int job, unsigned int completed_fields,
+    unsigned long process_frame);
+void EqualizerUiLogic_CompleteAnalyzerField(
+    EQ_UI_STATE *state, int job, unsigned int completed_field,
     unsigned long process_frame);
 void EqualizerUiLogic_Cancel(EQ_UI_STATE *state);
 

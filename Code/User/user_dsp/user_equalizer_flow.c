@@ -1343,15 +1343,15 @@ static void EQ_BuildUiSnapshot(EQ_UI_SNAPSHOT *snapshot)
     memset(snapshot, 0, sizeof(*snapshot));
     snapshot->applied_preset = EQ_DebugAppliedMode;
     snapshot->smart_enabled =
-        (EQ_DebugSmartBassProcessingActive != 0U) ? 1 : 0;
+        (EQ_DebugSmartBassEnabled != 0U) ? 1 : 0;
     snapshot->smart_strength = EQ_DebugSmartBassStrength;
     snapshot->smart_level = EQ_DebugSmartBassAppliedLevel;
     snapshot->clarity_enabled =
-        (EQ_DebugDynamicClarityProcessingActive != 0U) ? 1 : 0;
+        (EQ_DebugDynamicClarityEnabled != 0U) ? 1 : 0;
     snapshot->clarity_strength = EQ_DebugDynamicClarityStrength;
     snapshot->clarity_level = EQ_DebugDynamicClarityAppliedLevel;
     snapshot->guard_enabled =
-        (EQ_DebugHarshnessGuardProcessingActive != 0U) ? 1 : 0;
+        (EQ_DebugHarshnessGuardEnabled != 0U) ? 1 : 0;
     snapshot->guard_strength = EQ_DebugHarshnessGuardStrength;
     snapshot->guard_level = EQ_DebugHarshnessGuardAppliedLevel;
     snapshot->analyzer_valid = (EQ_DebugAnalyzerValid != 0U) ? 1 : 0;
@@ -2787,6 +2787,7 @@ void Equalizer_Flow_Example(void)
     unsigned int lcd_audio_after;
     int lcd_job;
     int lcd_eligible;
+    int lcd_has_eligible_job;
     int lcd_policy_decision;
 #endif
 #if EQ_ENABLE_PROJECT33_TOUCH != 0
@@ -3126,6 +3127,8 @@ void Equalizer_Flow_Example(void)
                  (EQ_BackgroundService.consumed_kind ==
                   EQ_BACKGROUND_ANALYZER)) ? 1 : 0;
             lcd_eligible = 0;
+            lcd_has_eligible_job = EqualizerDisplay_HasEligibleJob(
+                EQ_DebugProcessFrames);
             if (EqualizerLcdPolicy_CanService(
                     &lcd_policy, EQ_DebugProcessFrames,
                     FLAG_AD, FLAG_DA, flag_ad_done,
@@ -3137,7 +3140,7 @@ void Equalizer_Flow_Example(void)
                     0,
 #endif
                     builder_serviced, analyzer_serviced,
-                    EqualizerDisplay_HasPendingJob()))
+                    lcd_has_eligible_job))
             {
                 lcd_audio_before = ((FLAG_AD != 0) ? 0x01U : 0U) |
                                    ((FLAG_DA != 0) ? 0x02U : 0U) |
@@ -3159,7 +3162,7 @@ void Equalizer_Flow_Example(void)
                     0,
 #endif
                     builder_serviced, analyzer_serviced,
-                    EqualizerDisplay_HasPendingJob());
+                    lcd_has_eligible_job);
                 if (lcd_policy_decision == EQ_LCD_POLICY_DEFER)
                 {
                     if (EqualizerLcdPolicy_RecordDeferred(
@@ -3174,7 +3177,7 @@ void Equalizer_Flow_Example(void)
                 }
             }
             else if ((audio_serviced != 0) &&
-                     (EqualizerDisplay_HasPendingJob() != 0) &&
+                     (lcd_has_eligible_job != 0) &&
                      EqualizerLcdPolicy_RecordDeferred(
                          &lcd_policy, EQ_DebugProcessFrames))
             {
@@ -3353,7 +3356,8 @@ void Equalizer_Flow_Example(void)
         }
 
 #if EQ_ENABLE_LCD_DISPLAY != 0
-        else if ((EqualizerDisplay_HasPendingJob() != 0) &&
+        else if ((EqualizerDisplay_HasEligibleJob(
+                      EQ_DebugProcessFrames) != 0) &&
                  ((FLAG_AD != 0) || (FLAG_DA != 0) ||
                   (flag_ad_done != 0) ||
                   (EQ_FrameServicePending != 0U)) &&

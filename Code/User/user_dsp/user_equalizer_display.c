@@ -34,8 +34,7 @@
 #define EQ_UI_ANALYZER_VALUE_Y_OFFSET 80
 #define EQ_UI_ANALYZER_VALUE_W 42
 #define EQ_UI_ANALYZER_VALUE_H 22
-#define EQ_UI_ANALYZER_ZERO_Y \
-    ((EQ_UI_ANALYZER_BAR_TOP + EQ_UI_ANALYZER_BAR_BOTTOM) / 2)
+#define EQ_UI_ANALYZER_ZERO_Y EQ_UI_ANALYZER_ZERO_PIXEL
 
 #define EQ_FONT_SMALL 0
 #define EQ_FONT_MEDIUM 1
@@ -271,6 +270,15 @@ volatile unsigned long EQ_DebugLcdCategoryMaxCycles[EQ_LCD_CATEGORY_COUNT];
 volatile unsigned long EQ_DebugLcdJobTypeCount[EQ_LCD_JOB_COUNT];
 volatile unsigned long EQ_DebugLcdJobTypeLastCycles[EQ_LCD_JOB_COUNT];
 volatile unsigned long EQ_DebugLcdJobTypeMaxCycles[EQ_LCD_JOB_COUNT];
+volatile int EQ_DebugLcdAnalyzerLastBand = -1;
+volatile unsigned int EQ_DebugLcdAnalyzerLastField = 0U;
+volatile int EQ_DebugLcdAnalyzerLastStripY = 0;
+volatile unsigned int EQ_DebugLcdAnalyzerLastStripHeight = 0U;
+volatile unsigned int EQ_DebugLcdAnalyzerLastStripOperation =
+    EQ_LCD_ANALYZER_STRIP_NONE;
+volatile unsigned int EQ_DebugLcdAnalyzerMaxStripHeight = 0U;
+volatile unsigned long EQ_DebugLcdAnalyzerStripCount = 0UL;
+volatile unsigned long EQ_DebugLcdAnalyzerValueCount = 0UL;
 volatile unsigned long EQ_DebugLcdExpectedFrameBase = 0UL;
 volatile unsigned long EQ_DebugLcdExpectedFrameEnd = 0UL;
 volatile unsigned long EQ_DebugLcdBufferAddress = 0UL;
@@ -311,7 +319,9 @@ static volatile int s_lcd_busy = 0;
 static int s_layout_drawn = 0;
 static int s_runtime_started = 0;
 static unsigned long s_lcd_last_audit_job = 0UL;
+#if EQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN
 static unsigned long s_lcd_last_audit_frame = 0UL;
+#endif
 static unsigned int s_lcd_canary_front = 0U;
 static int s_lcd_canary_ready = 0;
 static int s_lcd_seen_sync_lost = 0;
@@ -382,8 +392,7 @@ static void EQ_ReadHardwareSnapshot(EQ_LCD_HW_SNAPSHOT *snapshot)
 #endif
 }
 
-#if EQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN
-static void EQ_ClearAlignmentStartupFaultStatus(void)
+static void EQ_ClearStartupFaultStatus(void)
 {
     EQ_LCD_HW_SNAPSHOT snapshot;
     unsigned long clear_mask;
@@ -404,7 +413,6 @@ static void EQ_ClearAlignmentStartupFaultStatus(void)
     EQ_ReadHardwareSnapshot(&snapshot);
     EQ_DebugLcdStartupStatusAfterClear = snapshot.raster_status;
 }
-#endif
 
 static void EQ_CaptureFramebufferCanary(void)
 {
@@ -514,7 +522,9 @@ void EqualizerDisplay_AuditHardware(unsigned long process_frame, int force)
     }
     EQ_DebugLcdHardwareAuditRequest = 0U;
     s_lcd_last_audit_job = EQ_DebugLcdJobCount;
+#if EQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN
     s_lcd_last_audit_frame = process_frame;
+#endif
 
     (void)EQ_CheckFramebufferCanary(process_frame);
     EQ_ReadHardwareSnapshot(&snapshot);
@@ -1197,62 +1207,113 @@ static void EQ_DrawChainJob(int index)
                    enabled ? EQ_COLOR_ACTIVE : EQ_COLOR_MUTED, 1);
 }
 
-static void EQ_DrawAnalyzerJob(int band)
+static unsigned int EQ_DrawAnalyzerJob(int band)
 {
     EQ_UI_RECT bar_rect;
     EQ_UI_RECT value_rect;
     char buffer[5];
+    unsigned int field;
     int length;
-    int pixel;
-    int top;
+    int current;
+    int next;
+    int y;
     int height;
     int valid;
+    int color;
+    unsigned int operation;
 
     bar_rect.x = EQ_UI_ANALYZER_RECTS[band].x +
                  EQ_UI_ANALYZER_INNER_X_OFFSET + 1;
-    bar_rect.y = EQ_UI_ANALYZER_BAR_TOP + 1;
+    bar_rect.y = EQ_UI_ANALYZER_DRAW_TOP;
     bar_rect.w = EQ_UI_ANALYZER_INNER_W - 2;
-    bar_rect.h = EQ_UI_ANALYZER_BAR_BOTTOM -
-                 EQ_UI_ANALYZER_BAR_TOP - 1;
+    bar_rect.h = EQ_UI_ANALYZER_DRAW_BOTTOM -
+                 EQ_UI_ANALYZER_DRAW_TOP + 1;
     value_rect.x = EQ_UI_ANALYZER_RECTS[band].x +
                    EQ_UI_ANALYZER_VALUE_X_OFFSET;
     value_rect.y = EQ_UI_ANALYZER_RECTS[band].y +
                    EQ_UI_ANALYZER_VALUE_Y_OFFSET;
     value_rect.w = EQ_UI_ANALYZER_VALUE_W;
     value_rect.h = EQ_UI_ANALYZER_VALUE_H;
-    EQ_LcdFillRect(bar_rect.x, bar_rect.y, bar_rect.w, bar_rect.h,
-                   EQ_COLOR_BG);
-    EQ_LcdFillRect(value_rect.x, value_rect.y,
-                   value_rect.w, value_rect.h, EQ_COLOR_BG);
-    valid = (s_ui_state.requested.analyzer_valid != 0) &&
-            (s_ui_state.requested.analyzer_warm != 0);
-    if (valid == 0)
+    field = EqualizerUiLogic_AnalyzerNextField(&s_ui_state, band);
+    EQ_DebugLcdAnalyzerLastBand = band;
+    EQ_DebugLcdAnalyzerLastField = field;
+    EQ_DebugLcdAnalyzerLastStripY = 0;
+    EQ_DebugLcdAnalyzerLastStripHeight = 0U;
+    EQ_DebugLcdAnalyzerLastStripOperation = EQ_LCD_ANALYZER_STRIP_NONE;
+    if (field == EQ_UI_ANALYZER_FIELD_VALUE)
     {
-        EQ_LcdDrawText(&value_rect, "--", 2, EQ_FONT_SMALL,
-                       EQ_COLOR_MUTED, 1);
-        return;
+        EQ_LcdFillRect(value_rect.x, value_rect.y,
+                       value_rect.w, value_rect.h, EQ_COLOR_BG);
+        valid = (s_ui_state.requested.analyzer_valid != 0) &&
+                (s_ui_state.requested.analyzer_warm != 0);
+        if (valid == 0)
+        {
+            EQ_LcdDrawText(&value_rect, "--", 2, EQ_FONT_SMALL,
+                           EQ_COLOR_MUTED, 1);
+        }
+        else
+        {
+            length = EQ_FormatSignedDb(
+                buffer, s_ui_state.requested.band_value_db[band]);
+            EQ_LcdDrawText(&value_rect, buffer, length,
+                           EQ_FONT_SMALL, EQ_COLOR_TEXT, 1);
+        }
+        EQ_DebugLcdAnalyzerValueCount++;
+        return field;
     }
-    pixel = EQ_ClampInt(s_ui_state.requested.band_pixel[band],
-                        EQ_UI_ANALYZER_BAR_TOP,
-                        EQ_UI_ANALYZER_BAR_BOTTOM);
-    if (pixel <= EQ_UI_ANALYZER_ZERO_Y)
+    if (field != EQ_UI_ANALYZER_FIELD_BAR)
     {
-        top = pixel;
-        height = EQ_UI_ANALYZER_ZERO_Y - pixel + 1;
-        EQ_LcdFillRect(bar_rect.x, top, bar_rect.w, height,
-                       EQ_COLOR_BAR_POS);
+        return 0U;
+    }
+    current = EQ_ClampInt(s_ui_state.displayed.band_pixel[band],
+                          EQ_UI_ANALYZER_DRAW_TOP,
+                          EQ_UI_ANALYZER_DRAW_BOTTOM);
+    next = EqualizerUiLogic_AnalyzerNextPixel(&s_ui_state, band);
+    height = (next >= current) ? next - current : current - next;
+    if (height <= 0)
+    {
+        return field;
+    }
+    if (next < current)
+    {
+        if (current <= EQ_UI_ANALYZER_ZERO_Y)
+        {
+            y = next;
+            color = EQ_COLOR_BAR_POS;
+            operation = EQ_LCD_ANALYZER_STRIP_POSITIVE_FILL;
+        }
+        else
+        {
+            y = next + 1;
+            color = EQ_COLOR_BG;
+            operation = EQ_LCD_ANALYZER_STRIP_CLEAR;
+        }
     }
     else
     {
-        top = EQ_UI_ANALYZER_ZERO_Y;
-        height = pixel - EQ_UI_ANALYZER_ZERO_Y + 1;
-        EQ_LcdFillRect(bar_rect.x, top, bar_rect.w, height,
-                       EQ_COLOR_BAR_NEG);
+        if (current >= EQ_UI_ANALYZER_ZERO_Y)
+        {
+            y = current + 1;
+            color = EQ_COLOR_BAR_NEG;
+            operation = EQ_LCD_ANALYZER_STRIP_NEGATIVE_FILL;
+        }
+        else
+        {
+            y = current;
+            color = EQ_COLOR_BG;
+            operation = EQ_LCD_ANALYZER_STRIP_CLEAR;
+        }
     }
-    length = EQ_FormatSignedDb(buffer,
-                               s_ui_state.requested.band_value_db[band]);
-    EQ_LcdDrawText(&value_rect, buffer, length,
-                   EQ_FONT_SMALL, EQ_COLOR_TEXT, 1);
+    EQ_LcdFillRect(bar_rect.x, y, bar_rect.w, height, color);
+    EQ_DebugLcdAnalyzerLastStripY = y;
+    EQ_DebugLcdAnalyzerLastStripHeight = (unsigned int)height;
+    EQ_DebugLcdAnalyzerLastStripOperation = operation;
+    if ((unsigned int)height > EQ_DebugLcdAnalyzerMaxStripHeight)
+    {
+        EQ_DebugLcdAnalyzerMaxStripHeight = (unsigned int)height;
+    }
+    EQ_DebugLcdAnalyzerStripCount++;
+    return field;
 }
 
 static int EQ_DynamicEnabled(int index)
@@ -1357,7 +1418,7 @@ static unsigned int EQ_DrawJob(int job)
     else if ((job >= EQ_UI_JOB_ANALYZER_0) &&
              (job <= EQ_UI_JOB_ANALYZER_3))
     {
-        EQ_DrawAnalyzerJob(job - EQ_UI_JOB_ANALYZER_0);
+        return EQ_DrawAnalyzerJob(job - EQ_UI_JOB_ANALYZER_0);
     }
     else if ((job >= EQ_UI_JOB_DYNAMIC_0) &&
              (job <= EQ_UI_JOB_DYNAMIC_2))
@@ -1428,6 +1489,14 @@ void EqualizerDisplay_Init(void)
     EQ_DebugLcdLastJobTenthsMs = 0UL;
     EQ_DebugLcdMaxJobTenthsMs = 0UL;
     EQ_DebugLcdLastJob = EQ_LCD_JOB_NONE;
+    EQ_DebugLcdAnalyzerLastBand = -1;
+    EQ_DebugLcdAnalyzerLastField = 0U;
+    EQ_DebugLcdAnalyzerLastStripY = 0;
+    EQ_DebugLcdAnalyzerLastStripHeight = 0U;
+    EQ_DebugLcdAnalyzerLastStripOperation = EQ_LCD_ANALYZER_STRIP_NONE;
+    EQ_DebugLcdAnalyzerMaxStripHeight = 0U;
+    EQ_DebugLcdAnalyzerStripCount = 0UL;
+    EQ_DebugLcdAnalyzerValueCount = 0UL;
     EQ_DebugLcdAutoDisabledCount = 0UL;
     EQ_DebugLcdAutoDisableReason = 0UL;
     EQ_DebugLcdExpectedFrameBase = EQ_ExpectedFrameBase();
@@ -1461,7 +1530,9 @@ void EqualizerDisplay_Init(void)
     EQ_DebugLcdHwSnapshot.dma_control = 0UL;
     EQ_DebugLcdHwSnapshot.irq_status = 0UL;
     s_lcd_last_audit_job = 0UL;
+#if EQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN
     s_lcd_last_audit_frame = 0UL;
+#endif
     s_lcd_canary_ready = 0;
     s_lcd_seen_sync_lost = 0;
     s_lcd_seen_fifo_underflow = 0;
@@ -1545,9 +1616,7 @@ int EqualizerDisplay_DrawStaticLayout(void)
     EQ_DebugLcdStaticDrawCount++;
     EQ_DebugLcdRefreshCount++;
     EQ_EndDraw();
-#if EQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN
-    EQ_ClearAlignmentStartupFaultStatus();
-#endif
+    EQ_ClearStartupFaultStatus();
     EqualizerDisplay_AuditHardware(0UL, 1);
     return 1;
 }
@@ -1583,6 +1652,16 @@ int EqualizerDisplay_HasPendingJob(void)
 #endif
 }
 
+int EqualizerDisplay_HasEligibleJob(unsigned long process_frame)
+{
+#if EQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN
+    (void)process_frame;
+    return 0;
+#else
+    return EqualizerUiLogic_HasEligibleJob(&s_ui_state, process_frame);
+#endif
+}
+
 int EqualizerDisplay_ServiceOneJob(unsigned long process_frame)
 {
     int job;
@@ -1594,7 +1673,7 @@ int EqualizerDisplay_ServiceOneJob(unsigned long process_frame)
     unsigned long tenths_ms;
     unsigned int completed_fields;
 
-    job = EqualizerUiLogic_SelectJob(&s_ui_state);
+    job = EqualizerUiLogic_SelectJob(&s_ui_state, process_frame);
     if (job == EQ_LCD_JOB_NONE)
     {
         return EQ_LCD_JOB_NONE;
@@ -1612,6 +1691,12 @@ int EqualizerDisplay_ServiceOneJob(unsigned long process_frame)
         (job <= EQ_UI_JOB_DYNAMIC_2))
     {
         EqualizerUiLogic_CompleteDynamicField(
+            &s_ui_state, job, completed_fields, process_frame);
+    }
+    else if ((job >= EQ_UI_JOB_ANALYZER_0) &&
+             (job <= EQ_UI_JOB_ANALYZER_3))
+    {
+        EqualizerUiLogic_CompleteAnalyzerField(
             &s_ui_state, job, completed_fields, process_frame);
     }
     else
@@ -1736,6 +1821,12 @@ void EqualizerDisplay_RequestSnapshot(const EQ_UI_SNAPSHOT *snapshot,
 
 int EqualizerDisplay_HasPendingJob(void)
 {
+    return 0;
+}
+
+int EqualizerDisplay_HasEligibleJob(unsigned long process_frame)
+{
+    (void)process_frame;
     return 0;
 }
 

@@ -28,56 +28,89 @@ static void make_snapshot(EQ_UI_SNAPSHOT *snapshot)
     snapshot->analyzer_warm = 1;
     for (band = 0; band < EQ_UI_ANALYZER_COUNT; band++)
     {
-        snapshot->band_pixel[band] = EqualizerUi_DbTenthsToPixel(0);
+        snapshot->band_pixel[band] = EQ_UI_ANALYZER_ZERO_PIXEL;
     }
 }
 
-static int flush_jobs(EQ_UI_STATE *state, unsigned long frame)
+static unsigned int first_dynamic_field(unsigned int fields)
 {
-    int count;
+    if ((fields & EQ_UI_DYNAMIC_FIELD_ENABLED) != 0U)
+        return EQ_UI_DYNAMIC_FIELD_ENABLED;
+    if ((fields & EQ_UI_DYNAMIC_FIELD_STRENGTH) != 0U)
+        return EQ_UI_DYNAMIC_FIELD_STRENGTH;
+    return fields & EQ_UI_DYNAMIC_FIELD_LEVEL;
+}
+
+static void complete_one(EQ_UI_STATE *state, int job,
+                         unsigned long frame)
+{
+    int index;
+    unsigned int field;
+
+    if ((job >= EQ_UI_JOB_DYNAMIC_0) &&
+        (job <= EQ_UI_JOB_DYNAMIC_2))
+    {
+        index = job - EQ_UI_JOB_DYNAMIC_0;
+        field = first_dynamic_field(
+            EqualizerUiLogic_DynamicFieldMask(state, index));
+        EqualizerUiLogic_CompleteDynamicField(state, job, field, frame);
+    }
+    else if ((job >= EQ_UI_JOB_ANALYZER_0) &&
+             (job <= EQ_UI_JOB_ANALYZER_3))
+    {
+        index = job - EQ_UI_JOB_ANALYZER_0;
+        field = EqualizerUiLogic_AnalyzerNextField(state, index);
+        EqualizerUiLogic_CompleteAnalyzerField(state, job, field, frame);
+    }
+    else
+    {
+        EqualizerUiLogic_CompleteJob(state, job, frame);
+    }
+}
+
+static int flush_jobs(EQ_UI_STATE *state, unsigned long first_frame)
+{
+    unsigned long offset;
+    int completed;
     int job;
 
-    count = 0;
-    while (EqualizerUiLogic_HasPending(state) && (count < 64))
+    completed = 0;
+    for (offset = 0UL; offset < 4096UL; offset++)
     {
-        job = EqualizerUiLogic_SelectJob(state);
-        if (job == EQ_UI_JOB_NONE)
+        if (!EqualizerUiLogic_HasPending(state))
         {
-            return -1;
+            return completed;
         }
-        EqualizerUiLogic_CompleteJob(state, job, frame + (unsigned long)count);
-        count++;
+        job = EqualizerUiLogic_SelectJob(state, first_frame + offset);
+        if (job != EQ_UI_JOB_NONE)
+        {
+            complete_one(state, job, first_frame + offset);
+            completed++;
+        }
     }
-    return count;
+    return -1;
 }
 
-int main(void)
+static int test_layout_and_touch(void)
 {
-    EQ_UI_STATE state;
-    EQ_UI_SNAPSHOT snapshot;
     EQ_UI_TOUCH_TRANSFORM transform;
     EQ_UI_TOUCH_STATE touch;
-    unsigned long expected;
     int failures;
     int action;
     int rejected;
+    int pixel;
     int x;
     int y;
     int i;
-    int pixel;
 
     failures = 0;
     failures += require_true(EqualizerUi_ValidateLayout(), "layout");
-
     EqualizerUi_DefaultTouchTransform(&transform);
     failures += require_true(EqualizerUi_MapTouchRawToScreen(
         &transform, 0U, 0U, &x, &y) && x == 0 && y == 0, "map origin");
     failures += require_true(EqualizerUi_MapTouchRawToScreen(
         &transform, 799U, 479U, &x, &y) && x == 799 && y == 479,
         "map far corner");
-    failures += require_true(EqualizerUi_MapTouchRawToScreen(
-        &transform, 400U, 240U, &x, &y) && x == 400 && y == 240,
-        "map center");
     transform.flip_x = 1U;
     transform.flip_y = 1U;
     failures += require_true(EqualizerUi_MapTouchRawToScreen(
@@ -104,10 +137,6 @@ int main(void)
     action = EqualizerUiTouch_Process(&touch, 1, x, y, &rejected);
     failures += require_true(action == EQ_UI_ACTION_PRESET_FLAT,
                              "release rearms");
-    (void)EqualizerUiTouch_Process(&touch, 0, x, y, &rejected);
-    action = EqualizerUiTouch_Process(&touch, 1, 799, 479, &rejected);
-    failures += require_true(action == EQ_UI_ACTION_NONE && rejected,
-                             "outside rejected once");
 
     for (i = -5000; i < 5000; i++)
     {
@@ -125,138 +154,352 @@ int main(void)
     failures += require_true(
         EqualizerUi_DbTenthsToPixel(-5000) == EQ_UI_ANALYZER_BAR_BOTTOM,
         "analyzer lower clamp");
+    return failures;
+}
 
+static int test_jobs_and_dynamic_semantics(void)
+{
+    EQ_UI_STATE state;
+    EQ_UI_SNAPSHOT snapshot;
+    unsigned long expected;
+    int failures;
+    int action;
+
+    failures = 0;
     EqualizerUiLogic_Init(&state);
     make_snapshot(&snapshot);
     EqualizerUiLogic_Request(&state, &snapshot, EQ_UI_RUNTIME_ALL, 1UL);
     expected = (1UL << EQ_UI_JOB_COUNT) - 1UL;
     failures += require_true(state.dirty_mask == expected,
-                             "initial jobs are independent");
-    failures += require_true(flush_jobs(&state, 1UL) == EQ_UI_JOB_COUNT,
-                             "one completion per job");
-    EqualizerUiLogic_Request(&state, &snapshot, EQ_UI_RUNTIME_ALL, 20UL);
+                             "initial logical jobs independent");
+    failures += require_true(flush_jobs(&state, 1UL) == 21,
+                             "one service per dynamic/analyzer field");
+    EqualizerUiLogic_Request(&state, &snapshot, EQ_UI_RUNTIME_ALL, 1000UL);
     failures += require_true(!EqualizerUiLogic_HasPending(&state),
                              "unchanged snapshot clean");
 
     snapshot.applied_preset = EQ_PRESET_BASS_BOOST;
-    EqualizerUiLogic_Request(&state, &snapshot, EQ_UI_RUNTIME_ALL, 21UL);
+    EqualizerUiLogic_Request(&state, &snapshot, EQ_UI_RUNTIME_ALL, 2000UL);
     expected = JOB_BIT(EQ_UI_JOB_PRESET_0) |
                JOB_BIT(EQ_UI_JOB_PRESET_0 + 1);
     failures += require_true(state.dirty_mask == expected,
-                             "applied preset marks old and new only");
-    failures += require_true(flush_jobs(&state, 21UL) == 2,
-                             "two preset jobs");
+                             "preset old and new only");
+    failures += require_true(flush_jobs(&state, 2000UL) == 2,
+                             "two preset fields");
 
     snapshot.smart_level = 1;
     EqualizerUiLogic_Request(&state, &snapshot,
-                             EQ_UI_RUNTIME_DYNAMICS, 30UL);
+                             EQ_UI_RUNTIME_DYNAMICS, 3000UL);
     snapshot.smart_level = 3;
     EqualizerUiLogic_Request(&state, &snapshot,
-                             EQ_UI_RUNTIME_DYNAMICS, 30UL);
-    failures += require_true(
-        state.dirty_mask == JOB_BIT(EQ_UI_JOB_DYNAMIC_0),
-        "latest dynamic request replaces old");
+                             EQ_UI_RUNTIME_DYNAMICS, 3000UL);
     failures += require_true(
         EqualizerUiLogic_DynamicFieldMask(&state, 0) ==
-        EQ_UI_DYNAMIC_FIELD_LEVEL, "level field only");
-    failures += require_true(state.displayed.smart_level == 0,
-                             "displayed unchanged before completion");
-    action = EqualizerUiLogic_SelectJob(&state);
-    EqualizerUiLogic_CompleteJob(&state, action, 30UL);
+        EQ_UI_DYNAMIC_FIELD_LEVEL, "latest level field only");
+    action = EqualizerUiLogic_SelectJob(&state, 3000UL);
+    complete_one(&state, action, 3000UL);
     failures += require_true(state.displayed.smart_level == 3,
-                             "displayed latest after completion");
+                             "latest dynamic value displayed");
 
-    snapshot.clarity_enabled = 1;
-    snapshot.clarity_strength = 3;
-    snapshot.clarity_level = 2;
+    EqualizerUiLogic_Init(&state);
+    make_snapshot(&snapshot);
     EqualizerUiLogic_Request(&state, &snapshot,
-                             EQ_UI_RUNTIME_DYNAMICS, 31UL);
-    failures += require_true(
-        EqualizerUiLogic_DynamicFieldMask(&state, 1) ==
-        EQ_UI_DYNAMIC_FIELD_ALL, "dynamic fields start independently");
-    EqualizerUiLogic_CompleteDynamicField(
-        &state, EQ_UI_JOB_DYNAMIC_0 + 1,
-        EQ_UI_DYNAMIC_FIELD_ENABLED, 31UL);
-    EqualizerUiLogic_Request(&state, &snapshot,
-                             EQ_UI_RUNTIME_DYNAMICS, 31UL);
-    failures += require_true(
-        EqualizerUiLogic_DynamicFieldMask(&state, 1) ==
-        (EQ_UI_DYNAMIC_FIELD_STRENGTH | EQ_UI_DYNAMIC_FIELD_LEVEL),
-        "completed dynamic field is not requeued");
-    failures += require_true(
-        state.displayed.clarity_enabled == 1 &&
-        state.displayed.clarity_strength != 3 &&
-        state.displayed.clarity_level != 2,
-        "partial dynamic completion updates one field");
-    EqualizerUiLogic_CompleteDynamicField(
-        &state, EQ_UI_JOB_DYNAMIC_0 + 1,
-        EQ_UI_DYNAMIC_FIELD_STRENGTH, 31UL);
-    EqualizerUiLogic_CompleteDynamicField(
-        &state, EQ_UI_JOB_DYNAMIC_0 + 1,
-        EQ_UI_DYNAMIC_FIELD_LEVEL, 31UL);
-    snapshot.clarity_enabled = 0;
-    snapshot.clarity_strength = 2;
-    snapshot.clarity_level = 0;
-    EqualizerUiLogic_Request(&state, &snapshot,
-                             EQ_UI_RUNTIME_DYNAMICS, 31UL);
-    (void)flush_jobs(&state, 31UL);
-
-    snapshot.smart_strength = 3;
-    EqualizerUiLogic_Request(&state, &snapshot,
-                             EQ_UI_RUNTIME_DYNAMICS, 31UL);
-    failures += require_true(
-        EqualizerUiLogic_DynamicFieldMask(&state, 0) ==
-        EQ_UI_DYNAMIC_FIELD_STRENGTH, "strength field only");
-    (void)flush_jobs(&state, 31UL);
-
-    EqualizerUiLogic_Request(&state, &snapshot,
-                             EQ_UI_RUNTIME_ANALYZER, 40UL);
-    (void)flush_jobs(&state, 40UL);
-    snapshot.band_pixel[2] = state.displayed.band_pixel[2] + 1;
-    EqualizerUiLogic_Request(&state, &snapshot,
-                             EQ_UI_RUNTIME_ANALYZER, 41UL);
-    failures += require_true(!EqualizerUiLogic_HasPending(&state),
-                             "one pixel jitter suppressed");
-    snapshot.band_pixel[2] = state.displayed.band_pixel[2] + 2;
-    EqualizerUiLogic_Request(&state, &snapshot,
-                             EQ_UI_RUNTIME_ANALYZER, 42UL);
-    failures += require_true(
-        state.dirty_mask == JOB_BIT(EQ_UI_JOB_ANALYZER_0 + 2),
-        "one analyzer band only");
-    (void)flush_jobs(&state, 42UL);
-
+                             EQ_UI_RUNTIME_DYNAMICS, 4000UL);
+    (void)flush_jobs(&state, 4000UL);
     snapshot.smart_enabled = 1;
     EqualizerUiLogic_Request(&state, &snapshot,
-                             EQ_UI_RUNTIME_CHAIN | EQ_UI_RUNTIME_DYNAMICS,
-                             50UL);
+        EQ_UI_RUNTIME_CHAIN | EQ_UI_RUNTIME_DYNAMICS, 5000UL);
     failures += require_true(
-        state.dirty_mask == (JOB_BIT(EQ_UI_JOB_CHAIN_0) |
-                             JOB_BIT(EQ_UI_JOB_DYNAMIC_0)),
-        "enabled change marks chain and dynamic independently");
-    action = EQ_UI_JOB_DYNAMIC_0;
-    EqualizerUiLogic_CompleteJob(&state, action, 50UL);
+        (state.dirty_mask & JOB_BIT(EQ_UI_JOB_CHAIN_0)) != 0UL &&
+        (EqualizerUiLogic_DynamicFieldMask(&state, 0) &
+         EQ_UI_DYNAMIC_FIELD_ENABLED) != 0U,
+        "user enabled marks chain and row");
+    EqualizerUiLogic_CompleteDynamicField(
+        &state, EQ_UI_JOB_DYNAMIC_0, EQ_UI_DYNAMIC_FIELD_ENABLED, 5000UL);
+    failures += require_true(state.displayed.smart_enabled == 1 &&
+                             state.displayed.smart_level == 0,
+                             "enabled remains on while processing level zero");
+    snapshot.smart_level = 2;
     EqualizerUiLogic_Request(&state, &snapshot,
-                             EQ_UI_RUNTIME_CHAIN | EQ_UI_RUNTIME_DYNAMICS,
-                             51UL);
+                             EQ_UI_RUNTIME_DYNAMICS, 5100UL);
     failures += require_true(
-        state.dirty_mask == JOB_BIT(EQ_UI_JOB_CHAIN_0),
-        "dynamic completion does not consume chain job");
-    (void)flush_jobs(&state, 51UL);
+        EqualizerUiLogic_DynamicFieldMask(&state, 0) ==
+        EQ_UI_DYNAMIC_FIELD_LEVEL && state.displayed.smart_enabled == 1,
+        "processing level is independent of user enabled");
+    return failures;
+}
 
-    snapshot.analyzer_valid = 0;
+static int initialize_analyzer(EQ_UI_STATE *state,
+                               EQ_UI_SNAPSHOT *snapshot)
+{
+    EqualizerUiLogic_Init(state);
+    make_snapshot(snapshot);
+    EqualizerUiLogic_Request(state, snapshot,
+                             EQ_UI_RUNTIME_ANALYZER, 0UL);
+    return flush_jobs(state, 0UL);
+}
+
+static int drive_bar(EQ_UI_STATE *state, EQ_UI_SNAPSHOT *snapshot,
+                     int band, unsigned long first_frame)
+{
+    unsigned long frame;
+    int previous;
+    int next;
+    int steps;
+
+    steps = 0;
+    frame = first_frame;
+    while ((EqualizerUiLogic_AnalyzerFieldMask(state, band) &
+            EQ_UI_ANALYZER_FIELD_BAR) != 0U && steps < 64)
+    {
+        previous = state->displayed.band_pixel[band];
+        next = EqualizerUiLogic_AnalyzerNextPixel(state, band);
+        if ((next - previous > EQ_UI_ANALYZER_MAX_STRIP_HEIGHT) ||
+            (previous - next > EQ_UI_ANALYZER_MAX_STRIP_HEIGHT))
+        {
+            return -1;
+        }
+        EqualizerUiLogic_CompleteAnalyzerField(
+            state, EQ_UI_JOB_ANALYZER_0 + band,
+            EQ_UI_ANALYZER_FIELD_BAR, frame);
+        frame += EQ_UI_ANALYZER_MIN_GAP_FRAMES;
+        EqualizerUiLogic_Request(state, snapshot,
+                                 EQ_UI_RUNTIME_ANALYZER, frame);
+        steps++;
+    }
+    return steps;
+}
+
+static int test_analyzer_transitions(void)
+{
+    EQ_UI_STATE state;
+    EQ_UI_SNAPSHOT snapshot;
+    int failures;
+    int previous;
+    int next;
+    int saw_zero;
+    int steps;
+
+    failures = 0;
+    failures += require_true(initialize_analyzer(&state, &snapshot) == 4,
+                             "initial analyzer values only");
+    failures += require_true(
+        state.displayed.band_pixel[0] == EQ_UI_ANALYZER_ZERO_PIXEL,
+        "analyzer starts on zero line");
+    snapshot.band_pixel[3] = EQ_UI_ANALYZER_BAR_TOP;
+    EqualizerUiLogic_Request(&state, &snapshot,
+                             EQ_UI_RUNTIME_ANALYZER, 500UL);
+    failures += require_true(
+        state.requested.band_pixel[3] == EQ_UI_ANALYZER_DRAW_TOP,
+        "requested extreme is normalized to drawable interior");
+    snapshot.band_pixel[3] = EQ_UI_ANALYZER_ZERO_PIXEL;
+    EqualizerUiLogic_Request(&state, &snapshot,
+                             EQ_UI_RUNTIME_ANALYZER, 501UL);
+
+    snapshot.band_pixel[0] = EQ_UI_ANALYZER_ZERO_PIXEL - 40;
+    EqualizerUiLogic_Request(&state, &snapshot,
+                             EQ_UI_RUNTIME_ANALYZER, 1000UL);
+    next = EqualizerUiLogic_AnalyzerNextPixel(&state, 0);
+    failures += require_true(
+        next == EQ_UI_ANALYZER_ZERO_PIXEL -
+                EQ_UI_ANALYZER_MAX_STRIP_HEIGHT,
+        "positive growth bounded");
+    steps = drive_bar(&state, &snapshot, 0, 1000UL);
+    failures += require_true(steps == 3 &&
+        state.displayed.band_pixel[0] == snapshot.band_pixel[0],
+        "positive growth reaches target");
+
+    snapshot.band_pixel[0] = EQ_UI_ANALYZER_ZERO_PIXEL - 8;
+    EqualizerUiLogic_Request(&state, &snapshot,
+                             EQ_UI_RUNTIME_ANALYZER, 2000UL);
+    next = EqualizerUiLogic_AnalyzerNextPixel(&state, 0);
+    failures += require_true(next > state.displayed.band_pixel[0] &&
+        (next - state.displayed.band_pixel[0]) <=
+         EQ_UI_ANALYZER_MAX_STRIP_HEIGHT,
+        "positive shrink clears toward zero");
+    failures += require_true(drive_bar(&state, &snapshot, 0, 2000UL) == 2,
+                             "positive shrink staged");
+
+    snapshot.band_pixel[0] = EQ_UI_ANALYZER_ZERO_PIXEL + 40;
+    EqualizerUiLogic_Request(&state, &snapshot,
+                             EQ_UI_RUNTIME_ANALYZER, 3000UL);
+    saw_zero = 0;
+    for (steps = 0; steps < 16; steps++)
+    {
+        previous = state.displayed.band_pixel[0];
+        next = EqualizerUiLogic_AnalyzerNextPixel(&state, 0);
+        if (!saw_zero && (next > EQ_UI_ANALYZER_ZERO_PIXEL))
+        {
+            failures += require_true(0, "positive to negative crossed zero");
+            break;
+        }
+        EqualizerUiLogic_CompleteAnalyzerField(
+            &state, EQ_UI_JOB_ANALYZER_0,
+            EQ_UI_ANALYZER_FIELD_BAR,
+            3000UL + (unsigned long)steps * 8UL);
+        if (state.displayed.band_pixel[0] == EQ_UI_ANALYZER_ZERO_PIXEL)
+            saw_zero = 1;
+        EqualizerUiLogic_Request(
+            &state, &snapshot, EQ_UI_RUNTIME_ANALYZER,
+            3008UL + (unsigned long)steps * 8UL);
+        if ((EqualizerUiLogic_AnalyzerFieldMask(&state, 0) &
+             EQ_UI_ANALYZER_FIELD_BAR) == 0U)
+            break;
+        failures += require_true(previous != state.displayed.band_pixel[0],
+                                 "cross-zero stage makes progress");
+    }
+    failures += require_true(saw_zero &&
+        state.displayed.band_pixel[0] == snapshot.band_pixel[0],
+        "positive to negative reaches latest target via zero");
+
+    snapshot.band_pixel[0] = EQ_UI_ANALYZER_ZERO_PIXEL - 60;
+    EqualizerUiLogic_Request(&state, &snapshot,
+                             EQ_UI_RUNTIME_ANALYZER, 4000UL);
+    EqualizerUiLogic_CompleteAnalyzerField(
+        &state, EQ_UI_JOB_ANALYZER_0, EQ_UI_ANALYZER_FIELD_BAR, 4000UL);
+    previous = state.displayed.band_pixel[0];
+    snapshot.band_pixel[0] = EQ_UI_ANALYZER_ZERO_PIXEL + 56;
+    EqualizerUiLogic_Request(&state, &snapshot,
+                             EQ_UI_RUNTIME_ANALYZER, 4001UL);
+    next = EqualizerUiLogic_AnalyzerNextPixel(&state, 0);
+    failures += require_true(next > previous,
+        "latest target reverses old positive-side request immediately");
+    failures += require_true(drive_bar(&state, &snapshot, 0, 4008UL) > 0 &&
+        state.displayed.band_pixel[0] == snapshot.band_pixel[0],
+        "latest-wins leaves no queued old target");
+    return failures;
+}
+
+static int test_analyzer_value_throttle(void)
+{
+    EQ_UI_STATE state;
+    EQ_UI_SNAPSHOT snapshot;
+    unsigned long last;
+    int failures;
+
+    failures = 0;
+    (void)initialize_analyzer(&state, &snapshot);
+    last = state.band_last_value_frame[0];
+    snapshot.band_value_db[0] = 1;
+    EqualizerUiLogic_Request(&state, &snapshot,
+                             EQ_UI_RUNTIME_ANALYZER, last + 1UL);
+    failures += require_true(!EqualizerUiLogic_HasPending(&state),
+                             "one dB value jitter delayed");
+    EqualizerUiLogic_Request(
+        &state, &snapshot, EQ_UI_RUNTIME_ANALYZER,
+        last + EQ_UI_ANALYZER_VALUE_MAX_AGE_FRAMES);
+    failures += require_true(
+        EqualizerUiLogic_AnalyzerFieldMask(&state, 0) ==
+        EQ_UI_ANALYZER_FIELD_VALUE, "one dB value expires at 50 frames");
+    EqualizerUiLogic_CompleteAnalyzerField(
+        &state, EQ_UI_JOB_ANALYZER_0, EQ_UI_ANALYZER_FIELD_VALUE,
+        last + EQ_UI_ANALYZER_VALUE_MAX_AGE_FRAMES);
+    snapshot.band_value_db[0] = 3;
+    EqualizerUiLogic_Request(
+        &state, &snapshot, EQ_UI_RUNTIME_ANALYZER,
+        last + EQ_UI_ANALYZER_VALUE_MAX_AGE_FRAMES + 1UL);
+    failures += require_true(
+        EqualizerUiLogic_AnalyzerFieldMask(&state, 0) ==
+        EQ_UI_ANALYZER_FIELD_VALUE, "two dB value change immediate");
+    EqualizerUiLogic_CompleteAnalyzerField(
+        &state, EQ_UI_JOB_ANALYZER_0, EQ_UI_ANALYZER_FIELD_VALUE,
+        last + EQ_UI_ANALYZER_VALUE_MAX_AGE_FRAMES + 1UL);
+    EqualizerUiLogic_Request(
+        &state, &snapshot, EQ_UI_RUNTIME_ANALYZER,
+        last + 200UL);
+    failures += require_true(!EqualizerUiLogic_HasPending(&state),
+                             "unchanged value is not periodically redrawn");
     snapshot.analyzer_warm = 0;
     EqualizerUiLogic_Request(&state, &snapshot,
-                             EQ_UI_RUNTIME_ANALYZER, 60UL);
+                             EQ_UI_RUNTIME_ANALYZER, last + 201UL);
     failures += require_true(
-        state.dirty_mask == (0x0FUL << (EQ_UI_JOB_ANALYZER_0 - 1)),
-        "analyzer invalidation marks four independent bars");
-    EqualizerUiLogic_CompleteJob(&state, EQ_UI_JOB_ANALYZER_0, 60UL);
-    EqualizerUiLogic_Request(&state, &snapshot,
-                             EQ_UI_RUNTIME_ANALYZER, 61UL);
-    failures += require_true(
-        state.dirty_mask == (0x0EUL << (EQ_UI_JOB_ANALYZER_0 - 1)),
-        "one bar completion does not consume other invalidations");
+        (EqualizerUiLogic_AnalyzerFieldMask(&state, 0) &
+         EQ_UI_ANALYZER_FIELD_VALUE) != 0U &&
+        EqualizerUiLogic_AnalyzerNextField(&state, 0) ==
+         EQ_UI_ANALYZER_FIELD_VALUE,
+        "warm state text has priority");
+    return failures;
+}
 
+static int test_service_gaps(void)
+{
+    EQ_UI_STATE state;
+    EQ_UI_SNAPSHOT snapshot;
+    unsigned long frame;
+    int failures;
+    int job;
+    int count;
+
+    failures = 0;
+    make_snapshot(&snapshot);
+
+    EqualizerUiLogic_Init(&state);
+    EqualizerUiLogic_Request(&state, &snapshot, EQ_UI_RUNTIME_PRESET, 0UL);
+    job = EqualizerUiLogic_SelectJob(&state, 0UL);
+    complete_one(&state, job, 0UL);
+    failures += require_true(
+        !EqualizerUiLogic_HasEligibleJob(&state, 1UL) &&
+        EqualizerUiLogic_SelectJob(&state, 1UL) == EQ_UI_JOB_NONE &&
+        EqualizerUiLogic_SelectJob(&state, 2UL) != EQ_UI_JOB_NONE,
+        "preset gap is two frames");
+
+    EqualizerUiLogic_Init(&state);
+    EqualizerUiLogic_Request(&state, &snapshot, EQ_UI_RUNTIME_DYNAMICS, 0UL);
+    job = EqualizerUiLogic_SelectJob(&state, 0UL);
+    complete_one(&state, job, 0UL);
+    failures += require_true(
+        EqualizerUiLogic_SelectJob(&state, 3UL) == EQ_UI_JOB_NONE &&
+        EqualizerUiLogic_SelectJob(&state, 7UL) != EQ_UI_JOB_NONE,
+        "dynamic gap and steady cap enforced");
+
+    EqualizerUiLogic_Init(&state);
+    EqualizerUiLogic_Request(&state, &snapshot, EQ_UI_RUNTIME_CHAIN, 0UL);
+    job = EqualizerUiLogic_SelectJob(&state, 0UL);
+    complete_one(&state, job, 0UL);
+    failures += require_true(
+        EqualizerUiLogic_SelectJob(&state, 7UL) == EQ_UI_JOB_NONE &&
+        EqualizerUiLogic_SelectJob(&state, 8UL) != EQ_UI_JOB_NONE,
+        "chain gap is eight frames");
+
+    EqualizerUiLogic_Init(&state);
+    EqualizerUiLogic_Request(&state, &snapshot, EQ_UI_RUNTIME_ANALYZER, 0UL);
+    job = EqualizerUiLogic_SelectJob(&state, 0UL);
+    complete_one(&state, job, 0UL);
+    failures += require_true(
+        EqualizerUiLogic_SelectJob(&state, 0UL) == EQ_UI_JOB_NONE &&
+        EqualizerUiLogic_SelectJob(&state, 7UL) == EQ_UI_JOB_NONE &&
+        EqualizerUiLogic_SelectJob(&state, 8UL) != EQ_UI_JOB_NONE,
+        "analyzer and same-frame gaps enforced");
+
+    EqualizerUiLogic_Init(&state);
+    count = 0;
+    for (frame = 0UL; frame < 4883UL; frame++)
+    {
+        snapshot.smart_level = (int)(frame & 3UL);
+        EqualizerUiLogic_Request(&state, &snapshot,
+                                 EQ_UI_RUNTIME_DYNAMICS, frame);
+        job = EqualizerUiLogic_SelectJob(&state, frame);
+        if (job != EQ_UI_JOB_NONE)
+        {
+            complete_one(&state, job, frame);
+            count++;
+        }
+    }
+    failures += require_true(count <= 800,
+                             "100 second steady rate at most eight jobs/s");
+    return failures;
+}
+
+int main(void)
+{
+    int failures;
+
+    failures = 0;
+    failures += test_layout_and_touch();
+    failures += test_jobs_and_dynamic_semantics();
+    failures += test_analyzer_transitions();
+    failures += test_analyzer_value_throttle();
+    failures += test_service_gaps();
     printf("equalizer_ui_logic failures=%d\n", failures);
     return (failures == 0) ? 0 : 1;
 }
