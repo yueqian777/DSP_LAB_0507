@@ -115,17 +115,22 @@ Push-Location $RepoRoot
 try {
     foreach ($profile in $profiles) {
         Write-Host "BEGIN $($profile.name)"
+        $ErrorActionPreference = "Continue"
         $cleanOutput = & $GmakePath -C Debug clean 2>&1
-        if ($LASTEXITCODE -ne 0) {
+        $cleanExit = $LASTEXITCODE
+        $ErrorActionPreference = "Stop"
+        if ($cleanExit -ne 0) {
             throw "Clean failed: $($profile.name)"
         }
         Remove-Item -ErrorAction SilentlyContinue -LiteralPath @(
             "Debug\Code\User\user_dsp\user_equalizer_ui_logic.obj"
             "Debug\Code\User\user_dsp\user_equalizer_ui_logic.d"
         )
+        $ErrorActionPreference = "Continue"
         $buildOutput = & $GmakePath -B -C Debug all `
             "GEN_OPTS__FLAG=$($profile.defines)" 2>&1
         $buildExit = $LASTEXITCODE
+        $ErrorActionPreference = "Stop"
         $logPath = Join-Path $OutputDirectory "$($profile.name).log"
         @($cleanOutput) + @($buildOutput) |
             Set-Content -LiteralPath $logPath -Encoding UTF8
