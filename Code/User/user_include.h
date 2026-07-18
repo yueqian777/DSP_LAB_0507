@@ -48,6 +48,7 @@
 #include "user_equalizer.h"
 #include "user_equalizer_control.h"
 #include "user_equalizer_response.h"
+#include "user_equalizer_ui_logic.h"
 #include "user_equalizer_display.h"
 #include "user_equalizer_eval.h"
 #include "user_audio_feature_analyzer.h"

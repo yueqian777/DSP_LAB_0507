@@ -25,6 +25,9 @@
 #include "system.h"
 #include "uart_api.h"
 #include "uartStdio.h"
+#if EQ_ENABLE_PROJECT33_TOUCH != 0
+#include "touch_api.h"
+#endif
 
 #ifndef EQ_ENABLE_UART_DIAGNOSTICS
 #define EQ_ENABLE_UART_DIAGNOSTICS 1
@@ -91,6 +94,12 @@ static unsigned int EQ_HarshnessGuardCapturePrerollRemaining = 0U;
 #endif
 static EQ_CONTROL_STATE EQ_BoardControl;
 static EQ_BACKGROUND_SERVICE_STATE EQ_BackgroundService;
+#if EQ_ENABLE_PROJECT33_TOUCH != 0
+static EQ_UI_TOUCH_STATE EQ_TouchState;
+static EQ_UI_TOUCH_TRANSFORM EQ_TouchTransform;
+static unsigned long EQ_TouchLastActionFrame = ~0UL;
+static unsigned long EQ_TouchLastServiceFrame = ~0UL;
+#endif
 static int EQ_LastServicedMode = -1;
 static int EQ_AppliedDiagPath = -1;
 static unsigned int EQ_FrameServiceStartCycle = 0U;
@@ -130,6 +139,7 @@ static void EQ_UartReportStage(unsigned long stage)
 }
 
 #if EQ_ENABLE_AUDIO_FEATURE_ANALYZER != 0
+#if EQ_ENABLE_UART_DIAGNOSTICS != 0
 static int EQ_UartAppendChar(char *line, int index, char value)
 {
     if ((index < 0) || (index >= (EQ_UART_FEATURE_LINE_CAPACITY - 1)))
@@ -224,6 +234,7 @@ static unsigned int EQ_AudioFlagMask(unsigned char flag_ad_done)
            ((flag_ad_done != 0) ? 0x04U : 0U) |
            ((EQ_FrameServicePending != 0U) ? 0x08U : 0U);
 }
+#endif
 
 static void EQ_SyncUartFeatureAuditDebug(void)
 {
@@ -343,6 +354,21 @@ volatile unsigned long EQ_DebugDeadlineMissCount = 0UL;
 volatile unsigned long EQ_DebugFrameLatencyDeadlineMissCount = 0UL;
 volatile unsigned long EQ_DebugFrameServiceOverlapCount = 0UL;
 volatile unsigned long EQ_DebugFrameServiceDroppedCount = 0UL;
+#if EQ_ENABLE_PROJECT33_TOUCH != 0
+volatile unsigned int EQ_DebugTouchRawX = 0U;
+volatile unsigned int EQ_DebugTouchRawY = 0U;
+volatile int EQ_DebugTouchScreenX = 0;
+volatile int EQ_DebugTouchScreenY = 0;
+volatile unsigned int EQ_DebugTouchPressed = 0U;
+volatile int EQ_DebugTouchLastAction = EQ_UI_ACTION_NONE;
+volatile unsigned long EQ_DebugTouchActionCount = 0UL;
+volatile unsigned long EQ_DebugTouchRejectedCount = 0UL;
+volatile unsigned long EQ_DebugTouchLastCycles = 0UL;
+volatile unsigned long EQ_DebugTouchMaxCycles = 0UL;
+volatile const unsigned long EQ_DebugTouchStateBytes =
+    (unsigned long)(sizeof(EQ_UI_TOUCH_STATE) +
+                    sizeof(EQ_UI_TOUCH_TRANSFORM));
+#endif
 volatile const unsigned int EQ_DebugAnalyzerCompiled =
     EQ_ENABLE_AUDIO_FEATURE_ANALYZER;
 volatile unsigned int EQ_DebugAnalyzerEnabled = 0U;
@@ -808,8 +834,9 @@ void EqualizerCapture_NotifyModeChange(unsigned long before_count,
 void EqualizerLcdPolicy_Init(EQ_LCD_SERVICE_POLICY *policy)
 {
     policy->last_service_frame = 0UL;
+    policy->control_quiet_until_frame = 0UL;
     policy->last_deferred_frame = ~0UL;
-    policy->last_status_request_frame = 0UL;
+    policy->last_service_frame_valid = 0U;
 }
 
 int EqualizerLcdPolicy_CanService(const EQ_LCD_SERVICE_POLICY *policy,
@@ -818,13 +845,24 @@ int EqualizerLcdPolicy_CanService(const EQ_LCD_SERVICE_POLICY *policy,
                                   int flag_da,
                                   int flag_ad_done,
                                   int frame_service_pending,
+                                  int audio_serviced,
+                                  int touch_serviced,
+                                  int builder_serviced,
+                                  int analyzer_serviced,
                                   int has_pending_job)
 {
     return (flag_ad == 0) &&
            (flag_da == 0) &&
            (flag_ad_done == 0) &&
            (frame_service_pending == 0) &&
-           (process_frames != policy->last_service_frame) &&
+           (audio_serviced == 0) &&
+           (touch_serviced == 0) &&
+           (builder_serviced == 0) &&
+           (analyzer_serviced == 0) &&
+           (process_frames >= policy->control_quiet_until_frame) &&
+           ((policy->last_service_frame_valid == 0U) ||
+            ((process_frames - policy->last_service_frame) >=
+             EQ_LCD_MIN_JOB_GAP_FRAMES)) &&
            (has_pending_job != 0);
 }
 
@@ -835,15 +873,22 @@ int EqualizerLcdPolicy_Decide(const EQ_LCD_SERVICE_POLICY *policy,
                               int outer_flag_ad_done,
                               int outer_frame_service_pending,
                               int predraw_flag_ad,
-                              int predraw_flag_da,
-                              int predraw_flag_ad_done,
-                              int predraw_frame_service_pending,
-                              int has_pending_job)
+                               int predraw_flag_da,
+                               int predraw_flag_ad_done,
+                               int predraw_frame_service_pending,
+                               int audio_serviced,
+                               int touch_serviced,
+                               int builder_serviced,
+                               int analyzer_serviced,
+                               int has_pending_job)
 {
     if (!EqualizerLcdPolicy_CanService(
-            policy, process_frames,
-            outer_flag_ad, outer_flag_da, outer_flag_ad_done,
-            outer_frame_service_pending, has_pending_job))
+             policy, process_frames,
+             outer_flag_ad, outer_flag_da, outer_flag_ad_done,
+             outer_frame_service_pending,
+             audio_serviced, touch_serviced,
+             builder_serviced, analyzer_serviced,
+             has_pending_job))
     {
         if ((has_pending_job != 0) &&
             ((outer_flag_ad != 0) || (outer_flag_da != 0) ||
@@ -855,9 +900,12 @@ int EqualizerLcdPolicy_Decide(const EQ_LCD_SERVICE_POLICY *policy,
         return EQ_LCD_POLICY_NONE;
     }
     if (!EqualizerLcdPolicy_CanService(
-            policy, process_frames,
-            predraw_flag_ad, predraw_flag_da, predraw_flag_ad_done,
-            predraw_frame_service_pending, has_pending_job))
+             policy, process_frames,
+             predraw_flag_ad, predraw_flag_da, predraw_flag_ad_done,
+             predraw_frame_service_pending,
+             audio_serviced, touch_serviced,
+             builder_serviced, analyzer_serviced,
+             has_pending_job))
     {
         return EQ_LCD_POLICY_DEFER;
     }
@@ -871,6 +919,7 @@ void EqualizerLcdPolicy_RecordService(EQ_LCD_SERVICE_POLICY *policy,
     if (completed_job != 0)
     {
         policy->last_service_frame = process_frames;
+        policy->last_service_frame_valid = 1U;
     }
 }
 
@@ -885,16 +934,11 @@ int EqualizerLcdPolicy_RecordDeferred(EQ_LCD_SERVICE_POLICY *policy,
     return 1;
 }
 
-int EqualizerLcdPolicy_ShouldRequestStatus(EQ_LCD_SERVICE_POLICY *policy,
-                                           unsigned long process_frames)
+void EqualizerLcdPolicy_RecordControlChange(
+    EQ_LCD_SERVICE_POLICY *policy, unsigned long process_frames)
 {
-    if ((process_frames - policy->last_status_request_frame) <
-        EQ_LCD_REFRESH_FRAMES)
-    {
-        return 0;
-    }
-    policy->last_status_request_frame = process_frames;
-    return 1;
+    policy->control_quiet_until_frame =
+        process_frames + EQ_LCD_CONTROL_QUIET_FRAMES;
 }
 
 void EqualizerLcdFaultPolicy_Init(EQ_LCD_FAULT_POLICY *policy)
@@ -1270,6 +1314,229 @@ static void EQ_UpdateDebugGains(void)
         EQ_DebugResponseTargetValid = 0;
     }
 }
+
+#if EQ_ENABLE_LCD_DISPLAY != 0
+static int EQ_UiFloatToTenths(float value)
+{
+    float scaled;
+
+    if (value > 20.0f)
+    {
+        value = 20.0f;
+    }
+    else if (value < -20.0f)
+    {
+        value = -20.0f;
+    }
+    scaled = value * 10.0f;
+    return (scaled >= 0.0f) ?
+        (int)(scaled + 0.5f) : (int)(scaled - 0.5f);
+}
+
+static void EQ_BuildUiSnapshot(EQ_UI_SNAPSHOT *snapshot)
+{
+    int tenths;
+
+    memset(snapshot, 0, sizeof(*snapshot));
+    snapshot->applied_preset = EQ_DebugAppliedMode;
+    snapshot->smart_enabled =
+        (EQ_DebugSmartBassProcessingActive != 0U) ? 1 : 0;
+    snapshot->smart_strength = EQ_DebugSmartBassStrength;
+    snapshot->smart_level = EQ_DebugSmartBassAppliedLevel;
+    snapshot->clarity_enabled =
+        (EQ_DebugDynamicClarityProcessingActive != 0U) ? 1 : 0;
+    snapshot->clarity_strength = EQ_DebugDynamicClarityStrength;
+    snapshot->clarity_level = EQ_DebugDynamicClarityAppliedLevel;
+    snapshot->guard_enabled =
+        (EQ_DebugHarshnessGuardProcessingActive != 0U) ? 1 : 0;
+    snapshot->guard_strength = EQ_DebugHarshnessGuardStrength;
+    snapshot->guard_level = EQ_DebugHarshnessGuardAppliedLevel;
+    snapshot->analyzer_valid = (EQ_DebugAnalyzerValid != 0U) ? 1 : 0;
+    snapshot->analyzer_warm = (EQ_DebugAnalyzerWarmup != 0U) ? 1 : 0;
+
+    tenths = EQ_UiFloatToTenths(EQ_DebugAnalyzerBassDb);
+    snapshot->band_value_db[0] = EqualizerUi_RoundTenthsToDb(tenths);
+    snapshot->band_pixel[0] = EqualizerUi_DbTenthsToPixel(tenths);
+    tenths = EQ_UiFloatToTenths(EQ_DebugAnalyzerMudDb);
+    snapshot->band_value_db[1] = EqualizerUi_RoundTenthsToDb(tenths);
+    snapshot->band_pixel[1] = EqualizerUi_DbTenthsToPixel(tenths);
+    tenths = EQ_UiFloatToTenths(EQ_DebugAnalyzerPresenceDb);
+    snapshot->band_value_db[2] = EqualizerUi_RoundTenthsToDb(tenths);
+    snapshot->band_pixel[2] = EqualizerUi_DbTenthsToPixel(tenths);
+    tenths = EQ_UiFloatToTenths(EQ_DebugAnalyzerBrightnessDb);
+    snapshot->band_value_db[3] = EqualizerUi_RoundTenthsToDb(tenths);
+    snapshot->band_pixel[3] = EqualizerUi_DbTenthsToPixel(tenths);
+}
+#endif
+
+#if EQ_ENABLE_PROJECT33_TOUCH != 0
+static int EQ_NextUiStrength(int strength)
+{
+    if (strength <= 1)
+    {
+        return 2;
+    }
+    if (strength == 2)
+    {
+        return 3;
+    }
+    return 1;
+}
+
+static int EQ_ApplyUiAction(int action)
+{
+    int preset;
+
+    preset = EqualizerUi_ActionToPreset(action);
+    if (preset != EQ_PRESET_NONE)
+    {
+        EQ_DebugDiagPath = EQ_DIAG_PRESET;
+        EQ_DebugMode = preset;
+        return 1;
+    }
+    if (action == EQ_UI_ACTION_SMART_TOGGLE)
+    {
+        EQ_DebugSmartBassEnabled =
+            (EQ_DebugSmartBassEnabled == 0U) ? 1U : 0U;
+        return 1;
+    }
+    if (action == EQ_UI_ACTION_SMART_STRENGTH)
+    {
+        EQ_DebugSmartBassStrength =
+            EQ_NextUiStrength(EQ_DebugSmartBassStrength);
+        return 1;
+    }
+    if (action == EQ_UI_ACTION_CLARITY_TOGGLE)
+    {
+        EQ_DebugDynamicClarityEnabled =
+            (EQ_DebugDynamicClarityEnabled == 0U) ? 1U : 0U;
+        return 1;
+    }
+    if (action == EQ_UI_ACTION_CLARITY_STRENGTH)
+    {
+        EQ_DebugDynamicClarityStrength =
+            EQ_NextUiStrength(EQ_DebugDynamicClarityStrength);
+        return 1;
+    }
+    if (action == EQ_UI_ACTION_GUARD_TOGGLE)
+    {
+        EQ_DebugHarshnessGuardEnabled =
+            (EQ_DebugHarshnessGuardEnabled == 0U) ? 1U : 0U;
+        return 1;
+    }
+    if (action == EQ_UI_ACTION_GUARD_STRENGTH)
+    {
+        EQ_DebugHarshnessGuardStrength =
+            EQ_NextUiStrength(EQ_DebugHarshnessGuardStrength);
+        return 1;
+    }
+    return 0;
+}
+
+static int EQ_ServiceUiTouch(unsigned char flag_ad_done,
+                             unsigned long process_frame,
+                             int *accepted_action)
+{
+    TouchScanResult result;
+    unsigned int audio_before;
+    int screen_x;
+    int screen_y;
+    int rejected;
+    int action;
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+    unsigned int cycle_start;
+#endif
+
+    *accepted_action = EQ_UI_ACTION_NONE;
+    if ((FLAG_TOUCH == 0U) && (EQ_TouchState.press_latched == 0U))
+    {
+        return 0;
+    }
+    if (EQ_TouchLastServiceFrame == process_frame)
+    {
+        return 0;
+    }
+    audio_before = ((FLAG_AD != 0) ? 0x01U : 0U) |
+                   ((FLAG_DA != 0) ? 0x02U : 0U) |
+                   ((flag_ad_done != 0) ? 0x04U : 0U) |
+                   ((EQ_FrameServicePending != 0U) ? 0x08U : 0U);
+    if (audio_before != 0U)
+    {
+        return 0;
+    }
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+    cycle_start = TSCL;
+#endif
+    FLAG_TOUCH = 0U;
+    result = Touch_ScanRaw();
+    EQ_TouchLastServiceFrame = process_frame;
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+    EQ_DebugTouchLastCycles = (unsigned long)(TSCL - cycle_start);
+    if (EQ_DebugTouchLastCycles > EQ_DebugTouchMaxCycles)
+    {
+        EQ_DebugTouchMaxCycles = EQ_DebugTouchLastCycles;
+    }
+#else
+    EQ_DebugTouchLastCycles = 0UL;
+#endif
+    if (result == TOUCH_SCAN_RELEASE)
+    {
+        EQ_DebugTouchPressed = 0U;
+        (void)EqualizerUiTouch_Process(
+            &EQ_TouchState, 0, EQ_DebugTouchScreenX,
+            EQ_DebugTouchScreenY, &rejected);
+        return 1;
+    }
+    if (result == TOUCH_SCAN_ERROR)
+    {
+        EQ_DebugTouchRejectedCount++;
+        return 1;
+    }
+    if (result != TOUCH_SCAN_DOWN)
+    {
+        return 1;
+    }
+
+    EQ_DebugTouchRawX = Touch_X;
+    EQ_DebugTouchRawY = Touch_Y;
+    if (EqualizerUi_MapTouchRawToScreen(
+            &EQ_TouchTransform, Touch_X, Touch_Y,
+            &screen_x, &screen_y) == 0)
+    {
+        EQ_DebugTouchRejectedCount++;
+        return 1;
+    }
+    EQ_DebugTouchScreenX = screen_x;
+    EQ_DebugTouchScreenY = screen_y;
+    EQ_DebugTouchPressed = 1U;
+    rejected = 0;
+    action = EqualizerUiTouch_Process(
+        &EQ_TouchState, 1, screen_x, screen_y, &rejected);
+    if (rejected != 0)
+    {
+        EQ_DebugTouchRejectedCount++;
+    }
+    if (action == EQ_UI_ACTION_NONE)
+    {
+        return 1;
+    }
+    if (EQ_TouchLastActionFrame == process_frame)
+    {
+        EQ_DebugTouchRejectedCount++;
+        return 1;
+    }
+    if (EQ_ApplyUiAction(action) == 0)
+    {
+        EQ_DebugTouchRejectedCount++;
+        return 1;
+    }
+    EQ_TouchLastActionFrame = process_frame;
+    EQ_DebugTouchLastAction = action;
+    EQ_DebugTouchActionCount++;
+    *accepted_action = action;
+    return 1;
+}
+#endif
 
 static void EQ_FillControlRequest(EQ_CONTROL_REQUEST *request)
 {
@@ -2488,6 +2755,11 @@ static void EQ_FillDacInactiveBuffer(void)
 void Equalizer_Flow_Example(void)
 {
     unsigned char flag_ad_done;
+#if EQ_ENABLE_LCD_DISPLAY != 0
+    int audio_serviced;
+    int builder_serviced;
+    int analyzer_serviced;
+#endif
     unsigned int builder_audio_before;
     unsigned int builder_audio_after;
 #if EQ_ENABLE_AUDIO_FEATURE_ANALYZER != 0
@@ -2506,15 +2778,17 @@ void Equalizer_Flow_Example(void)
 #if EQ_ENABLE_LCD_DISPLAY != 0
     EQ_LCD_SERVICE_POLICY lcd_policy;
     EQ_LCD_FAULT_POLICY lcd_fault_policy;
+    EQ_UI_SNAPSHOT lcd_snapshot;
     unsigned long lcd_disable_reason;
     unsigned int lcd_audio_before;
     unsigned int lcd_audio_after;
-    int lcd_requested_mode;
-    int lcd_transition_target_mode;
-    int lcd_applied_mode;
     int lcd_job;
     int lcd_eligible;
     int lcd_policy_decision;
+#endif
+#if EQ_ENABLE_PROJECT33_TOUCH != 0
+    int touch_serviced;
+    int touch_action;
 #endif
 
     flag_ad_done = 0;
@@ -2526,9 +2800,6 @@ void Equalizer_Flow_Example(void)
 #if EQ_ENABLE_LCD_DISPLAY != 0
     EqualizerLcdPolicy_Init(&lcd_policy);
     EqualizerLcdFaultPolicy_Init(&lcd_fault_policy);
-    lcd_requested_mode = EQ_PRESET_NONE;
-    lcd_transition_target_mode = EQ_PRESET_NONE;
-    lcd_applied_mode = EQ_PRESET_NONE;
 #endif
     Sys_Init();
     EQ_UartInit();
@@ -2618,20 +2889,35 @@ void Equalizer_Flow_Example(void)
     EQ_ClearDacBuffers();
 #if EQ_ENABLE_LCD_DISPLAY != 0
     EqualizerDisplay_Init();
-    EqualizerDisplay_DrawStaticLayout();
+#if EQ_ENABLE_PROJECT33_TOUCH != 0
+    Touch_Init();
+    EqualizerUiTouch_Init(&EQ_TouchState);
+    EqualizerUi_DefaultTouchTransform(&EQ_TouchTransform);
+    EQ_TouchTransform.raw_x_min = EQ_UI_TOUCH_RAW_X_MIN;
+    EQ_TouchTransform.raw_x_max = EQ_UI_TOUCH_RAW_X_MAX;
+    EQ_TouchTransform.raw_y_min = EQ_UI_TOUCH_RAW_Y_MIN;
+    EQ_TouchTransform.raw_y_max = EQ_UI_TOUCH_RAW_Y_MAX;
+    EQ_TouchTransform.swap_xy = EQ_UI_TOUCH_SWAP_XY;
+    EQ_TouchTransform.flip_x = EQ_UI_TOUCH_FLIP_X;
+    EQ_TouchTransform.flip_y = EQ_UI_TOUCH_FLIP_Y;
+    EQ_TouchLastActionFrame = ~0UL;
+    EQ_TouchLastServiceFrame = ~0UL;
+    EQ_DebugTouchRawX = 0U;
+    EQ_DebugTouchRawY = 0U;
+    EQ_DebugTouchScreenX = 0;
+    EQ_DebugTouchScreenY = 0;
+    EQ_DebugTouchPressed = 0U;
+    EQ_DebugTouchLastAction = EQ_UI_ACTION_NONE;
+    EQ_DebugTouchActionCount = 0UL;
+    EQ_DebugTouchRejectedCount = 0UL;
+    EQ_DebugTouchLastCycles = 0UL;
+    EQ_DebugTouchMaxCycles = 0UL;
+#endif
+    (void)EqualizerDisplay_DrawStaticLayout();
+    EQ_BuildUiSnapshot(&lcd_snapshot);
+    EqualizerDisplay_RequestSnapshot(
+        &lcd_snapshot, EQ_DebugProcessFrames);
     EqualizerDisplay_BeginRuntime();
-    EqualizerDisplay_RequestGains(&EQ_BoardState);
-    EqualizerDisplay_RequestStatus(
-        EQ_DebugProcessFrames,
-        EQ_DebugAlgoLastMs,
-        EQ_DebugAlgoMaxMs,
-        EQ_DebugClipCount,
-        EQ_DebugRequestedMode,
-        EQ_DebugTransitionTargetMode,
-        EQ_DebugAppliedMode);
-    lcd_requested_mode = EQ_DebugRequestedMode;
-    lcd_transition_target_mode = EQ_DebugTransitionTargetMode;
-    lcd_applied_mode = EQ_DebugAppliedMode;
 #endif
 
     EQ_DebugInitStage = 5UL;
@@ -2652,8 +2938,20 @@ void Equalizer_Flow_Example(void)
     EQ_UartReportStage(8UL);
     while (1)
     {
+#if EQ_ENABLE_LCD_DISPLAY != 0
+        audio_serviced = 0;
+        builder_serviced = 0;
+        analyzer_serviced = 0;
+#endif
+#if EQ_ENABLE_PROJECT33_TOUCH != 0
+        touch_serviced = 0;
+        touch_action = EQ_UI_ACTION_NONE;
+#endif
         if (FLAG_AD == 1)
         {
+#if EQ_ENABLE_LCD_DISPLAY != 0
+            audio_serviced = 1;
+#endif
             EQ_BeginFrameService();
             EQ_BeginFrameActiveSegment();
             FLAG_AD = 0;
@@ -2670,6 +2968,9 @@ void Equalizer_Flow_Example(void)
 
         if ((FLAG_DA == 1) && (flag_ad_done == 1))
         {
+#if EQ_ENABLE_LCD_DISPLAY != 0
+            audio_serviced = 1;
+#endif
             EQ_BeginFrameActiveSegment();
             FLAG_DA = 0;
             flag_ad_done = 0;
@@ -2720,36 +3021,9 @@ void Equalizer_Flow_Example(void)
             EQ_UpdateDebugGains();
 
 #if EQ_ENABLE_LCD_DISPLAY != 0
-            if ((EQ_DebugRequestedMode != lcd_requested_mode) ||
-                (EQ_DebugTransitionTargetMode != lcd_transition_target_mode) ||
-                (EQ_DebugAppliedMode != lcd_applied_mode))
-            {
-                lcd_requested_mode = EQ_DebugRequestedMode;
-                lcd_transition_target_mode = EQ_DebugTransitionTargetMode;
-                lcd_applied_mode = EQ_DebugAppliedMode;
-                EqualizerDisplay_RequestGains(&EQ_BoardState);
-                EqualizerDisplay_RequestStatus(
-                    EQ_DebugProcessFrames,
-                    EQ_DebugAlgoLastMs,
-                    EQ_DebugAlgoMaxMs,
-                    EQ_DebugClipCount,
-                    EQ_DebugRequestedMode,
-                    EQ_DebugTransitionTargetMode,
-                    EQ_DebugAppliedMode);
-            }
-            if (EqualizerLcdPolicy_ShouldRequestStatus(
-                    &lcd_policy, EQ_DebugProcessFrames))
-            {
-                EqualizerDisplay_RequestStatus(
-                    EQ_DebugProcessFrames,
-                    EQ_DebugAlgoLastMs,
-                    EQ_DebugAlgoMaxMs,
-                    EQ_DebugClipCount,
-                    EQ_DebugRequestedMode,
-                    EQ_DebugTransitionTargetMode,
-                    EQ_DebugAppliedMode);
-            }
-
+            EQ_BuildUiSnapshot(&lcd_snapshot);
+            EqualizerDisplay_RequestSnapshot(
+                &lcd_snapshot, EQ_DebugProcessFrames);
             lcd_disable_reason = EqualizerLcdFaultPolicy_Monitor(
                 &lcd_fault_policy,
                 EQ_DebugLcdRuntimeMask != 0U,
@@ -2759,6 +3033,23 @@ void Equalizer_Flow_Example(void)
             if (lcd_disable_reason != 0UL)
             {
                 EqualizerDisplay_AutoDisable(lcd_disable_reason);
+            }
+#endif
+
+#if EQ_ENABLE_PROJECT33_TOUCH != 0
+            if (audio_serviced == 0)
+            {
+                touch_serviced = EQ_ServiceUiTouch(
+                    flag_ad_done, EQ_DebugProcessFrames, &touch_action);
+            }
+            if (touch_action != EQ_UI_ACTION_NONE)
+            {
+                EqualizerLcdPolicy_RecordControlChange(
+                    &lcd_policy, EQ_DebugProcessFrames);
+            }
+            if (touch_serviced != 0)
+            {
+                continue;
             }
 #endif
 
@@ -2817,11 +3108,30 @@ void Equalizer_Flow_Example(void)
             uart_eligible = 0;
 #endif
 #if EQ_ENABLE_LCD_DISPLAY != 0
+            builder_serviced =
+                ((EQ_BackgroundService.consumed_frame_valid != 0) &&
+                 (EQ_BackgroundService.consumed_frame ==
+                  EQ_DebugProcessFrames) &&
+                 (EQ_BackgroundService.consumed_kind ==
+                  EQ_BACKGROUND_BUILDER)) ? 1 : 0;
+            analyzer_serviced =
+                ((EQ_BackgroundService.consumed_frame_valid != 0) &&
+                 (EQ_BackgroundService.consumed_frame ==
+                  EQ_DebugProcessFrames) &&
+                 (EQ_BackgroundService.consumed_kind ==
+                  EQ_BACKGROUND_ANALYZER)) ? 1 : 0;
             lcd_eligible = 0;
             if (EqualizerLcdPolicy_CanService(
                     &lcd_policy, EQ_DebugProcessFrames,
                     FLAG_AD, FLAG_DA, flag_ad_done,
                     EQ_FrameServicePending,
+                    audio_serviced,
+#if EQ_ENABLE_PROJECT33_TOUCH != 0
+                    touch_serviced,
+#else
+                    0,
+#endif
+                    builder_serviced, analyzer_serviced,
                     EqualizerDisplay_HasPendingJob()))
             {
                 lcd_audio_before = ((FLAG_AD != 0) ? 0x01U : 0U) |
@@ -2831,11 +3141,19 @@ void Equalizer_Flow_Example(void)
                                     0x08U : 0U);
                 lcd_policy_decision = EqualizerLcdPolicy_Decide(
                     &lcd_policy, EQ_DebugProcessFrames,
-                    0, 0, 0, 0,
+                    FLAG_AD, FLAG_DA, flag_ad_done,
+                    EQ_FrameServicePending,
                     (lcd_audio_before & 0x01U) != 0U,
                     (lcd_audio_before & 0x02U) != 0U,
                     (lcd_audio_before & 0x04U) != 0U,
                     (lcd_audio_before & 0x08U) != 0U,
+                    audio_serviced,
+#if EQ_ENABLE_PROJECT33_TOUCH != 0
+                    touch_serviced,
+#else
+                    0,
+#endif
+                    builder_serviced, analyzer_serviced,
                     EqualizerDisplay_HasPendingJob());
                 if (lcd_policy_decision == EQ_LCD_POLICY_DEFER)
                 {
@@ -2849,6 +3167,13 @@ void Equalizer_Flow_Example(void)
                 {
                     lcd_eligible = 1;
                 }
+            }
+            else if ((audio_serviced != 0) &&
+                     (EqualizerDisplay_HasPendingJob() != 0) &&
+                     EqualizerLcdPolicy_RecordDeferred(
+                         &lcd_policy, EQ_DebugProcessFrames))
+            {
+                EQ_DebugLcdDeferredAudioCount++;
             }
 #else
             background_kind = EQ_BACKGROUND_NONE;
@@ -2994,7 +3319,8 @@ void Equalizer_Flow_Example(void)
                 {
                     continue;
                 }
-                lcd_job = EqualizerDisplay_ServiceOneJob();
+                lcd_job = EqualizerDisplay_ServiceOneJob(
+                    EQ_DebugProcessFrames);
                 lcd_audio_after = ((FLAG_AD != 0) ? 0x01U : 0U) |
                                   ((FLAG_DA != 0) ? 0x02U : 0U) |
                                   ((flag_ad_done != 0) ? 0x04U : 0U) |

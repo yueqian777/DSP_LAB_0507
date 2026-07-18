@@ -25,6 +25,10 @@
 #define EQ_ENABLE_HARSHNESS_GUARD 0
 #endif
 
+#ifndef EQ_ENABLE_PROJECT33_TOUCH
+#define EQ_ENABLE_PROJECT33_TOUCH 0
+#endif
+
 #ifndef EQ_ENABLE_DYNAMIC_CLARITY_TIMING_DIAGNOSTICS
 #define EQ_ENABLE_DYNAMIC_CLARITY_TIMING_DIAGNOSTICS 0
 #endif
@@ -151,8 +155,9 @@ typedef struct
 typedef struct
 {
     unsigned long last_service_frame;
+    unsigned long control_quiet_until_frame;
     unsigned long last_deferred_frame;
-    unsigned long last_status_request_frame;
+    unsigned int last_service_frame_valid;
 } EQ_LCD_SERVICE_POLICY;
 
 typedef struct
@@ -204,6 +209,19 @@ extern volatile unsigned long EQ_DebugDeadlineMissCount;
 extern volatile unsigned long EQ_DebugFrameLatencyDeadlineMissCount;
 extern volatile unsigned long EQ_DebugFrameServiceOverlapCount;
 extern volatile unsigned long EQ_DebugFrameServiceDroppedCount;
+#if EQ_ENABLE_PROJECT33_TOUCH != 0
+extern volatile unsigned int EQ_DebugTouchRawX;
+extern volatile unsigned int EQ_DebugTouchRawY;
+extern volatile int EQ_DebugTouchScreenX;
+extern volatile int EQ_DebugTouchScreenY;
+extern volatile unsigned int EQ_DebugTouchPressed;
+extern volatile int EQ_DebugTouchLastAction;
+extern volatile unsigned long EQ_DebugTouchActionCount;
+extern volatile unsigned long EQ_DebugTouchRejectedCount;
+extern volatile unsigned long EQ_DebugTouchLastCycles;
+extern volatile unsigned long EQ_DebugTouchMaxCycles;
+extern volatile const unsigned long EQ_DebugTouchStateBytes;
+#endif
 extern volatile const unsigned int EQ_DebugAnalyzerCompiled;
 extern volatile unsigned int EQ_DebugAnalyzerEnabled;
 extern volatile unsigned int EQ_DebugAnalyzerResetRequest;
@@ -467,6 +485,10 @@ int EqualizerLcdPolicy_CanService(const EQ_LCD_SERVICE_POLICY *policy,
                                   int flag_da,
                                   int flag_ad_done,
                                   int frame_service_pending,
+                                  int audio_serviced,
+                                  int touch_serviced,
+                                  int builder_serviced,
+                                  int analyzer_serviced,
                                   int has_pending_job);
 int EqualizerLcdPolicy_Decide(const EQ_LCD_SERVICE_POLICY *policy,
                               unsigned long process_frames,
@@ -475,17 +497,21 @@ int EqualizerLcdPolicy_Decide(const EQ_LCD_SERVICE_POLICY *policy,
                               int outer_flag_ad_done,
                               int outer_frame_service_pending,
                               int predraw_flag_ad,
-                              int predraw_flag_da,
-                              int predraw_flag_ad_done,
-                              int predraw_frame_service_pending,
-                              int has_pending_job);
+                               int predraw_flag_da,
+                               int predraw_flag_ad_done,
+                               int predraw_frame_service_pending,
+                               int audio_serviced,
+                               int touch_serviced,
+                               int builder_serviced,
+                               int analyzer_serviced,
+                               int has_pending_job);
 void EqualizerLcdPolicy_RecordService(EQ_LCD_SERVICE_POLICY *policy,
                                       unsigned long process_frames,
                                       int completed_job);
 int EqualizerLcdPolicy_RecordDeferred(EQ_LCD_SERVICE_POLICY *policy,
                                       unsigned long process_frames);
-int EqualizerLcdPolicy_ShouldRequestStatus(EQ_LCD_SERVICE_POLICY *policy,
-                                           unsigned long process_frames);
+void EqualizerLcdPolicy_RecordControlChange(
+    EQ_LCD_SERVICE_POLICY *policy, unsigned long process_frames);
 void EqualizerLcdFaultPolicy_Init(EQ_LCD_FAULT_POLICY *policy);
 unsigned long EqualizerLcdFaultPolicy_Monitor(
     EQ_LCD_FAULT_POLICY *policy,
