@@ -25,4 +25,3 @@
   "touch_transform_default": {"raw_x":[0,799],"raw_y":[0,479],"swap_xy":0,"flip_x":0,"flip_y":0,"clamp":true},
   "scheduler": {"max_jobs_per_service":1,"minimum_gap_frames":2,"control_quiet_frames":3}
 }
-

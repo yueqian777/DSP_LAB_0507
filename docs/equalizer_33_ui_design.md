@@ -85,4 +85,3 @@ overrun, no auto-disable, and no unexpected full redraw.
 `EQ_ENABLE_PROJECT33_TOUCH=1` is rejected unless LCD is enabled. The source
 defaults remain LCD=0, Touch=0, and runtime mask=0. The measured E profile uses
 244 bytes for UI state and 36 bytes for touch state/transform.
-

@@ -25,4 +25,3 @@
   "auto_disabled_total": 0,
   "last_value_note": "Last cycles were captured after the stress. The snapshot connection allowed nine extra UI jobs; exact stress counts/deltas and maxima come from the stress summary."
 }
-

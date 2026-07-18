@@ -60,4 +60,3 @@ DOWN samples, 51 RELEASE samples, and zero I2C errors. Because no operator
 confirmed those presses, their source is unresolved and they are not evidence
 of physical hitbox accuracy. Visual and physical-touch validation remains
 `PENDING_OPERATOR_TOUCH_VALIDATION`.
-
