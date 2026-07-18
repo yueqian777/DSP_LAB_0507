@@ -365,6 +365,9 @@ volatile unsigned long EQ_DebugTouchActionCount = 0UL;
 volatile unsigned long EQ_DebugTouchRejectedCount = 0UL;
 volatile unsigned long EQ_DebugTouchLastCycles = 0UL;
 volatile unsigned long EQ_DebugTouchMaxCycles = 0UL;
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+#pragma RETAIN(EQ_DebugTouchStateBytes)
+#endif
 volatile const unsigned long EQ_DebugTouchStateBytes =
     (unsigned long)(sizeof(EQ_UI_TOUCH_STATE) +
                     sizeof(EQ_UI_TOUCH_TRANSFORM));

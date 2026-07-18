@@ -230,6 +230,9 @@ volatile unsigned long EQ_DebugLcdCategoryMaxCycles[EQ_LCD_CATEGORY_COUNT];
 volatile unsigned long EQ_DebugLcdJobTypeCount[EQ_LCD_JOB_COUNT];
 volatile unsigned long EQ_DebugLcdJobTypeLastCycles[EQ_LCD_JOB_COUNT];
 volatile unsigned long EQ_DebugLcdJobTypeMaxCycles[EQ_LCD_JOB_COUNT];
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+#pragma RETAIN(EQ_DebugUiStateBytes)
+#endif
 volatile const unsigned long EQ_DebugUiStateBytes =
     (unsigned long)sizeof(EQ_UI_STATE);
 
