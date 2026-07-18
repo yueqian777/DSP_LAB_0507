@@ -59,8 +59,10 @@
 #define EQ_UI_JOB_EDITOR_FIELDS 26
 #define EQ_UI_JOB_PAGE_TILE     27
 #define EQ_UI_JOB_COUNT         27
+#define EQ_UI_CATEGORY_COUNT    6
 #else
 #define EQ_UI_JOB_COUNT      15
+#define EQ_UI_CATEGORY_COUNT 4
 #endif
 
 typedef char EQ_UI_JOB_COUNT_MUST_FIT_MASK[
@@ -208,7 +210,7 @@ typedef struct
     unsigned long displayed_valid_mask;
     unsigned long band_last_display_frame[EQ_UI_ANALYZER_COUNT];
     unsigned long band_last_value_frame[EQ_UI_ANALYZER_COUNT];
-    unsigned long category_last_service_frame[4];
+    unsigned long category_last_service_frame[EQ_UI_CATEGORY_COUNT];
     unsigned long last_service_frame;
     unsigned long request_frame;
     unsigned int dynamic_field_mask[EQ_UI_DYNAMIC_COUNT];
@@ -390,6 +392,7 @@ void EqualizerUiEditor_Init(EQ_UI_EDITOR_STATE *state);
 int EqualizerUiEditor_SelectBand(EQ_UI_EDITOR_STATE *state, int band);
 int EqualizerUiEditor_StepSelected(EQ_UI_EDITOR_STATE *state,
                                    int delta_half_db);
+int EqualizerUiEditor_SetDraftFlat(EQ_UI_EDITOR_STATE *state);
 int EqualizerUiEditor_HasSubmittableDraft(
     const EQ_UI_EDITOR_STATE *state);
 void EqualizerUiEditor_CopyDraftDb(

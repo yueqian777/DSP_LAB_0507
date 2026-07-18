@@ -107,7 +107,7 @@ int main(void)
     failures += require_true(EQ_DebugLcdJobCount == 1UL,
                              "one service one count");
     failures += require_true(
-        flush_jobs(2UL) == EQ_LCD_JOB_COUNT - 1 +
+        flush_jobs(2UL) == EQ_UI_JOB_DYNAMIC_2 - 1 +
                           (2 * EQ_UI_DYNAMIC_COUNT),
                               "remaining jobs bounded");
     failures += require_true(EQ_DebugLcdBoundsFailureCount == 0UL,
@@ -124,6 +124,41 @@ int main(void)
     failures += require_true(
         EqualizerDisplay_TestPrimitiveCount() == primitives,
         "rejected static draw has no primitives");
+
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+    snapshot.page = EQ_UI_PAGE_EQ_EDITOR;
+    EqualizerDisplay_RequestSnapshot(&snapshot, 40UL);
+    failures += require_true(
+        EqualizerDisplay_IsPageBuilding() &&
+        EqualizerDisplay_GetDisplayedPage() ==
+            EQ_UI_PAGE_DYNAMIC_STATUS,
+        "editor page remains hidden while tiles build");
+    job = EqualizerDisplay_ServiceOneJob(40UL);
+    failures += require_true(job == EQ_UI_JOB_PAGE_TILE,
+                             "page build services one tile");
+    snapshot.page = EQ_UI_PAGE_DYNAMIC_STATUS;
+    EqualizerDisplay_RequestSnapshot(&snapshot, 41UL);
+    snapshot.page = EQ_UI_PAGE_EQ_EDITOR;
+    EqualizerDisplay_RequestSnapshot(&snapshot, 42UL);
+    failures += require_true(
+        flush_jobs(42UL) == (int)EQ_UI_PAGE_TILE_EDITOR_COUNT,
+        "latest page request restarts a complete editor tile build");
+    failures += require_true(
+        !EqualizerDisplay_IsPageBuilding() &&
+        EqualizerDisplay_GetDisplayedPage() == EQ_UI_PAGE_EQ_EDITOR,
+        "displayed page changes only after final tile");
+    snapshot.page = EQ_UI_PAGE_DYNAMIC_STATUS;
+    EqualizerDisplay_RequestSnapshot(&snapshot, 100UL);
+    failures += require_true(
+        flush_jobs(100UL) == (int)EQ_UI_PAGE_TILE_DYNAMIC_COUNT &&
+        EqualizerDisplay_GetDisplayedPage() ==
+            EQ_UI_PAGE_DYNAMIC_STATUS,
+        "dynamic page rebuild is also bounded by tiles");
+    failures += require_true(
+        EQ_DebugLcdBoundsFailureCount == 0UL &&
+        EQ_DebugLcdUnexpectedFullRedrawCount == unexpected + 1UL,
+        "page tiles stay in bounds without a full redraw");
+#endif
 
     snapshot.applied_preset = EQ_PRESET_BASS_BOOST;
     EqualizerDisplay_RequestSnapshot(&snapshot, 1000UL);

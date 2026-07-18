@@ -21,6 +21,17 @@
 #error Project 3.3 Touch requires the Project 3.3 LCD UI.
 #endif
 
+#if (EQ_ENABLE_TEN_BAND_EDITOR != 0) && \
+    (EQ_ENABLE_LCD_DISPLAY == 0) && !defined(EQ_ALGO_ONLY)
+#error Project 3.3 ten-band editor requires the Project 3.3 LCD UI.
+#endif
+
+#if (EQ_ENABLE_TEN_BAND_EDITOR_TOUCH != 0) && \
+    ((EQ_ENABLE_TEN_BAND_EDITOR == 0) || \
+     (EQ_ENABLE_PROJECT33_TOUCH == 0))
+#error Ten-band editor Touch requires both editor and Project 3.3 Touch.
+#endif
+
 #ifndef EQ_LCD_USE_CHINESE
 #define EQ_LCD_USE_CHINESE 1
 #endif
@@ -85,7 +96,13 @@
 #define EQ_LCD_CATEGORY_DYNAMIC  1
 #define EQ_LCD_CATEGORY_CHAIN    2
 #define EQ_LCD_CATEGORY_ANALYZER 3
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+#define EQ_LCD_CATEGORY_EDITOR   4
+#define EQ_LCD_CATEGORY_PAGE     5
+#define EQ_LCD_CATEGORY_COUNT    6
+#else
 #define EQ_LCD_CATEGORY_COUNT    4
+#endif
 
 #define EQ_LCD_ANALYZER_STRIP_NONE          0U
 #define EQ_LCD_ANALYZER_STRIP_CLEAR         1U
@@ -178,6 +195,8 @@ int EqualizerDisplay_DrawStaticLayout(void);
 void EqualizerDisplay_BeginRuntime(void);
 void EqualizerDisplay_RequestSnapshot(const EQ_UI_SNAPSHOT *snapshot,
                                       unsigned long process_frame);
+int EqualizerDisplay_GetDisplayedPage(void);
+int EqualizerDisplay_IsPageBuilding(void);
 int EqualizerDisplay_HasPendingJob(void);
 int EqualizerDisplay_HasEligibleJob(unsigned long process_frame);
 int EqualizerDisplay_ServiceOneJob(unsigned long process_frame);

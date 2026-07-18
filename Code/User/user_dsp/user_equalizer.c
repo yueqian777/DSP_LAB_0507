@@ -1967,7 +1967,7 @@ int Equalizer_GetAppliedPreset(const EQ_STATE *st)
         return EQ_PRESET_NONE;
     }
     return ((st->active_preset >= EQ_PRESET_FLAT) &&
-            (st->active_preset < EQ_PRESET_COUNT)) ?
+            (st->active_preset <= EQ_PRESET_CUSTOM)) ?
            st->active_preset : EQ_PRESET_NONE;
 }
 

@@ -94,6 +94,33 @@ static unsigned int EQ_HarshnessGuardCapturePrerollRemaining = 0U;
 #endif
 static EQ_CONTROL_STATE EQ_BoardControl;
 static EQ_BACKGROUND_SERVICE_STATE EQ_BackgroundService;
+#if (EQ_ENABLE_LCD_DISPLAY != 0) && (EQ_ENABLE_TEN_BAND_EDITOR != 0)
+typedef struct
+{
+    unsigned long analyzer_analysis_count;
+    unsigned long active_generation;
+    EQ_CONTROL_SEQUENCE applied_sequence;
+    EQ_CONTROL_SEQUENCE submitted_sequence;
+    unsigned long draft_version;
+    int applied_mode;
+    int smart_enabled;
+    int smart_strength;
+    int smart_level;
+    int clarity_enabled;
+    int clarity_strength;
+    int clarity_level;
+    int guard_enabled;
+    int guard_strength;
+    int guard_level;
+    int page;
+    int selected_band;
+    int apply_status;
+    unsigned int initialized;
+} EQ_UI_EVENT_VERSION;
+
+static EQ_UI_EDITOR_STATE EQ_UiEditorState;
+static EQ_UI_EVENT_VERSION EQ_UiEventVersion;
+#endif
 #if EQ_ENABLE_PROJECT33_TOUCH != 0
 static EQ_UI_TOUCH_STATE EQ_TouchState;
 static EQ_UI_TOUCH_TRANSFORM EQ_TouchTransform;
@@ -371,6 +398,20 @@ volatile unsigned long EQ_DebugTouchMaxCycles = 0UL;
 volatile const unsigned long EQ_DebugTouchStateBytes =
     (unsigned long)(sizeof(EQ_UI_TOUCH_STATE) +
                     sizeof(EQ_UI_TOUCH_TRANSFORM));
+#endif
+#if (EQ_ENABLE_LCD_DISPLAY != 0) && (EQ_ENABLE_TEN_BAND_EDITOR != 0)
+volatile int EQ_DebugUiRequestedPage = EQ_UI_PAGE_DYNAMIC_STATUS;
+volatile int EQ_DebugUiDisplayedPage = EQ_UI_PAGE_DYNAMIC_STATUS;
+volatile unsigned int EQ_DebugUiPageBuilding = 0U;
+volatile unsigned long EQ_DebugUiSnapshotBuildCount = 0UL;
+volatile unsigned long EQ_DebugUiSnapshotSkippedCount = 0UL;
+volatile unsigned long EQ_DebugUiAppliedGainRefreshCount = 0UL;
+volatile unsigned long EQ_DebugUiDraftVersion = 0UL;
+volatile unsigned long EQ_DebugUiPageSwitchCount = 0UL;
+volatile const unsigned long EQ_DebugUiEditorStateBytes =
+    (unsigned long)sizeof(EQ_UI_EDITOR_STATE);
+volatile const unsigned long EQ_DebugUiTotalStateBytes =
+    (unsigned long)(sizeof(EQ_UI_STATE) + sizeof(EQ_UI_EDITOR_STATE));
 #endif
 volatile const unsigned int EQ_DebugAnalyzerCompiled =
     EQ_ENABLE_AUDIO_FEATURE_ANALYZER;
@@ -1336,6 +1377,191 @@ static int EQ_UiFloatToTenths(float value)
         (int)(scaled + 0.5f) : (int)(scaled - 0.5f);
 }
 
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+static int EQ_UiEditorDraftMatchesSubmitted(void)
+{
+    int band;
+
+    if (EQ_UiEditorState.submitted_valid == 0U)
+    {
+        return 0;
+    }
+    for (band = 0; band < EQ_NUM_BANDS; band++)
+    {
+        if (EQ_UiEditorState.draft_gain_half_db[band] !=
+            EQ_UiEditorState.submitted_gain_half_db[band])
+        {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static void EQ_UpdateUiEditorFeedback(void)
+{
+    EQ_UI_GAIN_HALF_DB gains[EQ_NUM_BANDS];
+    unsigned long active_generation;
+    EQ_CONTROL_SEQUENCE applied_sequence;
+    int applied_mode;
+    int builder_state;
+    int status;
+    int band;
+
+    active_generation = Equalizer_GetActiveGeneration(&EQ_BoardState);
+    applied_sequence = EQ_BoardControl.applied_sequence;
+    applied_mode = Equalizer_GetAppliedPreset(&EQ_BoardState);
+    if ((EQ_UiEventVersion.initialized == 0U) ||
+        (active_generation != EQ_UiEventVersion.active_generation) ||
+        (applied_sequence != EQ_UiEventVersion.applied_sequence) ||
+        (applied_mode != EQ_UiEventVersion.applied_mode))
+    {
+        for (band = 0; band < EQ_NUM_BANDS; band++)
+        {
+            gains[band] = EqualizerUi_GainDbToHalf(
+                EQ_BoardState.active_gain_db[band]);
+        }
+        EqualizerUiEditor_ObserveApplied(
+            &EQ_UiEditorState, gains, applied_mode, applied_sequence);
+        EQ_DebugUiAppliedGainRefreshCount++;
+    }
+
+    status = EQ_UI_APPLY_APPLIED;
+    if ((EQ_UiEditorState.draft_dirty != 0U) &&
+        (EQ_UiEditorDraftMatchesSubmitted() == 0))
+    {
+        status = EQ_UI_APPLY_EDITING;
+    }
+    else if ((EQ_BoardControl.last_error != EQ_CONTROL_ERROR_NONE) ||
+             (EQ_BoardControl.builder.last_error !=
+              EQ_CONTROL_ERROR_NONE))
+    {
+        status = EQ_UI_APPLY_ERROR;
+    }
+    else if ((EQ_UiEditorState.submitted_valid != 0U) &&
+             (EQ_UiEditorState.applied_sequence ==
+              EQ_UiEditorState.submitted_sequence))
+    {
+        status = EQ_UI_APPLY_APPLIED;
+    }
+    else if ((EQ_BoardControl.installed_sequence ==
+              EQ_UiEditorState.submitted_sequence) &&
+             Equalizer_HasPendingTransition(&EQ_BoardState))
+    {
+        status = EQ_UI_APPLY_TRANSITION;
+    }
+    else if ((EQ_BoardControl.ready_candidate.valid != 0) &&
+             (EQ_BoardControl.ready_candidate.request_sequence ==
+              EQ_UiEditorState.submitted_sequence))
+    {
+        status = EQ_UI_APPLY_READY;
+    }
+    else
+    {
+        builder_state = EQ_BoardControl.builder.state;
+        if ((EQ_BoardControl.builder.request_sequence ==
+             EQ_UiEditorState.submitted_sequence) &&
+            ((builder_state == EQ_BUILDER_DESIGN_SECTION) ||
+             (builder_state == EQ_BUILDER_SCAN_HEADROOM) ||
+             (builder_state == EQ_BUILDER_FINALIZE)))
+        {
+            status = EQ_UI_APPLY_BUILDING;
+        }
+        else
+        {
+            status = EQ_UI_APPLY_QUEUED;
+        }
+    }
+    EqualizerUiEditor_SetApplyStatus(&EQ_UiEditorState, status);
+    EQ_DebugUiDraftVersion = EQ_UiEditorState.draft_version;
+    EQ_DebugUiDisplayedPage = EqualizerDisplay_GetDisplayedPage();
+    EQ_DebugUiPageBuilding =
+        (unsigned int)EqualizerDisplay_IsPageBuilding();
+}
+
+static int EQ_UiSnapshotEventChanged(void)
+{
+    int requested_page;
+
+    requested_page = (EQ_DebugUiRequestedPage == EQ_UI_PAGE_EQ_EDITOR) ?
+        EQ_UI_PAGE_EQ_EDITOR : EQ_UI_PAGE_DYNAMIC_STATUS;
+    if (EQ_DebugUiRequestedPage != requested_page)
+    {
+        EQ_DebugUiRequestedPage = requested_page;
+    }
+    if (EQ_UiEventVersion.initialized == 0U)
+        return 1;
+    if (EQ_UiEventVersion.analyzer_analysis_count !=
+        EQ_DebugAnalyzerAnalysisCount)
+        return 1;
+    if (EQ_UiEventVersion.active_generation !=
+        Equalizer_GetActiveGeneration(&EQ_BoardState))
+        return 1;
+    if (EQ_UiEventVersion.applied_sequence !=
+        EQ_BoardControl.applied_sequence)
+        return 1;
+    if (EQ_UiEventVersion.submitted_sequence !=
+        EQ_UiEditorState.submitted_sequence)
+        return 1;
+    if (EQ_UiEventVersion.draft_version != EQ_UiEditorState.draft_version)
+        return 1;
+    if (EQ_UiEventVersion.applied_mode != EQ_DebugAppliedMode)
+        return 1;
+    if ((EQ_UiEventVersion.smart_enabled !=
+         (int)EQ_DebugSmartBassEnabled) ||
+        (EQ_UiEventVersion.smart_strength != EQ_DebugSmartBassStrength) ||
+        (EQ_UiEventVersion.smart_level != EQ_DebugSmartBassAppliedLevel))
+        return 1;
+    if ((EQ_UiEventVersion.clarity_enabled !=
+         (int)EQ_DebugDynamicClarityEnabled) ||
+        (EQ_UiEventVersion.clarity_strength !=
+         EQ_DebugDynamicClarityStrength) ||
+        (EQ_UiEventVersion.clarity_level !=
+         EQ_DebugDynamicClarityAppliedLevel))
+        return 1;
+    if ((EQ_UiEventVersion.guard_enabled !=
+         (int)EQ_DebugHarshnessGuardEnabled) ||
+        (EQ_UiEventVersion.guard_strength !=
+         EQ_DebugHarshnessGuardStrength) ||
+        (EQ_UiEventVersion.guard_level !=
+         EQ_DebugHarshnessGuardAppliedLevel))
+        return 1;
+    if ((EQ_UiEventVersion.page != requested_page) ||
+        (EQ_UiEventVersion.selected_band !=
+         EQ_UiEditorState.selected_band) ||
+        (EQ_UiEventVersion.apply_status != EQ_UiEditorState.apply_status))
+        return 1;
+    return 0;
+}
+
+static void EQ_RecordUiSnapshotEvent(void)
+{
+    EQ_UiEventVersion.analyzer_analysis_count =
+        EQ_DebugAnalyzerAnalysisCount;
+    EQ_UiEventVersion.active_generation =
+        Equalizer_GetActiveGeneration(&EQ_BoardState);
+    EQ_UiEventVersion.applied_sequence = EQ_BoardControl.applied_sequence;
+    EQ_UiEventVersion.submitted_sequence =
+        EQ_UiEditorState.submitted_sequence;
+    EQ_UiEventVersion.draft_version = EQ_UiEditorState.draft_version;
+    EQ_UiEventVersion.applied_mode = EQ_DebugAppliedMode;
+    EQ_UiEventVersion.smart_enabled = (int)EQ_DebugSmartBassEnabled;
+    EQ_UiEventVersion.smart_strength = EQ_DebugSmartBassStrength;
+    EQ_UiEventVersion.smart_level = EQ_DebugSmartBassAppliedLevel;
+    EQ_UiEventVersion.clarity_enabled =
+        (int)EQ_DebugDynamicClarityEnabled;
+    EQ_UiEventVersion.clarity_strength = EQ_DebugDynamicClarityStrength;
+    EQ_UiEventVersion.clarity_level = EQ_DebugDynamicClarityAppliedLevel;
+    EQ_UiEventVersion.guard_enabled =
+        (int)EQ_DebugHarshnessGuardEnabled;
+    EQ_UiEventVersion.guard_strength = EQ_DebugHarshnessGuardStrength;
+    EQ_UiEventVersion.guard_level = EQ_DebugHarshnessGuardAppliedLevel;
+    EQ_UiEventVersion.page = EQ_DebugUiRequestedPage;
+    EQ_UiEventVersion.selected_band = EQ_UiEditorState.selected_band;
+    EQ_UiEventVersion.apply_status = EQ_UiEditorState.apply_status;
+    EQ_UiEventVersion.initialized = 1U;
+}
+#endif
+
 static void EQ_BuildUiSnapshot(EQ_UI_SNAPSHOT *snapshot)
 {
     int tenths;
@@ -1369,7 +1595,29 @@ static void EQ_BuildUiSnapshot(EQ_UI_SNAPSHOT *snapshot)
     tenths = EQ_UiFloatToTenths(EQ_DebugAnalyzerBrightnessDb);
     snapshot->band_value_db[3] = EqualizerUi_RoundTenthsToDb(tenths);
     snapshot->band_pixel[3] = EqualizerUi_DbTenthsToPixel(tenths);
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+    snapshot->page = EQ_DebugUiRequestedPage;
+    EqualizerUiEditor_CopyToSnapshot(&EQ_UiEditorState, snapshot);
+#endif
 }
+
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+static void EQ_RequestUiSnapshotIfChanged(EQ_UI_SNAPSHOT *snapshot,
+                                          unsigned long process_frame,
+                                          int force)
+{
+    EQ_UpdateUiEditorFeedback();
+    if ((force == 0) && (EQ_UiSnapshotEventChanged() == 0))
+    {
+        EQ_DebugUiSnapshotSkippedCount++;
+        return;
+    }
+    EQ_BuildUiSnapshot(snapshot);
+    EqualizerDisplay_RequestSnapshot(snapshot, process_frame);
+    EQ_RecordUiSnapshotEvent();
+    EQ_DebugUiSnapshotBuildCount++;
+}
+#endif
 #endif
 
 #if EQ_ENABLE_PROJECT33_TOUCH != 0
@@ -1386,6 +1634,10 @@ static int EQ_NextUiStrength(int strength)
     return 1;
 }
 
+#if EQ_ENABLE_TEN_BAND_EDITOR_TOUCH != 0
+static int EQ_SubmitUiEditorRequest(int reset_flat);
+#endif
+
 static int EQ_ApplyUiAction(int action)
 {
     int preset;
@@ -1397,6 +1649,42 @@ static int EQ_ApplyUiAction(int action)
         EQ_DebugMode = preset;
         return 1;
     }
+#if EQ_ENABLE_TEN_BAND_EDITOR_TOUCH != 0
+    if (action == EQ_UI_ACTION_PAGE_SWITCH)
+    {
+        EQ_DebugUiRequestedPage =
+            (EQ_DebugUiRequestedPage == EQ_UI_PAGE_EQ_EDITOR) ?
+            EQ_UI_PAGE_DYNAMIC_STATUS : EQ_UI_PAGE_EQ_EDITOR;
+        EQ_DebugUiPageSwitchCount++;
+        return 1;
+    }
+    if ((action >= EQ_UI_ACTION_EDITOR_BAND_0) &&
+        (action <= EQ_UI_ACTION_EDITOR_BAND_9))
+    {
+        (void)EqualizerUiEditor_SelectBand(
+            &EQ_UiEditorState,
+            action - EQ_UI_ACTION_EDITOR_BAND_0);
+        return 1;
+    }
+    if (action == EQ_UI_ACTION_EDITOR_MINUS)
+    {
+        (void)EqualizerUiEditor_StepSelected(&EQ_UiEditorState, -1);
+        return 1;
+    }
+    if (action == EQ_UI_ACTION_EDITOR_PLUS)
+    {
+        (void)EqualizerUiEditor_StepSelected(&EQ_UiEditorState, 1);
+        return 1;
+    }
+    if (action == EQ_UI_ACTION_EDITOR_APPLY)
+    {
+        return EQ_SubmitUiEditorRequest(0);
+    }
+    if (action == EQ_UI_ACTION_EDITOR_RESET_FLAT)
+    {
+        return EQ_SubmitUiEditorRequest(1);
+    }
+#endif
     if (action == EQ_UI_ACTION_SMART_TOGGLE)
     {
         EQ_DebugSmartBassEnabled =
@@ -1486,7 +1774,8 @@ static int EQ_ServiceUiTouch(unsigned char flag_ad_done,
     {
         EQ_DebugTouchPressed = 0U;
         (void)EqualizerUiTouch_Process(
-            &EQ_TouchState, EQ_UI_PAGE_DYNAMIC_STATUS, 0,
+            &EQ_TouchState, EqualizerDisplay_GetDisplayedPage(),
+            EqualizerDisplay_IsPageBuilding(),
             0, EQ_DebugTouchScreenX,
             EQ_DebugTouchScreenY, &rejected);
         return 1;
@@ -1515,7 +1804,8 @@ static int EQ_ServiceUiTouch(unsigned char flag_ad_done,
     EQ_DebugTouchPressed = 1U;
     rejected = 0;
     action = EqualizerUiTouch_Process(
-        &EQ_TouchState, EQ_UI_PAGE_DYNAMIC_STATUS, 0,
+        &EQ_TouchState, EqualizerDisplay_GetDisplayedPage(),
+        EqualizerDisplay_IsPageBuilding(),
         1, screen_x, screen_y, &rejected);
     if (rejected != 0)
     {
@@ -1555,6 +1845,54 @@ static void EQ_FillControlRequest(EQ_CONTROL_REQUEST *request)
             EQ_BoardControl.shadow_gain_db[band];
     }
 }
+
+#if EQ_ENABLE_TEN_BAND_EDITOR_TOUCH != 0
+static int EQ_SubmitUiEditorRequest(int reset_flat)
+{
+    EQ_CONTROL_REQUEST request;
+    EQ_CONTROL_SEQUENCE submitted;
+
+    if ((EQ_AppliedDiagPath != EQ_DIAG_PRESET) ||
+        (EQ_NormalizeDiagPath(EQ_DebugDiagPath) != EQ_DIAG_PRESET))
+    {
+        EqualizerUiEditor_SetApplyStatus(
+            &EQ_UiEditorState, EQ_UI_APPLY_ERROR);
+        return 0;
+    }
+    if (reset_flat != 0)
+    {
+        (void)EqualizerUiEditor_SetDraftFlat(&EQ_UiEditorState);
+    }
+    else if (EqualizerUiEditor_HasSubmittableDraft(
+                 &EQ_UiEditorState) == 0)
+    {
+        return 1;
+    }
+    EQ_FillControlRequest(&request);
+    if (reset_flat != 0)
+    {
+        request.command = EQ_CONTROL_RESET_FLAT;
+        request.preset = EQ_PRESET_FLAT;
+    }
+    else
+    {
+        request.command = EQ_CONTROL_SET_ALL;
+        request.preset = EQ_PRESET_CUSTOM;
+        EqualizerUiEditor_CopyDraftDb(
+            &EQ_UiEditorState, request.shadow_gain_db);
+    }
+    submitted = EqualizerControl_SubmitRequest(
+        &EQ_ControlMailbox, &request);
+    if (submitted == 0U)
+    {
+        EqualizerUiEditor_SetApplyStatus(
+            &EQ_UiEditorState, EQ_UI_APPLY_ERROR);
+        return 0;
+    }
+    EqualizerUiEditor_MarkSubmitted(&EQ_UiEditorState, submitted);
+    return 1;
+}
+#endif
 
 static int EQ_ServiceMode(void)
 {
@@ -2895,6 +3233,18 @@ void Equalizer_Flow_Example(void)
     EQ_ClearDacBuffers();
 #if EQ_ENABLE_LCD_DISPLAY != 0
     EqualizerDisplay_Init();
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+    EqualizerUiEditor_Init(&EQ_UiEditorState);
+    memset(&EQ_UiEventVersion, 0, sizeof(EQ_UiEventVersion));
+    EQ_DebugUiRequestedPage = EQ_UI_PAGE_DYNAMIC_STATUS;
+    EQ_DebugUiDisplayedPage = EQ_UI_PAGE_DYNAMIC_STATUS;
+    EQ_DebugUiPageBuilding = 0U;
+    EQ_DebugUiSnapshotBuildCount = 0UL;
+    EQ_DebugUiSnapshotSkippedCount = 0UL;
+    EQ_DebugUiAppliedGainRefreshCount = 0UL;
+    EQ_DebugUiDraftVersion = 0UL;
+    EQ_DebugUiPageSwitchCount = 0UL;
+#endif
 #if EQ_ENABLE_PROJECT33_TOUCH != 0
     Touch_Init();
     EqualizerUiTouch_Init(&EQ_TouchState);
@@ -2920,9 +3270,14 @@ void Equalizer_Flow_Example(void)
     EQ_DebugTouchMaxCycles = 0UL;
 #endif
     (void)EqualizerDisplay_DrawStaticLayout();
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+    EQ_RequestUiSnapshotIfChanged(
+        &lcd_snapshot, EQ_DebugProcessFrames, 1);
+#else
     EQ_BuildUiSnapshot(&lcd_snapshot);
     EqualizerDisplay_RequestSnapshot(
         &lcd_snapshot, EQ_DebugProcessFrames);
+#endif
     EqualizerDisplay_BeginRuntime();
 #endif
 
@@ -3027,9 +3382,14 @@ void Equalizer_Flow_Example(void)
             EQ_UpdateDebugGains();
 
 #if EQ_ENABLE_LCD_DISPLAY != 0
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+            EQ_RequestUiSnapshotIfChanged(
+                &lcd_snapshot, EQ_DebugProcessFrames, 0);
+#else
             EQ_BuildUiSnapshot(&lcd_snapshot);
             EqualizerDisplay_RequestSnapshot(
                 &lcd_snapshot, EQ_DebugProcessFrames);
+#endif
             EqualizerDisplay_AuditHardware(
                 EQ_DebugProcessFrames, 0);
             lcd_disable_reason = EqualizerLcdFaultPolicy_Monitor(

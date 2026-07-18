@@ -2049,6 +2049,34 @@ int EqualizerUiEditor_StepSelected(EQ_UI_EDITOR_STATE *state,
     return 1;
 }
 
+int EqualizerUiEditor_SetDraftFlat(EQ_UI_EDITOR_STATE *state)
+{
+    int changed;
+    int band;
+
+    if (state == 0)
+    {
+        return 0;
+    }
+    changed = 0;
+    for (band = 0; band < EQ_NUM_BANDS; band++)
+    {
+        if (state->draft_gain_half_db[band] != 0)
+        {
+            state->draft_gain_half_db[band] = 0;
+            changed = 1;
+        }
+    }
+    if (changed != 0)
+    {
+        state->draft_version++;
+    }
+    state->draft_dirty = (unsigned int)!EQ_UI_GainArraysEqual(
+        state->draft_gain_half_db, state->applied_gain_half_db);
+    state->apply_status = EQ_UI_APPLY_EDITING;
+    return changed;
+}
+
 int EqualizerUiEditor_HasSubmittableDraft(
     const EQ_UI_EDITOR_STATE *state)
 {

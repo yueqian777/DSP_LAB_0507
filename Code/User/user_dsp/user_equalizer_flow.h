@@ -29,6 +29,14 @@
 #define EQ_ENABLE_PROJECT33_TOUCH 0
 #endif
 
+#ifndef EQ_ENABLE_TEN_BAND_EDITOR
+#define EQ_ENABLE_TEN_BAND_EDITOR 0
+#endif
+
+#ifndef EQ_ENABLE_TEN_BAND_EDITOR_TOUCH
+#define EQ_ENABLE_TEN_BAND_EDITOR_TOUCH 0
+#endif
+
 #ifndef EQ_ENABLE_DYNAMIC_CLARITY_TIMING_DIAGNOSTICS
 #define EQ_ENABLE_DYNAMIC_CLARITY_TIMING_DIAGNOSTICS 0
 #endif
@@ -221,6 +229,18 @@ extern volatile unsigned long EQ_DebugTouchRejectedCount;
 extern volatile unsigned long EQ_DebugTouchLastCycles;
 extern volatile unsigned long EQ_DebugTouchMaxCycles;
 extern volatile const unsigned long EQ_DebugTouchStateBytes;
+#endif
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+extern volatile int EQ_DebugUiRequestedPage;
+extern volatile int EQ_DebugUiDisplayedPage;
+extern volatile unsigned int EQ_DebugUiPageBuilding;
+extern volatile unsigned long EQ_DebugUiSnapshotBuildCount;
+extern volatile unsigned long EQ_DebugUiSnapshotSkippedCount;
+extern volatile unsigned long EQ_DebugUiAppliedGainRefreshCount;
+extern volatile unsigned long EQ_DebugUiDraftVersion;
+extern volatile unsigned long EQ_DebugUiPageSwitchCount;
+extern volatile const unsigned long EQ_DebugUiEditorStateBytes;
+extern volatile const unsigned long EQ_DebugUiTotalStateBytes;
 #endif
 extern volatile const unsigned int EQ_DebugAnalyzerCompiled;
 extern volatile unsigned int EQ_DebugAnalyzerEnabled;

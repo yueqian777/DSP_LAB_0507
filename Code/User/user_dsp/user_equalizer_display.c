@@ -36,6 +36,19 @@
 #define EQ_UI_ANALYZER_VALUE_H 22
 #define EQ_UI_ANALYZER_ZERO_Y EQ_UI_ANALYZER_ZERO_PIXEL
 
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+#define EQ_UI_EDITOR_INNER_X_OFFSET 26
+#define EQ_UI_EDITOR_INNER_W 16
+static const EQ_UI_RECT s_editor_field_rects[5] =
+{
+    { 24, 398, 132, 70 },
+    { 168, 398, 132, 70 },
+    { 312, 398, 132, 70 },
+    { 456, 398, 132, 70 },
+    { 600, 398, 176, 70 }
+};
+#endif
+
 #define EQ_FONT_SMALL 0
 #define EQ_FONT_MEDIUM 1
 #define EQ_FONT_LARGE 2
@@ -216,6 +229,12 @@ static const unsigned char s_title[] =
     CN_SHI_TEN, CN_DUAN, CN_DONG, CN_TAI,
     CN_JUN, CN_HENG, CN_XI, CN_TONG
 };
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+static const unsigned char s_editor_title[] =
+{
+    CN_SHI_TEN, CN_DUAN, CN_JUN, CN_HENG, CN_XI, CN_TONG
+};
+#endif
 static const unsigned char s_preset_flat[] = { CN_PING, CN_ZHI };
 static const unsigned char s_preset_bass[] = { CN_DI, CN_YIN };
 static const unsigned char s_preset_vocal[] = { CN_REN, CN_SHENG };
@@ -946,6 +965,32 @@ static int EQ_FormatSignedDb(char *buffer, int value)
     return length;
 }
 
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+static int EQ_FormatHalfDb(char *buffer, int half_db)
+{
+    int magnitude;
+    int whole;
+    int length;
+
+    half_db = EQ_ClampInt(half_db,
+                          EQ_UI_GAIN_HALF_DB_MIN,
+                          EQ_UI_GAIN_HALF_DB_MAX);
+    length = 0;
+    buffer[length++] = (half_db >= 0) ? '+' : '-';
+    magnitude = (half_db >= 0) ? half_db : -half_db;
+    whole = magnitude / 2;
+    if (whole >= 10)
+    {
+        buffer[length++] = (char)('0' + (whole / 10));
+    }
+    buffer[length++] = (char)('0' + (whole % 10));
+    buffer[length++] = '.';
+    buffer[length++] = ((magnitude & 1) != 0) ? '5' : '0';
+    buffer[length] = '\0';
+    return length;
+}
+#endif
+
 static int EQ_FormatLevel(char *buffer, int level)
 {
     level = EQ_ClampInt(level, 0, 9);
@@ -960,6 +1005,130 @@ static void EQ_ClearInside(const EQ_UI_RECT *rect)
     EQ_LcdFillRect(rect->x + 1, rect->y + 1,
                    rect->w - 2, rect->h - 2, EQ_COLOR_BG);
 }
+
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+static void EQ_DrawPageTitle(int page)
+{
+    EQ_UI_RECT rect;
+
+    rect.x = EQ_UI_TITLE_X;
+    rect.y = EQ_UI_TITLE_Y;
+    rect.w = EQ_UI_TITLE_W;
+    rect.h = EQ_UI_TITLE_H;
+    EQ_LcdFillRect(rect.x, rect.y, rect.w, rect.h, EQ_COLOR_BG);
+#if EQ_LCD_USE_CHINESE
+    if (page == EQ_UI_PAGE_EQ_EDITOR)
+    {
+        EQ_DrawCnCentered(&rect, s_editor_title, 6, EQ_COLOR_TEXT);
+    }
+    else
+    {
+        EQ_DrawCnCentered(&rect, s_title, 8, EQ_COLOR_TEXT);
+    }
+#else
+    if (page == EQ_UI_PAGE_EQ_EDITOR)
+    {
+        EQ_LcdDrawText(&rect, "P3.3 10-Band EQ", 16,
+                       EQ_FONT_LARGE, EQ_COLOR_TEXT, 1);
+    }
+    else
+    {
+        EQ_LcdDrawText(&rect, "P3.3 Dynamic EQ", 14,
+                       EQ_FONT_LARGE, EQ_COLOR_TEXT, 1);
+    }
+#endif
+}
+
+static void EQ_DrawPageSwitch(int page)
+{
+    const char *label;
+    int length;
+
+    label = (page == EQ_UI_PAGE_EQ_EDITOR) ? "STATUS" : "EDITOR";
+    length = 6;
+    EQ_LcdFillRect(EQ_UI_PAGE_SWITCH_RECT.x,
+                   EQ_UI_PAGE_SWITCH_RECT.y,
+                   EQ_UI_PAGE_SWITCH_RECT.w,
+                   EQ_UI_PAGE_SWITCH_RECT.h, EQ_COLOR_BG);
+    EQ_LcdDrawRect(EQ_UI_PAGE_SWITCH_RECT.x,
+                   EQ_UI_PAGE_SWITCH_RECT.y,
+                   EQ_UI_PAGE_SWITCH_RECT.w,
+                   EQ_UI_PAGE_SWITCH_RECT.h, EQ_COLOR_BORDER);
+    EQ_LcdDrawText(&EQ_UI_PAGE_SWITCH_RECT, label, length,
+                   EQ_FONT_SMALL, EQ_COLOR_TEXT, 1);
+}
+
+static int EQ_EditorGainToPixel(int gain_half_db)
+{
+    long numerator;
+    int span;
+
+    gain_half_db = EQ_ClampInt(gain_half_db,
+                               EQ_UI_GAIN_HALF_DB_MIN,
+                               EQ_UI_GAIN_HALF_DB_MAX);
+    span = EQ_UI_EDITOR_DRAW_BOTTOM - EQ_UI_EDITOR_DRAW_TOP;
+    numerator = (long)(EQ_UI_GAIN_HALF_DB_MAX - gain_half_db) *
+                (long)span;
+    return EQ_UI_EDITOR_DRAW_TOP + (int)((numerator + 30L) / 60L);
+}
+
+static void EQ_DrawEditorBandFull(int band)
+{
+    static const char * const labels[EQ_NUM_BANDS] =
+    {
+        "31", "62", "125", "250", "500",
+        "1k", "2k", "4k", "8k", "16k"
+    };
+    static const int lengths[EQ_NUM_BANDS] =
+    {
+        2, 2, 3, 3, 3, 2, 2, 2, 2, 3
+    };
+    const EQ_UI_RECT *rect;
+    EQ_UI_RECT label_rect;
+    int inner_x;
+    int pixel;
+    int selected;
+
+    rect = &EQ_UI_EDITOR_BAND_RECTS[band];
+    selected = (s_ui_state.requested.editor_selected_band == band) ? 1 : 0;
+    EQ_LcdFillRect(rect->x, rect->y, rect->w, rect->h, EQ_COLOR_BG);
+    EQ_LcdDrawRect(rect->x, rect->y, rect->w, rect->h,
+                   selected ? EQ_COLOR_HIGHLIGHT : EQ_COLOR_BORDER);
+    inner_x = rect->x + EQ_UI_EDITOR_INNER_X_OFFSET;
+    EQ_LcdDrawRect(inner_x, EQ_UI_EDITOR_BAR_TOP,
+                   EQ_UI_EDITOR_INNER_W,
+                   EQ_UI_EDITOR_BAR_BOTTOM - EQ_UI_EDITOR_BAR_TOP + 1,
+                   EQ_COLOR_BORDER);
+    EQ_LcdDrawLine(inner_x - 5, EQ_UI_EDITOR_ZERO_PIXEL,
+                   inner_x - 1, EQ_UI_EDITOR_ZERO_PIXEL, EQ_COLOR_ZERO);
+    EQ_LcdDrawLine(inner_x + EQ_UI_EDITOR_INNER_W,
+                   EQ_UI_EDITOR_ZERO_PIXEL,
+                   inner_x + EQ_UI_EDITOR_INNER_W + 4,
+                   EQ_UI_EDITOR_ZERO_PIXEL, EQ_COLOR_ZERO);
+    pixel = EQ_EditorGainToPixel(
+        (int)s_ui_state.requested.applied_gain_half_db[band]);
+    if (pixel < EQ_UI_EDITOR_ZERO_PIXEL)
+    {
+        EQ_LcdFillRect(inner_x + 1, pixel,
+                       EQ_UI_EDITOR_INNER_W - 2,
+                       EQ_UI_EDITOR_ZERO_PIXEL - pixel,
+                       EQ_COLOR_BAR_POS);
+    }
+    else if (pixel > EQ_UI_EDITOR_ZERO_PIXEL)
+    {
+        EQ_LcdFillRect(inner_x + 1, EQ_UI_EDITOR_ZERO_PIXEL + 1,
+                       EQ_UI_EDITOR_INNER_W - 2,
+                       pixel - EQ_UI_EDITOR_ZERO_PIXEL,
+                       EQ_COLOR_BAR_NEG);
+    }
+    label_rect.x = rect->x;
+    label_rect.y = 298;
+    label_rect.w = rect->w;
+    label_rect.h = 24;
+    EQ_LcdDrawText(&label_rect, labels[band], lengths[band],
+                   EQ_FONT_SMALL, EQ_COLOR_TEXT, 1);
+}
+#endif
 
 #if !EQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN
 static void EQ_DrawPresetStatic(int index)
@@ -1170,6 +1339,357 @@ static void EQ_DrawDynamicStatic(void)
                        EQ_FONT_SMALL, EQ_COLOR_TEXT, 1);
     }
 }
+
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+static void EQ_DrawAnalyzerTileFull(int band)
+{
+#if EQ_LCD_USE_CHINESE
+    static const unsigned char * const cn_labels[EQ_UI_ANALYZER_COUNT] =
+    {
+        s_analyzer_bass, s_analyzer_mud,
+        s_analyzer_presence, s_analyzer_brightness
+    };
+#else
+    static const char * const en_labels[EQ_UI_ANALYZER_COUNT] =
+    {
+        "BASS", "MUD", "PRES", "BRIGHT"
+    };
+    static const int en_lengths[EQ_UI_ANALYZER_COUNT] = { 4, 3, 4, 6 };
+#endif
+    const EQ_UI_RECT *rect;
+    EQ_UI_RECT clear_rect;
+    EQ_UI_RECT label_rect;
+    EQ_UI_RECT value_rect;
+    char buffer[5];
+    int inner_x;
+    int pixel;
+    int length;
+    int valid;
+
+    rect = &EQ_UI_ANALYZER_RECTS[band];
+    clear_rect.x = (band == 0) ? 8 : rect->x;
+    clear_rect.y = 112;
+    clear_rect.w = (band == 0) ? rect->x + rect->w - 8 : rect->w;
+    clear_rect.h = 222;
+    EQ_LcdFillRect(clear_rect.x, clear_rect.y,
+                   clear_rect.w, clear_rect.h, EQ_COLOR_BG);
+    if (band == 0)
+    {
+        EQ_UI_RECT scale_rect;
+        scale_rect.x = 8; scale_rect.y = 116;
+        scale_rect.w = 46; scale_rect.h = 18;
+        EQ_LcdDrawText(&scale_rect, "+20", 3, EQ_FONT_SMALL,
+                       EQ_COLOR_MUTED, 1);
+        scale_rect.y = EQ_UI_ANALYZER_ZERO_Y - 9;
+        EQ_LcdDrawText(&scale_rect, "0", 1, EQ_FONT_SMALL,
+                       EQ_COLOR_ZERO, 1);
+        scale_rect.y = 288;
+        EQ_LcdDrawText(&scale_rect, "-20", 3, EQ_FONT_SMALL,
+                       EQ_COLOR_MUTED, 1);
+    }
+    EQ_LcdDrawRect(rect->x, rect->y, rect->w, rect->h, EQ_COLOR_BORDER);
+    inner_x = rect->x + EQ_UI_ANALYZER_INNER_X_OFFSET;
+    EQ_LcdDrawRect(inner_x, EQ_UI_ANALYZER_BAR_TOP,
+                   EQ_UI_ANALYZER_INNER_W,
+                   EQ_UI_ANALYZER_BAR_BOTTOM -
+                   EQ_UI_ANALYZER_BAR_TOP + 1, EQ_COLOR_BORDER);
+    EQ_LcdDrawLine(inner_x - 6, EQ_UI_ANALYZER_ZERO_Y,
+                   inner_x - 2, EQ_UI_ANALYZER_ZERO_Y, EQ_COLOR_ZERO);
+    EQ_LcdDrawLine(inner_x + EQ_UI_ANALYZER_INNER_W + 1,
+                   EQ_UI_ANALYZER_ZERO_Y,
+                   inner_x + EQ_UI_ANALYZER_INNER_W + 5,
+                   EQ_UI_ANALYZER_ZERO_Y, EQ_COLOR_ZERO);
+    pixel = EQ_ClampInt(s_ui_state.requested.band_pixel[band],
+                        EQ_UI_ANALYZER_DRAW_TOP,
+                        EQ_UI_ANALYZER_DRAW_BOTTOM);
+    valid = (s_ui_state.requested.analyzer_valid != 0) &&
+            (s_ui_state.requested.analyzer_warm != 0);
+    if (valid && (pixel < EQ_UI_ANALYZER_ZERO_Y))
+    {
+        EQ_LcdFillRect(inner_x + 1, pixel,
+                       EQ_UI_ANALYZER_INNER_W - 2,
+                       EQ_UI_ANALYZER_ZERO_Y - pixel,
+                       EQ_COLOR_BAR_POS);
+    }
+    else if (valid && (pixel > EQ_UI_ANALYZER_ZERO_Y))
+    {
+        EQ_LcdFillRect(inner_x + 1, EQ_UI_ANALYZER_ZERO_Y + 1,
+                       EQ_UI_ANALYZER_INNER_W - 2,
+                       pixel - EQ_UI_ANALYZER_ZERO_Y,
+                       EQ_COLOR_BAR_NEG);
+    }
+    value_rect.x = rect->x + EQ_UI_ANALYZER_VALUE_X_OFFSET;
+    value_rect.y = rect->y + EQ_UI_ANALYZER_VALUE_Y_OFFSET;
+    value_rect.w = EQ_UI_ANALYZER_VALUE_W;
+    value_rect.h = EQ_UI_ANALYZER_VALUE_H;
+    if (valid)
+    {
+        length = EQ_FormatSignedDb(
+            buffer, s_ui_state.requested.band_value_db[band]);
+        EQ_LcdDrawText(&value_rect, buffer, length,
+                       EQ_FONT_SMALL, EQ_COLOR_TEXT, 1);
+    }
+    else
+    {
+        EQ_LcdDrawText(&value_rect, "--", 2,
+                       EQ_FONT_SMALL, EQ_COLOR_MUTED, 1);
+    }
+    label_rect.x = rect->x;
+    label_rect.y = 310;
+    label_rect.w = rect->w;
+    label_rect.h = 24;
+#if EQ_LCD_USE_CHINESE
+    EQ_DrawCnCentered(&label_rect, cn_labels[band], 2, EQ_COLOR_TEXT);
+#else
+    EQ_LcdDrawText(&label_rect, en_labels[band], en_lengths[band],
+                   EQ_FONT_SMALL, EQ_COLOR_TEXT, 1);
+#endif
+}
+
+static void EQ_DrawDynamicTileFull(int index)
+{
+#if EQ_LCD_USE_CHINESE
+    static const unsigned char * const cn_labels[EQ_UI_DYNAMIC_COUNT] =
+    {
+        s_dynamic_smart, s_dynamic_clarity, s_dynamic_guard
+    };
+    static const int cn_counts[EQ_UI_DYNAMIC_COUNT] = { 4, 3, 4 };
+#else
+    static const char * const en_labels[EQ_UI_DYNAMIC_COUNT] =
+    {
+        "SMART BASS", "CLARITY", "HF GUARD"
+    };
+    static const int en_lengths[EQ_UI_DYNAMIC_COUNT] = { 10, 7, 8 };
+#endif
+    EQ_UI_RECT label_rect;
+    char buffer[3];
+    int enabled;
+    int strength;
+    int level;
+    int length;
+
+    EQ_LcdFillRect(EQ_UI_DYNAMIC_RECTS[index].x,
+                   EQ_UI_DYNAMIC_RECTS[index].y,
+                   EQ_UI_DYNAMIC_RECTS[index].w,
+                   EQ_UI_DYNAMIC_RECTS[index].h, EQ_COLOR_BG);
+    label_rect.x = 24;
+    label_rect.y = EQ_UI_DYNAMIC_RECTS[index].y;
+    label_rect.w = 124;
+    label_rect.h = EQ_UI_DYNAMIC_RECTS[index].h;
+#if EQ_LCD_USE_CHINESE
+    EQ_DrawCnCentered(&label_rect, cn_labels[index],
+                      cn_counts[index], EQ_COLOR_TEXT);
+#else
+    EQ_LcdDrawText(&label_rect, en_labels[index], en_lengths[index],
+                   EQ_FONT_SMALL, EQ_COLOR_TEXT, 0);
+#endif
+    EQ_LcdDrawRect(EQ_UI_DYNAMIC_TOGGLE_RECTS[index].x,
+                   EQ_UI_DYNAMIC_TOGGLE_RECTS[index].y,
+                   EQ_UI_DYNAMIC_TOGGLE_RECTS[index].w,
+                   EQ_UI_DYNAMIC_TOGGLE_RECTS[index].h, EQ_COLOR_BORDER);
+    EQ_LcdDrawRect(EQ_UI_DYNAMIC_STRENGTH_RECTS[index].x,
+                   EQ_UI_DYNAMIC_STRENGTH_RECTS[index].y,
+                   EQ_UI_DYNAMIC_STRENGTH_RECTS[index].w,
+                   EQ_UI_DYNAMIC_STRENGTH_RECTS[index].h, EQ_COLOR_BORDER);
+    EQ_LcdDrawRect(EQ_UI_DYNAMIC_LEVEL_RECTS[index].x,
+                   EQ_UI_DYNAMIC_LEVEL_RECTS[index].y,
+                   EQ_UI_DYNAMIC_LEVEL_RECTS[index].w,
+                   EQ_UI_DYNAMIC_LEVEL_RECTS[index].h, EQ_COLOR_BORDER);
+    enabled = (index == 0) ? s_ui_state.requested.smart_enabled :
+              ((index == 1) ? s_ui_state.requested.clarity_enabled :
+                              s_ui_state.requested.guard_enabled);
+    strength = (index == 0) ? s_ui_state.requested.smart_strength :
+               ((index == 1) ? s_ui_state.requested.clarity_strength :
+                               s_ui_state.requested.guard_strength);
+    level = (index == 0) ? s_ui_state.requested.smart_level :
+            ((index == 1) ? s_ui_state.requested.clarity_level :
+                            s_ui_state.requested.guard_level);
+#if EQ_LCD_USE_CHINESE
+    EQ_DrawCnValue(&EQ_UI_DYNAMIC_TOGGLE_RECTS[index],
+                   enabled ? CN_KAI : CN_GUAN,
+                   enabled ? EQ_COLOR_ACTIVE : EQ_COLOR_MUTED);
+    EQ_DrawCnValue(&EQ_UI_DYNAMIC_STRENGTH_RECTS[index],
+                   (strength <= 1) ? CN_DI :
+                   ((strength >= 3) ? CN_GAO : CN_ZHONG), EQ_COLOR_TEXT);
+#else
+    EQ_LcdDrawText(&EQ_UI_DYNAMIC_TOGGLE_RECTS[index],
+                   enabled ? "ON" : "OFF", enabled ? 2 : 3,
+                   EQ_FONT_SMALL,
+                   enabled ? EQ_COLOR_ACTIVE : EQ_COLOR_MUTED, 1);
+    if (strength <= 1)
+        EQ_LcdDrawText(&EQ_UI_DYNAMIC_STRENGTH_RECTS[index],
+                       "LOW", 3, EQ_FONT_SMALL, EQ_COLOR_TEXT, 1);
+    else if (strength >= 3)
+        EQ_LcdDrawText(&EQ_UI_DYNAMIC_STRENGTH_RECTS[index],
+                       "HIGH", 4, EQ_FONT_SMALL, EQ_COLOR_TEXT, 1);
+    else
+        EQ_LcdDrawText(&EQ_UI_DYNAMIC_STRENGTH_RECTS[index],
+                       "MID", 3, EQ_FONT_SMALL, EQ_COLOR_TEXT, 1);
+#endif
+    length = EQ_FormatLevel(buffer, level);
+    EQ_LcdDrawText(&EQ_UI_DYNAMIC_LEVEL_RECTS[index],
+                   buffer, length, EQ_FONT_SMALL, EQ_COLOR_TEXT, 1);
+}
+
+static const char *EQ_EditorPresetText(int preset, int draft_dirty)
+{
+    if (draft_dirty != 0)
+        return "EDITING";
+    if (preset == EQ_PRESET_CUSTOM)
+        return "CUSTOM";
+    if (preset == EQ_PRESET_BASS_BOOST)
+        return "BASS";
+    if (preset == EQ_PRESET_VOCAL)
+        return "VOCAL";
+    if (preset == EQ_PRESET_TREBLE_BOOST)
+        return "TREBLE";
+    if (preset == EQ_PRESET_V_SHAPE)
+        return "V-SHAPE";
+    return "FLAT";
+}
+
+static const char *EQ_EditorApplyText(int status)
+{
+    static const char * const labels[] =
+    {
+        "EDITING", "QUEUED", "BUILDING", "READY",
+        "TRANSITION", "APPLIED", "ERROR"
+    };
+
+    status = EQ_ClampInt(status, EQ_UI_APPLY_EDITING, EQ_UI_APPLY_ERROR);
+    return labels[status];
+}
+
+static void EQ_DrawEditorFieldValue(unsigned int field)
+{
+    static const char * const frequencies[EQ_NUM_BANDS] =
+    {
+        "31", "62", "125", "250", "500",
+        "1k", "2k", "4k", "8k", "16k"
+    };
+    static const int frequency_lengths[EQ_NUM_BANDS] =
+    {
+        2, 2, 3, 3, 3, 2, 2, 2, 2, 3
+    };
+    EQ_UI_RECT value_rect;
+    const char *text;
+    char buffer[8];
+    int index;
+    int band;
+    int length;
+    int color;
+
+    if (field == EQ_UI_EDITOR_FIELD_SELECTED_BAND)
+        index = 0;
+    else if (field == EQ_UI_EDITOR_FIELD_DRAFT_GAIN)
+        index = 1;
+    else if (field == EQ_UI_EDITOR_FIELD_APPLIED_GAIN)
+        index = 2;
+    else if (field == EQ_UI_EDITOR_FIELD_CUSTOM_STATE)
+        index = 3;
+    else
+        index = 4;
+    value_rect = s_editor_field_rects[index];
+    value_rect.y += 26;
+    value_rect.h -= 28;
+    EQ_LcdFillRect(value_rect.x + 1, value_rect.y,
+                   value_rect.w - 2, value_rect.h, EQ_COLOR_BG);
+    band = EQ_ClampInt(s_ui_state.requested.editor_selected_band,
+                       0, EQ_NUM_BANDS - 1);
+    color = EQ_COLOR_TEXT;
+    if (index == 0)
+    {
+        text = frequencies[band];
+        length = frequency_lengths[band];
+    }
+    else if (index == 1)
+    {
+        length = EQ_FormatHalfDb(
+            buffer, (int)s_ui_state.requested.draft_gain_half_db[band]);
+        text = buffer;
+        color = (s_ui_state.requested.editor_draft_dirty != 0U) ?
+            EQ_COLOR_HIGHLIGHT : EQ_COLOR_TEXT;
+    }
+    else if (index == 2)
+    {
+        length = EQ_FormatHalfDb(
+            buffer, (int)s_ui_state.requested.applied_gain_half_db[band]);
+        text = buffer;
+    }
+    else if (index == 3)
+    {
+        text = EQ_EditorPresetText(
+            s_ui_state.requested.applied_preset,
+            (int)s_ui_state.requested.editor_draft_dirty);
+        length = (int)strlen(text);
+    }
+    else
+    {
+        text = EQ_EditorApplyText(
+            s_ui_state.requested.editor_apply_status);
+        length = (int)strlen(text);
+        color = (s_ui_state.requested.editor_apply_status ==
+                 EQ_UI_APPLY_ERROR) ? EQ_COLOR_BAR_NEG : EQ_COLOR_ACTIVE;
+    }
+    EQ_LcdDrawText(&value_rect, text, length,
+                   EQ_FONT_SMALL, color, 1);
+}
+
+static void EQ_DrawEditorFieldsFull(void)
+{
+    static const char * const labels[5] =
+    {
+        "BAND", "DRAFT", "APPLIED", "MODE", "STATE"
+    };
+    static const int lengths[5] = { 4, 5, 7, 4, 5 };
+    unsigned int field;
+    int index;
+
+    EQ_LcdFillRect(20, 338, 760, 134, EQ_COLOR_BG);
+    EQ_LcdDrawRect(EQ_UI_EDITOR_MINUS_RECT.x, EQ_UI_EDITOR_MINUS_RECT.y,
+                   EQ_UI_EDITOR_MINUS_RECT.w, EQ_UI_EDITOR_MINUS_RECT.h,
+                   EQ_COLOR_BORDER);
+    EQ_LcdDrawText(&EQ_UI_EDITOR_MINUS_RECT, "-", 1,
+                   EQ_FONT_LARGE, EQ_COLOR_TEXT, 1);
+    EQ_LcdDrawRect(EQ_UI_EDITOR_PLUS_RECT.x, EQ_UI_EDITOR_PLUS_RECT.y,
+                   EQ_UI_EDITOR_PLUS_RECT.w, EQ_UI_EDITOR_PLUS_RECT.h,
+                   EQ_COLOR_BORDER);
+    EQ_LcdDrawText(&EQ_UI_EDITOR_PLUS_RECT, "+", 1,
+                   EQ_FONT_LARGE, EQ_COLOR_TEXT, 1);
+    EQ_LcdDrawRect(EQ_UI_EDITOR_APPLY_RECT.x, EQ_UI_EDITOR_APPLY_RECT.y,
+                   EQ_UI_EDITOR_APPLY_RECT.w, EQ_UI_EDITOR_APPLY_RECT.h,
+                   EQ_COLOR_HIGHLIGHT);
+    EQ_LcdDrawText(&EQ_UI_EDITOR_APPLY_RECT, "APPLY", 5,
+                   EQ_FONT_SMALL, EQ_COLOR_TEXT, 1);
+    EQ_LcdDrawRect(EQ_UI_EDITOR_RESET_RECT.x, EQ_UI_EDITOR_RESET_RECT.y,
+                   EQ_UI_EDITOR_RESET_RECT.w, EQ_UI_EDITOR_RESET_RECT.h,
+                   EQ_COLOR_BORDER);
+#if EQ_LCD_USE_CHINESE
+    EQ_DrawCnCentered(&EQ_UI_EDITOR_RESET_RECT,
+                      s_preset_flat, 2, EQ_COLOR_TEXT);
+#else
+    EQ_LcdDrawText(&EQ_UI_EDITOR_RESET_RECT, "RESET FLAT", 10,
+                   EQ_FONT_SMALL, EQ_COLOR_TEXT, 1);
+#endif
+    for (index = 0; index < 5; index++)
+    {
+        EQ_UI_RECT label_rect;
+        EQ_LcdDrawRect(s_editor_field_rects[index].x,
+                       s_editor_field_rects[index].y,
+                       s_editor_field_rects[index].w,
+                       s_editor_field_rects[index].h, EQ_COLOR_BORDER);
+        label_rect = s_editor_field_rects[index];
+        label_rect.h = 24;
+        EQ_LcdDrawText(&label_rect, labels[index], lengths[index],
+                       EQ_FONT_SMALL, EQ_COLOR_MUTED, 1);
+    }
+    for (field = EQ_UI_EDITOR_FIELD_SELECTED_BAND;
+         field <= EQ_UI_EDITOR_FIELD_APPLY_STATE; field <<= 1)
+    {
+        EQ_DrawEditorFieldValue(field);
+    }
+}
+#endif
 #endif
 
 static void EQ_DrawPresetJob(int index)
@@ -1405,8 +1925,169 @@ static unsigned int EQ_DrawDynamicJob(int index)
     return selected_field;
 }
 
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+static void EQ_DrawEditorBandJob(int band)
+{
+    const EQ_UI_RECT *rect;
+    int inner_x;
+    int current;
+    int next;
+    int y;
+    int height;
+    int color;
+    int selected;
+
+    rect = &EQ_UI_EDITOR_BAND_RECTS[band];
+    selected = (s_ui_state.requested.editor_selected_band == band) ? 1 : 0;
+    EQ_LcdDrawRect(rect->x, rect->y, rect->w, rect->h,
+                   selected ? EQ_COLOR_HIGHLIGHT : EQ_COLOR_BORDER);
+    inner_x = rect->x + EQ_UI_EDITOR_INNER_X_OFFSET;
+    current = EQ_ClampInt(s_ui_state.editor_displayed_pixel[band],
+                          EQ_UI_EDITOR_DRAW_TOP,
+                          EQ_UI_EDITOR_DRAW_BOTTOM);
+    next = EqualizerUiLogic_EditorNextPixel(&s_ui_state, band);
+    height = (next >= current) ? next - current : current - next;
+    if (height <= 0)
+    {
+        return;
+    }
+    if (next < current)
+    {
+        if (current <= EQ_UI_EDITOR_ZERO_PIXEL)
+        {
+            y = next;
+            color = EQ_COLOR_BAR_POS;
+        }
+        else
+        {
+            y = next + 1;
+            color = EQ_COLOR_BG;
+        }
+    }
+    else
+    {
+        if (current >= EQ_UI_EDITOR_ZERO_PIXEL)
+        {
+            y = current + 1;
+            color = EQ_COLOR_BAR_NEG;
+        }
+        else
+        {
+            y = current;
+            color = EQ_COLOR_BG;
+        }
+    }
+    EQ_LcdFillRect(inner_x + 1, y,
+                   EQ_UI_EDITOR_INNER_W - 2, height, color);
+}
+
+static unsigned int EQ_DrawEditorFieldJob(void)
+{
+    unsigned int field;
+
+    field = EqualizerUiLogic_EditorNextField(&s_ui_state);
+    if (field != 0U)
+    {
+        EQ_DrawEditorFieldValue(field);
+    }
+    return field;
+}
+
+static void EQ_DrawPageTile(void)
+{
+    unsigned int tile;
+    int page;
+    int index;
+
+    tile = EqualizerUiLogic_GetPageTileIndex(&s_ui_state);
+    page = s_ui_state.page_target;
+    if (page == EQ_UI_PAGE_EQ_EDITOR)
+    {
+        if (tile == 0U)
+        {
+            EQ_DrawPageTitle(page);
+        }
+        else if ((tile >= 1U) && (tile <= 5U))
+        {
+            index = (int)tile - 1;
+            EQ_DrawPresetStatic(index);
+            EQ_DrawPresetJob(index);
+        }
+        else if ((tile >= 6U) && (tile <= 15U))
+        {
+            int clear_x;
+            int clear_w;
+            index = (int)tile - 6;
+            clear_x = (index == 0) ? 8 : 20 + index * 76;
+            clear_w = (index == 0) ? 88 : 76;
+            EQ_LcdFillRect(clear_x, 108, clear_w, 226, EQ_COLOR_BG);
+            EQ_DrawEditorBandFull(index);
+        }
+        else if (tile == 16U)
+        {
+            EQ_DrawEditorFieldsFull();
+        }
+        else
+        {
+            EQ_DrawPageSwitch(page);
+        }
+        return;
+    }
+
+    if (tile == 0U)
+    {
+        EQ_DrawPageTitle(page);
+    }
+    else if ((tile >= 1U) && (tile <= 5U))
+    {
+        index = (int)tile - 1;
+        EQ_DrawPresetStatic(index);
+        EQ_DrawPresetJob(index);
+    }
+    else if (tile == 6U)
+    {
+        EQ_LcdFillRect(0, 78, EQ_UI_SCREEN_WIDTH, 34, EQ_COLOR_BG);
+        EQ_DrawChainStatic();
+        for (index = 0; index < EQ_UI_CHAIN_COUNT; index++)
+        {
+            EQ_DrawChainJob(index);
+        }
+    }
+    else if ((tile >= 7U) && (tile <= 10U))
+    {
+        index = (int)tile - 7;
+        EQ_LcdFillRect(index * 200, 108, 200, 226, EQ_COLOR_BG);
+        EQ_DrawAnalyzerTileFull(index);
+    }
+    else if ((tile >= 11U) && (tile <= 13U))
+    {
+        EQ_DrawDynamicTileFull((int)tile - 11);
+    }
+    else
+    {
+        EQ_DrawPageSwitch(page);
+    }
+}
+#endif
+
 static unsigned int EQ_DrawJob(int job)
 {
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+    if (job == EQ_UI_JOB_PAGE_TILE)
+    {
+        EQ_DrawPageTile();
+    }
+    else if ((job >= EQ_UI_JOB_EDITOR_BAND_0) &&
+             (job <= EQ_UI_JOB_EDITOR_BAND_9))
+    {
+        EQ_DrawEditorBandJob(job - EQ_UI_JOB_EDITOR_BAND_0);
+    }
+    else if (job == EQ_UI_JOB_EDITOR_FIELDS)
+    {
+        return EQ_DrawEditorFieldJob();
+    }
+    else
+#endif
     if ((job >= EQ_UI_JOB_PRESET_0) && (job <= EQ_UI_JOB_PRESET_4))
     {
         EQ_DrawPresetJob(job - EQ_UI_JOB_PRESET_0);
@@ -1445,6 +2126,13 @@ static unsigned long EQ_ReadCycles(void)
 
 static int EQ_JobCategory(int job)
 {
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+    if (job == EQ_UI_JOB_PAGE_TILE)
+        return EQ_LCD_CATEGORY_PAGE;
+    if ((job >= EQ_UI_JOB_EDITOR_BAND_0) &&
+        (job <= EQ_UI_JOB_EDITOR_FIELDS))
+        return EQ_LCD_CATEGORY_EDITOR;
+#endif
     if ((job >= EQ_UI_JOB_PRESET_0) && (job <= EQ_UI_JOB_PRESET_4))
         return EQ_LCD_CATEGORY_PRESET;
     if ((job >= EQ_UI_JOB_DYNAMIC_0) && (job <= EQ_UI_JOB_DYNAMIC_2))
@@ -1568,7 +2256,9 @@ int EqualizerDisplay_DrawStaticLayout(void)
 {
 #if !EQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN
     int index;
+#if EQ_ENABLE_TEN_BAND_EDITOR == 0
     EQ_UI_RECT title_rect;
+#endif
 #endif
 
     if (s_runtime_started != 0)
@@ -1594,6 +2284,9 @@ int EqualizerDisplay_DrawStaticLayout(void)
 #else
     EQ_LcdFillRect(0, 0, EQ_UI_SCREEN_WIDTH, EQ_UI_SCREEN_HEIGHT,
                    EQ_COLOR_BG);
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+    EQ_DrawPageTitle(EQ_UI_PAGE_DYNAMIC_STATUS);
+#else
     title_rect.x = EQ_UI_TITLE_X;
     title_rect.y = EQ_UI_TITLE_Y;
     title_rect.w = EQ_UI_TITLE_W;
@@ -1602,7 +2295,8 @@ int EqualizerDisplay_DrawStaticLayout(void)
     EQ_DrawCnCentered(&title_rect, s_title, 8, EQ_COLOR_TEXT);
 #else
     EQ_LcdDrawText(&title_rect, "P3.3 Dynamic EQ", 14,
-                   EQ_FONT_LARGE, EQ_COLOR_TEXT, 1);
+                    EQ_FONT_LARGE, EQ_COLOR_TEXT, 1);
+#endif
 #endif
     for (index = 0; index < EQ_UI_PRESET_COUNT; index++)
     {
@@ -1611,6 +2305,9 @@ int EqualizerDisplay_DrawStaticLayout(void)
     EQ_DrawChainStatic();
     EQ_DrawAnalyzerStatic();
     EQ_DrawDynamicStatic();
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+    EQ_DrawPageSwitch(EQ_UI_PAGE_DYNAMIC_STATUS);
+#endif
 #endif
     s_layout_drawn = 1;
     EQ_DebugLcdStaticDrawCount++;
@@ -1638,6 +2335,24 @@ void EqualizerDisplay_RequestSnapshot(const EQ_UI_SNAPSHOT *snapshot,
     EqualizerUiLogic_Request(&s_ui_state, snapshot,
                              EQ_DebugLcdRuntimeMask, process_frame);
     EQ_DebugLcdPendingMask = s_ui_state.dirty_mask;
+#endif
+}
+
+int EqualizerDisplay_GetDisplayedPage(void)
+{
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+    return EqualizerUiLogic_GetDisplayedPage(&s_ui_state);
+#else
+    return EQ_UI_PAGE_DYNAMIC_STATUS;
+#endif
+}
+
+int EqualizerDisplay_IsPageBuilding(void)
+{
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+    return EqualizerUiLogic_IsPageBuilding(&s_ui_state);
+#else
+    return 0;
 #endif
 }
 
@@ -1817,6 +2532,16 @@ void EqualizerDisplay_RequestSnapshot(const EQ_UI_SNAPSHOT *snapshot,
 {
     (void)snapshot;
     (void)process_frame;
+}
+
+int EqualizerDisplay_GetDisplayedPage(void)
+{
+    return EQ_UI_PAGE_DYNAMIC_STATUS;
+}
+
+int EqualizerDisplay_IsPageBuilding(void)
+{
+    return 0;
 }
 
 int EqualizerDisplay_HasPendingJob(void)
