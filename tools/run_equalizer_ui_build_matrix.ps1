@@ -73,25 +73,29 @@ $profiles = @(
         name = "B_project33_lcd_off"
         defines = "$project33 --define=EQ_ENABLE_LCD_DISPLAY=0 " +
             "--define=EQ_ENABLE_PROJECT33_TOUCH=0 " +
-            "--define=EQ_UI_RUNTIME_DEFAULT_MASK=0 $diagnosticsOff"
+            "--define=EQ_UI_RUNTIME_DEFAULT_MASK=0 " +
+            "--define=EQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN=0 $diagnosticsOff"
     }
     [pscustomobject]@{
         name = "C_project33_static"
         defines = "$project33 --define=EQ_ENABLE_LCD_DISPLAY=1 " +
             "--define=EQ_ENABLE_PROJECT33_TOUCH=0 " +
-            "--define=EQ_UI_RUNTIME_DEFAULT_MASK=0 $diagnosticsOff"
+            "--define=EQ_UI_RUNTIME_DEFAULT_MASK=0 " +
+            "--define=EQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN=1 $diagnosticsOff"
     }
     [pscustomobject]@{
         name = "D_project33_dynamic"
         defines = "$project33 --define=EQ_ENABLE_LCD_DISPLAY=1 " +
             "--define=EQ_ENABLE_PROJECT33_TOUCH=0 " +
-            "--define=EQ_UI_RUNTIME_DEFAULT_MASK=15 $diagnosticsOff"
+            "--define=EQ_UI_RUNTIME_DEFAULT_MASK=15 " +
+            "--define=EQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN=0 $diagnosticsOff"
     }
     [pscustomobject]@{
         name = "E_project33_touch"
         defines = "$project33 --define=EQ_ENABLE_LCD_DISPLAY=1 " +
             "--define=EQ_ENABLE_PROJECT33_TOUCH=1 " +
-            "--define=EQ_UI_RUNTIME_DEFAULT_MASK=15 $diagnosticsOff"
+            "--define=EQ_UI_RUNTIME_DEFAULT_MASK=15 " +
+            "--define=EQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN=0 $diagnosticsOff"
     }
 )
 

@@ -17,6 +17,7 @@ DISPLAY_HARNESS = ROOT / "tools/tests/equalizer_display_test.c.host"
 ALIGNMENT_HARNESS = ROOT / "tools/tests/equalizer_lcd_alignment_test.c.host"
 ALIGNMENT_DSS = ROOT / "tools/dss/dss_equalizer_lcd_alignment.js"
 ALIGNMENT_RUNNER = ROOT / "tools/run_equalizer_lcd_alignment_hardware.ps1"
+BUILD_MATRIX = ROOT / "tools/run_equalizer_ui_build_matrix.ps1"
 
 
 def msys_path(path: Path) -> str:
@@ -306,6 +307,23 @@ class EqualizerUiSourceContractTest(unittest.TestCase):
         ):
             self.assertIn(token, runner)
         self.assertNotIn("SoundPlayer", runner)
+        self.assertIn('if (-not $result.pass)', runner)
+        self.assertIn('dss_launcher_exit_code', runner)
+        self.assertNotIn('$process.ExitCode -ne 0 -or', runner)
+
+    def test_build_matrix_names_match_actual_lcd_profiles(self) -> None:
+        matrix = BUILD_MATRIX.read_text(encoding="utf-8")
+        static_start = matrix.index('name = "C_project33_static"')
+        dynamic_start = matrix.index('name = "D_project33_dynamic"')
+        touch_start = matrix.index('name = "E_project33_touch"')
+        self.assertIn(
+            '--define=EQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN=1',
+            matrix[static_start:dynamic_start],
+        )
+        self.assertIn(
+            '--define=EQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN=0',
+            matrix[dynamic_start:touch_start],
+        )
 
     def test_defaults_and_timing_contract(self) -> None:
         for token in (
