@@ -13,6 +13,9 @@ DISPLAY_HEADER = DSP / "user_equalizer_display.h"
 FLOW = DSP / "user_equalizer_flow.c"
 LOGIC_HARNESS = ROOT / "tools/tests/equalizer_ui_logic_test.c.host"
 DISPLAY_HARNESS = ROOT / "tools/tests/equalizer_display_test.c.host"
+ALIGNMENT_HARNESS = ROOT / "tools/tests/equalizer_lcd_alignment_test.c.host"
+ALIGNMENT_DSS = ROOT / "tools/dss/dss_equalizer_lcd_alignment.js"
+ALIGNMENT_RUNNER = ROOT / "tools/run_equalizer_lcd_alignment_hardware.ps1"
 
 
 def msys_path(path: Path) -> str:
@@ -68,6 +71,14 @@ class EqualizerUiHostTest(unittest.TestCase):
                     f"{msys_path(DISPLAY)}",
                     "-DEQ_ENABLE_LCD_DISPLAY=1 -DEQ_LCD_USE_CHINESE=0",
                     "equalizer_display failures=0",
+                ),
+                (
+                    "display_alignment",
+                    f"{msys_path(ALIGNMENT_HARNESS)} {msys_path(LOGIC)} "
+                    f"{msys_path(DISPLAY)}",
+                    "-DEQ_ENABLE_LCD_DISPLAY=1 "
+                    "-DEQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN=1",
+                    "equalizer_lcd_alignment failures=0",
                 ),
             )
             for name, sources, defines, expected in cases:
@@ -146,6 +157,55 @@ class EqualizerUiSourceContractTest(unittest.TestCase):
         self.assertNotIn("EQ_DrawDynamicStatic", runtime)
         self.assertNotIn("EQ_UI_SCREEN_WIDTH, EQ_UI_SCREEN_HEIGHT", runtime)
 
+    def test_renderer_uses_bounded_local_rectangles(self) -> None:
+        self.assertNotIn("Lcd_Rectangle", self.display)
+        for function in ("EQ_LcdFillRect", "EQ_LcdDrawRect"):
+            start = self.display.index(f"static void {function}(")
+            end = self.display.index("\n}\n", start)
+            body = self.display[start:end]
+            self.assertIn("if (EQ_CheckRect(x, y, w, h) == 0)", body)
+            self.assertIn("tRectangle rect;", body)
+            self.assertIn("rect.sXMin = x;", body)
+            self.assertIn("rect.sYMin = y;", body)
+            self.assertIn("rect.sXMax = x + w - 1;", body)
+            self.assertIn("rect.sYMax = y + h - 1;", body)
+
+    def test_lcd_hardware_audit_is_read_only_and_ui_fail_closed(self) -> None:
+        start = self.display.index(
+            "static void EQ_ReadHardwareSnapshot(")
+        end = self.display.index("static int EQ_ClampInt", start)
+        audit = self.display[start:end]
+        for required in (
+            "LCDC_LCDDMA_FB0_BASE",
+            "LCDC_LCDDMA_FB0_CEILING",
+            "LCDC_RASTER_CTRL",
+            "LCDC_LCD_STAT",
+            "LCDC_LCDDMA_CTRL",
+            "EQ_LCD_STATUS_SYNC_MASK",
+            "EQ_LCD_STATUS_FIFO_UNDERFLOW_MASK",
+            "EqualizerDisplay_AutoDisable(reason)",
+        ):
+            self.assertIn(required, audit)
+        for forbidden in (
+            "LCDC_IRQSTATUS",
+            "Lcd_Buffer +\n                                      EQ_LCD_BUFFER_TOTAL_BYTES",
+            "Lcd_Init(", "RasterEnable(", "RasterDisable(",
+            "RasterDMAFBConfig(", "Adc_Stop(", "Dac_Stop(",
+        ):
+            self.assertNotIn(forbidden, audit)
+        clear_start = self.display.index(
+            "static void EQ_ClearAlignmentStartupFaultStatus(")
+        clear_end = self.display.index(
+            "static void EQ_CaptureFramebufferCanary", clear_start)
+        startup_clear = self.display[clear_start:clear_end]
+        self.assertIn("RasterClearGetIntStatus(", startup_clear)
+        self.assertIn("EQ_LCD_CLEARABLE_FAULT_MASK", startup_clear)
+        self.assertNotIn("RasterEnable(", startup_clear)
+        self.assertNotIn("RasterDisable(", startup_clear)
+        self.assertEqual(self.display.count("Lcd_Init();"), 1)
+        loop = self.flow[self.flow.index("while (1)"):]
+        self.assertNotIn("EqualizerDisplay_Init(", loop)
+
     def test_chain_uses_ascii_arrow_only(self) -> None:
         combined = self.display + self.logic
         self.assertIn('" -> "', self.display)
@@ -183,6 +243,31 @@ class EqualizerUiSourceContractTest(unittest.TestCase):
             "pending_level", "transition_remaining", "request_sequence",
         ):
             self.assertNotIn(forbidden, action)
+
+    def test_alignment_tooling_preserves_objective_operator_boundary(self) -> None:
+        dss = ALIGNMENT_DSS.read_text(encoding="utf-8")
+        runner = ALIGNMENT_RUNNER.read_text(encoding="utf-8")
+        for token in (
+            "EQ_DebugLcdAlignmentPatternEnabled",
+            "EQ_DebugLcdStartupRasterStatus",
+            "EQ_DebugLcdExpectedFrameBase",
+            "EQ_DebugLcdFramebufferCanaryFailureCount",
+            '"PENDING_OPERATOR_VISUAL_OBSERVATION"',
+            '"RUNNING_DISCONNECTED"',
+        ):
+            self.assertIn(token, dss)
+        self.assertNotIn("EQ_DebugTouchActionCount", dss)
+        for token in (
+            "Alignment hardware validation requires a clean worktree",
+            "--define=DSP_LAB_PROJECT_SELECT=33",
+            "--define=EQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN=1",
+            "--define=EQ_ENABLE_PROJECT33_TOUCH=0",
+            "GEN_OPTS__FLAG=$defines",
+            "<link_errors>0x0</link_errors>",
+            "OPERATOR_VISUAL_OBSERVATION=PENDING",
+        ):
+            self.assertIn(token, runner)
+        self.assertNotIn("SoundPlayer", runner)
 
     def test_defaults_and_timing_contract(self) -> None:
         for token in (

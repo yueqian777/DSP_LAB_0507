@@ -12,6 +12,11 @@
 
 #if (!defined(EQ_ALGO_ONLY))
 #include "lcd_api.h"
+#include "lcd_dma.h"
+#include "hw_lcdc.h"
+#include "hw_types.h"
+#include "raster.h"
+#include "soc_C6748.h"
 #endif
 
 #if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
@@ -48,6 +53,37 @@
 
 #define EQ_CN_GLYPH_SIZE 16
 #define EQ_CN_GLYPH_ADVANCE 17
+
+#define EQ_LCD_PALETTE_OFFSET 4UL
+#define EQ_LCD_PALETTE_SIZE 32UL
+#define EQ_LCD_BYTES_PER_PIXEL 2UL
+#define EQ_LCD_FRAME_DMA_BYTES \
+    (EQ_LCD_PALETTE_SIZE + \
+     ((unsigned long)EQ_UI_SCREEN_WIDTH * \
+      (unsigned long)EQ_UI_SCREEN_HEIGHT * EQ_LCD_BYTES_PER_PIXEL))
+#define EQ_LCD_BUFFER_TOTAL_BYTES \
+    (EQ_LCD_PALETTE_OFFSET + EQ_LCD_FRAME_DMA_BYTES)
+#define EQ_LCD_DMA_ADDRESS_MASK 0xFFFFFFFCUL
+#define EQ_LCD_HOST_BUFFER_ADDRESS 0xC0000000UL
+#if defined(EQ_ALGO_ONLY)
+#define EQ_LCD_STATUS_SYNC_MASK 0x00000004UL
+#define EQ_LCD_STATUS_FIFO_UNDERFLOW_MASK 0x00000020UL
+#define EQ_LCD_RASTER_ENABLE_MASK 0x00000001UL
+#else
+#define EQ_LCD_STATUS_SYNC_MASK ((unsigned long)LCDC_LCD_STAT_SYNC)
+#define EQ_LCD_STATUS_FIFO_UNDERFLOW_MASK \
+    ((unsigned long)LCDC_LCD_STAT_FUF)
+#define EQ_LCD_RASTER_ENABLE_MASK \
+    ((unsigned long)LCDC_RASTER_CTRL_RASTER_EN)
+#endif
+#define EQ_LCD_CLEARABLE_FAULT_MASK \
+    (EQ_LCD_STATUS_SYNC_MASK | EQ_LCD_STATUS_FIFO_UNDERFLOW_MASK)
+
+#if !defined(EQ_ALGO_ONLY)
+#if (PALETTE_OFFSET != 4) || (PALETTE_SIZE != 32)
+#error Project 3.3 LCD audit assumes the current 4-byte header and 32-byte palette.
+#endif
+#endif
 
 #if EQ_LCD_USE_CHINESE
 typedef enum
@@ -175,6 +211,7 @@ static const unsigned short s_cn_bits[CN_COUNT][EQ_CN_GLYPH_SIZE] =
       0x0180U, 0x0180U, 0x0180U, 0x0000U }  /* U+4E2D */
 };
 
+#if !EQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN
 static const unsigned char s_title[] =
 {
     CN_SHI_TEN, CN_DUAN, CN_DONG, CN_TAI,
@@ -201,6 +238,7 @@ static const unsigned char s_dynamic_guard[] =
     CN_GAO, CN_PIN, CN_BAO, CN_HU
 };
 #endif
+#endif
 
 volatile unsigned long EQ_DebugLcdRefreshCount = 0UL;
 volatile unsigned long EQ_DebugLcdSkipBusyCount = 0UL;
@@ -215,6 +253,9 @@ volatile unsigned long EQ_DebugLcdStaticDrawCount = 0UL;
 volatile unsigned long EQ_DebugLcdBoundsFailureCount = 0UL;
 volatile unsigned long EQ_DebugLcdBudgetExceededCount = 0UL;
 volatile unsigned long EQ_DebugLcdHardBudgetExceededCount = 0UL;
+volatile unsigned long EQ_DebugLcdOver1msCount = 0UL;
+volatile unsigned long EQ_DebugLcdOver2msCount = 0UL;
+volatile unsigned long EQ_DebugLcdOver5msCount = 0UL;
 volatile unsigned long EQ_DebugLcdLastJobStartCycles = 0UL;
 volatile unsigned long EQ_DebugLcdLastJobEndCycles = 0UL;
 volatile unsigned long EQ_DebugLcdLastJobCycles = 0UL;
@@ -230,6 +271,35 @@ volatile unsigned long EQ_DebugLcdCategoryMaxCycles[EQ_LCD_CATEGORY_COUNT];
 volatile unsigned long EQ_DebugLcdJobTypeCount[EQ_LCD_JOB_COUNT];
 volatile unsigned long EQ_DebugLcdJobTypeLastCycles[EQ_LCD_JOB_COUNT];
 volatile unsigned long EQ_DebugLcdJobTypeMaxCycles[EQ_LCD_JOB_COUNT];
+volatile unsigned long EQ_DebugLcdExpectedFrameBase = 0UL;
+volatile unsigned long EQ_DebugLcdExpectedFrameEnd = 0UL;
+volatile unsigned long EQ_DebugLcdBufferAddress = 0UL;
+volatile unsigned long EQ_DebugLcdBufferEndAddress = 0UL;
+volatile unsigned long EQ_DebugLcdCurrentFrameBase = 0UL;
+volatile unsigned long EQ_DebugLcdCurrentFrameEnd = 0UL;
+volatile unsigned long EQ_DebugLcdRasterFaultCount = 0UL;
+volatile unsigned long EQ_DebugLcdSyncLostCount = 0UL;
+volatile unsigned long EQ_DebugLcdFifoUnderflowCount = 0UL;
+volatile unsigned long EQ_DebugLcdFrameAddressMismatchCount = 0UL;
+volatile unsigned long EQ_DebugLcdLastRasterStatus = 0UL;
+volatile unsigned long EQ_DebugLcdLastIrqStatus = 0UL;
+volatile unsigned long EQ_DebugLcdStartupRasterStatus = 0UL;
+volatile unsigned long EQ_DebugLcdStartupStatusAfterClear = 0UL;
+volatile unsigned long EQ_DebugLcdStartupFaultClearCount = 0UL;
+volatile unsigned long EQ_DebugLcdFirstFaultFrame = 0UL;
+volatile unsigned long EQ_DebugLcdFirstFaultJob = 0UL;
+volatile unsigned long EQ_DebugLcdFramebufferCanaryCheckCount = 0UL;
+volatile unsigned long EQ_DebugLcdFramebufferCanaryFailureCount = 0UL;
+volatile unsigned long EQ_DebugLcdFramebufferFirstFailureFrame = 0UL;
+volatile unsigned long EQ_DebugLcdFramebufferFirstFailureJob = 0UL;
+volatile unsigned int EQ_DebugLcdFaultLatched = 0U;
+volatile unsigned int EQ_DebugLcdHardwareAuditRequest = 0U;
+volatile EQ_LCD_HW_SNAPSHOT EQ_DebugLcdHwSnapshot;
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+#pragma RETAIN(EQ_DebugLcdAlignmentPatternEnabled)
+#endif
+volatile const unsigned int EQ_DebugLcdAlignmentPatternEnabled =
+    EQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN;
 #if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
 #pragma RETAIN(EQ_DebugUiStateBytes)
 #endif
@@ -240,12 +310,262 @@ static EQ_UI_STATE s_ui_state;
 static volatile int s_lcd_busy = 0;
 static int s_layout_drawn = 0;
 static int s_runtime_started = 0;
+static unsigned long s_lcd_last_audit_job = 0UL;
+static unsigned long s_lcd_last_audit_frame = 0UL;
+static unsigned int s_lcd_canary_front = 0U;
+static int s_lcd_canary_ready = 0;
+static int s_lcd_seen_sync_lost = 0;
+static int s_lcd_seen_fifo_underflow = 0;
+static int s_lcd_seen_frame_mismatch = 0;
 
 #if defined(EQ_ALGO_ONLY)
 static unsigned long s_mock_primitive_count = 0UL;
 static unsigned long s_mock_cycle_clock = 0UL;
 static unsigned long s_mock_forced_job_cycles = 0UL;
+static EQ_LCD_HW_SNAPSHOT s_mock_hw_snapshot;
+static int s_mock_canary_failed = 0;
 #endif
+
+static unsigned long EQ_BufferAddress(void)
+{
+#if defined(EQ_ALGO_ONLY)
+    return EQ_LCD_HOST_BUFFER_ADDRESS;
+#else
+    return (unsigned long)Lcd_Buffer;
+#endif
+}
+
+static unsigned long EQ_ExpectedFrameBase(void)
+{
+    return (EQ_BufferAddress() + EQ_LCD_PALETTE_OFFSET) &
+           EQ_LCD_DMA_ADDRESS_MASK;
+}
+
+static unsigned long EQ_ExpectedFrameEnd(void)
+{
+    return (EQ_ExpectedFrameBase() + EQ_LCD_FRAME_DMA_BYTES - 2UL) &
+           EQ_LCD_DMA_ADDRESS_MASK;
+}
+
+static void EQ_CopyHardwareSnapshotToDebug(
+    const EQ_LCD_HW_SNAPSHOT *snapshot)
+{
+    EQ_DebugLcdHwSnapshot.frame_base = snapshot->frame_base;
+    EQ_DebugLcdHwSnapshot.frame_end = snapshot->frame_end;
+    EQ_DebugLcdHwSnapshot.raster_control = snapshot->raster_control;
+    EQ_DebugLcdHwSnapshot.raster_status = snapshot->raster_status;
+    EQ_DebugLcdHwSnapshot.dma_control = snapshot->dma_control;
+    EQ_DebugLcdHwSnapshot.irq_status = snapshot->irq_status;
+    EQ_DebugLcdCurrentFrameBase = snapshot->frame_base;
+    EQ_DebugLcdCurrentFrameEnd = snapshot->frame_end;
+    EQ_DebugLcdLastRasterStatus = snapshot->raster_status;
+    EQ_DebugLcdLastIrqStatus = snapshot->irq_status;
+}
+
+static void EQ_ReadHardwareSnapshot(EQ_LCD_HW_SNAPSHOT *snapshot)
+{
+#if defined(EQ_ALGO_ONLY)
+    *snapshot = s_mock_hw_snapshot;
+#else
+    snapshot->frame_base =
+        (unsigned long)HWREG(SOC_LCDC_0_REGS + LCDC_LCDDMA_FB0_BASE);
+    snapshot->frame_end =
+        (unsigned long)HWREG(SOC_LCDC_0_REGS + LCDC_LCDDMA_FB0_CEILING);
+    snapshot->raster_control =
+        (unsigned long)HWREG(SOC_LCDC_0_REGS + LCDC_RASTER_CTRL);
+    snapshot->raster_status =
+        (unsigned long)HWREG(SOC_LCDC_0_REGS + LCDC_LCD_STAT);
+    snapshot->dma_control =
+        (unsigned long)HWREG(SOC_LCDC_0_REGS + LCDC_LCDDMA_CTRL);
+    /* C6748 exposes raster interrupt state through LCD_STAT, not IRQSTATUS. */
+    snapshot->irq_status = 0UL;
+#endif
+}
+
+#if EQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN
+static void EQ_ClearAlignmentStartupFaultStatus(void)
+{
+    EQ_LCD_HW_SNAPSHOT snapshot;
+    unsigned long clear_mask;
+
+    EQ_ReadHardwareSnapshot(&snapshot);
+    EQ_DebugLcdStartupRasterStatus = snapshot.raster_status;
+    clear_mask = snapshot.raster_status & EQ_LCD_CLEARABLE_FAULT_MASK;
+    if (clear_mask != 0UL)
+    {
+#if defined(EQ_ALGO_ONLY)
+        s_mock_hw_snapshot.raster_status &= ~clear_mask;
+#else
+        (void)RasterClearGetIntStatus(SOC_LCDC_0_REGS,
+                                     (unsigned int)clear_mask);
+#endif
+        EQ_DebugLcdStartupFaultClearCount++;
+    }
+    EQ_ReadHardwareSnapshot(&snapshot);
+    EQ_DebugLcdStartupStatusAfterClear = snapshot.raster_status;
+}
+#endif
+
+static void EQ_CaptureFramebufferCanary(void)
+{
+#if defined(EQ_ALGO_ONLY)
+    s_lcd_canary_front = 0U;
+#else
+    volatile unsigned int *front;
+
+    front = (volatile unsigned int *)(Lcd_Buffer);
+    s_lcd_canary_front = *front;
+#endif
+    s_lcd_canary_ready = 1;
+}
+
+static void EQ_LatchHardwareFault(unsigned long process_frame,
+                                  unsigned long reason)
+{
+    if (EQ_DebugLcdFaultLatched == 0U)
+    {
+        EQ_DebugLcdFaultLatched = 1U;
+        EQ_DebugLcdFirstFaultFrame = process_frame;
+        EQ_DebugLcdFirstFaultJob =
+            (unsigned long)EQ_DebugLcdLastJob;
+    }
+    EqualizerDisplay_AutoDisable(reason);
+}
+
+static int EQ_CheckFramebufferCanary(unsigned long process_frame)
+{
+    int failed;
+
+    EQ_DebugLcdFramebufferCanaryCheckCount++;
+    failed = 0;
+    if (s_lcd_canary_ready == 0)
+    {
+        failed = 1;
+    }
+#if defined(EQ_ALGO_ONLY)
+    if (s_mock_canary_failed != 0)
+    {
+        failed = 1;
+    }
+#else
+    else
+    {
+        volatile unsigned int *front;
+
+        front = (volatile unsigned int *)(Lcd_Buffer);
+        if ((*front != s_lcd_canary_front) ||
+            (EQ_DebugLcdBufferAddress != EQ_BufferAddress()) ||
+            (EQ_DebugLcdBufferEndAddress !=
+             (EQ_BufferAddress() + EQ_LCD_BUFFER_TOTAL_BYTES - 1UL)) ||
+            (EQ_DebugLcdExpectedFrameBase != EQ_ExpectedFrameBase()) ||
+            (EQ_DebugLcdExpectedFrameEnd != EQ_ExpectedFrameEnd()))
+        {
+            failed = 1;
+        }
+    }
+#endif
+    if (failed != 0)
+    {
+        if (EQ_DebugLcdFramebufferCanaryFailureCount == 0UL)
+        {
+            EQ_DebugLcdFramebufferFirstFailureFrame = process_frame;
+            EQ_DebugLcdFramebufferFirstFailureJob =
+                (unsigned long)EQ_DebugLcdLastJob;
+        }
+        EQ_DebugLcdFramebufferCanaryFailureCount++;
+        EQ_LatchHardwareFault(process_frame,
+                              EQ_LCD_AUTO_DISABLE_CANARY);
+    }
+    return failed;
+}
+
+void EqualizerDisplay_AuditHardware(unsigned long process_frame, int force)
+{
+    EQ_LCD_HW_SNAPSHOT snapshot;
+    unsigned long status;
+    int due;
+    int frame_mismatch;
+    int hardware_fault;
+
+#if EQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN
+    EQ_DebugLcdRuntimeMask = 0U;
+    EQ_DebugLcdPendingMask = 0UL;
+#endif
+    due = force != 0;
+    if (EQ_DebugLcdHardwareAuditRequest != 0U)
+    {
+        due = 1;
+    }
+    if ((EQ_DebugLcdJobCount - s_lcd_last_audit_job) >=
+        EQ_LCD_HW_AUDIT_JOB_INTERVAL)
+    {
+        due = 1;
+    }
+#if EQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN
+    if ((process_frame - s_lcd_last_audit_frame) >=
+        EQ_LCD_HW_AUDIT_FRAME_INTERVAL)
+    {
+        due = 1;
+    }
+#endif
+    if (due == 0)
+    {
+        return;
+    }
+    EQ_DebugLcdHardwareAuditRequest = 0U;
+    s_lcd_last_audit_job = EQ_DebugLcdJobCount;
+    s_lcd_last_audit_frame = process_frame;
+
+    (void)EQ_CheckFramebufferCanary(process_frame);
+    EQ_ReadHardwareSnapshot(&snapshot);
+    EQ_CopyHardwareSnapshotToDebug(&snapshot);
+    status = snapshot.raster_status;
+    frame_mismatch =
+        (snapshot.frame_base != EQ_DebugLcdExpectedFrameBase) ||
+        (snapshot.frame_end != EQ_DebugLcdExpectedFrameEnd);
+    hardware_fault = 0;
+
+    if ((status & EQ_LCD_STATUS_SYNC_MASK) != 0UL)
+    {
+        if (s_lcd_seen_sync_lost == 0)
+        {
+            EQ_DebugLcdSyncLostCount++;
+            s_lcd_seen_sync_lost = 1;
+        }
+        hardware_fault = 1;
+    }
+    if ((status & EQ_LCD_STATUS_FIFO_UNDERFLOW_MASK) != 0UL)
+    {
+        if (s_lcd_seen_fifo_underflow == 0)
+        {
+            EQ_DebugLcdFifoUnderflowCount++;
+            s_lcd_seen_fifo_underflow = 1;
+        }
+        hardware_fault = 1;
+    }
+    if (frame_mismatch != 0)
+    {
+        if (s_lcd_seen_frame_mismatch == 0)
+        {
+            EQ_DebugLcdFrameAddressMismatchCount++;
+            s_lcd_seen_frame_mismatch = 1;
+        }
+        hardware_fault = 1;
+    }
+    if ((snapshot.raster_control & EQ_LCD_RASTER_ENABLE_MASK) == 0UL)
+    {
+        hardware_fault = 1;
+    }
+    if (hardware_fault != 0)
+    {
+        if (EQ_DebugLcdRasterFaultCount == 0UL)
+        {
+            EQ_DebugLcdRasterFaultCount++;
+        }
+        EQ_LatchHardwareFault(process_frame,
+                              EQ_LCD_AUTO_DISABLE_HW_FAULT);
+    }
+}
 
 static int EQ_ClampInt(int value, int minimum, int maximum)
 {
@@ -276,14 +596,16 @@ static void EQ_EndDraw(void)
     s_lcd_busy = 0;
 }
 
-static void EQ_CheckRect(int x, int y, int w, int h)
+static int EQ_CheckRect(int x, int y, int w, int h)
 {
     if ((x < 0) || (y < 0) || (w <= 0) || (h <= 0) ||
         ((x + w) > EQ_UI_SCREEN_WIDTH) ||
         ((y + h) > EQ_UI_SCREEN_HEIGHT))
     {
         EQ_DebugLcdBoundsFailureCount++;
+        return 0;
     }
+    return 1;
 }
 
 #if !defined(EQ_ALGO_ONLY)
@@ -337,14 +659,21 @@ static void EQ_SetFont(int font)
 
 static void EQ_LcdFillRect(int x, int y, int w, int h, int color)
 {
-    EQ_CheckRect(x, y, w, h);
 #if !defined(EQ_ALGO_ONLY)
-    Lcd_Rectangle.sXMin = x;
-    Lcd_Rectangle.sYMin = y;
-    Lcd_Rectangle.sXMax = x + w - 1;
-    Lcd_Rectangle.sYMax = y + h - 1;
+    tRectangle rect;
+#endif
+
+    if (EQ_CheckRect(x, y, w, h) == 0)
+    {
+        return;
+    }
+#if !defined(EQ_ALGO_ONLY)
+    rect.sXMin = x;
+    rect.sYMin = y;
+    rect.sXMax = x + w - 1;
+    rect.sYMax = y + h - 1;
     GrContextForegroundSet(&Lcd_Context, EQ_MapColor(color));
-    GrRectFill(&Lcd_Context, &Lcd_Rectangle);
+    GrRectFill(&Lcd_Context, &rect);
 #else
     (void)color;
     s_mock_primitive_count++;
@@ -353,14 +682,21 @@ static void EQ_LcdFillRect(int x, int y, int w, int h, int color)
 
 static void EQ_LcdDrawRect(int x, int y, int w, int h, int color)
 {
-    EQ_CheckRect(x, y, w, h);
 #if !defined(EQ_ALGO_ONLY)
-    Lcd_Rectangle.sXMin = x;
-    Lcd_Rectangle.sYMin = y;
-    Lcd_Rectangle.sXMax = x + w - 1;
-    Lcd_Rectangle.sYMax = y + h - 1;
+    tRectangle rect;
+#endif
+
+    if (EQ_CheckRect(x, y, w, h) == 0)
+    {
+        return;
+    }
+#if !defined(EQ_ALGO_ONLY)
+    rect.sXMin = x;
+    rect.sYMin = y;
+    rect.sXMax = x + w - 1;
+    rect.sYMax = y + h - 1;
     GrContextForegroundSet(&Lcd_Context, EQ_MapColor(color));
-    GrRectDraw(&Lcd_Context, &Lcd_Rectangle);
+    GrRectDraw(&Lcd_Context, &rect);
 #else
     (void)color;
     s_mock_primitive_count++;
@@ -404,7 +740,10 @@ static void EQ_LcdDrawText(const EQ_UI_RECT *rect, const char *text,
     int x;
     int y;
 
-    EQ_CheckRect(rect->x, rect->y, rect->w, rect->h);
+    if (EQ_CheckRect(rect->x, rect->y, rect->w, rect->h) == 0)
+    {
+        return;
+    }
     EQ_SetFont(font);
     x = rect->x + 2;
     y = rect->y + ((rect->h - 12) / 2);
@@ -429,6 +768,79 @@ static void EQ_LcdDrawText(const EQ_UI_RECT *rect, const char *text,
     s_mock_primitive_count++;
 #endif
 }
+
+#if EQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN
+static void EQ_FormatHex8(char *destination, unsigned long value)
+{
+    static const char digits[] = "0123456789ABCDEF";
+    int index;
+
+    for (index = 7; index >= 0; index--)
+    {
+        destination[index] = digits[value & 0x0FUL];
+        value >>= 4;
+    }
+}
+
+static void EQ_DrawAlignmentPattern(void)
+{
+    static const char * const labels[12] =
+    {
+        "000", "040", "080", "120", "160", "200",
+        "240", "280", "320", "360", "400", "440"
+    };
+    EQ_UI_RECT text_rect;
+    char frame_text[40] = "ALIGN 800x480 FB0=00000000 END=00000000";
+    int index;
+    int y;
+
+    EQ_LcdFillRect(0, 0, EQ_UI_SCREEN_WIDTH, EQ_UI_SCREEN_HEIGHT,
+                   EQ_COLOR_BG);
+    EQ_LcdDrawRect(0, 0, EQ_UI_SCREEN_WIDTH, EQ_UI_SCREEN_HEIGHT,
+                   EQ_COLOR_HIGHLIGHT);
+    for (index = 0; index < 12; index++)
+    {
+        y = index * 40;
+        if (y != 0)
+        {
+            EQ_LcdDrawLine(0, y, EQ_UI_SCREEN_WIDTH - 1, y,
+                           (y == 240) ? EQ_COLOR_ZERO : EQ_COLOR_BORDER);
+        }
+        text_rect.x = 4;
+        text_rect.y = (y == 0) ? 2 : y - 9;
+        text_rect.w = 38;
+        text_rect.h = 18;
+        EQ_LcdDrawText(&text_rect, labels[index], 3, EQ_FONT_SMALL,
+                       (y == 240) ? EQ_COLOR_ZERO : EQ_COLOR_TEXT, 0);
+    }
+    text_rect.x = 4;
+    text_rect.y = 460;
+    text_rect.w = 38;
+    text_rect.h = 18;
+    EQ_LcdDrawText(&text_rect, "479", 3, EQ_FONT_SMALL,
+                   EQ_COLOR_TEXT, 0);
+
+    EQ_LcdDrawLine(400, 216, 400, 264, EQ_COLOR_ACTIVE);
+    EQ_LcdDrawLine(376, 240, 424, 240, EQ_COLOR_ACTIVE);
+    EQ_LcdDrawLine(0, 0, 30, 0, EQ_COLOR_ACTIVE);
+    EQ_LcdDrawLine(0, 0, 0, 30, EQ_COLOR_ACTIVE);
+    EQ_LcdDrawLine(769, 0, 799, 0, EQ_COLOR_ACTIVE);
+    EQ_LcdDrawLine(799, 0, 799, 30, EQ_COLOR_ACTIVE);
+    EQ_LcdDrawLine(0, 479, 30, 479, EQ_COLOR_ACTIVE);
+    EQ_LcdDrawLine(0, 449, 0, 479, EQ_COLOR_ACTIVE);
+    EQ_LcdDrawLine(769, 479, 799, 479, EQ_COLOR_ACTIVE);
+    EQ_LcdDrawLine(799, 449, 799, 479, EQ_COLOR_ACTIVE);
+
+    text_rect.x = 190;
+    text_rect.y = 5;
+    text_rect.w = 420;
+    text_rect.h = 22;
+    EQ_FormatHex8(&frame_text[18], EQ_DebugLcdExpectedFrameBase);
+    EQ_FormatHex8(&frame_text[31], EQ_DebugLcdExpectedFrameEnd);
+    EQ_LcdDrawText(&text_rect, frame_text, 39,
+                   EQ_FONT_SMALL, EQ_COLOR_TEXT, 1);
+}
+#endif
 
 #if EQ_LCD_USE_CHINESE
 static int EQ_DrawCnGlyph(int x, int y, unsigned char glyph, int color)
@@ -468,6 +880,7 @@ static int EQ_DrawCnGlyph(int x, int y, unsigned char glyph, int color)
     return x + EQ_CN_GLYPH_ADVANCE;
 }
 
+#if !EQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN
 static void EQ_DrawCnCentered(const EQ_UI_RECT *rect,
                               const unsigned char *glyphs,
                               int count, int color)
@@ -485,6 +898,7 @@ static void EQ_DrawCnCentered(const EQ_UI_RECT *rect,
         x = EQ_DrawCnGlyph(x, y, glyphs[index], color);
     }
 }
+#endif
 
 static void EQ_DrawCnValue(const EQ_UI_RECT *rect,
                            unsigned char glyph, int color)
@@ -537,6 +951,7 @@ static void EQ_ClearInside(const EQ_UI_RECT *rect)
                    rect->w - 2, rect->h - 2, EQ_COLOR_BG);
 }
 
+#if !EQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN
 static void EQ_DrawPresetStatic(int index)
 {
     const EQ_UI_RECT *rect;
@@ -745,6 +1160,7 @@ static void EQ_DrawDynamicStatic(void)
                        EQ_FONT_SMALL, EQ_COLOR_TEXT, 1);
     }
 }
+#endif
 
 static void EQ_DrawPresetJob(int index)
 {
@@ -986,7 +1402,11 @@ void EqualizerDisplay_Init(void)
     s_layout_drawn = 0;
     s_runtime_started = 0;
     EQ_DebugLcdEnabled = 1;
+#if EQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN
+    EQ_DebugLcdRuntimeMask = 0U;
+#else
     EQ_DebugLcdRuntimeMask = EQ_UI_RUNTIME_DEFAULT_MASK & EQ_UI_RUNTIME_ALL;
+#endif
     EQ_DebugLcdPendingMask = 0UL;
     EQ_DebugLcdRefreshCount = 0UL;
     EQ_DebugLcdSkipBusyCount = 0UL;
@@ -998,6 +1418,9 @@ void EqualizerDisplay_Init(void)
     EQ_DebugLcdBoundsFailureCount = 0UL;
     EQ_DebugLcdBudgetExceededCount = 0UL;
     EQ_DebugLcdHardBudgetExceededCount = 0UL;
+    EQ_DebugLcdOver1msCount = 0UL;
+    EQ_DebugLcdOver2msCount = 0UL;
+    EQ_DebugLcdOver5msCount = 0UL;
     EQ_DebugLcdLastJobStartCycles = 0UL;
     EQ_DebugLcdLastJobEndCycles = 0UL;
     EQ_DebugLcdLastJobCycles = 0UL;
@@ -1007,6 +1430,42 @@ void EqualizerDisplay_Init(void)
     EQ_DebugLcdLastJob = EQ_LCD_JOB_NONE;
     EQ_DebugLcdAutoDisabledCount = 0UL;
     EQ_DebugLcdAutoDisableReason = 0UL;
+    EQ_DebugLcdExpectedFrameBase = EQ_ExpectedFrameBase();
+    EQ_DebugLcdExpectedFrameEnd = EQ_ExpectedFrameEnd();
+    EQ_DebugLcdBufferAddress = EQ_BufferAddress();
+    EQ_DebugLcdBufferEndAddress =
+        EQ_DebugLcdBufferAddress + EQ_LCD_BUFFER_TOTAL_BYTES - 1UL;
+    EQ_DebugLcdCurrentFrameBase = 0UL;
+    EQ_DebugLcdCurrentFrameEnd = 0UL;
+    EQ_DebugLcdRasterFaultCount = 0UL;
+    EQ_DebugLcdSyncLostCount = 0UL;
+    EQ_DebugLcdFifoUnderflowCount = 0UL;
+    EQ_DebugLcdFrameAddressMismatchCount = 0UL;
+    EQ_DebugLcdLastRasterStatus = 0UL;
+    EQ_DebugLcdLastIrqStatus = 0UL;
+    EQ_DebugLcdStartupRasterStatus = 0UL;
+    EQ_DebugLcdStartupStatusAfterClear = 0UL;
+    EQ_DebugLcdStartupFaultClearCount = 0UL;
+    EQ_DebugLcdFirstFaultFrame = 0UL;
+    EQ_DebugLcdFirstFaultJob = 0UL;
+    EQ_DebugLcdFramebufferCanaryCheckCount = 0UL;
+    EQ_DebugLcdFramebufferCanaryFailureCount = 0UL;
+    EQ_DebugLcdFramebufferFirstFailureFrame = 0UL;
+    EQ_DebugLcdFramebufferFirstFailureJob = 0UL;
+    EQ_DebugLcdFaultLatched = 0U;
+    EQ_DebugLcdHardwareAuditRequest = 0U;
+    EQ_DebugLcdHwSnapshot.frame_base = 0UL;
+    EQ_DebugLcdHwSnapshot.frame_end = 0UL;
+    EQ_DebugLcdHwSnapshot.raster_control = 0UL;
+    EQ_DebugLcdHwSnapshot.raster_status = 0UL;
+    EQ_DebugLcdHwSnapshot.dma_control = 0UL;
+    EQ_DebugLcdHwSnapshot.irq_status = 0UL;
+    s_lcd_last_audit_job = 0UL;
+    s_lcd_last_audit_frame = 0UL;
+    s_lcd_canary_ready = 0;
+    s_lcd_seen_sync_lost = 0;
+    s_lcd_seen_fifo_underflow = 0;
+    s_lcd_seen_frame_mismatch = 0;
     for (index = 0; index < EQ_LCD_CATEGORY_COUNT; index++)
     {
         EQ_DebugLcdCategoryCount[index] = 0UL;
@@ -1023,15 +1482,23 @@ void EqualizerDisplay_Init(void)
     s_mock_primitive_count = 0UL;
     s_mock_cycle_clock = 0UL;
     s_mock_forced_job_cycles = 0UL;
+    memset(&s_mock_hw_snapshot, 0, sizeof(s_mock_hw_snapshot));
+    s_mock_hw_snapshot.frame_base = EQ_DebugLcdExpectedFrameBase;
+    s_mock_hw_snapshot.frame_end = EQ_DebugLcdExpectedFrameEnd;
+    s_mock_hw_snapshot.raster_control = EQ_LCD_RASTER_ENABLE_MASK;
+    s_mock_canary_failed = 0;
 #else
     Lcd_Init();
 #endif
+    EQ_CaptureFramebufferCanary();
 }
 
 int EqualizerDisplay_DrawStaticLayout(void)
 {
+#if !EQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN
     int index;
     EQ_UI_RECT title_rect;
+#endif
 
     if (s_runtime_started != 0)
     {
@@ -1051,6 +1518,9 @@ int EqualizerDisplay_DrawStaticLayout(void)
     {
         return 0;
     }
+#if EQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN
+    EQ_DrawAlignmentPattern();
+#else
     EQ_LcdFillRect(0, 0, EQ_UI_SCREEN_WIDTH, EQ_UI_SCREEN_HEIGHT,
                    EQ_COLOR_BG);
     title_rect.x = EQ_UI_TITLE_X;
@@ -1070,10 +1540,15 @@ int EqualizerDisplay_DrawStaticLayout(void)
     EQ_DrawChainStatic();
     EQ_DrawAnalyzerStatic();
     EQ_DrawDynamicStatic();
+#endif
     s_layout_drawn = 1;
     EQ_DebugLcdStaticDrawCount++;
     EQ_DebugLcdRefreshCount++;
     EQ_EndDraw();
+#if EQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN
+    EQ_ClearAlignmentStartupFaultStatus();
+#endif
+    EqualizerDisplay_AuditHardware(0UL, 1);
     return 1;
 }
 
@@ -1085,14 +1560,27 @@ void EqualizerDisplay_BeginRuntime(void)
 void EqualizerDisplay_RequestSnapshot(const EQ_UI_SNAPSHOT *snapshot,
                                       unsigned long process_frame)
 {
+#if EQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN
+    (void)snapshot;
+    (void)process_frame;
+    EQ_DebugLcdRuntimeMask = 0U;
+    EQ_DebugLcdPendingMask = 0UL;
+#else
     EqualizerUiLogic_Request(&s_ui_state, snapshot,
                              EQ_DebugLcdRuntimeMask, process_frame);
     EQ_DebugLcdPendingMask = s_ui_state.dirty_mask;
+#endif
 }
 
 int EqualizerDisplay_HasPendingJob(void)
 {
+#if EQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN
+    EQ_DebugLcdRuntimeMask = 0U;
+    EQ_DebugLcdPendingMask = 0UL;
+    return 0;
+#else
     return EqualizerUiLogic_HasPending(&s_ui_state);
+#endif
 }
 
 int EqualizerDisplay_ServiceOneJob(unsigned long process_frame)
@@ -1153,12 +1641,25 @@ int EqualizerDisplay_ServiceOneJob(unsigned long process_frame)
     EQ_DebugLcdJobTypeLastCycles[index] = elapsed_cycles;
     if (elapsed_cycles > EQ_DebugLcdJobTypeMaxCycles[index])
         EQ_DebugLcdJobTypeMaxCycles[index] = elapsed_cycles;
-    if (elapsed_cycles > EQ_LCD_JOB_TARGET_CYCLES)
+    if (elapsed_cycles > EQ_LCD_JOB_GOAL_CYCLES)
+    {
+        EQ_DebugLcdOver1msCount++;
+    }
+    if (elapsed_cycles > EQ_LCD_JOB_ACCEPTANCE_CYCLES)
+    {
+        EQ_DebugLcdOver2msCount++;
         EQ_DebugLcdBudgetExceededCount++;
+    }
     if (elapsed_cycles > EQ_LCD_JOB_HARD_CYCLES)
     {
+        EQ_DebugLcdOver5msCount++;
         EQ_DebugLcdHardBudgetExceededCount++;
+        EqualizerDisplay_AuditHardware(process_frame, 1);
         EqualizerDisplay_AutoDisable(EQ_LCD_AUTO_DISABLE_JOB_OVER_5MS);
+    }
+    else
+    {
+        EqualizerDisplay_AuditHardware(process_frame, 0);
     }
     return job;
 }
@@ -1189,6 +1690,25 @@ unsigned long EqualizerDisplay_TestPrimitiveCount(void)
 void EqualizerDisplay_TestForceJobCycles(unsigned long cycles)
 {
     s_mock_forced_job_cycles = cycles;
+}
+
+void EqualizerDisplay_TestSetHardwareSnapshot(
+    const EQ_LCD_HW_SNAPSHOT *snapshot)
+{
+    if (snapshot != 0)
+    {
+        s_mock_hw_snapshot = *snapshot;
+    }
+}
+
+void EqualizerDisplay_TestSetCanaryFailure(int failed)
+{
+    s_mock_canary_failed = (failed != 0) ? 1 : 0;
+}
+
+void EqualizerDisplay_TestDrawRect(int x, int y, int w, int h)
+{
+    EQ_LcdFillRect(x, y, w, h, EQ_COLOR_BG);
 }
 #endif
 
@@ -1223,6 +1743,12 @@ int EqualizerDisplay_ServiceOneJob(unsigned long process_frame)
 {
     (void)process_frame;
     return EQ_LCD_JOB_NONE;
+}
+
+void EqualizerDisplay_AuditHardware(unsigned long process_frame, int force)
+{
+    (void)process_frame;
+    (void)force;
 }
 
 void EqualizerDisplay_CancelRuntimeJobs(void)

@@ -3027,6 +3027,8 @@ void Equalizer_Flow_Example(void)
             EQ_BuildUiSnapshot(&lcd_snapshot);
             EqualizerDisplay_RequestSnapshot(
                 &lcd_snapshot, EQ_DebugProcessFrames);
+            EqualizerDisplay_AuditHardware(
+                EQ_DebugProcessFrames, 0);
             lcd_disable_reason = EqualizerLcdFaultPolicy_Monitor(
                 &lcd_fault_policy,
                 EQ_DebugLcdRuntimeMask != 0U,

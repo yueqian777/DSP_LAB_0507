@@ -50,6 +50,7 @@ static int flush_jobs(unsigned long frame)
 
 int main(void)
 {
+    EQ_LCD_HW_SNAPSHOT hardware;
     EQ_UI_SNAPSHOT snapshot;
     unsigned long primitives;
     unsigned long unexpected;
@@ -64,6 +65,13 @@ int main(void)
     failures += require_true(primitives > 0UL, "static primitives");
     failures += require_true(EQ_DebugLcdBoundsFailureCount == 0UL,
                              "static bounds");
+    primitives = EqualizerDisplay_TestPrimitiveCount();
+    EqualizerDisplay_TestDrawRect(-1, 0, 1, 1);
+    failures += require_true(EQ_DebugLcdBoundsFailureCount == 1UL &&
+                             EqualizerDisplay_TestPrimitiveCount() ==
+                             primitives,
+                             "invalid rectangle rejected before drawing");
+    EQ_DebugLcdBoundsFailureCount = 0UL;
     failures += require_true(EqualizerDisplay_DrawStaticLayout() == 0,
                              "static draw idempotent");
 
@@ -134,6 +142,113 @@ int main(void)
                              "hard job disables runtime");
     failures += require_true(!EqualizerDisplay_HasPendingJob(),
                              "hard job cancels pending");
+
+    EqualizerDisplay_Init();
+    memset(&hardware, 0, sizeof(hardware));
+    hardware.frame_base = EQ_DebugLcdExpectedFrameBase;
+    hardware.frame_end = EQ_DebugLcdExpectedFrameEnd;
+    hardware.raster_control = 1UL;
+    EqualizerDisplay_TestSetHardwareSnapshot(&hardware);
+    EQ_DebugLcdRuntimeMask = EQ_UI_RUNTIME_ALL;
+    EqualizerDisplay_AuditHardware(100UL, 1);
+    failures += require_true(EQ_DebugLcdFaultLatched == 0U,
+                             "healthy hardware audit");
+    failures += require_true(
+        EQ_DebugLcdCurrentFrameBase == EQ_DebugLcdExpectedFrameBase &&
+        EQ_DebugLcdCurrentFrameEnd == EQ_DebugLcdExpectedFrameEnd,
+        "frame address snapshot");
+
+    hardware.irq_status = 0x24UL;
+    EqualizerDisplay_TestSetHardwareSnapshot(&hardware);
+    EqualizerDisplay_AuditHardware(100UL, 1);
+    failures += require_true(EQ_DebugLcdFaultLatched == 0U,
+                             "C6748 ignores unsupported IRQSTATUS path");
+
+    hardware.raster_status = 0x20UL;
+    EqualizerDisplay_TestSetHardwareSnapshot(&hardware);
+    EqualizerDisplay_AuditHardware(101UL, 1);
+    failures += require_true(EQ_DebugLcdFaultLatched == 1U &&
+                             EQ_DebugLcdFifoUnderflowCount == 1UL &&
+                             EQ_DebugLcdRasterFaultCount == 1UL,
+                             "fifo underflow latches fault");
+    failures += require_true(EQ_DebugLcdRuntimeMask == 0U,
+                             "hardware fault disables runtime UI");
+    failures += require_true(EQ_DebugLcdFirstFaultFrame == 101UL,
+                             "hardware first fault frame");
+    EQ_DebugLcdRuntimeMask = EQ_UI_RUNTIME_ALL;
+    EqualizerDisplay_AuditHardware(102UL, 1);
+    failures += require_true(EQ_DebugLcdRuntimeMask == 0U,
+                             "latched hardware fault rejects UI re-enable");
+
+    EqualizerDisplay_Init();
+    memset(&hardware, 0, sizeof(hardware));
+    hardware.frame_base = EQ_DebugLcdExpectedFrameBase;
+    hardware.frame_end = EQ_DebugLcdExpectedFrameEnd;
+    hardware.raster_control = 1UL;
+    hardware.raster_status = 0x04UL;
+    EqualizerDisplay_TestSetHardwareSnapshot(&hardware);
+    EQ_DebugLcdRuntimeMask = EQ_UI_RUNTIME_ALL;
+    EqualizerDisplay_AuditHardware(150UL, 1);
+    failures += require_true(EQ_DebugLcdSyncLostCount == 1UL &&
+                             EQ_DebugLcdFaultLatched == 1U &&
+                             EQ_DebugLcdRuntimeMask == 0U,
+                             "sync lost latches fault");
+
+    EqualizerDisplay_Init();
+    memset(&hardware, 0, sizeof(hardware));
+    hardware.frame_base = EQ_DebugLcdExpectedFrameBase;
+    hardware.frame_end = EQ_DebugLcdExpectedFrameEnd;
+    EqualizerDisplay_TestSetHardwareSnapshot(&hardware);
+    EQ_DebugLcdRuntimeMask = EQ_UI_RUNTIME_ALL;
+    EqualizerDisplay_AuditHardware(175UL, 1);
+    failures += require_true(EQ_DebugLcdRasterFaultCount == 1UL &&
+                             EQ_DebugLcdFaultLatched == 1U &&
+                             EQ_DebugLcdRuntimeMask == 0U,
+                             "disabled raster latches fault");
+
+    EqualizerDisplay_Init();
+    memset(&hardware, 0, sizeof(hardware));
+    hardware.frame_base = EQ_DebugLcdExpectedFrameBase;
+    hardware.frame_end = EQ_DebugLcdExpectedFrameEnd;
+    hardware.raster_control = 1UL;
+    EqualizerDisplay_TestSetHardwareSnapshot(&hardware);
+    EqualizerDisplay_TestSetCanaryFailure(1);
+    EQ_DebugLcdRuntimeMask = EQ_UI_RUNTIME_ALL;
+    EqualizerDisplay_AuditHardware(200UL, 1);
+    failures += require_true(
+        EQ_DebugLcdFramebufferCanaryFailureCount == 1UL &&
+        EQ_DebugLcdFramebufferFirstFailureFrame == 200UL &&
+        EQ_DebugLcdFaultLatched == 1U,
+        "canary failure latches fault");
+    failures += require_true(EQ_DebugLcdRuntimeMask == 0U,
+                             "canary failure disables runtime UI");
+
+    EqualizerDisplay_Init();
+    memset(&hardware, 0, sizeof(hardware));
+    hardware.frame_base = EQ_DebugLcdExpectedFrameBase + 4UL;
+    hardware.frame_end = EQ_DebugLcdExpectedFrameEnd;
+    hardware.raster_control = 1UL;
+    EqualizerDisplay_TestSetHardwareSnapshot(&hardware);
+    EQ_DebugLcdRuntimeMask = EQ_UI_RUNTIME_ALL;
+    EqualizerDisplay_AuditHardware(300UL, 1);
+    failures += require_true(
+        EQ_DebugLcdFrameAddressMismatchCount == 1UL &&
+        EQ_DebugLcdFaultLatched == 1U,
+        "frame mismatch latches fault");
+
+    EqualizerDisplay_Init();
+    memset(&hardware, 0, sizeof(hardware));
+    hardware.frame_base = EQ_DebugLcdExpectedFrameBase;
+    hardware.frame_end = EQ_DebugLcdExpectedFrameEnd;
+    hardware.raster_control = 1UL;
+    EqualizerDisplay_TestSetHardwareSnapshot(&hardware);
+    EQ_DebugLcdHardwareAuditRequest = 1U;
+    EqualizerDisplay_AuditHardware(400UL, 0);
+    failures += require_true(
+        EQ_DebugLcdHardwareAuditRequest == 0U &&
+        EQ_DebugLcdFramebufferCanaryCheckCount == 1UL &&
+        EQ_DebugLcdFaultLatched == 0U,
+        "operator request performs one healthy audit");
 
     printf("equalizer_display failures=%d\n", failures);
     return (failures == 0) ? 0 : 1;
