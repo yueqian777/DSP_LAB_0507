@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "feature": "project_3_3_lcd_circular_shift_suppression",
+  "failure_baseline_sha": "5d1525ae984acb53765e00cf678874189d2aaf30",
+  "renderer_hardening_sha": "67a22ef399cda9e0a4c2bb74e3dcaa0392c342f0",
+  "differential_renderer_sha": "b23a7ce7dbf89f6dd0920fd6a7db9c395a3d5e87",
+  "tooling_and_build_sha": "46bc54e22d59372259c65cf230a427cbe70ab066",
+  "evidence_boundary": {
+    "host_and_ccs": "VERIFIED",
+    "static_board_watch": "MEASURED_ON_CURRENT_BOARD_OBJECTIVE_ONLY",
+    "static_visual": "OPERATOR_VISUAL_OBSERVATION_PASS",
+    "dynamic_status_board": "PENDING_HARDWARE",
+    "touch_board": "PENDING_HARDWARE",
+    "combined_board": "PENDING_HARDWARE",
+    "stage_a_complete": false,
+    "stage_b_allowed": false
+  },
+  "verification": {
+    "equalizer_host_tests": 102,
+    "equalizer_host_failures": 0,
+    "full_tools_tests": 187,
+    "full_tools_failures": 1,
+    "known_unrelated_failure": "Project 3.2 rerun CSV filename contract",
+    "project32_fft_bit_exact_cases": 8,
+    "project32_wola_bit_exact_hops": 12,
+    "ccs_profiles": 5,
+    "ccs_profile_failures": 0,
+    "static_board_duration_ms": 600000,
+    "static_objective_pass": true
+  },
+  "committed_files": [
+    {"name":"audio_safety_summary.json","size_bytes":597,"sha256":"ca87342d97951f2d7659e95d5bcf8654a29f48b4a0a205f9074b4815d81c59cc"},
+    {"name":"build_matrix_summary.json","size_bytes":1727,"sha256":"439009883dda4f2af687bfe9136ba31b5801528bd9437fa733836be100ca27ca"},
+    {"name":"custom_builder_summary.json","size_bytes":298,"sha256":"7d05524ee2e1e7bf6ee2cdf43bd8352c1fbc4fc0ef1b8807a6e6004e5f2cea65"},
+    {"name":"editor_control_summary.json","size_bytes":298,"sha256":"12c09fd5629278a9e4b9aac12b4ec2bf69d22ba923f995c1bffd8040f721fb1d"},
+    {"name":"framebuffer_guard_summary.json","size_bytes":457,"sha256":"9df2b9ce6182ddbeec696fb3ea107eb897fbb4d70b9b395da7e94dc22270874c"},
+    {"name":"lcd_hw_status_summary.json","size_bytes":663,"sha256":"d43c9e48b97e0f4ea64725dec24f8046fd0e32e2e0c8056b28de08900d365586"},
+    {"name":"lcd_job_timing_summary.json","size_bytes":762,"sha256":"51fb5d5d2040270c1262193ed937c8c12c0766dcc8862ba59a1a25a76f90cc3a"},
+    {"name":"memory_delta_summary.json","size_bytes":601,"sha256":"6042b70022528f54dec0f54cc943b462e7fdc826fa162d2edf500302677dcfed"},
+    {"name":"pending_hardware_summary.json","size_bytes":432,"sha256":"8f83e78903df1755f7056f6d190f0a5cc805699cd6d14667f050a94b07bab525"},
+    {"name":"project32_regression_summary.json","size_bytes":387,"sha256":"42052ea540dbedba6060ead16a8e037189def52ba9d0ba8e85969efc5ac3b7e7"},
+    {"name":"screen_drift_operator_summary.json","size_bytes":703,"sha256":"de4bd0442d68ec9bcdeb964cca9236f7e640af3fed54ae147ac90f4c8dbaa009"},
+    {"name":"touch_calibration_summary.json","size_bytes":351,"sha256":"38607dd3138b420f82520a6ea20fc4fe0bc0673e0ee8769626ae72735e4e8b7c"}
+  ],
+  "local_source_artifacts": [
+    {"logical_path":"%TEMP%/DSP_LAB_0507/lcd_alignment/67a22ef_20260718_202135/lcd_alignment_result.json","size_bytes":2144,"sha256":"ea6c0b5f803974d3402e1cb97c0049e231fab7d5db74621d0807c693e9852165"},
+    {"logical_path":"%TEMP%/DSP_LAB_0507/lcd_alignment/67a22ef_20260718_202135/build_summary.json","size_bytes":383,"sha256":"71e7d85490e05a02f3b49de6a6a9bd3c8dda06f01fbb1ab63ebce9f712d5f160"},
+    {"logical_path":"%TEMP%/equalizer_ui_build_matrix_20260718_220444/build_matrix_summary.json","size_bytes":7933,"sha256":"e429a58d18bcec333c7c14f4c909f7e1a75b98c7eb9c765d7be74e3bcd0be38e"},
+    {"logical_path":"%LOCALAPPDATA%/Temp/codex-clipboard-b32e7fae-ae32-4b6e-8806-fe92e698155f.jpg","size_bytes":2938988,"sha256":"a7111d0ad3bd142ed442fb1b0c1de62081335778010f3019822a583c150146ea","committed":false}
+  ],
+  "large_artifacts_committed": false
+}

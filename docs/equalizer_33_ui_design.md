@@ -4,12 +4,14 @@
 
 The UI is a Project 3.3-only extension. It does not change the RBJ design,
 presets, preamp, 120 ms crossfade, Analyzer math, dynamic-stage parameters,
-ADC/DAC/EDMA/PRU, or Project 3.2. The implementation build tested on the board
-is `5d1525ae984acb53765e00cf678874189d2aaf30`, dirty=0.
+ADC/DAC/EDMA/PRU, or Project 3.2. Build `5d1525a` is the preserved circular-
+shift baseline. Renderer-state hardening is `67a22ef`; bounded Analyzer updates
+are `b23a7ce`.
 
-Host contracts, the CCS A-E matrix, and a 60-second objective board stress are
-verified. Visual alignment, Chinese glyph appearance, and physical touch
-accuracy remain operator checks.
+Host contracts and the clean CCS A-E matrix are verified. The static alignment
+page passed a ten-minute board run and operator observation on `67a22ef`.
+Dynamic Status on the hardened renderer, Chinese glyph appearance under that
+load, and physical Touch accuracy remain `PENDING_HARDWARE`.
 
 ## Fixed 800x480 layout
 
@@ -59,8 +61,15 @@ undrawn old request rather than accumulating history.
 
 Applied preset controls highlighting; requested preset never highlights
 early. Analyzer values are clamped to -20..+20 dB and mapped with integer
-arithmetic to y=124..298. A one-pixel change is suppressed; a two-pixel change
-or the 50-frame maximum age may request that bar only.
+arithmetic to y=124..298, while drawable pixels remain inside y=125..297.
+Each band separately tracks requested/displayed pixels and value text.
+
+An Analyzer service performs exactly one operation: clear one old strip, fill
+one new strip, or redraw one value field. A strip is at most 16 pixels high.
+A cross-zero move first reaches the fixed zero line and then fills the other
+side. A newer target replaces unfinished historical motion. Value text changes
+when integer dB differs by at least 2 dB, valid/warm changes, or 50 audio frames
+have elapsed.
 
 ## Audio-first service
 
@@ -69,19 +78,37 @@ all audio/pending flags are clear. Touch, builder, and Analyzer work performed
 in the pass prevent an LCD job. The flags are checked again immediately before
 drawing and immediately after drawing.
 
-- Maximum work per service: one fixed-region job.
-- Minimum gap: 2 processed frames, 40.96 ms at 50 kHz/1024 samples.
+- Maximum work per service: one bounded field or Analyzer strip.
+- Preset minimum gap: 2 processed frames, 40.96 ms.
+- Dynamic-row minimum gap: 4 processed frames, 81.92 ms.
+- Chain and Analyzer minimum gap: 8 processed frames, 163.84 ms.
+- Global steady minimum gap: 7 processed frames; average at most 8 jobs/s.
 - Control quiet period: 3 processed frames, 61.44 ms.
-- Warning threshold: 912000 cycles, 2 ms at 456 MHz.
+- Goal threshold: 456000 cycles, 1 ms at 456 MHz.
+- Normal acceptance threshold: 912000 cycles, 2 ms at 456 MHz.
 - Hard threshold: 2280000 cycles, 5 ms at 456 MHz.
 
-A hard overrun auto-disables runtime LCD jobs instead of delaying audio. The
-final board run measured a worst job of 1800578 cycles (3.949 ms), no hard
-overrun, no auto-disable, and no unexpected full redraw.
+A hard overrun auto-disables runtime LCD jobs instead of delaying audio. A
+normal job above 2 ms fails the current stability contract even when it remains
+below the 5 ms fail-closed threshold. The historical `5d1525a` run reached
+1,800,578 cycles and 149 jobs above 2 ms; it is a failure baseline under the
+current contract, not an accepted final result. Dynamic timing for `b23a7ce`
+remains `PENDING_HARDWARE`.
+
+## Raster and framebuffer guard
+
+The renderer captures the initialized FB0 base/end and audits them after the
+static layout, at low runtime cadence, after an overrun, or on operator request.
+Fixed canaries guard the framebuffer boundary. Address mismatch, sync loss,
+FIFO underflow, unknown raster fault, or canary failure latches the evidence,
+sets the runtime mask to zero, and leaves the audio path active. Runtime code
+does not call `Lcd_Init()`, restart raster, clear the full screen, or allocate a
+second framebuffer.
 
 ## Memory and build gates
 
 `EQ_ENABLE_LCD_DISPLAY=0` removes the runtime UI state and LCD diagnostics.
 `EQ_ENABLE_PROJECT33_TOUCH=1` is rejected unless LCD is enabled. The source
-defaults remain LCD=0, Touch=0, and runtime mask=0. The measured E profile uses
-244 bytes for UI state and 36 bytes for touch state/transform.
+defaults remain LCD=0, Touch=0, and runtime mask=0. The current UI state is 312
+bytes; touch state plus transform is 36 bytes. The A-E matrix keeps Project 3.3
+`.subband_l2` at 20,380 bytes for LCD OFF, static, dynamic, and Touch profiles.

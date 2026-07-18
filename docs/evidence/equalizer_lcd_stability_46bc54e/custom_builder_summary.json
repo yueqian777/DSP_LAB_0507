@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "existing_control_builder_changed": false,
+  "stage_b_ui_apply_workflow": "NOT_STARTED",
+  "stage_b_set_all_submission": "NOT_TESTED",
+  "stale_candidate_ui_test": "NOT_TESTED",
+  "note": "the existing Project 3.3 builder remains covered by its independent Host tests"
+}

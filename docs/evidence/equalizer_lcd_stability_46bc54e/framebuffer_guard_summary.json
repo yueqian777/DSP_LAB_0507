@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "evidence_label": "MEASURED_ON_CURRENT_BOARD_OBJECTIVE_ONLY",
+  "tested_sha": "67a22ef399cda9e0a4c2bb74e3dcaa0392c342f0",
+  "buffer_symbol_address": 3221225472,
+  "buffer_end_address": 3221993507,
+  "fb0_base": 3221225476,
+  "fb0_end": 3221993504,
+  "canary_checks_before": 1,
+  "canary_checks_after": 116,
+  "canary_failure_count": 0,
+  "first_failure_frame": 0,
+  "first_failure_job": 0,
+  "second_framebuffer_created": false
+}

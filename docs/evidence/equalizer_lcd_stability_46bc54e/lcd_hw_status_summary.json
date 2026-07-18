@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "evidence_label": "MEASURED_ON_CURRENT_BOARD_OBJECTIVE_ONLY",
+  "profile": "project33_lcd_alignment_static_no_touch",
+  "tested_sha": "67a22ef399cda9e0a4c2bb74e3dcaa0392c342f0",
+  "build_dirty": 0,
+  "duration_ms": 600000,
+  "raster_control": 8321,
+  "startup_raster_status": 325,
+  "startup_status_after_clear": 321,
+  "startup_fault_clear_count": 1,
+  "expected_frame_base": 3221225476,
+  "current_frame_base": 3221225476,
+  "expected_frame_end": 3221993504,
+  "current_frame_end": 3221993504,
+  "raster_fault_count": 0,
+  "sync_lost_count": 0,
+  "fifo_underflow_count": 0,
+  "frame_address_mismatch_count": 0,
+  "fault_latched": 0
+}

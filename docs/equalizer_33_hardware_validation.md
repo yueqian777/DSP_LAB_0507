@@ -16,8 +16,9 @@
 **EDMA callback-table fix commit:**
 `ca7bf26dd595fee1d9045c15921afa53e94ca478`
 
-**Current status:** Partial `MEASURED_ON_CURRENT_BOARD`; final initialization
-`FAIL`; remaining LCD and endurance work `PENDING_HARDWARE`.
+**Current status:** Partial `MEASURED_ON_CURRENT_BOARD`. The Project 3.3 LCD
+static alignment gate passed; hardened Dynamic Status, Touch, combined LCD
+endurance, and unrelated remaining hardware work stay `PENDING_HARDWARE`.
 
 **Scope note (2026-07-18):** The status above belongs to the original Stage B
 run. Later feature-scoped results are recorded independently in Sections
@@ -856,7 +857,7 @@ frequency response, and SPL are `UNMEASURED`. The compact archive is
 `docs/evidence/harshness_guard_dade304/`; large local artifacts remain under
 `%TEMP%` and are referenced by SHA-256 rather than committed.
 
-## 14. Project 3.3 status UI objective validation
+## 14. Historical Project 3.3 status UI baseline
 
 ### 14.1 Provenance and scope
 
@@ -873,9 +874,12 @@ An intermediate `41d8a1b` run stopped correctly when Analyzer job 9 reached
 zero. The inner mutable bar width was then reduced without changing Analyzer
 math, frequency bands, smoothing, cadence, dB mapping, or outer layout.
 
-### 14.2 Final 60-second E-profile window
+### 14.2 Preserved 60-second E-profile window
 
-**Result:** `MEASURED_ON_CURRENT_BOARD_OBJECTIVE_ONLY`, PASS.
+**Result:** audio-safety objective counters passed under the earlier 5 ms hard
+limit. This build is now the Stage A visual failure baseline. It fails the
+current normal LCD acceptance because 149 jobs exceeded 2 ms, and the operator
+observed a vertical circular screen shift.
 
 The window processed 2935 frames and 367 Analyzer publications. Input/output
 peaks were 792/790 PCM16 counts, proving nonzero CH1 traffic. Maximum algorithm,
@@ -912,8 +916,50 @@ reported 95 DOWN, 51 RELEASE, zero I2C errors, and final raw/screen coordinate
 `(678,37)` with last action V-SHAPE. These may be unconfirmed physical or
 spurious controller events; they are not accepted as a physical Touch pass.
 
-Chinese glyph appearance, complete static-page alignment, lack of visible
-flicker, and physical hitbox accuracy remain
+For that historical build, Chinese glyph appearance, complete static-page
+alignment, lack of visible flicker, and physical hitbox accuracy remained
 `PENDING_OPERATOR_TOUCH_VALIDATION`. No new full A-I run or 300-second run was
 performed. External analog THD, SNR, calibrated response, and SPL remain
 unmeasured. The compact archive is `docs/evidence/equalizer_ui_5d1525a/`.
+
+## 15. LCD circular-shift suppression
+
+### 15.1 Source and Host boundary
+
+The preserved failure is `OPERATOR_VISUAL_FAILURE_SCREEN_CIRCULAR_SHIFT` on
+clean build `5d1525a`. Commit `67a22ef` replaced Project 3.3 shared rectangle
+state with bounded local rectangles and added low-cadence LCDC/DMA/address and
+framebuffer-canary diagnostics. Commit `b23a7ce` changed Analyzer rendering to
+latest-wins differential strips of at most 16 pixels and split value text into
+a separate field. Neither commit changes Project 3.2 or audio algorithms.
+
+At `46bc54e`, 102 Project 3.3/equalizer Host tests passed. The Project 3.2
+shared FFT regression passed 8 frozen FFT cases and 12 consecutive WOLA hops
+bit-exactly. The clean A-E matrix passed with zero warnings, zero errors, and
+`link_errors=0x0` for every profile.
+
+### 15.2 Ten-minute static alignment gate
+
+**Result:** `MEASURED_ON_CURRENT_BOARD_OBJECTIVE_ONLY` plus
+`OPERATOR_VISUAL_OBSERVATION_PASS`.
+
+The clean `67a22ef`, dirty=0, no-Touch alignment build ran for 600,000 ms. AD,
+DA, and process counters advanced together from 195 to 29,443. Runtime mask and
+runtime job count remained zero. FB0 stayed at base `0xC0000004` and end
+`0xC00BB820`; canary checks advanced from 1 to 116. Raster fault, sync lost,
+FIFO underflow, frame-address mismatch, canary failure, bounds failure,
+deadline, latency miss, overlap, dropped, and clip counters were zero.
+
+Automation made no visual assertion. After the window, the operator explicitly
+reported that no circular shift was visible. The exact `.out` SHA-256 was
+`50c95e3e4b06a0a3d22ccc05744643c01aeec4a120ed8d7db9c36936f0942ba7`.
+
+### 15.3 Hardware removed before remaining gates
+
+The hardened Dynamic Status ten-minute run was prepared but not executed after
+the board was removed. Dynamic Status timing/visual confirmation, five-minute
+physical Touch, and ten-minute combined audio/Analyzer/dynamics/preset/Touch
+remain `PENDING_HARDWARE`. Stage A is not complete and Stage B ten-band editor
+work has not started. Compact evidence is under
+`docs/evidence/equalizer_lcd_stability_46bc54e/`; details are in
+`docs/equalizer_33_lcd_drift_diagnosis.md`.
