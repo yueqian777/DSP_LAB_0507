@@ -1621,7 +1621,7 @@ static int EQ_EvalWriteModeStateReport(void)
         count_before_repeat);
     EQ_EvalControlSettle(&path, &st);
     failures += EQ_EvalWriteModeStateRow(file, "custom_latest_applied", &st,
-        EQ_PRESET_CUSTOM, EQ_PRESET_NONE, EQ_PRESET_NONE, 0, 0,
+        EQ_PRESET_CUSTOM, EQ_PRESET_NONE, EQ_PRESET_CUSTOM, 0, 0,
         count_before_repeat + 2UL);
     {
         EQ_STATE reference;

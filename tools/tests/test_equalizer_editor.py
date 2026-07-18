@@ -113,6 +113,20 @@ class EqualizerEditorTest(unittest.TestCase):
         self.assertNotIn("EQ_UI_SCREEN_HEIGHT", page_tile)
         self.assertIn("EqualizerUiLogic_GetPageTileIndex", page_tile)
 
+    def test_snapshot_request_is_limited_to_one_per_frame(self) -> None:
+        start = self.flow.index(
+            "static void EQ_RequestUiSnapshotIfChanged(")
+        end = self.flow.index("#endif", start)
+        service = self.flow[start:end]
+        guard = service.index(
+            "EQ_UiSnapshotLastRequestFrame == process_frame")
+        request = service.index("EqualizerDisplay_RequestSnapshot(")
+        record = service.index(
+            "EQ_UiSnapshotLastRequestFrame = process_frame")
+        self.assertLess(guard, request)
+        self.assertLess(request, record)
+        self.assertIn("EQ_DebugUiSnapshotSkippedCount++", service)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -120,6 +120,7 @@ typedef struct
 
 static EQ_UI_EDITOR_STATE EQ_UiEditorState;
 static EQ_UI_EVENT_VERSION EQ_UiEventVersion;
+static unsigned long EQ_UiSnapshotLastRequestFrame = ~0UL;
 #endif
 #if EQ_ENABLE_PROJECT33_TOUCH != 0
 static EQ_UI_TOUCH_STATE EQ_TouchState;
@@ -1607,6 +1608,12 @@ static void EQ_RequestUiSnapshotIfChanged(EQ_UI_SNAPSHOT *snapshot,
                                           int force)
 {
     EQ_UpdateUiEditorFeedback();
+    if ((force == 0) &&
+        (EQ_UiSnapshotLastRequestFrame == process_frame))
+    {
+        EQ_DebugUiSnapshotSkippedCount++;
+        return;
+    }
     if ((force == 0) && (EQ_UiSnapshotEventChanged() == 0))
     {
         EQ_DebugUiSnapshotSkippedCount++;
@@ -1614,6 +1621,7 @@ static void EQ_RequestUiSnapshotIfChanged(EQ_UI_SNAPSHOT *snapshot,
     }
     EQ_BuildUiSnapshot(snapshot);
     EqualizerDisplay_RequestSnapshot(snapshot, process_frame);
+    EQ_UiSnapshotLastRequestFrame = process_frame;
     EQ_RecordUiSnapshotEvent();
     EQ_DebugUiSnapshotBuildCount++;
 }
@@ -3236,6 +3244,7 @@ void Equalizer_Flow_Example(void)
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
     EqualizerUiEditor_Init(&EQ_UiEditorState);
     memset(&EQ_UiEventVersion, 0, sizeof(EQ_UiEventVersion));
+    EQ_UiSnapshotLastRequestFrame = ~0UL;
     EQ_DebugUiRequestedPage = EQ_UI_PAGE_DYNAMIC_STATUS;
     EQ_DebugUiDisplayedPage = EQ_UI_PAGE_DYNAMIC_STATUS;
     EQ_DebugUiPageBuilding = 0U;
