@@ -174,6 +174,12 @@ $requiredSymbols = @(
     "EQ_DebugTouchRejectedCount", "EQ_DebugTouchMaxCycles",
     "EQ_DebugUiRequestedPage", "EQ_DebugUiDisplayedPage",
     "EQ_DebugUiPageBuilding", "EQ_DebugUiDraftVersion",
+    "EQ_DebugUiEditorSelectedBand", "EQ_DebugUiEditorDraftDirty",
+    "EQ_DebugUiEditorSubmittedValid", "EQ_DebugUiEditorApplyStatus",
+    "EQ_DebugUiEditorSubmittedSequence", "EQ_DebugUiEditorAppliedSequence",
+    "EQ_DebugUiEditorDraftGainHalfDb",
+    "EQ_DebugUiEditorSubmittedGainHalfDb",
+    "EQ_DebugUiEditorAppliedGainHalfDb",
     "EQ_DebugUiEditorStateBytes", "EQ_DebugUiTotalStateBytes",
     "EQ_DebugControlRequestToken", "EQ_DebugControlAppliedToken",
     "EQ_DebugBuilderCancelCount", "EQ_DebugLcdJobCount",
@@ -205,7 +211,7 @@ $requiredSymbols = @(
     "EQ_DebugHarshnessGuardLevelChangeCount",
     "EQ_DebugHarshnessGuardMaxCycles",
     "EQ_DebugHarshnessGuardSaturationCount",
-    "EQ_DebugHarshnessGuardNonFiniteCount", "EQ_UiEditorState",
+    "EQ_DebugHarshnessGuardNonFiniteCount",
     "EQ_UI_DYNAMIC_HITBOXES", "EQ_UI_EDITOR_HITBOXES"
 )
 foreach ($symbol in $requiredSymbols) {

@@ -409,6 +409,15 @@ volatile unsigned long EQ_DebugUiSnapshotSkippedCount = 0UL;
 volatile unsigned long EQ_DebugUiAppliedGainRefreshCount = 0UL;
 volatile unsigned long EQ_DebugUiDraftVersion = 0UL;
 volatile unsigned long EQ_DebugUiPageSwitchCount = 0UL;
+volatile int EQ_DebugUiEditorSelectedBand = 0;
+volatile unsigned int EQ_DebugUiEditorDraftDirty = 0U;
+volatile unsigned int EQ_DebugUiEditorSubmittedValid = 0U;
+volatile int EQ_DebugUiEditorApplyStatus = EQ_UI_APPLY_APPLIED;
+volatile EQ_CONTROL_SEQUENCE EQ_DebugUiEditorSubmittedSequence = 0U;
+volatile EQ_CONTROL_SEQUENCE EQ_DebugUiEditorAppliedSequence = 0U;
+volatile signed char EQ_DebugUiEditorDraftGainHalfDb[EQ_NUM_BANDS];
+volatile signed char EQ_DebugUiEditorSubmittedGainHalfDb[EQ_NUM_BANDS];
+volatile signed char EQ_DebugUiEditorAppliedGainHalfDb[EQ_NUM_BANDS];
 volatile const unsigned long EQ_DebugUiEditorStateBytes =
     (unsigned long)sizeof(EQ_UI_EDITOR_STATE);
 volatile const unsigned long EQ_DebugUiTotalStateBytes =
@@ -1379,6 +1388,28 @@ static int EQ_UiFloatToTenths(float value)
 }
 
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
+static void EQ_SyncUiEditorDebug(void)
+{
+    int band;
+
+    EQ_DebugUiEditorSelectedBand = EQ_UiEditorState.selected_band;
+    EQ_DebugUiEditorDraftDirty = EQ_UiEditorState.draft_dirty;
+    EQ_DebugUiEditorSubmittedValid = EQ_UiEditorState.submitted_valid;
+    EQ_DebugUiEditorApplyStatus = EQ_UiEditorState.apply_status;
+    EQ_DebugUiEditorSubmittedSequence =
+        EQ_UiEditorState.submitted_sequence;
+    EQ_DebugUiEditorAppliedSequence = EQ_UiEditorState.applied_sequence;
+    for (band = 0; band < EQ_NUM_BANDS; band++)
+    {
+        EQ_DebugUiEditorDraftGainHalfDb[band] =
+            EQ_UiEditorState.draft_gain_half_db[band];
+        EQ_DebugUiEditorSubmittedGainHalfDb[band] =
+            EQ_UiEditorState.submitted_gain_half_db[band];
+        EQ_DebugUiEditorAppliedGainHalfDb[band] =
+            EQ_UiEditorState.applied_gain_half_db[band];
+    }
+}
+
 static int EQ_UiEditorDraftMatchesSubmitted(void)
 {
     int band;
@@ -1474,6 +1505,7 @@ static void EQ_UpdateUiEditorFeedback(void)
     }
     EqualizerUiEditor_SetApplyStatus(&EQ_UiEditorState, status);
     EQ_DebugUiDraftVersion = EQ_UiEditorState.draft_version;
+    EQ_SyncUiEditorDebug();
     EQ_DebugUiDisplayedPage = EqualizerDisplay_GetDisplayedPage();
     EQ_DebugUiPageBuilding =
         (unsigned int)EqualizerDisplay_IsPageBuilding();
@@ -1833,6 +1865,9 @@ static int EQ_ServiceUiTouch(unsigned char flag_ad_done,
         EQ_DebugTouchRejectedCount++;
         return 1;
     }
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+    EQ_SyncUiEditorDebug();
+#endif
     EQ_TouchLastActionFrame = process_frame;
     EQ_DebugTouchLastAction = action;
     EQ_DebugTouchActionCount++;
@@ -3243,6 +3278,7 @@ void Equalizer_Flow_Example(void)
     EqualizerDisplay_Init();
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
     EqualizerUiEditor_Init(&EQ_UiEditorState);
+    EQ_SyncUiEditorDebug();
     memset(&EQ_UiEventVersion, 0, sizeof(EQ_UiEventVersion));
     EQ_UiSnapshotLastRequestFrame = ~0UL;
     EQ_DebugUiRequestedPage = EQ_UI_PAGE_DYNAMIC_STATUS;

@@ -119,12 +119,12 @@ var symbols = {
     snapshot_skips: "EQ_DebugUiSnapshotSkippedCount",
     gain_refreshes: "EQ_DebugUiAppliedGainRefreshCount",
     draft_version: "EQ_DebugUiDraftVersion",
-    editor_selected_band: "(int)EQ_UiEditorState.selected_band",
-    editor_draft_dirty: "(unsigned int)EQ_UiEditorState.draft_dirty",
-    editor_submitted_valid: "(unsigned int)EQ_UiEditorState.submitted_valid",
-    editor_apply_status: "(int)EQ_UiEditorState.apply_status",
-    editor_submitted_sequence: "EQ_UiEditorState.submitted_sequence",
-    editor_applied_sequence: "EQ_UiEditorState.applied_sequence",
+    editor_selected_band: "EQ_DebugUiEditorSelectedBand",
+    editor_draft_dirty: "EQ_DebugUiEditorDraftDirty",
+    editor_submitted_valid: "EQ_DebugUiEditorSubmittedValid",
+    editor_apply_status: "EQ_DebugUiEditorApplyStatus",
+    editor_submitted_sequence: "EQ_DebugUiEditorSubmittedSequence",
+    editor_applied_sequence: "EQ_DebugUiEditorAppliedSequence",
     page_switches: "EQ_DebugUiPageSwitchCount",
     editor_state_bytes: "EQ_DebugUiEditorStateBytes",
     total_ui_state_bytes: "EQ_DebugUiTotalStateBytes",
@@ -332,11 +332,11 @@ function snapshot() {
         state.band_gain_db.push(numberValue(
             "EQ_DebugBandGainDb[" + index + "]"));
         state.editor_draft_gain_db.push(0.5 * numberValue(
-            "(int)EQ_UiEditorState.draft_gain_half_db[" + index + "]"));
+            "(int)EQ_DebugUiEditorDraftGainHalfDb[" + index + "]"));
         state.editor_submitted_gain_db.push(0.5 * numberValue(
-            "(int)EQ_UiEditorState.submitted_gain_half_db[" + index + "]"));
+            "(int)EQ_DebugUiEditorSubmittedGainHalfDb[" + index + "]"));
         state.editor_applied_gain_db.push(0.5 * numberValue(
-            "(int)EQ_UiEditorState.applied_gain_half_db[" + index + "]"));
+            "(int)EQ_DebugUiEditorAppliedGainHalfDb[" + index + "]"));
     }
     state.lcd_category_count = [];
     state.lcd_category_last_cycles = [];

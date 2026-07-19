@@ -239,6 +239,16 @@ extern volatile unsigned long EQ_DebugUiSnapshotSkippedCount;
 extern volatile unsigned long EQ_DebugUiAppliedGainRefreshCount;
 extern volatile unsigned long EQ_DebugUiDraftVersion;
 extern volatile unsigned long EQ_DebugUiPageSwitchCount;
+extern volatile int EQ_DebugUiEditorSelectedBand;
+extern volatile unsigned int EQ_DebugUiEditorDraftDirty;
+extern volatile unsigned int EQ_DebugUiEditorSubmittedValid;
+extern volatile int EQ_DebugUiEditorApplyStatus;
+extern volatile EQ_CONTROL_SEQUENCE EQ_DebugUiEditorSubmittedSequence;
+extern volatile EQ_CONTROL_SEQUENCE EQ_DebugUiEditorAppliedSequence;
+extern volatile signed char EQ_DebugUiEditorDraftGainHalfDb[EQ_NUM_BANDS];
+extern volatile signed char
+    EQ_DebugUiEditorSubmittedGainHalfDb[EQ_NUM_BANDS];
+extern volatile signed char EQ_DebugUiEditorAppliedGainHalfDb[EQ_NUM_BANDS];
 extern volatile const unsigned long EQ_DebugUiEditorStateBytes;
 extern volatile const unsigned long EQ_DebugUiTotalStateBytes;
 #endif

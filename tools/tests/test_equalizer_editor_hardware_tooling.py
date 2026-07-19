@@ -8,6 +8,8 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 RUNNER = ROOT / "tools" / "run_equalizer_ten_band_editor_hardware.ps1"
 DSS = ROOT / "tools" / "dss" / "dss_equalizer_ten_band_editor.js"
+FLOW = ROOT / "Code" / "User" / "user_dsp" / "user_equalizer_flow.c"
+FLOW_HEADER = ROOT / "Code" / "User" / "user_dsp" / "user_equalizer_flow.h"
 
 
 def powershell_executable():
@@ -202,6 +204,33 @@ class EqualizerEditorHardwareToolingTest(unittest.TestCase):
         self.assertNotIn("sizeof(EQ_DebugLcdCategoryCount)", source)
         self.assertIn("missing retained size symbols", RUNNER.read_text(
             encoding="utf-8"))
+
+    def test_dss_uses_exported_editor_debug_mirrors(self):
+        dss = DSS.read_text(encoding="utf-8")
+        runner = RUNNER.read_text(encoding="utf-8")
+        flow = FLOW.read_text(encoding="utf-8")
+        header = FLOW_HEADER.read_text(encoding="utf-8")
+        symbols = (
+            "EQ_DebugUiEditorSelectedBand",
+            "EQ_DebugUiEditorDraftDirty",
+            "EQ_DebugUiEditorSubmittedValid",
+            "EQ_DebugUiEditorApplyStatus",
+            "EQ_DebugUiEditorSubmittedSequence",
+            "EQ_DebugUiEditorAppliedSequence",
+            "EQ_DebugUiEditorDraftGainHalfDb",
+            "EQ_DebugUiEditorSubmittedGainHalfDb",
+            "EQ_DebugUiEditorAppliedGainHalfDb",
+        )
+        for symbol in symbols:
+            with self.subTest(symbol=symbol):
+                self.assertIn(symbol, dss)
+                self.assertIn(symbol, runner)
+                self.assertIn(symbol, flow)
+                self.assertIn(symbol, header)
+        self.assertNotIn("EQ_UiEditorState", dss)
+        self.assertNotIn('"EQ_UiEditorState"', runner)
+        self.assertIn("static void EQ_SyncUiEditorDebug(void)", flow)
+        self.assertGreaterEqual(flow.count("EQ_SyncUiEditorDebug();"), 3)
 
     def test_full_staged_hardware_sequence_is_present(self):
         source = DSS.read_text(encoding="utf-8")
