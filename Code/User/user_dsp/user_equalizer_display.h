@@ -146,6 +146,11 @@ extern volatile unsigned long EQ_DebugLcdMaxJobTenthsMs;
 extern volatile int EQ_DebugLcdLastJob;
 extern volatile unsigned long EQ_DebugLcdAutoDisabledCount;
 extern volatile unsigned long EQ_DebugLcdAutoDisableReason;
+extern volatile const unsigned int EQ_DebugLcdCategoryCountSize;
+extern volatile const unsigned int EQ_DebugLcdJobTypeCountSize;
+extern volatile const unsigned int EQ_DebugUiJobCountSize;
+extern volatile const unsigned int EQ_DebugDynamicHitboxCountSize;
+extern volatile const unsigned int EQ_DebugEditorHitboxCountSize;
 extern volatile unsigned long EQ_DebugLcdCategoryCount[EQ_LCD_CATEGORY_COUNT];
 extern volatile unsigned long
     EQ_DebugLcdCategoryLastCycles[EQ_LCD_CATEGORY_COUNT];

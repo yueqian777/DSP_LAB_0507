@@ -1,4 +1,5 @@
 import pathlib
+import re
 import shutil
 import subprocess
 import unittest
@@ -83,6 +84,15 @@ class EqualizerEditorHardwareToolingTest(unittest.TestCase):
             "status --porcelain --untracked-files=all",
             "EQ_BUILD_DIRTY 0",
             "<link_errors>0x0</link_errors>",
+            "run_equalizer_ui_build_matrix.ps1",
+            '-ProfileNames "H_project33_full"',
+            'CLEAN_BUILD_PROFILE=H_project33_full',
+            "warning_count",
+            "error_count",
+            "out_sha256",
+            "LastWriteTimeUtc",
+            'Assert-ExactGitState "pre-load"',
+            'Assert-BuildIdentity "pre-load"',
             "C6748_CONNECTED_AND_AUDIO_LOOP_READY",
             "EQ_DebugUiEditorStateBytes",
             "EQ_DebugTouchActionCount",
@@ -92,6 +102,45 @@ class EqualizerEditorHardwareToolingTest(unittest.TestCase):
         for contract in required:
             with self.subTest(contract=contract):
                 self.assertIn(contract, source)
+
+    def test_h_profile_contract_is_checked_before_dss(self):
+        source = RUNNER.read_text(encoding="utf-8")
+        for token in (
+            "--define=EQ_ENABLE_LCD_DISPLAY=1",
+            "--define=EQ_ENABLE_PROJECT33_TOUCH=1",
+            "--define=EQ_ENABLE_TEN_BAND_EDITOR=1",
+            "--define=EQ_ENABLE_TEN_BAND_EDITOR_TOUCH=1",
+            "--define=EQ_UI_RUNTIME_DEFAULT_MASK=63",
+            "job_count -ne 27",
+            "dynamic_hitbox_count -ne 12",
+            "editor_hitbox_count -ne 20",
+            "framebuffer_symbol_count -ne 1",
+            "second_framebuffer_symbol_hits -ne 0",
+            "editor_state_bytes -le 0",
+        ):
+            with self.subTest(token=token):
+                self.assertIn(token, source)
+        self.assertLess(
+            source.index("CLEAN_BUILD_PROFILE=H_project33_full"),
+            source.index("Start-Process"),
+        )
+
+    def test_operator_visual_templates_remain_operator_owned(self):
+        source = RUNNER.read_text(encoding="utf-8")
+        self.assertIn("operator_visual_checklist.txt", source)
+        self.assertIn("operator_visual_summary.json", source)
+        self.assertIn('result_label = "PENDING_OPERATOR"', source)
+        self.assertIn("automated_counters_are_not_visual_evidence", source)
+        item_ids = re.findall(
+            r'\bid = "([a-z0-9_]+)"; description =', source
+        )
+        self.assertEqual(len(item_ids), 15)
+        self.assertEqual(len(set(item_ids)), 15)
+        for field in (
+            "file_name", "captured_at", "size_bytes", "sha256",
+            "stage", "user_conclusion",
+        ):
+            self.assertIn(field, source)
 
     def test_dss_contract_covers_deferred_board_acceptance(self):
         source = DSS.read_text(encoding="utf-8")
@@ -124,12 +173,115 @@ class EqualizerEditorHardwareToolingTest(unittest.TestCase):
             "EQ_DebugFrameServiceOverlapCount",
             "EQ_DebugFrameServiceDroppedCount",
             "EQ_DebugClipCount",
+            "FRAME_LATENCY_ACCEPTANCE_CYCLES = 8405000",
+            "LCD_NORMAL_JOB_CYCLES = 912000",
+            "MAX_ANALYZER_STRIP_HEIGHT = 16",
+            "MAX_LCD_JOBS_PER_SECOND = 8",
             "enduranceMinutes * 60 * 1000",
             "enduranceMinutes >= 10",
         ]
         for contract in required:
             with self.subTest(contract=contract):
                 self.assertIn(contract, source)
+
+    def test_dss_reads_target_sizes_before_dynamic_arrays(self):
+        source = DSS.read_text(encoding="utf-8")
+        for symbol in (
+            "EQ_DebugLcdCategoryCountSize",
+            "EQ_DebugLcdJobTypeCountSize",
+            "EQ_DebugUiJobCountSize",
+            "EQ_DebugDynamicHitboxCountSize",
+            "EQ_DebugEditorHitboxCountSize",
+        ):
+            self.assertIn(symbol, source)
+        self.assertIn("initializeArraySizes();", source)
+        self.assertIn("arraySizes.lcd_category_count", source)
+        self.assertIn("arraySizes.lcd_job_type_count", source)
+        self.assertNotRegex(source, r"index\s*<\s*(?:6|27)\b")
+        self.assertNotIn("target_sizeof_fallback", source)
+        self.assertNotIn("sizeof(EQ_DebugLcdCategoryCount)", source)
+        self.assertIn("missing retained size symbols", RUNNER.read_text(
+            encoding="utf-8"))
+
+    def test_full_staged_hardware_sequence_is_present(self):
+        source = DSS.read_text(encoding="utf-8")
+        ordered_calls = (
+            "runTouchCalibration();",
+            "runPhysicalDynamicSequence();",
+            "runPhysicalEditorSequence();",
+            "runPhysicalMultiBandCustom();",
+            "runPageSwitchStress();",
+            "runStaleRequestCheck();",
+            "runDynamicStatusCheck();",
+            "runCombinedInteractive();",
+            "runEndurance().after",
+        )
+        offsets = [source.index(call) for call in ordered_calls]
+        self.assertEqual(offsets, sorted(offsets))
+        for token in (
+            "physical_dynamic_12_actions",
+            "physical_multi_band_custom",
+            "20 round trips;5 reversals",
+            "combined_interactive_10min",
+            "uninterrupted_endurance_10min",
+            "MEASURED_ON_CURRENT_BOARD_UNINTERRUPTED_ENDURANCE",
+            "transition_ms=",
+        ):
+            self.assertIn(token, source)
+
+    def test_dss_snapshot_covers_lcd_audio_analyzer_dynamics_and_touch(self):
+        source = DSS.read_text(encoding="utf-8")
+        required = (
+            "EQ_DebugLcdOver1msCount",
+            "EQ_DebugLcdOver2msCount",
+            "EQ_DebugLcdOver5msCount",
+            "EQ_DebugLcdAnalyzerMaxStripHeight",
+            "EQ_DebugLcdAnalyzerStripCount",
+            "EQ_DebugLcdAnalyzerValueCount",
+            "EQ_DebugLcdCategoryCount[",
+            "EQ_DebugLcdCategoryMaxCycles[",
+            "EQ_DebugLcdJobTypeCount[",
+            "EQ_DebugLcdJobTypeMaxCycles[",
+            "EQ_DebugAlgoMaxCycles",
+            "EQ_DebugFrameServiceMaxCycles",
+            "EQ_DebugFrameLatencyMaxCycles",
+            "EQ_DebugAnalyzerEnabled",
+            "EQ_DebugAnalyzerRunCount",
+            "EQ_DebugAnalyzerAnalysisCount",
+            "EQ_DebugAnalyzerDeferredCount",
+            "EQ_DebugAnalyzerMaxCycles",
+            "EQ_DebugSmartBassDecisionCount",
+            "EQ_DebugSmartBassLevelChangeCount",
+            "EQ_DebugSmartBassSaturationCount",
+            "EQ_DebugSmartBassNonFiniteCount",
+            "EQ_DebugDynamicClarityDecisionCount",
+            "EQ_DebugHarshnessGuardDecisionCount",
+            "EQ_DebugTouchRawX",
+            "EQ_DebugTouchRawY",
+            "EQ_DebugTouchScreenX",
+            "EQ_DebugTouchScreenY",
+            "EQ_DebugTouchPressed",
+        )
+        for token in required:
+            with self.subTest(token=token):
+                self.assertIn(token, source)
+
+    def test_touch_calibration_and_automated_operator_boundary(self):
+        source = DSS.read_text(encoding="utf-8")
+        for label in (
+            "LEFT_TOP", "RIGHT_TOP", "LEFT_BOTTOM", "RIGHT_BOTTOM",
+            "CENTER",
+        ):
+            self.assertIn(label, source)
+        for token in (
+            "raw_x_min_observed", "raw_x_max_observed",
+            "raw_y_min_observed", "raw_y_max_observed",
+            "swap_xy_derived", "flip_x_derived", "flip_y_derived",
+            'result_label: "AUTOMATED_BOARD_VALIDATION_COMPLETE"',
+            'operator_visual_result: "PENDING_OPERATOR"',
+            "automated_counters_are_not_visual_evidence",
+        ):
+            self.assertIn(token, source)
 
 
 if __name__ == "__main__":

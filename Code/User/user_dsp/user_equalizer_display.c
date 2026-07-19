@@ -287,6 +287,27 @@ volatile unsigned long EQ_DebugLcdMaxJobTenthsMs = 0UL;
 volatile int EQ_DebugLcdLastJob = EQ_LCD_JOB_NONE;
 volatile unsigned long EQ_DebugLcdAutoDisabledCount = 0UL;
 volatile unsigned long EQ_DebugLcdAutoDisableReason = 0UL;
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+#pragma RETAIN(EQ_DebugLcdCategoryCountSize)
+#pragma RETAIN(EQ_DebugLcdJobTypeCountSize)
+#pragma RETAIN(EQ_DebugUiJobCountSize)
+#pragma RETAIN(EQ_DebugDynamicHitboxCountSize)
+#pragma RETAIN(EQ_DebugEditorHitboxCountSize)
+#endif
+volatile const unsigned int EQ_DebugLcdCategoryCountSize =
+    (unsigned int)EQ_LCD_CATEGORY_COUNT;
+volatile const unsigned int EQ_DebugLcdJobTypeCountSize =
+    (unsigned int)EQ_LCD_JOB_COUNT;
+volatile const unsigned int EQ_DebugUiJobCountSize =
+    (unsigned int)EQ_UI_JOB_COUNT;
+volatile const unsigned int EQ_DebugDynamicHitboxCountSize =
+    (unsigned int)EQ_UI_DYNAMIC_HITBOX_COUNT;
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+volatile const unsigned int EQ_DebugEditorHitboxCountSize =
+    (unsigned int)EQ_UI_EDITOR_HITBOX_COUNT;
+#else
+volatile const unsigned int EQ_DebugEditorHitboxCountSize = 0U;
+#endif
 volatile unsigned long EQ_DebugLcdCategoryCount[EQ_LCD_CATEGORY_COUNT];
 volatile unsigned long EQ_DebugLcdCategoryLastCycles[EQ_LCD_CATEGORY_COUNT];
 volatile unsigned long EQ_DebugLcdCategoryMaxCycles[EQ_LCD_CATEGORY_COUNT];

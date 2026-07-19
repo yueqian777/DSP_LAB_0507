@@ -4,7 +4,8 @@ param(
         "D:\SoftwareDownload\CCS_20.5.0.00028_win\ccs\utils\bin\gmake.exe",
     [string]$NmPath =
         "D:\SoftwareDownload\CCS_20.5.0.00028_win\ccs\tools\compiler\ti-cgt-c6000_8.5.0.LTS\bin\nm6x.exe",
-    [string]$OutputDirectory = ""
+    [string]$OutputDirectory = "",
+    [string[]]$ProfileNames = @()
 )
 
 $ErrorActionPreference = "Stop"
@@ -35,6 +36,12 @@ if ($LASTEXITCODE -ne 0 -or
 
 New-Item -ItemType Directory -Path $OutputDirectory | Out-Null
 & (Join-Path $RepoRoot "tools\generate_equalizer_build_id.ps1") | Out-Host
+$statusAfterBuildId = git -C $RepoRoot status --porcelain `
+    --untracked-files=normal
+if ($LASTEXITCODE -ne 0 -or
+    -not [string]::IsNullOrWhiteSpace(($statusAfterBuildId -join "`n"))) {
+    throw "Generated build identity changed the clean tracked worktree"
+}
 
 $diagnosticsOff = @(
     "--define=EQ_ENABLE_DYNAMIC_CLARITY_TIMING_DIAGNOSTICS=0"
@@ -231,6 +238,24 @@ foreach ($profile in $profiles) {
     }
 }
 
+$profilesToBuild = @($profiles)
+if ($ProfileNames.Count -gt 0) {
+    $requestedNames = @($ProfileNames | ForEach-Object { $_.Trim() } |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    if ($requestedNames.Count -ne (@($requestedNames | Select-Object -Unique)).Count) {
+        throw "ProfileNames contains duplicate profile names"
+    }
+    $profilesToBuild = @()
+    foreach ($requestedName in $requestedNames) {
+        if ($expectedProfileNames -notcontains $requestedName) {
+            throw "Unknown build profile: $requestedName"
+        }
+        $profilesToBuild += @($profiles | Where-Object {
+            $_.name -eq $requestedName
+        })[0]
+    }
+}
+
 function Get-MapSectionSize {
     param([string]$MapPath, [string]$Section)
 
@@ -311,7 +336,7 @@ function Test-AddressInSection {
 $results = @()
 Push-Location $RepoRoot
 try {
-    foreach ($profile in $profiles) {
+    foreach ($profile in $profilesToBuild) {
         Write-Host "BEGIN $($profile.name)"
         $ErrorActionPreference = "Continue"
         $cleanOutput = & $GmakePath -C Debug clean 2>&1

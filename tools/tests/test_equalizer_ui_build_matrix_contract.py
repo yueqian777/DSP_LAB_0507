@@ -35,6 +35,25 @@ class EqualizerUiBuildMatrixContractTest(unittest.TestCase):
         ])
         self.assertIn("$profiles.Count -ne 8", self.script)
 
+    def test_optional_profile_filter_preserves_default_matrix(self) -> None:
+        self.assertIn("[string[]]$ProfileNames = @()", self.script)
+        self.assertIn("$profilesToBuild = @($profiles)", self.script)
+        self.assertIn("if ($ProfileNames.Count -gt 0)", self.script)
+        self.assertIn("Unknown build profile", self.script)
+        self.assertIn("foreach ($profile in $profilesToBuild)", self.script)
+        self.assertNotIn("$profiles = @($profiles | Where-Object", self.script)
+
+    def test_build_id_generation_must_preserve_clean_state(self) -> None:
+        generate = self.script.index("generate_equalizer_build_id.ps1")
+        post_status = self.script.index("$statusAfterBuildId", generate)
+        build_loop = self.script.index("foreach ($profile in $profilesToBuild)")
+        self.assertLess(generate, post_status)
+        self.assertLess(post_status, build_loop)
+        self.assertIn(
+            "Generated build identity changed the clean tracked worktree",
+            self.script,
+        )
+
     def test_editor_profile_defines_and_runtime_masks(self) -> None:
         cases = (
             ("D_project33_dynamic", "E_project33_touch", 1, 0, 0, 0, 15),

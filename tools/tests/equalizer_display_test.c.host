@@ -1,5 +1,11 @@
 #include "user_equalizer_display.h"
 
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+#define EQ_TEST_EDITOR_HITBOX_COUNT EQ_UI_EDITOR_HITBOX_COUNT
+#else
+#define EQ_TEST_EDITOR_HITBOX_COUNT 0U
+#endif
+
 #include <stdio.h>
 #include <string.h>
 
@@ -64,6 +70,13 @@ int main(void)
     int job;
 
     failures = 0;
+    failures += require_true(
+        EQ_DebugLcdCategoryCountSize == EQ_LCD_CATEGORY_COUNT &&
+        EQ_DebugLcdJobTypeCountSize == EQ_LCD_JOB_COUNT &&
+        EQ_DebugUiJobCountSize == EQ_UI_JOB_COUNT &&
+        EQ_DebugDynamicHitboxCountSize == EQ_UI_DYNAMIC_HITBOX_COUNT &&
+        EQ_DebugEditorHitboxCountSize == EQ_TEST_EDITOR_HITBOX_COUNT,
+        "retained debug cardinalities");
     EqualizerDisplay_Init();
     memset(&hardware, 0, sizeof(hardware));
     hardware.frame_base = EQ_DebugLcdExpectedFrameBase;
