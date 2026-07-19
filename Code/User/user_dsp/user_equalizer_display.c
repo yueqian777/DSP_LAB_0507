@@ -872,7 +872,6 @@ static void EQ_LcdDrawLine(int x1, int y1, int x2, int y2, int color)
 #endif
 }
 
-#if EQ_LCD_USE_CHINESE
 static void EQ_LcdDrawHLine(int x1, int x2, int y, int color)
 {
     x1 = EQ_ClampInt(x1, 0, EQ_UI_SCREEN_WIDTH - 1);
@@ -887,7 +886,6 @@ static void EQ_LcdDrawHLine(int x1, int x2, int y, int color)
     s_mock_primitive_count++;
 #endif
 }
-#endif
 
 static void EQ_LcdDrawText(const EQ_UI_RECT *rect, const char *text,
                            int length, int font, int color, int centered)
@@ -1317,6 +1315,24 @@ static void EQ_DrawPresetStatic(int index)
 #endif
 }
 
+static void EQ_DrawChainArrow(const EQ_UI_RECT *rect,
+                              const char *separator)
+{
+    int arrow_start;
+    int arrow_tip;
+    int arrow_y;
+
+    (void)separator;
+    arrow_start = rect->x + 2;
+    arrow_tip = rect->x + rect->w - 3;
+    arrow_y = rect->y + rect->h / 2;
+    EQ_LcdDrawHLine(arrow_start, arrow_tip, arrow_y, EQ_COLOR_MUTED);
+    EQ_LcdDrawLine(arrow_tip - 4, arrow_y - 4,
+                   arrow_tip, arrow_y, EQ_COLOR_MUTED);
+    EQ_LcdDrawLine(arrow_tip - 4, arrow_y + 4,
+                   arrow_tip, arrow_y, EQ_COLOR_MUTED);
+}
+
 static void EQ_DrawChainStatic(void)
 {
     EQ_UI_RECT rect;
@@ -1325,17 +1341,17 @@ static void EQ_DrawChainStatic(void)
     rect.x = 190; rect.y = 82; rect.w = 38; rect.h = 26;
     EQ_LcdDrawText(&rect, "ADC", 3, EQ_FONT_SMALL, EQ_COLOR_TEXT, 1);
     rect.x = 228; rect.w = 42;
-    EQ_LcdDrawText(&rect, " -> ", 4, EQ_FONT_SMALL, EQ_COLOR_MUTED, 1);
+    EQ_DrawChainArrow(&rect, " -> ");
     rect.x = 270; rect.w = 30;
     EQ_LcdDrawText(&rect, "EQ", 2, EQ_FONT_SMALL, EQ_COLOR_TEXT, 1);
     rect.x = 300; rect.w = 42;
-    EQ_LcdDrawText(&rect, " -> ", 4, EQ_FONT_SMALL, EQ_COLOR_MUTED, 1);
+    EQ_DrawChainArrow(&rect, " -> ");
     rect.x = 394; rect.w = 44;
-    EQ_LcdDrawText(&rect, " -> ", 4, EQ_FONT_SMALL, EQ_COLOR_MUTED, 1);
+    EQ_DrawChainArrow(&rect, " -> ");
     rect.x = 482; rect.w = 44;
-    EQ_LcdDrawText(&rect, " -> ", 4, EQ_FONT_SMALL, EQ_COLOR_MUTED, 1);
+    EQ_DrawChainArrow(&rect, " -> ");
     rect.x = 562; rect.w = 44;
-    EQ_LcdDrawText(&rect, " -> ", 4, EQ_FONT_SMALL, EQ_COLOR_MUTED, 1);
+    EQ_DrawChainArrow(&rect, " -> ");
     rect.x = 606; rect.w = 42;
     EQ_LcdDrawText(&rect, "DAC", 3, EQ_FONT_SMALL, EQ_COLOR_TEXT, 1);
     for (index = 0; index < EQ_UI_CHAIN_COUNT; index++)

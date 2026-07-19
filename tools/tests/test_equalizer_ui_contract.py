@@ -256,9 +256,20 @@ class EqualizerUiSourceContractTest(unittest.TestCase):
         loop = self.flow[self.flow.index("while (1)"):]
         self.assertNotIn("EqualizerDisplay_Init(", loop)
 
-    def test_chain_uses_ascii_arrow_only(self) -> None:
+    def test_chain_uses_ascii_separator_and_geometric_arrows(self) -> None:
         combined = self.display + self.logic
-        self.assertIn('" -> "', self.display)
+        arrow_start = self.display.index("static void EQ_DrawChainArrow(")
+        chain_start = self.display.index("static void EQ_DrawChainStatic(void)")
+        arrow_body = self.display[arrow_start:chain_start]
+        chain_end = self.display.index("static void EQ_DrawAnalyzerStatic(void)",
+                                       chain_start)
+        chain_body = self.display[chain_start:chain_end]
+
+        self.assertIn("EQ_LcdDrawHLine(", arrow_body)
+        self.assertEqual(arrow_body.count("EQ_LcdDrawLine("), 2)
+        self.assertEqual(chain_body.count(
+            'EQ_DrawChainArrow(&rect, " -> ");'), 5)
+        self.assertNotIn('EQ_LcdDrawText(&rect, " -> "', chain_body)
         self.assertNotIn("\u2192", combined)
         self.assertLess(648, 800)
 
