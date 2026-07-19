@@ -39,6 +39,8 @@
 #define EQ_UI_ANALYZER_VALUE_W 42
 #define EQ_UI_ANALYZER_VALUE_H 22
 #define EQ_UI_ANALYZER_ZERO_Y EQ_UI_ANALYZER_ZERO_PIXEL
+#define EQ_UI_DYNAMIC_VALUE_CLEAR_W 44
+#define EQ_UI_DYNAMIC_VALUE_CLEAR_H 20
 
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
 #define EQ_UI_EDITOR_INNER_X_OFFSET 26
@@ -1134,6 +1136,16 @@ static void EQ_ClearInside(const EQ_UI_RECT *rect)
                    rect->w - 2, rect->h - 2, EQ_COLOR_BG);
 }
 
+static void EQ_ClearDynamicValue(const EQ_UI_RECT *rect)
+{
+    EQ_LcdFillRect(
+        rect->x + (rect->w - EQ_UI_DYNAMIC_VALUE_CLEAR_W) / 2,
+        rect->y + (rect->h - EQ_UI_DYNAMIC_VALUE_CLEAR_H) / 2,
+        EQ_UI_DYNAMIC_VALUE_CLEAR_W,
+        EQ_UI_DYNAMIC_VALUE_CLEAR_H,
+        EQ_COLOR_BG);
+}
+
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
 static void EQ_DrawPageTitle(int page)
 {
@@ -2011,7 +2023,7 @@ static unsigned int EQ_DrawDynamicJob(int index)
     strength = EQ_DynamicStrength(index);
     if ((selected_field & EQ_UI_DYNAMIC_FIELD_ENABLED) != 0U)
     {
-        EQ_ClearInside(&EQ_UI_DYNAMIC_TOGGLE_RECTS[index]);
+        EQ_ClearDynamicValue(&EQ_UI_DYNAMIC_TOGGLE_RECTS[index]);
 #if EQ_LCD_USE_CHINESE
         EQ_DrawCnValue(&EQ_UI_DYNAMIC_TOGGLE_RECTS[index],
                        enabled ? CN_KAI : CN_GUAN,
@@ -2025,7 +2037,7 @@ static unsigned int EQ_DrawDynamicJob(int index)
     }
     if ((selected_field & EQ_UI_DYNAMIC_FIELD_STRENGTH) != 0U)
     {
-        EQ_ClearInside(&EQ_UI_DYNAMIC_STRENGTH_RECTS[index]);
+        EQ_ClearDynamicValue(&EQ_UI_DYNAMIC_STRENGTH_RECTS[index]);
 #if EQ_LCD_USE_CHINESE
         EQ_DrawCnValue(&EQ_UI_DYNAMIC_STRENGTH_RECTS[index],
                        (strength <= 1) ? CN_DI :
@@ -2045,7 +2057,7 @@ static unsigned int EQ_DrawDynamicJob(int index)
     }
     if ((selected_field & EQ_UI_DYNAMIC_FIELD_LEVEL) != 0U)
     {
-        EQ_ClearInside(&EQ_UI_DYNAMIC_LEVEL_RECTS[index]);
+        EQ_ClearDynamicValue(&EQ_UI_DYNAMIC_LEVEL_RECTS[index]);
         length = EQ_FormatLevel(buffer, EQ_DynamicLevel(index));
         EQ_LcdDrawText(&EQ_UI_DYNAMIC_LEVEL_RECTS[index],
                         buffer, length, EQ_FONT_SMALL, EQ_COLOR_TEXT, 1);

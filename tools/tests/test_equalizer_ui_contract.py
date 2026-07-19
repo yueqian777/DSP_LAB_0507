@@ -183,6 +183,17 @@ class EqualizerUiSourceContractTest(unittest.TestCase):
         self.assertIn("EQ_UI_ANALYZER_VALUE_MAX_AGE_FRAMES 50UL",
                       self.logic_header)
 
+    def test_dynamic_runtime_clear_is_bounded_to_value_footprint(self) -> None:
+        start = self.display.index("static unsigned int EQ_DrawDynamicJob(")
+        end = self.display.index("#if EQ_ENABLE_TEN_BAND_EDITOR", start)
+        dynamic = self.display[start:end]
+        self.assertEqual(dynamic.count("EQ_ClearDynamicValue("), 3)
+        self.assertNotIn("EQ_ClearInside(", dynamic)
+        self.assertIn("#define EQ_UI_DYNAMIC_VALUE_CLEAR_W 44",
+                      self.display)
+        self.assertIn("#define EQ_UI_DYNAMIC_VALUE_CLEAR_H 20",
+                      self.display)
+
     def test_ui_snapshot_separates_user_enabled_from_activity(self) -> None:
         start = self.flow.index("static void EQ_BuildUiSnapshot(")
         end = self.flow.index("#endif", start)
