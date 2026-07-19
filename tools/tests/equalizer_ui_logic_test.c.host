@@ -111,6 +111,20 @@ static int test_layout_and_touch(void)
 
     failures = 0;
     failures += require_true(EqualizerUi_ValidateLayout(), "layout");
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+    failures += require_true(
+        EQ_UI_PAGE_SWITCH_RECT.x == 672 &&
+        EQ_UI_PAGE_SWITCH_RECT.y == 430 &&
+        EQ_UI_PAGE_SWITCH_RECT.w == 104 &&
+        EQ_UI_PAGE_SWITCH_RECT.h == 40,
+        "page switch uses fixed bottom-right geometry");
+    failures += require_true(
+        (EQ_UI_DYNAMIC_RECTS[2].x + EQ_UI_DYNAMIC_RECTS[2].w) <=
+            EQ_UI_PAGE_SWITCH_RECT.x &&
+        (EQ_UI_EDITOR_FIELDS_RECT.x + EQ_UI_EDITOR_FIELDS_RECT.w) <=
+            EQ_UI_PAGE_SWITCH_RECT.x,
+        "page switch has reserved space on both pages");
+#endif
     EqualizerUi_DefaultTouchTransform(&transform);
     failures += require_true(EqualizerUi_MapTouchRawToScreen(
         &transform, 0U, 0U, &x, &y) && x == 0 && y == 0, "map origin");

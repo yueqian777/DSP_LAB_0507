@@ -47,11 +47,11 @@
 #define EQ_UI_EDITOR_INNER_W 16
 static const EQ_UI_RECT s_editor_field_rects[5] =
 {
-    { 24, 398, 132, 70 },
-    { 168, 398, 132, 70 },
-    { 312, 398, 132, 70 },
-    { 456, 398, 132, 70 },
-    { 600, 398, 176, 70 }
+    { 24, 398, 112, 70 },
+    { 148, 398, 112, 70 },
+    { 272, 398, 112, 70 },
+    { 396, 398, 112, 70 },
+    { 520, 398, 136, 70 }
 };
 #endif
 
@@ -2162,7 +2162,7 @@ static void EQ_DrawPageTile(void)
         if (tile == 0U)
         {
             EQ_DrawPageTitle(page);
-            EQ_LcdFillRect(0, 78, EQ_UI_PAGE_SWITCH_RECT.x, 34,
+            EQ_LcdFillRect(0, 78, EQ_UI_SCREEN_WIDTH, 34,
                            EQ_COLOR_BG);
         }
         else if ((tile >= 1U) && (tile <= 5U))

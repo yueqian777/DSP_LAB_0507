@@ -78,7 +78,14 @@ class EqualizerUiTraceTest(unittest.TestCase):
                 item["operation"] == "fill_rect" and
                 item["job"] == 27 and item["page"] == 1 and
                 item["x"] == 0 and item["y"] == 78 and
-                item["w"] == 670 and item["h"] == 34
+                item["w"] == 800 and item["h"] == 34
+                for item in editor_trace
+            ))
+            self.assertTrue(any(
+                item["operation"] == "draw_rect" and
+                item["job"] == 27 and item["page"] == 1 and
+                item["x"] == 672 and item["y"] == 430 and
+                item["w"] == 104 and item["h"] == 40
                 for item in editor_trace
             ))
             intermediate = json.loads(
