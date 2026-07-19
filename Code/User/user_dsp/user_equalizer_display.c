@@ -797,23 +797,59 @@ static void EQ_SetFont(int font)
 }
 #endif
 
-static void EQ_LcdFillRect(int x, int y, int w, int h, int color)
-{
 #if !defined(EQ_ALGO_ONLY)
-    tRectangle rect;
+static unsigned short EQ_LcdColor16(int color)
+{
+    return (unsigned short)DpyColorTranslate(
+        &Lcd_Display, (unsigned int)EQ_MapColor(color));
+}
+
+static void EQ_LcdFillRect16(int x, int y, int w, int h,
+                             unsigned short pixel_value)
+{
+    unsigned int packed_value;
+    int row;
+
+    packed_value = (unsigned int)pixel_value |
+                   ((unsigned int)pixel_value << 16);
+    for (row = 0; row < h; row++)
+    {
+        unsigned short *pixel;
+        int remaining;
+
+        pixel = (unsigned short *)(Lcd_Buffer + EQ_LCD_PALETTE_OFFSET +
+                                   EQ_LCD_PALETTE_SIZE) +
+                (y + row) * EQ_UI_SCREEN_WIDTH + x;
+        remaining = w;
+        if ((((unsigned long)pixel & 2UL) != 0UL) && (remaining > 0))
+        {
+            *pixel++ = pixel_value;
+            remaining--;
+        }
+        while (remaining >= 2)
+        {
+            *((unsigned int *)pixel) = packed_value;
+            pixel += 2;
+            remaining -= 2;
+        }
+        if (remaining != 0)
+        {
+            *pixel = pixel_value;
+        }
+    }
+}
 #endif
 
+static void EQ_LcdFillRect(int x, int y, int w, int h, int color)
+{
     if (EQ_CheckRect(x, y, w, h) == 0)
     {
         return;
     }
 #if !defined(EQ_ALGO_ONLY)
-    rect.sXMin = x;
-    rect.sYMin = y;
-    rect.sXMax = x + w - 1;
-    rect.sYMax = y + h - 1;
-    GrContextForegroundSet(&Lcd_Context, EQ_MapColor(color));
-    GrRectFill(&Lcd_Context, &rect);
+    /* The bundled Grlib library is a debug build.  Packed framebuffer writes
+       keep runtime tiles bounded while preserving its RGB565 representation. */
+    EQ_LcdFillRect16(x, y, w, h, EQ_LcdColor16(color));
 #else
     EQ_TracePrimitive("fill_rect", x, y, w, h, color,
                       0, 0, -1, -1, 0);
@@ -878,8 +914,7 @@ static void EQ_LcdDrawHLine(int x1, int x2, int y, int color)
     x2 = EQ_ClampInt(x2, 0, EQ_UI_SCREEN_WIDTH - 1);
     y = EQ_ClampInt(y, 0, EQ_UI_SCREEN_HEIGHT - 1);
 #if !defined(EQ_ALGO_ONLY)
-    GrContextForegroundSet(&Lcd_Context, EQ_MapColor(color));
-    GrLineDrawH(&Lcd_Context, x1, x2, y);
+    EQ_LcdFillRect16(x1, y, x2 - x1 + 1, 1, EQ_LcdColor16(color));
 #else
     EQ_TracePrimitive("line", x1, y, x2 - x1 + 1, 1, color,
                       0, 0, -1, -1, 0);
@@ -1223,13 +1258,17 @@ static void EQ_DrawEditorBandFull(int band)
     };
     const EQ_UI_RECT *rect;
     EQ_UI_RECT label_rect;
+    int clear_x;
+    int clear_w;
     int inner_x;
     int pixel;
     int selected;
 
     rect = &EQ_UI_EDITOR_BAND_RECTS[band];
     selected = (s_ui_state.requested.editor_selected_band == band) ? 1 : 0;
-    EQ_LcdFillRect(rect->x, rect->y, rect->w, rect->h, EQ_COLOR_BG);
+    clear_x = (band == 0) ? 8 : 20 + band * 76;
+    clear_w = (band == 0) ? 88 : 76;
+    EQ_LcdFillRect(clear_x, 108, clear_w, 226, EQ_COLOR_BG);
     EQ_LcdDrawRect(rect->x, rect->y, rect->w, rect->h,
                    selected ? EQ_COLOR_HIGHLIGHT : EQ_COLOR_BORDER);
     inner_x = rect->x + EQ_UI_EDITOR_INNER_X_OFFSET;
@@ -1513,7 +1552,6 @@ static void EQ_DrawAnalyzerTileFull(int band)
     static const int en_lengths[EQ_UI_ANALYZER_COUNT] = { 4, 3, 4, 6 };
 #endif
     const EQ_UI_RECT *rect;
-    EQ_UI_RECT clear_rect;
     EQ_UI_RECT label_rect;
     EQ_UI_RECT value_rect;
     char buffer[5];
@@ -1523,12 +1561,6 @@ static void EQ_DrawAnalyzerTileFull(int band)
     int valid;
 
     rect = &EQ_UI_ANALYZER_RECTS[band];
-    clear_rect.x = (band == 0) ? 8 : rect->x;
-    clear_rect.y = 112;
-    clear_rect.w = (band == 0) ? rect->x + rect->w - 8 : rect->w;
-    clear_rect.h = 222;
-    EQ_LcdFillRect(clear_rect.x, clear_rect.y,
-                   clear_rect.w, clear_rect.h, EQ_COLOR_BG);
     if (band == 0)
     {
         EQ_UI_RECT scale_rect;
@@ -1624,10 +1656,6 @@ static void EQ_DrawDynamicTileFull(int index)
     int level;
     int length;
 
-    EQ_LcdFillRect(EQ_UI_DYNAMIC_RECTS[index].x,
-                   EQ_UI_DYNAMIC_RECTS[index].y,
-                   EQ_UI_DYNAMIC_RECTS[index].w,
-                   EQ_UI_DYNAMIC_RECTS[index].h, EQ_COLOR_BG);
     label_rect.x = 24;
     label_rect.y = EQ_UI_DYNAMIC_RECTS[index].y;
     label_rect.w = 124;
@@ -1791,17 +1819,24 @@ static void EQ_DrawEditorFieldValue(unsigned int field)
                    EQ_FONT_SMALL, color, 1);
 }
 
-static void EQ_DrawEditorFieldsFull(void)
+static void EQ_ClearPageBottomStrip(int strip)
 {
-    static const char * const labels[5] =
+    if (strip == 0)
     {
-        "BAND", "DRAFT", "APPLIED", "MODE", "STATE"
-    };
-    static const int lengths[5] = { 4, 5, 7, 4, 5 };
-    unsigned int field;
-    int index;
+        EQ_LcdFillRect(20, 338, 760, 44, EQ_COLOR_BG);
+    }
+    else if (strip == 1)
+    {
+        EQ_LcdFillRect(20, 382, 760, 44, EQ_COLOR_BG);
+    }
+    else
+    {
+        EQ_LcdFillRect(20, 426, 636, 46, EQ_COLOR_BG);
+    }
+}
 
-    EQ_LcdFillRect(20, 338, 760, 134, EQ_COLOR_BG);
+static void EQ_DrawEditorControlsFull(void)
+{
     EQ_LcdDrawRect(EQ_UI_EDITOR_MINUS_RECT.x, EQ_UI_EDITOR_MINUS_RECT.y,
                    EQ_UI_EDITOR_MINUS_RECT.w, EQ_UI_EDITOR_MINUS_RECT.h,
                    EQ_COLOR_BORDER);
@@ -1827,23 +1862,28 @@ static void EQ_DrawEditorFieldsFull(void)
     EQ_LcdDrawText(&EQ_UI_EDITOR_RESET_RECT, "RESET FLAT", 10,
                    EQ_FONT_SMALL, EQ_COLOR_TEXT, 1);
 #endif
-    for (index = 0; index < 5; index++)
+}
+
+static void EQ_DrawEditorFieldFull(int index)
+{
+    static const char * const labels[5] =
     {
-        EQ_UI_RECT label_rect;
-        EQ_LcdDrawRect(s_editor_field_rects[index].x,
-                       s_editor_field_rects[index].y,
-                       s_editor_field_rects[index].w,
-                       s_editor_field_rects[index].h, EQ_COLOR_BORDER);
-        label_rect = s_editor_field_rects[index];
-        label_rect.h = 24;
-        EQ_LcdDrawText(&label_rect, labels[index], lengths[index],
-                       EQ_FONT_SMALL, EQ_COLOR_MUTED, 1);
-    }
-    for (field = EQ_UI_EDITOR_FIELD_SELECTED_BAND;
-         field <= EQ_UI_EDITOR_FIELD_APPLY_STATE; field <<= 1)
-    {
-        EQ_DrawEditorFieldValue(field);
-    }
+        "BAND", "DRAFT", "APPLIED", "MODE", "STATE"
+    };
+    static const int lengths[5] = { 4, 5, 7, 4, 5 };
+    unsigned int field;
+    EQ_UI_RECT label_rect;
+
+    EQ_LcdDrawRect(s_editor_field_rects[index].x,
+                   s_editor_field_rects[index].y,
+                   s_editor_field_rects[index].w,
+                   s_editor_field_rects[index].h, EQ_COLOR_BORDER);
+    label_rect = s_editor_field_rects[index];
+    label_rect.h = 24;
+    EQ_LcdDrawText(&label_rect, labels[index], lengths[index],
+                   EQ_FONT_SMALL, EQ_COLOR_MUTED, 1);
+    field = EQ_UI_EDITOR_FIELD_SELECTED_BAND << index;
+    EQ_DrawEditorFieldValue(field);
 }
 #endif
 #endif
@@ -2157,52 +2197,50 @@ static void EQ_DrawPageTile(void)
 
     tile = EqualizerUiLogic_GetPageTileIndex(&s_ui_state);
     page = s_ui_state.page_target;
+    if (tile == EQ_UI_PAGE_TILE_SWITCH)
+    {
+        EQ_DrawPageSwitch(page);
+        return;
+    }
+    if (tile == EQ_UI_PAGE_TILE_TITLE)
+    {
+        EQ_DrawPageTitle(page);
+        return;
+    }
+
     if (page == EQ_UI_PAGE_EQ_EDITOR)
     {
-        if (tile == 0U)
+        if (tile == EQ_UI_PAGE_TILE_CHAIN)
         {
-            EQ_DrawPageTitle(page);
             EQ_LcdFillRect(0, 78, EQ_UI_SCREEN_WIDTH, 34,
                            EQ_COLOR_BG);
         }
-        else if ((tile >= 1U) && (tile <= 5U))
+        else if ((tile >= EQ_UI_PAGE_TILE_EDITOR_BAND_FIRST) &&
+                 (tile <= EQ_UI_PAGE_TILE_EDITOR_BAND_LAST))
         {
-            index = (int)tile - 1;
-            EQ_DrawPresetStatic(index);
-            EQ_DrawPresetJob(index);
-        }
-        else if ((tile >= 6U) && (tile <= 15U))
-        {
-            int clear_x;
-            int clear_w;
-            index = (int)tile - 6;
-            clear_x = (index == 0) ? 8 : 20 + index * 76;
-            clear_w = (index == 0) ? 88 : 76;
-            EQ_LcdFillRect(clear_x, 108, clear_w, 226, EQ_COLOR_BG);
+            index = (int)(tile - EQ_UI_PAGE_TILE_EDITOR_BAND_FIRST);
             EQ_DrawEditorBandFull(index);
         }
-        else if (tile == 16U)
+        else if ((tile >= EQ_UI_PAGE_TILE_EDITOR_CLEAR_FIRST) &&
+                 (tile <= EQ_UI_PAGE_TILE_EDITOR_CLEAR_LAST))
         {
-            EQ_DrawEditorFieldsFull();
+            EQ_ClearPageBottomStrip(
+                (int)(tile - EQ_UI_PAGE_TILE_EDITOR_CLEAR_FIRST));
         }
-        else
+        else if (tile == EQ_UI_PAGE_TILE_EDITOR_CONTROLS)
         {
-            EQ_DrawPageSwitch(page);
+            EQ_DrawEditorControlsFull();
+        }
+        else if ((tile >= EQ_UI_PAGE_TILE_EDITOR_FIELD_FIRST) &&
+                 (tile <= EQ_UI_PAGE_TILE_EDITOR_FIELD_LAST))
+        {
+            EQ_DrawEditorFieldFull(
+                (int)(tile - EQ_UI_PAGE_TILE_EDITOR_FIELD_FIRST));
         }
         return;
     }
 
-    if (tile == 0U)
-    {
-        EQ_DrawPageTitle(page);
-    }
-    else if ((tile >= 1U) && (tile <= 5U))
-    {
-        index = (int)tile - 1;
-        EQ_DrawPresetStatic(index);
-        EQ_DrawPresetJob(index);
-    }
-    else if (tile == 6U)
+    if (tile == EQ_UI_PAGE_TILE_CHAIN)
     {
         EQ_LcdFillRect(0, 78, EQ_UI_SCREEN_WIDTH, 34, EQ_COLOR_BG);
         EQ_DrawChainStatic();
@@ -2211,19 +2249,24 @@ static void EQ_DrawPageTile(void)
             EQ_DrawChainJob(index);
         }
     }
-    else if ((tile >= 7U) && (tile <= 10U))
+    else if ((tile >= EQ_UI_PAGE_TILE_DYNAMIC_ANALYZER_FIRST) &&
+             (tile <= EQ_UI_PAGE_TILE_DYNAMIC_ANALYZER_LAST))
     {
-        index = (int)tile - 7;
+        index = (int)(tile - EQ_UI_PAGE_TILE_DYNAMIC_ANALYZER_FIRST);
         EQ_LcdFillRect(index * 200, 108, 200, 226, EQ_COLOR_BG);
         EQ_DrawAnalyzerTileFull(index);
     }
-    else if ((tile >= 11U) && (tile <= 13U))
+    else if ((tile >= EQ_UI_PAGE_TILE_DYNAMIC_CLEAR_FIRST) &&
+             (tile <= EQ_UI_PAGE_TILE_DYNAMIC_CLEAR_LAST))
     {
-        EQ_DrawDynamicTileFull((int)tile - 11);
+        EQ_ClearPageBottomStrip(
+            (int)(tile - EQ_UI_PAGE_TILE_DYNAMIC_CLEAR_FIRST));
     }
-    else
+    else if ((tile >= EQ_UI_PAGE_TILE_DYNAMIC_ROW_FIRST) &&
+             (tile <= EQ_UI_PAGE_TILE_DYNAMIC_ROW_LAST))
     {
-        EQ_DrawPageSwitch(page);
+        EQ_DrawDynamicTileFull(
+            (int)(tile - EQ_UI_PAGE_TILE_DYNAMIC_ROW_FIRST));
     }
 }
 #endif

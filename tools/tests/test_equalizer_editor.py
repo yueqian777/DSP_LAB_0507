@@ -112,6 +112,19 @@ class EqualizerEditorTest(unittest.TestCase):
         self.assertNotIn("Lcd_Clear", page_tile)
         self.assertNotIn("EQ_UI_SCREEN_HEIGHT", page_tile)
         self.assertIn("EqualizerUiLogic_GetPageTileIndex", page_tile)
+        self.assertIn("tile == EQ_UI_PAGE_TILE_SWITCH", page_tile)
+        self.assertNotIn("EQ_DrawPresetStatic", page_tile)
+        self.assertIn("EQ_ClearPageBottomStrip", page_tile)
+
+    def test_page_build_tiles_have_explicit_bounded_ranges(self) -> None:
+        self.assertIn("#define EQ_UI_PAGE_TILE_DYNAMIC_COUNT          13U",
+                      self.ui_header)
+        self.assertIn("#define EQ_UI_PAGE_TILE_EDITOR_COUNT           22U",
+                      self.ui_header)
+        self.assertIn("EQ_UI_PAGE_TILE_EDITOR_FIELD_LAST      21U",
+                      self.ui_header)
+        self.assertIn("EQ_UI_PAGE_TILE_DYNAMIC_ROW_LAST       12U",
+                      self.ui_header)
 
     def test_snapshot_request_is_limited_to_one_per_frame(self) -> None:
         start = self.flow.index(

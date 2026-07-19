@@ -1421,14 +1421,7 @@ static void EQ_UI_CompleteDynamicPageTile(EQ_UI_STATE *state,
 {
     int index;
 
-    if ((tile >= 1U) && (tile <= 5U))
-    {
-        index = (int)tile - 1;
-        state->preset_displayed_selected[index] =
-            (unsigned char)((state->requested.applied_preset == index) ?
-                            1U : 0U);
-    }
-    else if (tile == 6U)
+    if (tile == EQ_UI_PAGE_TILE_CHAIN)
     {
         state->chain_displayed_enabled[0] =
             (unsigned char)state->requested.smart_enabled;
@@ -1437,9 +1430,10 @@ static void EQ_UI_CompleteDynamicPageTile(EQ_UI_STATE *state,
         state->chain_displayed_enabled[2] =
             (unsigned char)state->requested.guard_enabled;
     }
-    else if ((tile >= 7U) && (tile <= 10U))
+    else if ((tile >= EQ_UI_PAGE_TILE_DYNAMIC_ANALYZER_FIRST) &&
+             (tile <= EQ_UI_PAGE_TILE_DYNAMIC_ANALYZER_LAST))
     {
-        index = (int)tile - 7;
+        index = (int)(tile - EQ_UI_PAGE_TILE_DYNAMIC_ANALYZER_FIRST);
         state->displayed.band_value_db[index] =
             state->requested.band_value_db[index];
         state->displayed.band_pixel[index] =
@@ -1451,9 +1445,10 @@ static void EQ_UI_CompleteDynamicPageTile(EQ_UI_STATE *state,
         state->analyzer_displayed_field_valid[index] =
             EQ_UI_ANALYZER_FIELD_ALL;
     }
-    else if ((tile >= 11U) && (tile <= 13U))
+    else if ((tile >= EQ_UI_PAGE_TILE_DYNAMIC_ROW_FIRST) &&
+             (tile <= EQ_UI_PAGE_TILE_DYNAMIC_ROW_LAST))
     {
-        index = (int)tile - 11;
+        index = (int)(tile - EQ_UI_PAGE_TILE_DYNAMIC_ROW_FIRST);
         if (index == 0)
         {
             state->displayed.smart_enabled = state->requested.smart_enabled;
@@ -1486,16 +1481,10 @@ static void EQ_UI_CompleteEditorPageTile(EQ_UI_STATE *state,
     int index;
     unsigned int field;
 
-    if ((tile >= 1U) && (tile <= 5U))
+    if ((tile >= EQ_UI_PAGE_TILE_EDITOR_BAND_FIRST) &&
+        (tile <= EQ_UI_PAGE_TILE_EDITOR_BAND_LAST))
     {
-        index = (int)tile - 1;
-        state->preset_displayed_selected[index] =
-            (unsigned char)((state->requested.applied_preset == index) ?
-                            1U : 0U);
-    }
-    else if ((tile >= 6U) && (tile <= 15U))
-    {
-        index = (int)tile - 6;
+        index = (int)(tile - EQ_UI_PAGE_TILE_EDITOR_BAND_FIRST);
         state->editor_displayed_applied_gain[index] =
             state->requested.applied_gain_half_db[index];
         state->editor_displayed_pixel[index] = EQ_UI_EditorGainToPixel(
@@ -1505,14 +1494,13 @@ static void EQ_UI_CompleteEditorPageTile(EQ_UI_STATE *state,
                              index) ? 1U : 0U);
         state->editor_band_displayed_valid[index] = 1U;
     }
-    else if (tile == 16U)
+    else if ((tile >= EQ_UI_PAGE_TILE_EDITOR_FIELD_FIRST) &&
+             (tile <= EQ_UI_PAGE_TILE_EDITOR_FIELD_LAST))
     {
-        for (field = EQ_UI_EDITOR_FIELD_SELECTED_BAND;
-             field <= EQ_UI_EDITOR_FIELD_APPLY_STATE; field <<= 1)
-        {
-            EQ_UI_CopyEditorField(state, field);
-        }
-        state->editor_displayed_field_valid = EQ_UI_EDITOR_FIELD_ALL;
+        index = (int)(tile - EQ_UI_PAGE_TILE_EDITOR_FIELD_FIRST);
+        field = EQ_UI_EDITOR_FIELD_SELECTED_BAND << index;
+        EQ_UI_CopyEditorField(state, field);
+        state->editor_displayed_field_valid |= field;
     }
 }
 

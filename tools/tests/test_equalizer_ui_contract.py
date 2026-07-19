@@ -209,16 +209,30 @@ class EqualizerUiSourceContractTest(unittest.TestCase):
 
     def test_renderer_uses_bounded_local_rectangles(self) -> None:
         self.assertNotIn("Lcd_Rectangle", self.display)
-        for function in ("EQ_LcdFillRect", "EQ_LcdDrawRect"):
-            start = self.display.index(f"static void {function}(")
-            end = self.display.index("\n}\n", start)
-            body = self.display[start:end]
-            self.assertIn("if (EQ_CheckRect(x, y, w, h) == 0)", body)
-            self.assertIn("tRectangle rect;", body)
-            self.assertIn("rect.sXMin = x;", body)
-            self.assertIn("rect.sYMin = y;", body)
-            self.assertIn("rect.sXMax = x + w - 1;", body)
-            self.assertIn("rect.sYMax = y + h - 1;", body)
+        start = self.display.index("static void EQ_LcdFillRect(")
+        end = self.display.index("\n}\n", start)
+        fill = self.display[start:end]
+        self.assertIn("if (EQ_CheckRect(x, y, w, h) == 0)", fill)
+        self.assertIn("EQ_LcdFillRect16(", fill)
+        self.assertNotIn("GrRectFill", fill)
+
+        start = self.display.index("static void EQ_LcdFillRect16(")
+        end = self.display.index("\n}\n#endif", start)
+        packed = self.display[start:end]
+        self.assertIn("EQ_LCD_PALETTE_OFFSET", packed)
+        self.assertIn("EQ_LCD_PALETTE_SIZE", packed)
+        self.assertIn("(unsigned int)pixel_value << 16", packed)
+        self.assertIn("(y + row) * EQ_UI_SCREEN_WIDTH + x", packed)
+
+        start = self.display.index("static void EQ_LcdDrawRect(")
+        end = self.display.index("\n}\n", start)
+        outline = self.display[start:end]
+        self.assertIn("if (EQ_CheckRect(x, y, w, h) == 0)", outline)
+        self.assertIn("tRectangle rect;", outline)
+        self.assertIn("rect.sXMin = x;", outline)
+        self.assertIn("rect.sYMin = y;", outline)
+        self.assertIn("rect.sXMax = x + w - 1;", outline)
+        self.assertIn("rect.sYMax = y + h - 1;", outline)
 
     def test_lcd_hardware_audit_is_read_only_and_ui_fail_closed(self) -> None:
         start = self.display.index(
