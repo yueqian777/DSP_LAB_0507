@@ -258,6 +258,25 @@ class EqualizerEditorHardwareToolingTest(unittest.TestCase):
         ):
             self.assertIn(token, source)
 
+    def test_touch_calibration_waits_for_stable_release(self):
+        source = DSS.read_text(encoding="utf-8")
+        helper_start = source.index(
+            "function waitForStableCalibrationRelease(")
+        capture_start = source.index(
+            "function captureCalibrationPoint(", helper_start)
+        capture_end = source.index(
+            "function averagePair(", capture_start)
+        helper = source[helper_start:capture_start]
+        capture = source[capture_start:capture_end]
+        self.assertIn("stableMilliseconds", helper)
+        self.assertIn("state.touch_pressed == 0", helper)
+        self.assertIn("stable = 0", helper)
+        self.assertIn("interactionTimeoutSeconds", helper)
+        stable_call = capture.index(
+            "waitForStableCalibrationRelease(label, 500)")
+        record_write = capture.index("touchCalibration.push(record)")
+        self.assertLess(stable_call, record_write)
+
     def test_dss_snapshot_covers_lcd_audio_analyzer_dynamics_and_touch(self):
         source = DSS.read_text(encoding="utf-8")
         required = (

@@ -415,6 +415,23 @@ function waitForAction(expectedAction, label) {
     return {before: before, observed: observed, after: after};
 }
 
+function waitForStableCalibrationRelease(label, stableMilliseconds) {
+    var elapsed = 0, stable = 0, state = null;
+    while (elapsed < interactionTimeoutSeconds * 1000) {
+        runFor(100);
+        elapsed += 100;
+        state = snapshot();
+        if (state.touch_pressed == 0) {
+            stable += 100;
+            if (stable >= stableMilliseconds) return state;
+        } else {
+            stable = 0;
+        }
+    }
+    throw "calibration stable release " + label + " timed out after " +
+        interactionTimeoutSeconds + " seconds";
+}
+
 function captureCalibrationPoint(label, expectedX, expectedY) {
     var before = snapshot(), pressed, released, record;
     System.out.println("CALIBRATION_REQUIRED=" + label + "_PRESS_HOLD");
@@ -429,6 +446,7 @@ function captureCalibrationPoint(label, expectedX, expectedY) {
         interactionTimeoutSeconds, function(state) {
             return state.touch_pressed == 0;
         });
+    released = waitForStableCalibrationRelease(label, 500);
     record = {
         label: label,
         expected_screen_x: expectedX,

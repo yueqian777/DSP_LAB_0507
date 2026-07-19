@@ -283,8 +283,9 @@ $visualItems | ForEach-Object {
 @"
 Wait for each CALIBRATION_REQUIRED or ACTION_REQUIRED line before touching.
 Touch calibration: LEFT_TOP, RIGHT_TOP, LEFT_BOTTOM, RIGHT_BOTTOM, CENTER.
-For calibration, hold until CALIBRATION_RELEASE, then release. For actions,
-use one complete press/release for every prompt.
+For calibration, hold until CALIBRATION_RELEASE, then release and keep the
+finger off the screen until the next prompt. For actions, use one complete
+press/release for every prompt.
 Dynamic sequence: five presets, three toggles/strength controls, page switch.
 Editor sequence: all ten bands, single-band +2 dB Apply/Reset, then the exact
 multi-band CUSTOM vector. A ten-minute interactive phase requests one action
