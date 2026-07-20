@@ -71,6 +71,9 @@ static const EQ_UI_RECT s_editor_field_rects[5] =
 
 #define EQ_CN_GLYPH_SIZE 16
 #define EQ_CN_GLYPH_ADVANCE 17
+#define EQ_UI_PAGE_CLEAR_STRIP_HEIGHT 4
+#define EQ_UI_PAGE_CONTENT_TOP 78
+#define EQ_UI_PAGE_CONTENT_BOTTOM 472
 
 #define EQ_LCD_PALETTE_OFFSET 4UL
 #define EQ_LCD_PALETTE_SIZE 32UL
@@ -1210,7 +1213,6 @@ static void EQ_DrawPageTitle(int page)
     rect.y = EQ_UI_TITLE_Y;
     rect.w = EQ_UI_TITLE_W;
     rect.h = EQ_UI_TITLE_H;
-    EQ_LcdFillRect(rect.x, rect.y, rect.w, rect.h, EQ_COLOR_BG);
 #if EQ_LCD_USE_CHINESE
     if (page == EQ_UI_PAGE_EQ_EDITOR)
     {
@@ -1280,17 +1282,12 @@ static void EQ_DrawEditorBandFull(int band)
     };
     const EQ_UI_RECT *rect;
     EQ_UI_RECT label_rect;
-    int clear_x;
-    int clear_w;
     int inner_x;
     int pixel;
     int selected;
 
     rect = &EQ_UI_EDITOR_BAND_RECTS[band];
     selected = (s_ui_state.requested.editor_selected_band == band) ? 1 : 0;
-    clear_x = (band == 0) ? 8 : 20 + band * 76;
-    clear_w = (band == 0) ? 88 : 76;
-    EQ_LcdFillRect(clear_x, 108, clear_w, 226, EQ_COLOR_BG);
     EQ_LcdDrawRect(rect->x, rect->y, rect->w, rect->h,
                    selected ? EQ_COLOR_HIGHLIGHT : EQ_COLOR_BORDER);
     inner_x = rect->x + EQ_UI_EDITOR_INNER_X_OFFSET;
@@ -1841,19 +1838,41 @@ static void EQ_DrawEditorFieldValue(unsigned int field)
                    EQ_FONT_SMALL, color, 1);
 }
 
-static void EQ_ClearPageBottomStrip(int strip)
+static void EQ_ClearPageTitleStrip(unsigned int strip)
 {
-    if (strip == 0)
+    int y;
+    int height;
+
+    y = EQ_UI_TITLE_Y + (int)strip * EQ_UI_PAGE_CLEAR_STRIP_HEIGHT;
+    height = EQ_UI_TITLE_Y + EQ_UI_TITLE_H - y;
+    if (height > EQ_UI_PAGE_CLEAR_STRIP_HEIGHT)
+        height = EQ_UI_PAGE_CLEAR_STRIP_HEIGHT;
+    EQ_LcdFillRect(EQ_UI_TITLE_X, y, EQ_UI_TITLE_W, height, EQ_COLOR_BG);
+}
+
+static void EQ_ClearPageContentStrip(unsigned int strip)
+{
+    int y;
+    int height;
+
+    y = EQ_UI_PAGE_CONTENT_TOP +
+        (int)strip * EQ_UI_PAGE_CLEAR_STRIP_HEIGHT;
+    height = EQ_UI_PAGE_CONTENT_BOTTOM - y;
+    if (height > EQ_UI_PAGE_CLEAR_STRIP_HEIGHT)
+        height = EQ_UI_PAGE_CLEAR_STRIP_HEIGHT;
+    if ((y < (EQ_UI_PAGE_SWITCH_RECT.y + EQ_UI_PAGE_SWITCH_RECT.h)) &&
+        ((y + height) > EQ_UI_PAGE_SWITCH_RECT.y))
     {
-        EQ_LcdFillRect(20, 338, 760, 44, EQ_COLOR_BG);
-    }
-    else if (strip == 1)
-    {
-        EQ_LcdFillRect(20, 382, 760, 44, EQ_COLOR_BG);
+        EQ_LcdFillRect(0, y, EQ_UI_PAGE_SWITCH_RECT.x, height, EQ_COLOR_BG);
+        EQ_LcdFillRect(EQ_UI_PAGE_SWITCH_RECT.x + EQ_UI_PAGE_SWITCH_RECT.w,
+                       y,
+                       EQ_UI_SCREEN_WIDTH - EQ_UI_PAGE_SWITCH_RECT.x -
+                       EQ_UI_PAGE_SWITCH_RECT.w,
+                       height, EQ_COLOR_BG);
     }
     else
     {
-        EQ_LcdFillRect(20, 426, 636, 46, EQ_COLOR_BG);
+        EQ_LcdFillRect(0, y, EQ_UI_SCREEN_WIDTH, height, EQ_COLOR_BG);
     }
 }
 
@@ -2224,30 +2243,33 @@ static void EQ_DrawPageTile(void)
         EQ_DrawPageSwitch(page);
         return;
     }
+    if ((tile >= EQ_UI_PAGE_TILE_TITLE_CLEAR_FIRST) &&
+        (tile <= EQ_UI_PAGE_TILE_TITLE_CLEAR_LAST))
+    {
+        EQ_ClearPageTitleStrip(
+            tile - EQ_UI_PAGE_TILE_TITLE_CLEAR_FIRST);
+        return;
+    }
     if (tile == EQ_UI_PAGE_TILE_TITLE)
     {
         EQ_DrawPageTitle(page);
         return;
     }
+    if ((tile >= EQ_UI_PAGE_TILE_CONTENT_CLEAR_FIRST) &&
+        (tile <= EQ_UI_PAGE_TILE_CONTENT_CLEAR_LAST))
+    {
+        EQ_ClearPageContentStrip(
+            tile - EQ_UI_PAGE_TILE_CONTENT_CLEAR_FIRST);
+        return;
+    }
 
     if (page == EQ_UI_PAGE_EQ_EDITOR)
     {
-        if (tile == EQ_UI_PAGE_TILE_CHAIN)
-        {
-            EQ_LcdFillRect(0, 78, EQ_UI_SCREEN_WIDTH, 34,
-                           EQ_COLOR_BG);
-        }
-        else if ((tile >= EQ_UI_PAGE_TILE_EDITOR_BAND_FIRST) &&
-                 (tile <= EQ_UI_PAGE_TILE_EDITOR_BAND_LAST))
+        if ((tile >= EQ_UI_PAGE_TILE_EDITOR_BAND_FIRST) &&
+            (tile <= EQ_UI_PAGE_TILE_EDITOR_BAND_LAST))
         {
             index = (int)(tile - EQ_UI_PAGE_TILE_EDITOR_BAND_FIRST);
             EQ_DrawEditorBandFull(index);
-        }
-        else if ((tile >= EQ_UI_PAGE_TILE_EDITOR_CLEAR_FIRST) &&
-                 (tile <= EQ_UI_PAGE_TILE_EDITOR_CLEAR_LAST))
-        {
-            EQ_ClearPageBottomStrip(
-                (int)(tile - EQ_UI_PAGE_TILE_EDITOR_CLEAR_FIRST));
         }
         else if (tile == EQ_UI_PAGE_TILE_EDITOR_CONTROLS)
         {
@@ -2262,9 +2284,8 @@ static void EQ_DrawPageTile(void)
         return;
     }
 
-    if (tile == EQ_UI_PAGE_TILE_CHAIN)
+    if (tile == EQ_UI_PAGE_TILE_DYNAMIC_CHAIN)
     {
-        EQ_LcdFillRect(0, 78, EQ_UI_SCREEN_WIDTH, 34, EQ_COLOR_BG);
         EQ_DrawChainStatic();
         for (index = 0; index < EQ_UI_CHAIN_COUNT; index++)
         {
@@ -2275,14 +2296,7 @@ static void EQ_DrawPageTile(void)
              (tile <= EQ_UI_PAGE_TILE_DYNAMIC_ANALYZER_LAST))
     {
         index = (int)(tile - EQ_UI_PAGE_TILE_DYNAMIC_ANALYZER_FIRST);
-        EQ_LcdFillRect(index * 200, 108, 200, 226, EQ_COLOR_BG);
         EQ_DrawAnalyzerTileFull(index);
-    }
-    else if ((tile >= EQ_UI_PAGE_TILE_DYNAMIC_CLEAR_FIRST) &&
-             (tile <= EQ_UI_PAGE_TILE_DYNAMIC_CLEAR_LAST))
-    {
-        EQ_ClearPageBottomStrip(
-            (int)(tile - EQ_UI_PAGE_TILE_DYNAMIC_CLEAR_FIRST));
     }
     else if ((tile >= EQ_UI_PAGE_TILE_DYNAMIC_ROW_FIRST) &&
              (tile <= EQ_UI_PAGE_TILE_DYNAMIC_ROW_LAST))
@@ -2618,6 +2632,7 @@ int EqualizerDisplay_ServiceOneJob(unsigned long process_frame)
     unsigned long elapsed_cycles;
     unsigned long tenths_ms;
     unsigned int completed_fields;
+    int force_hardware_audit;
 
     job = EqualizerUiLogic_SelectJob(&s_ui_state, process_frame);
     if (job == EQ_LCD_JOB_NONE)
@@ -2641,6 +2656,13 @@ int EqualizerDisplay_ServiceOneJob(unsigned long process_frame)
 #endif
     EQ_EndDraw();
     elapsed_cycles = end_cycles - start_cycles;
+    force_hardware_audit = 0;
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+    if (job == EQ_UI_JOB_PAGE_TILE)
+    {
+        force_hardware_audit = 1;
+    }
+#endif
     if ((job >= EQ_UI_JOB_DYNAMIC_0) &&
         (job <= EQ_UI_JOB_DYNAMIC_2))
     {
@@ -2698,7 +2720,8 @@ int EqualizerDisplay_ServiceOneJob(unsigned long process_frame)
     }
     else
     {
-        EqualizerDisplay_AuditHardware(process_frame, 0);
+        EqualizerDisplay_AuditHardware(process_frame,
+                                       force_hardware_audit);
     }
     return job;
 }

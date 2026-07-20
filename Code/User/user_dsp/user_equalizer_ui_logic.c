@@ -1421,7 +1421,7 @@ static void EQ_UI_CompleteDynamicPageTile(EQ_UI_STATE *state,
 {
     int index;
 
-    if (tile == EQ_UI_PAGE_TILE_CHAIN)
+    if (tile == EQ_UI_PAGE_TILE_DYNAMIC_CHAIN)
     {
         state->chain_displayed_enabled[0] =
             (unsigned char)state->requested.smart_enabled;

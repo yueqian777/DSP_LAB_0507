@@ -114,17 +114,26 @@ class EqualizerEditorTest(unittest.TestCase):
         self.assertIn("EqualizerUiLogic_GetPageTileIndex", page_tile)
         self.assertIn("tile == EQ_UI_PAGE_TILE_SWITCH", page_tile)
         self.assertNotIn("EQ_DrawPresetStatic", page_tile)
-        self.assertIn("EQ_ClearPageBottomStrip", page_tile)
+        self.assertIn("EQ_ClearPageTitleStrip", page_tile)
+        self.assertIn("EQ_ClearPageContentStrip", page_tile)
 
     def test_page_build_tiles_have_explicit_bounded_ranges(self) -> None:
-        self.assertIn("#define EQ_UI_PAGE_TILE_DYNAMIC_COUNT          13U",
+        self.assertIn("#define EQ_UI_PAGE_TILE_DYNAMIC_COUNT           115U",
                       self.ui_header)
-        self.assertIn("#define EQ_UI_PAGE_TILE_EDITOR_COUNT           22U",
+        self.assertIn("#define EQ_UI_PAGE_TILE_EDITOR_COUNT            123U",
                       self.ui_header)
-        self.assertIn("EQ_UI_PAGE_TILE_EDITOR_FIELD_LAST      21U",
+        self.assertIn("EQ_UI_PAGE_TILE_EDITOR_FIELD_LAST       122U",
                       self.ui_header)
-        self.assertIn("EQ_UI_PAGE_TILE_DYNAMIC_ROW_LAST       12U",
+        self.assertIn("EQ_UI_PAGE_TILE_DYNAMIC_ROW_LAST        114U",
                       self.ui_header)
+        self.assertIn("#define EQ_UI_PAGE_CLEAR_STRIP_HEIGHT 4",
+                      self.display)
+
+    def test_page_tile_forces_lcdc_audit(self) -> None:
+        self.assertIn(
+            "if (job == EQ_UI_JOB_PAGE_TILE)",
+            self.display)
+        self.assertIn("force_hardware_audit = 1", self.display)
 
     def test_snapshot_request_is_limited_to_one_per_frame(self) -> None:
         start = self.flow.index(

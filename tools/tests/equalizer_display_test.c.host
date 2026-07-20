@@ -154,7 +154,7 @@ int main(void)
     snapshot.page = EQ_UI_PAGE_EQ_EDITOR;
     EqualizerDisplay_RequestSnapshot(&snapshot, 42UL);
     failures += require_true(
-        flush_jobs(42UL) == (int)EQ_UI_PAGE_TILE_EDITOR_COUNT,
+        flush_jobs(256UL) == (int)EQ_UI_PAGE_TILE_EDITOR_COUNT,
         "latest page request restarts a complete editor tile build");
     failures += require_true(
         !EqualizerDisplay_IsPageBuilding() &&
@@ -163,7 +163,7 @@ int main(void)
     snapshot.page = EQ_UI_PAGE_DYNAMIC_STATUS;
     EqualizerDisplay_RequestSnapshot(&snapshot, 100UL);
     failures += require_true(
-        flush_jobs(100UL) == (int)EQ_UI_PAGE_TILE_DYNAMIC_COUNT &&
+        flush_jobs(256UL) == (int)EQ_UI_PAGE_TILE_DYNAMIC_COUNT &&
         EqualizerDisplay_GetDisplayedPage() ==
             EQ_UI_PAGE_DYNAMIC_STATUS,
         "dynamic page rebuild is also bounded by tiles");

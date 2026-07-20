@@ -920,6 +920,61 @@ static void run_wrap_and_custom_probe(STRESS_CONTEXT *context)
                    EQ_PRESET_CUSTOM);
 }
 
+static int wait_for_displayed_page(STRESS_CONTEXT *context, int page)
+{
+    int guard;
+
+    context->requested_page = page;
+    request_display_snapshot(context);
+    for (guard = 0; guard < 512; guard++)
+    {
+        if (!EqualizerDisplay_IsPageBuilding() &&
+            (EqualizerDisplay_GetDisplayedPage() == page))
+        {
+            return 1;
+        }
+        run_frame(context, STRESS_LCD_SERVICE, 0);
+    }
+    return 0;
+}
+
+static void run_ui_action_coverage(STRESS_CONTEXT *context)
+{
+    unsigned long accepted_before;
+    int kind;
+
+    CHECK(context, wait_for_displayed_page(
+        context, EQ_UI_PAGE_EQ_EDITOR));
+    for (kind = STRESS_SELECT_BAND; kind <= STRESS_PRESET; kind++)
+    {
+        accepted_before = context->accepted_count[kind];
+        run_frame(context, kind, 0);
+        CHECK(context, context->accepted_count[kind] ==
+                       accepted_before + 1UL);
+    }
+
+    accepted_before = context->accepted_count[STRESS_PAGE_SWITCH];
+    run_frame(context, STRESS_PAGE_SWITCH, 0);
+    CHECK(context, context->accepted_count[STRESS_PAGE_SWITCH] ==
+                   accepted_before + 1UL);
+    CHECK(context, wait_for_displayed_page(
+        context, EQ_UI_PAGE_DYNAMIC_STATUS));
+
+    for (kind = STRESS_DYNAMIC_TOGGLE; kind <= STRESS_STRENGTH; kind++)
+    {
+        accepted_before = context->accepted_count[kind];
+        run_frame(context, kind, 0);
+        CHECK(context, context->accepted_count[kind] ==
+                       accepted_before + 1UL);
+    }
+    if ((context->control.target_valid != 0) &&
+        (context->control.target_sequence != 0U))
+    {
+        CHECK(context, settle_sequence(
+            context, context->control.target_sequence));
+    }
+}
+
 static void check_scheduler_contract(STRESS_CONTEXT *context)
 {
     EQ_BACKGROUND_SERVICE_STATE background;
@@ -1032,6 +1087,8 @@ int main(void)
                         context.control.target_gain_db[band]) < 1.0e-6f);
         }
     }
+
+    run_ui_action_coverage(&context);
 
     for (kind = 0; kind < STRESS_ACTION_KIND_COUNT; kind++)
     {
