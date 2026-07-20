@@ -2473,6 +2473,9 @@ void EqualizerDisplay_Init(void)
     s_mock_canary_failed = 0;
 #else
     Lcd_Init();
+    /* The board driver enables raster before the first frame is populated.
+       Hold it off until the complete Project 3.3 startup frame is ready. */
+    RasterDisable(SOC_LCDC_0_REGS);
 #endif
     EQ_CaptureFramebufferCanary();
 }
@@ -2538,6 +2541,9 @@ int EqualizerDisplay_DrawStaticLayout(void)
     EQ_DebugLcdStaticDrawCount++;
     EQ_DebugLcdRefreshCount++;
     EQ_EndDraw();
+#if !defined(EQ_ALGO_ONLY)
+    RasterEnable(SOC_LCDC_0_REGS);
+#endif
     EQ_ClearStartupFaultStatus();
     EqualizerDisplay_AuditHardware(0UL, 1);
     return 1;

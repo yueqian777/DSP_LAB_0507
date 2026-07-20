@@ -282,6 +282,21 @@ class EqualizerUiSourceContractTest(unittest.TestCase):
         self.assertNotIn("RasterEnable(", startup_clear)
         self.assertNotIn("RasterDisable(", startup_clear)
         self.assertEqual(self.display.count("Lcd_Init();"), 1)
+        init_start = self.display.index("void EqualizerDisplay_Init(void)")
+        init_end = self.display.index(
+            "int EqualizerDisplay_DrawStaticLayout(void)", init_start)
+        display_init = self.display[init_start:init_end]
+        self.assertIn("Lcd_Init();", display_init)
+        self.assertIn("RasterDisable(SOC_LCDC_0_REGS);", display_init)
+        draw_start = init_end
+        draw_end = self.display.index(
+            "void EqualizerDisplay_BeginRuntime(void)", draw_start)
+        static_draw = self.display[draw_start:draw_end]
+        self.assertIn("RasterEnable(SOC_LCDC_0_REGS);", static_draw)
+        self.assertLess(
+            static_draw.index("RasterEnable(SOC_LCDC_0_REGS);"),
+            static_draw.index("EQ_ClearStartupFaultStatus();"),
+        )
         loop = self.flow[self.flow.index("while (1)"):]
         self.assertNotIn("EqualizerDisplay_Init(", loop)
 
