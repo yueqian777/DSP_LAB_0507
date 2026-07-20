@@ -934,6 +934,12 @@ static void EQ_HandleEofStatus(unsigned long status)
     }
     if (eof_status == EQ_LCD_STATUS_EOF_MASK)
     {
+        if (s_swap_pending == 0U)
+        {
+            /* A debugger halt can leave both sticky EOF bits set while idle. */
+            EQ_DebugLcdEofCount += 2UL;
+            return;
+        }
         EQ_DebugLcdEofAmbiguousCount++;
         s_eof_fault_pending = 1U;
         EQ_DebugLcdHardwareAuditRequest = 1U;
@@ -3552,6 +3558,13 @@ void EqualizerDisplay_TestDrawRect(int x, int y, int w, int h)
 {
     EQ_LcdFillRect(x, y, w, h, EQ_COLOR_BG);
 }
+
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+void EqualizerDisplay_TestInjectEofStatus(unsigned long status)
+{
+    EQ_HandleEofStatus(status);
+}
+#endif
 #endif
 
 #else

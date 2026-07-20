@@ -87,6 +87,16 @@ int main(void)
         EQ_DebugDynamicHitboxCountSize == EQ_UI_DYNAMIC_HITBOX_COUNT &&
         EQ_DebugEditorHitboxCountSize == EQ_TEST_EDITOR_HITBOX_COUNT,
         "retained debug cardinalities");
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+    EqualizerDisplay_Init();
+    EqualizerDisplay_TestInjectEofStatus(0x300UL);
+    failures += require_true(
+        EQ_DebugLcdEofCount == 2UL &&
+        EQ_DebugLcdEofAmbiguousCount == 0UL &&
+        EQ_DebugLcdHardwareAuditRequest == 0U &&
+        EQ_DebugLcdFaultLatched == 0U,
+        "idle coalesced EOFs after a debugger halt are benign");
+#endif
     EqualizerDisplay_Init();
     failures += require_true(EQ_DebugLcdRasterStopTimeoutCount == 0UL,
                              "raster stop timeout starts clear");

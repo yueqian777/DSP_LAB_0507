@@ -238,6 +238,9 @@ void EqualizerDisplay_TestSetHardwareSnapshot(
     const EQ_LCD_HW_SNAPSHOT *snapshot);
 void EqualizerDisplay_TestSetCanaryFailure(int failed);
 void EqualizerDisplay_TestDrawRect(int x, int y, int w, int h);
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+void EqualizerDisplay_TestInjectEofStatus(unsigned long status);
+#endif
 #endif
 
 #endif /* _USER_EQUALIZER_DISPLAY_H_ */
