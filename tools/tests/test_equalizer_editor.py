@@ -108,7 +108,7 @@ class EqualizerEditorTest(unittest.TestCase):
                           "active_gain_db", "pending_bank"):
             self.assertNotIn(forbidden, submit)
 
-    def test_page_build_redraws_complete_hidden_regions(self) -> None:
+    def test_page_build_refreshes_persistent_hidden_regions(self) -> None:
         start = self.display.index(
             "static unsigned int EQ_DrawPageTile(void)")
         end = self.display.index("static unsigned int EQ_DrawJob", start)
@@ -122,6 +122,30 @@ class EqualizerEditorTest(unittest.TestCase):
         self.assertIn("EQ_DrawAnalyzerTileFull", page_tile)
         self.assertNotIn("EQ_ClearPageTitleStrip", page_tile)
         self.assertNotIn("EQ_ClearPageContentStrip", page_tile)
+
+        editor_start = self.display.index(
+            "static void EQ_DrawEditorBandFull(int band)")
+        editor_end = self.display.index("#endif", editor_start)
+        editor_band = self.display[editor_start:editor_end]
+        self.assertNotIn(
+            "EQ_LcdFillRect(rect->x, rect->y, rect->w, rect->h",
+            editor_band)
+        self.assertIn("EQ_UI_EDITOR_BAR_TOP + 1", editor_band)
+
+        analyzer_start = self.display.index(
+            "static void EQ_DrawAnalyzerTileFull(int band)")
+        analyzer_end = self.display.index(
+            "static void EQ_DrawDynamicTileFull", analyzer_start)
+        analyzer = self.display[analyzer_start:analyzer_end]
+        self.assertNotIn("rect->w, 224", analyzer)
+        self.assertIn("EQ_UI_ANALYZER_BAR_TOP + 1", analyzer)
+
+        dynamic_start = analyzer_end
+        dynamic_end = self.display.index(
+            "static const char *EQ_EditorPresetText", dynamic_start)
+        dynamic = self.display[dynamic_start:dynamic_end]
+        self.assertNotIn("EQ_UI_DYNAMIC_RECTS[index].w", dynamic)
+        self.assertEqual(dynamic.count("EQ_ClearDynamicValue("), 3)
 
     def test_page_build_has_explicit_region_counts(self) -> None:
         self.assertIn("#define EQ_UI_PAGE_TILE_DYNAMIC_COUNT           16U",
@@ -142,6 +166,7 @@ class EqualizerEditorTest(unittest.TestCase):
 
     def test_page_build_uses_double_buffer_and_eof_swap(self) -> None:
         self.assertIn("EQ_LcdEditorBuffer", self.display)
+        self.assertIn("return s_draw_page;", self.display)
         self.assertIn("EQ_LcdEndOfFrameIsr", self.display)
         self.assertIn("RasterDMAFBConfig", self.display)
         self.assertIn("RASTER_DOUBLE_FRAME_BUFFER", self.display)

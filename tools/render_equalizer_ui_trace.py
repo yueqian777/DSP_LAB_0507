@@ -108,11 +108,20 @@ def read_trace(path: Path) -> list[dict[str, object]]:
     return operations
 
 
-def replay(operations: list[dict[str, object]], output: Path) -> str:
-    image = Image.new("RGB", (WIDTH, HEIGHT), COLORS[0])
-    draw = ImageDraw.Draw(image)
+def replay(
+    operations: list[dict[str, object]], output: Path, displayed_page: int,
+) -> str:
+    images = {
+        0: Image.new("RGB", (WIDTH, HEIGHT), COLORS[0]),
+        1: Image.new("RGB", (WIDTH, HEIGHT), COLORS[0]),
+    }
+    draws = {page: ImageDraw.Draw(image) for page, image in images.items()}
     font = ImageFont.load_default()
     for record in operations:
+        page = int(record["page"])
+        if page not in images:
+            raise ValueError(f"unknown framebuffer page: {page}")
+        draw = draws[page]
         operation = str(record["operation"])
         x, y = int(record["x"]), int(record["y"])
         w, h = int(record["w"]), int(record["h"])
@@ -140,6 +149,9 @@ def replay(operations: list[dict[str, object]], output: Path) -> str:
             continue
         else:
             raise ValueError(f"unknown trace operation: {operation}")
+    if displayed_page not in images:
+        raise ValueError(f"unknown displayed page: {displayed_page}")
+    image = images[displayed_page]
     image.save(output, optimize=True)
     return hashlib.sha256(image.tobytes()).hexdigest()
 
@@ -158,14 +170,16 @@ def render_all(output_dir: Path, commit: str) -> dict[str, object]:
             png_path = output_dir / f"{name}.png"
             metadata_path = output_dir / f"{name}.json"
             operations = read_trace(trace_path)
+            metadata = json.loads(source_path.read_text(encoding="utf-8"))
             for record in operations:
                 combined_record = {"preview": name, **record}
                 combined.write(json.dumps(
                     combined_record, ensure_ascii=True,
                     separators=(",", ":"),
                 ) + "\n")
-            pixel_checksum = replay(operations, png_path)
-            metadata = json.loads(source_path.read_text(encoding="utf-8"))
+            pixel_checksum = replay(
+                operations, png_path, int(metadata["displayed_page"]),
+            )
             metadata.update({
                 "evidence_label": "OFFLINE_RENDER_PREVIEW",
                 "trace_file": trace_path.name,
@@ -176,6 +190,7 @@ def render_all(output_dir: Path, commit: str) -> dict[str, object]:
                 "operation_count": len(operations),
                 "bounds_valid": True,
                 "chinese_glyph_source": "C_s_cn_bits_traced_lines",
+                "framebuffer_model": "page_isolated_double_buffer",
             })
             metadata_path.write_text(
                 json.dumps(metadata, indent=2, sort_keys=True) + "\n",

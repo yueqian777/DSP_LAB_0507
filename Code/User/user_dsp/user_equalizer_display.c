@@ -1231,11 +1231,7 @@ static int EQ_CheckRect(int x, int y, int w, int h)
 static int EQ_TracePage(void)
 {
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
-    if (s_mock_trace_job == EQ_UI_JOB_PAGE_TILE)
-    {
-        return s_ui_state.page_target;
-    }
-    return s_ui_state.displayed_page;
+    return s_draw_page;
 #else
     return EQ_UI_PAGE_DYNAMIC_STATUS;
 #endif
@@ -1844,12 +1840,16 @@ static void EQ_DrawEditorBandFull(int band)
     int pixel;
     int selected;
 
+    /* Dedicated page buffers retain static pixels between page switches. */
     rect = &EQ_UI_EDITOR_BAND_RECTS[band];
     selected = (s_ui_state.requested.editor_selected_band == band) ? 1 : 0;
-    EQ_LcdFillRect(rect->x, rect->y, rect->w, rect->h, EQ_COLOR_BG);
     EQ_LcdDrawRect(rect->x, rect->y, rect->w, rect->h,
                    selected ? EQ_COLOR_HIGHLIGHT : EQ_COLOR_BORDER);
     inner_x = rect->x + EQ_UI_EDITOR_INNER_X_OFFSET;
+    EQ_LcdFillRect(inner_x + 1, EQ_UI_EDITOR_BAR_TOP + 1,
+                   EQ_UI_EDITOR_INNER_W - 2,
+                   EQ_UI_EDITOR_BAR_BOTTOM - EQ_UI_EDITOR_BAR_TOP - 1,
+                   EQ_COLOR_BG);
     EQ_LcdDrawRect(inner_x, EQ_UI_EDITOR_BAR_TOP,
                    EQ_UI_EDITOR_INNER_W,
                    EQ_UI_EDITOR_BAR_BOTTOM - EQ_UI_EDITOR_BAR_TOP + 1,
@@ -2142,15 +2142,6 @@ static void EQ_DrawAnalyzerTileFull(int band)
     rect = &EQ_UI_ANALYZER_RECTS[band];
     if (band == 0)
     {
-        EQ_LcdFillRect(8, 112, rect->x + rect->w - 8, 224,
-                       EQ_COLOR_BG);
-    }
-    else
-    {
-        EQ_LcdFillRect(rect->x, 112, rect->w, 224, EQ_COLOR_BG);
-    }
-    if (band == 0)
-    {
         EQ_UI_RECT scale_rect;
         scale_rect.x = 8; scale_rect.y = 116;
         scale_rect.w = 46; scale_rect.h = 18;
@@ -2165,6 +2156,10 @@ static void EQ_DrawAnalyzerTileFull(int band)
     }
     EQ_LcdDrawRect(rect->x, rect->y, rect->w, rect->h, EQ_COLOR_BORDER);
     inner_x = rect->x + EQ_UI_ANALYZER_INNER_X_OFFSET;
+    EQ_LcdFillRect(inner_x + 1, EQ_UI_ANALYZER_BAR_TOP + 1,
+                   EQ_UI_ANALYZER_INNER_W - 2,
+                   EQ_UI_ANALYZER_BAR_BOTTOM -
+                   EQ_UI_ANALYZER_BAR_TOP - 1, EQ_COLOR_BG);
     EQ_LcdDrawRect(inner_x, EQ_UI_ANALYZER_BAR_TOP,
                    EQ_UI_ANALYZER_INNER_W,
                    EQ_UI_ANALYZER_BAR_BOTTOM -
@@ -2198,6 +2193,8 @@ static void EQ_DrawAnalyzerTileFull(int band)
     value_rect.y = rect->y + EQ_UI_ANALYZER_VALUE_Y_OFFSET;
     value_rect.w = EQ_UI_ANALYZER_VALUE_W;
     value_rect.h = EQ_UI_ANALYZER_VALUE_H;
+    EQ_LcdFillRect(value_rect.x, value_rect.y,
+                   value_rect.w, value_rect.h, EQ_COLOR_BG);
     if (valid)
     {
         length = EQ_FormatSignedDb(
@@ -2244,10 +2241,9 @@ static void EQ_DrawDynamicTileFull(int index)
     int level;
     int length;
 
-    EQ_LcdFillRect(EQ_UI_DYNAMIC_RECTS[index].x,
-                   EQ_UI_DYNAMIC_RECTS[index].y,
-                   EQ_UI_DYNAMIC_RECTS[index].w,
-                   EQ_UI_DYNAMIC_RECTS[index].h, EQ_COLOR_BG);
+    EQ_ClearDynamicValue(&EQ_UI_DYNAMIC_TOGGLE_RECTS[index]);
+    EQ_ClearDynamicValue(&EQ_UI_DYNAMIC_STRENGTH_RECTS[index]);
+    EQ_ClearDynamicValue(&EQ_UI_DYNAMIC_LEVEL_RECTS[index]);
     label_rect.x = 24;
     label_rect.y = EQ_UI_DYNAMIC_RECTS[index].y;
     label_rect.w = 124;
@@ -2413,22 +2409,6 @@ static void EQ_DrawEditorFieldValue(unsigned int field)
 
 static void EQ_DrawEditorControlsFull(void)
 {
-    EQ_LcdFillRect(EQ_UI_EDITOR_MINUS_RECT.x,
-                   EQ_UI_EDITOR_MINUS_RECT.y,
-                   EQ_UI_EDITOR_MINUS_RECT.w,
-                   EQ_UI_EDITOR_MINUS_RECT.h, EQ_COLOR_BG);
-    EQ_LcdFillRect(EQ_UI_EDITOR_PLUS_RECT.x,
-                   EQ_UI_EDITOR_PLUS_RECT.y,
-                   EQ_UI_EDITOR_PLUS_RECT.w,
-                   EQ_UI_EDITOR_PLUS_RECT.h, EQ_COLOR_BG);
-    EQ_LcdFillRect(EQ_UI_EDITOR_APPLY_RECT.x,
-                   EQ_UI_EDITOR_APPLY_RECT.y,
-                   EQ_UI_EDITOR_APPLY_RECT.w,
-                   EQ_UI_EDITOR_APPLY_RECT.h, EQ_COLOR_BG);
-    EQ_LcdFillRect(EQ_UI_EDITOR_RESET_RECT.x,
-                   EQ_UI_EDITOR_RESET_RECT.y,
-                   EQ_UI_EDITOR_RESET_RECT.w,
-                   EQ_UI_EDITOR_RESET_RECT.h, EQ_COLOR_BG);
     EQ_LcdDrawRect(EQ_UI_EDITOR_MINUS_RECT.x, EQ_UI_EDITOR_MINUS_RECT.y,
                    EQ_UI_EDITOR_MINUS_RECT.w, EQ_UI_EDITOR_MINUS_RECT.h,
                    EQ_COLOR_BORDER);
@@ -2466,10 +2446,6 @@ static void EQ_DrawEditorFieldFull(int index)
     unsigned int field;
     EQ_UI_RECT label_rect;
 
-    EQ_LcdFillRect(s_editor_field_rects[index].x,
-                   s_editor_field_rects[index].y,
-                   s_editor_field_rects[index].w,
-                   s_editor_field_rects[index].h, EQ_COLOR_BG);
     EQ_LcdDrawRect(s_editor_field_rects[index].x,
                    s_editor_field_rects[index].y,
                    s_editor_field_rects[index].w,

@@ -67,6 +67,9 @@ class EqualizerUiTraceTest(unittest.TestCase):
                 self.assertEqual(
                     metadata["chinese_glyph_source"],
                     "C_s_cn_bits_traced_lines")
+                self.assertEqual(
+                    metadata["framebuffer_model"],
+                    "page_isolated_double_buffer")
                 checksums.add(metadata["pixel_checksum"])
             self.assertGreaterEqual(len(checksums), 8)
             editor_trace = [
@@ -77,13 +80,16 @@ class EqualizerUiTraceTest(unittest.TestCase):
             self.assertTrue(any(
                 item["operation"] == "fill_rect" and
                 item["job"] == 27 and item["page"] == 1 and
-                item["x"] == 24 and item["y"] == 112 and
-                item["w"] == 68 and item["h"] == 218
+                item["x"] == 51 and item["y"] == 137 and
+                item["w"] == 14 and item["h"] == 149
                 for item in editor_trace
             ))
             self.assertFalse(any(
                 item["operation"] == "fill_rect" and
-                item["job"] == 27 and item["w"] == 800
+                item["job"] == 27 and
+                ((item["w"] == 800) or
+                 (item["x"] == 24 and item["y"] == 112 and
+                  item["w"] == 68 and item["h"] == 218))
                 for item in editor_trace
             ))
             self.assertTrue(any(
