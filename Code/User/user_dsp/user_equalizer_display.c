@@ -2778,12 +2778,10 @@ static unsigned int EQ_DrawPageTile(void)
     EQ_SetDrawPage(page);
     if (tile == EQ_UI_PAGE_TILE_SWITCH)
     {
-        EQ_DrawPageSwitch(page);
         return 1U;
     }
     if (tile == EQ_UI_PAGE_TILE_TITLE)
     {
-        EQ_DrawPageTitle(page);
         return 1U;
     }
     if ((tile >= EQ_UI_PAGE_TILE_PRESET_FIRST) &&
@@ -2805,7 +2803,6 @@ static unsigned int EQ_DrawPageTile(void)
         }
         else if (tile == EQ_UI_PAGE_TILE_EDITOR_CONTROLS)
         {
-            EQ_DrawEditorControlsFull();
             return 1U;
         }
         else if ((tile >= EQ_UI_PAGE_TILE_EDITOR_FIELD_FIRST) &&
