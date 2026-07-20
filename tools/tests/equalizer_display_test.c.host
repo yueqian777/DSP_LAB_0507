@@ -149,6 +149,11 @@ int main(void)
     job = EqualizerDisplay_ServiceOneJob(40UL);
     failures += require_true(job == EQ_UI_JOB_PAGE_TILE,
                              "page build services one tile");
+    failures += require_true(
+        EQ_DebugLcdPageRasterPaused == 1U &&
+        EQ_DebugLcdPageRasterPauseCount == 1UL &&
+        EQ_DebugLcdPageRasterResumeCount == 0UL,
+        "page build pauses raster once");
     snapshot.page = EQ_UI_PAGE_DYNAMIC_STATUS;
     EqualizerDisplay_RequestSnapshot(&snapshot, 41UL);
     snapshot.page = EQ_UI_PAGE_EQ_EDITOR;
@@ -160,6 +165,12 @@ int main(void)
         !EqualizerDisplay_IsPageBuilding() &&
         EqualizerDisplay_GetDisplayedPage() == EQ_UI_PAGE_EQ_EDITOR,
         "displayed page changes only after final tile");
+    failures += require_true(
+        EQ_DebugLcdPageRasterPaused == 0U &&
+        EQ_DebugLcdPageRasterPauseCount == 1UL &&
+        EQ_DebugLcdPageRasterResumeCount == 1UL &&
+        EQ_DebugLcdRasterFaultCount == 0UL,
+        "editor page resumes raster without a false fault");
     snapshot.page = EQ_UI_PAGE_DYNAMIC_STATUS;
     EqualizerDisplay_RequestSnapshot(&snapshot, 100UL);
     failures += require_true(
@@ -167,6 +178,12 @@ int main(void)
         EqualizerDisplay_GetDisplayedPage() ==
             EQ_UI_PAGE_DYNAMIC_STATUS,
         "dynamic page rebuild is also bounded by tiles");
+    failures += require_true(
+        EQ_DebugLcdPageRasterPaused == 0U &&
+        EQ_DebugLcdPageRasterPauseCount == 2UL &&
+        EQ_DebugLcdPageRasterResumeCount == 2UL &&
+        EQ_DebugLcdRasterFaultCount == 0UL,
+        "dynamic page resumes raster without a false fault");
     failures += require_true(
         EQ_DebugLcdBoundsFailureCount == 0UL &&
         EQ_DebugLcdUnexpectedFullRedrawCount == unexpected + 1UL,

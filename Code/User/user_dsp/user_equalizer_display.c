@@ -292,6 +292,9 @@ volatile unsigned long EQ_DebugLcdMaxJobTenthsMs = 0UL;
 volatile int EQ_DebugLcdLastJob = EQ_LCD_JOB_NONE;
 volatile unsigned long EQ_DebugLcdAutoDisabledCount = 0UL;
 volatile unsigned long EQ_DebugLcdAutoDisableReason = 0UL;
+volatile unsigned int EQ_DebugLcdPageRasterPaused = 0U;
+volatile unsigned long EQ_DebugLcdPageRasterPauseCount = 0UL;
+volatile unsigned long EQ_DebugLcdPageRasterResumeCount = 0UL;
 #if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
 #pragma RETAIN(EQ_DebugLcdCategoryCountSize)
 #pragma RETAIN(EQ_DebugLcdJobTypeCountSize)
@@ -376,6 +379,9 @@ static int s_lcd_canary_ready = 0;
 static int s_lcd_seen_sync_lost = 0;
 static int s_lcd_seen_fifo_underflow = 0;
 static int s_lcd_seen_frame_mismatch = 0;
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+static int s_page_raster_paused = 0;
+#endif
 
 #if defined(EQ_ALGO_ONLY)
 static unsigned long s_mock_primitive_count = 0UL;
@@ -552,6 +558,12 @@ void EqualizerDisplay_AuditHardware(unsigned long process_frame, int force)
     EQ_DebugLcdRuntimeMask = 0U;
     EQ_DebugLcdPendingMask = 0UL;
 #endif
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+    if (s_page_raster_paused != 0)
+    {
+        return;
+    }
+#endif
     due = force != 0;
     if (EQ_DebugLcdHardwareAuditRequest != 0U)
     {
@@ -642,6 +654,54 @@ static int EQ_ClampInt(int value, int minimum, int maximum)
     }
     return value;
 }
+
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+static void EQ_PageRasterPauseBegin(void)
+{
+    if (s_page_raster_paused != 0)
+    {
+        return;
+    }
+#if defined(EQ_ALGO_ONLY)
+    s_mock_hw_snapshot.raster_control &= ~EQ_LCD_RASTER_ENABLE_MASK;
+#else
+    RasterDisable(SOC_LCDC_0_REGS);
+#endif
+    s_page_raster_paused = 1;
+    EQ_DebugLcdPageRasterPaused = 1U;
+    EQ_DebugLcdPageRasterPauseCount++;
+}
+
+static void EQ_PageRasterPauseEnd(void)
+{
+    EQ_LCD_HW_SNAPSHOT snapshot;
+    unsigned long clear_mask;
+
+    if (s_page_raster_paused == 0)
+    {
+        return;
+    }
+    EQ_ReadHardwareSnapshot(&snapshot);
+    clear_mask = snapshot.raster_status & EQ_LCD_CLEARABLE_FAULT_MASK;
+    if (clear_mask != 0UL)
+    {
+#if defined(EQ_ALGO_ONLY)
+        s_mock_hw_snapshot.raster_status &= ~clear_mask;
+#else
+        (void)RasterClearGetIntStatus(SOC_LCDC_0_REGS,
+                                     (unsigned int)clear_mask);
+#endif
+    }
+#if defined(EQ_ALGO_ONLY)
+    s_mock_hw_snapshot.raster_control |= EQ_LCD_RASTER_ENABLE_MASK;
+#else
+    RasterEnable(SOC_LCDC_0_REGS);
+#endif
+    s_page_raster_paused = 0;
+    EQ_DebugLcdPageRasterPaused = 0U;
+    EQ_DebugLcdPageRasterResumeCount++;
+}
+#endif
 
 static int EQ_BeginDraw(void)
 {
@@ -2240,6 +2300,7 @@ static void EQ_DrawPageTile(void)
     page = s_ui_state.page_target;
     if (tile == EQ_UI_PAGE_TILE_SWITCH)
     {
+        EQ_PageRasterPauseBegin();
         EQ_DrawPageSwitch(page);
         return;
     }
@@ -2424,6 +2485,12 @@ void EqualizerDisplay_Init(void)
     EQ_DebugLcdAnalyzerValueCount = 0UL;
     EQ_DebugLcdAutoDisabledCount = 0UL;
     EQ_DebugLcdAutoDisableReason = 0UL;
+    EQ_DebugLcdPageRasterPaused = 0U;
+    EQ_DebugLcdPageRasterPauseCount = 0UL;
+    EQ_DebugLcdPageRasterResumeCount = 0UL;
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+    s_page_raster_paused = 0;
+#endif
     EQ_DebugLcdExpectedFrameBase = EQ_ExpectedFrameBase();
     EQ_DebugLcdExpectedFrameEnd = EQ_ExpectedFrameEnd();
     EQ_DebugLcdBufferAddress = EQ_BufferAddress();
@@ -2657,12 +2724,6 @@ int EqualizerDisplay_ServiceOneJob(unsigned long process_frame)
     EQ_EndDraw();
     elapsed_cycles = end_cycles - start_cycles;
     force_hardware_audit = 0;
-#if EQ_ENABLE_TEN_BAND_EDITOR != 0
-    if (job == EQ_UI_JOB_PAGE_TILE)
-    {
-        force_hardware_audit = 1;
-    }
-#endif
     if ((job >= EQ_UI_JOB_DYNAMIC_0) &&
         (job <= EQ_UI_JOB_DYNAMIC_2))
     {
@@ -2679,6 +2740,14 @@ int EqualizerDisplay_ServiceOneJob(unsigned long process_frame)
     {
         EqualizerUiLogic_CompleteJob(&s_ui_state, job, process_frame);
     }
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+    if ((job == EQ_UI_JOB_PAGE_TILE) &&
+        (EqualizerUiLogic_IsPageBuilding(&s_ui_state) == 0))
+    {
+        EQ_PageRasterPauseEnd();
+        force_hardware_audit = 1;
+    }
+#endif
     EQ_DebugLcdPendingMask = s_ui_state.dirty_mask;
     category = EQ_JobCategory(job);
     index = job - 1;
@@ -2729,6 +2798,9 @@ int EqualizerDisplay_ServiceOneJob(unsigned long process_frame)
 void EqualizerDisplay_CancelRuntimeJobs(void)
 {
     EqualizerUiLogic_Cancel(&s_ui_state);
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+    EQ_PageRasterPauseEnd();
+#endif
     EQ_DebugLcdPendingMask = 0UL;
 }
 

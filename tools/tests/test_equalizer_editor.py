@@ -34,6 +34,9 @@ class EqualizerEditorTest(unittest.TestCase):
         cls.display = (ROOT / "Code/User/user_dsp/"
                        "user_equalizer_display.c").read_text(
                            encoding="utf-8")
+        cls.display_header = (ROOT / "Code/User/user_dsp/"
+                              "user_equalizer_display.h").read_text(
+                                  encoding="utf-8")
 
     def test_host_editor_control_chain(self) -> None:
         result = run_msys(
@@ -134,6 +137,14 @@ class EqualizerEditorTest(unittest.TestCase):
             "if (job == EQ_UI_JOB_PAGE_TILE)",
             self.display)
         self.assertIn("force_hardware_audit = 1", self.display)
+
+    def test_page_build_pauses_single_buffer_raster(self) -> None:
+        self.assertIn("EQ_PageRasterPauseBegin();", self.display)
+        self.assertIn("EQ_PageRasterPauseEnd();", self.display)
+        self.assertIn("RasterDisable(SOC_LCDC_0_REGS);", self.display)
+        self.assertIn("RasterEnable(SOC_LCDC_0_REGS);", self.display)
+        self.assertIn("EQ_DebugLcdPageRasterPauseCount", self.display_header)
+        self.assertIn("EQ_DebugLcdPageRasterResumeCount", self.display_header)
 
     def test_snapshot_request_is_limited_to_one_per_frame(self) -> None:
         start = self.flow.index(
