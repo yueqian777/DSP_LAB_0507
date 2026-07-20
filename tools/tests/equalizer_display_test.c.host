@@ -519,6 +519,27 @@ int main(void)
         EQ_DebugLcdHwSnapshot.raster_control == 0UL &&
         !EqualizerDisplay_HasPendingJob(),
         "hardware fault stops raster and converges partial descriptors");
+
+    EqualizerDisplay_Init();
+    make_healthy_hardware(&hardware);
+    EqualizerDisplay_TestSetHardwareSnapshot(&hardware);
+    failures += require_true(EqualizerDisplay_DrawStaticLayout() == 1,
+                              "page tile timing static draw");
+    EqualizerDisplay_BeginRuntime();
+    make_snapshot(&snapshot);
+    EQ_DebugLcdRuntimeMask = EQ_UI_RUNTIME_ALL;
+    snapshot.page = EQ_UI_PAGE_EQ_EDITOR;
+    EqualizerDisplay_RequestSnapshot(&snapshot, 1100UL);
+    EqualizerDisplay_TestForceJobCycles(
+        EQ_LCD_JOB_ACCEPTANCE_CYCLES + 1UL);
+    (void)EqualizerDisplay_ServiceOneJob(1100UL);
+    EqualizerDisplay_TestForceJobCycles(0UL);
+    failures += require_true(
+        EQ_DebugLcdPageTileMaxCycles ==
+            EQ_LCD_JOB_ACCEPTANCE_CYCLES + 1UL &&
+        EQ_DebugLcdPageTileMaxIndex == 0U &&
+        EQ_DebugLcdPageTileLastOver2msIndex == 0U,
+        "page tile timing publishes the exact over-budget tile index");
 #endif
 
     printf("equalizer_display failures=%d\n", failures);

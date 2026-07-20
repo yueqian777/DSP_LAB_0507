@@ -91,6 +91,7 @@
 #define EQ_LCD_JOB_HARD_CYCLES       2280000UL
 #define EQ_LCD_HW_AUDIT_JOB_INTERVAL 64UL
 #define EQ_LCD_HW_AUDIT_FRAME_INTERVAL 256UL
+#define EQ_LCD_PAGE_TILE_INDEX_NONE 0xFFFFFFFFU
 
 #define EQ_LCD_CATEGORY_PRESET   0
 #define EQ_LCD_CATEGORY_DYNAMIC  1
@@ -143,6 +144,9 @@ extern volatile unsigned long EQ_DebugLcdLastJobStartCycles;
 extern volatile unsigned long EQ_DebugLcdLastJobEndCycles;
 extern volatile unsigned long EQ_DebugLcdLastJobCycles;
 extern volatile unsigned long EQ_DebugLcdMaxJobCycles;
+extern volatile unsigned long EQ_DebugLcdPageTileMaxCycles;
+extern volatile unsigned int EQ_DebugLcdPageTileMaxIndex;
+extern volatile unsigned int EQ_DebugLcdPageTileLastOver2msIndex;
 extern volatile unsigned long EQ_DebugLcdLastJobTenthsMs;
 extern volatile unsigned long EQ_DebugLcdMaxJobTenthsMs;
 extern volatile int EQ_DebugLcdLastJob;

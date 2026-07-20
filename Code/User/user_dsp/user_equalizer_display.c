@@ -312,6 +312,11 @@ volatile unsigned long EQ_DebugLcdLastJobStartCycles = 0UL;
 volatile unsigned long EQ_DebugLcdLastJobEndCycles = 0UL;
 volatile unsigned long EQ_DebugLcdLastJobCycles = 0UL;
 volatile unsigned long EQ_DebugLcdMaxJobCycles = 0UL;
+volatile unsigned long EQ_DebugLcdPageTileMaxCycles = 0UL;
+volatile unsigned int EQ_DebugLcdPageTileMaxIndex =
+    EQ_LCD_PAGE_TILE_INDEX_NONE;
+volatile unsigned int EQ_DebugLcdPageTileLastOver2msIndex =
+    EQ_LCD_PAGE_TILE_INDEX_NONE;
 volatile unsigned long EQ_DebugLcdLastJobTenthsMs = 0UL;
 volatile unsigned long EQ_DebugLcdMaxJobTenthsMs = 0UL;
 volatile int EQ_DebugLcdLastJob = EQ_LCD_JOB_NONE;
@@ -2862,6 +2867,9 @@ void EqualizerDisplay_Init(void)
     EQ_DebugLcdLastJobEndCycles = 0UL;
     EQ_DebugLcdLastJobCycles = 0UL;
     EQ_DebugLcdMaxJobCycles = 0UL;
+    EQ_DebugLcdPageTileMaxCycles = 0UL;
+    EQ_DebugLcdPageTileMaxIndex = EQ_LCD_PAGE_TILE_INDEX_NONE;
+    EQ_DebugLcdPageTileLastOver2msIndex = EQ_LCD_PAGE_TILE_INDEX_NONE;
     EQ_DebugLcdLastJobTenthsMs = 0UL;
     EQ_DebugLcdMaxJobTenthsMs = 0UL;
     EQ_DebugLcdLastJob = EQ_LCD_JOB_NONE;
@@ -3216,6 +3224,7 @@ int EqualizerDisplay_ServiceOneJob(unsigned long process_frame)
     int force_hardware_audit;
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
     int page_completed;
+    unsigned int page_tile_index;
 #endif
 
     job = EqualizerUiLogic_SelectJob(&s_ui_state, process_frame);
@@ -3223,6 +3232,13 @@ int EqualizerDisplay_ServiceOneJob(unsigned long process_frame)
     {
         return EQ_LCD_JOB_NONE;
     }
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+    page_tile_index = EQ_LCD_PAGE_TILE_INDEX_NONE;
+    if (job == EQ_UI_JOB_PAGE_TILE)
+    {
+        page_tile_index = EqualizerUiLogic_GetPageTileIndex(&s_ui_state);
+    }
+#endif
     if (EQ_BeginDraw() == 0)
     {
         return EQ_LCD_JOB_NONE;
@@ -3294,6 +3310,14 @@ int EqualizerDisplay_ServiceOneJob(unsigned long process_frame)
     EQ_DebugLcdLastJobTenthsMs = tenths_ms;
     if (elapsed_cycles > EQ_DebugLcdMaxJobCycles)
         EQ_DebugLcdMaxJobCycles = elapsed_cycles;
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+    if ((job == EQ_UI_JOB_PAGE_TILE) &&
+        (elapsed_cycles > EQ_DebugLcdPageTileMaxCycles))
+    {
+        EQ_DebugLcdPageTileMaxCycles = elapsed_cycles;
+        EQ_DebugLcdPageTileMaxIndex = page_tile_index;
+    }
+#endif
     if (tenths_ms > EQ_DebugLcdMaxJobTenthsMs)
         EQ_DebugLcdMaxJobTenthsMs = tenths_ms;
     EQ_DebugLcdCategoryCount[category]++;
@@ -3312,6 +3336,12 @@ int EqualizerDisplay_ServiceOneJob(unsigned long process_frame)
     {
         EQ_DebugLcdOver2msCount++;
         EQ_DebugLcdBudgetExceededCount++;
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+        if (job == EQ_UI_JOB_PAGE_TILE)
+        {
+            EQ_DebugLcdPageTileLastOver2msIndex = page_tile_index;
+        }
+#endif
     }
     if (elapsed_cycles > EQ_LCD_JOB_HARD_CYCLES)
     {
