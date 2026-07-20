@@ -857,6 +857,26 @@ static void EQ_LcdFillRect(int x, int y, int w, int h, int color)
 #endif
 }
 
+static void EQ_LcdFillRectStartup(int x, int y, int w, int h, int color)
+{
+#if !defined(EQ_ALGO_ONLY)
+    tRectangle rect;
+
+    if (EQ_CheckRect(x, y, w, h) == 0)
+    {
+        return;
+    }
+    rect.sXMin = x;
+    rect.sYMin = y;
+    rect.sXMax = x + w - 1;
+    rect.sYMax = y + h - 1;
+    GrContextForegroundSet(&Lcd_Context, EQ_MapColor(color));
+    GrRectFill(&Lcd_Context, &rect);
+#else
+    EQ_LcdFillRect(x, y, w, h, color);
+#endif
+}
+
 static void EQ_LcdDrawRect(int x, int y, int w, int h, int color)
 {
 #if !defined(EQ_ALGO_ONLY)
@@ -981,8 +1001,10 @@ static void EQ_DrawAlignmentPattern(void)
     int index;
     int y;
 
-    EQ_LcdFillRect(0, 0, EQ_UI_SCREEN_WIDTH, EQ_UI_SCREEN_HEIGHT,
-                   EQ_COLOR_BG);
+    /* Keep the one-time full-frame clear on the board driver's proven path.
+       Runtime tiles still use packed writes after the raster has stabilized. */
+    EQ_LcdFillRectStartup(0, 0, EQ_UI_SCREEN_WIDTH, EQ_UI_SCREEN_HEIGHT,
+                          EQ_COLOR_BG);
     EQ_LcdDrawRect(0, 0, EQ_UI_SCREEN_WIDTH, EQ_UI_SCREEN_HEIGHT,
                    EQ_COLOR_HIGHLIGHT);
     for (index = 0; index < 12; index++)
@@ -2485,8 +2507,8 @@ int EqualizerDisplay_DrawStaticLayout(void)
 #if EQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN
     EQ_DrawAlignmentPattern();
 #else
-    EQ_LcdFillRect(0, 0, EQ_UI_SCREEN_WIDTH, EQ_UI_SCREEN_HEIGHT,
-                   EQ_COLOR_BG);
+    EQ_LcdFillRectStartup(0, 0, EQ_UI_SCREEN_WIDTH, EQ_UI_SCREEN_HEIGHT,
+                          EQ_COLOR_BG);
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
     EQ_DrawPageTitle(EQ_UI_PAGE_DYNAMIC_STATUS);
 #else

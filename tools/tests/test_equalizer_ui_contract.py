@@ -224,6 +224,21 @@ class EqualizerUiSourceContractTest(unittest.TestCase):
         self.assertIn("(unsigned int)pixel_value << 16", packed)
         self.assertIn("(y + row) * EQ_UI_SCREEN_WIDTH + x", packed)
 
+        start = self.display.index("static void EQ_LcdFillRectStartup(")
+        end = self.display.index("\n}\n", start)
+        startup_fill = self.display[start:end]
+        self.assertIn("GrRectFill", startup_fill)
+        static_start = self.display.index(
+            "int EqualizerDisplay_DrawStaticLayout(void)")
+        static_end = self.display.index(
+            "void EqualizerDisplay_BeginRuntime(void)", static_start)
+        static_layout = self.display[static_start:static_end]
+        self.assertIn("EQ_LcdFillRectStartup(", static_layout)
+        self.assertNotIn(
+            "EQ_LcdFillRect(0, 0, EQ_UI_SCREEN_WIDTH, EQ_UI_SCREEN_HEIGHT",
+            static_layout,
+        )
+
         start = self.display.index("static void EQ_LcdDrawRect(")
         end = self.display.index("\n}\n", start)
         outline = self.display[start:end]
