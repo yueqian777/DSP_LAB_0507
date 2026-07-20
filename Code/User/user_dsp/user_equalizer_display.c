@@ -2784,7 +2784,6 @@ static unsigned int EQ_DrawPageTile(void)
         (tile <= EQ_UI_PAGE_TILE_PRESET_LAST))
     {
         index = (int)(tile - EQ_UI_PAGE_TILE_PRESET_FIRST);
-        EQ_DrawPresetStatic(index);
         EQ_DrawPresetJob(index);
         return 1U;
     }
