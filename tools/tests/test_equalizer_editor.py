@@ -120,6 +120,8 @@ class EqualizerEditorTest(unittest.TestCase):
         self.assertNotIn("EQ_DrawPresetStatic", page_tile)
         self.assertIn("EQ_DrawPresetJob", page_tile)
         self.assertIn("EQ_DrawEditorBandFull", page_tile)
+        self.assertNotIn("EQ_DrawEditorFieldFull", page_tile)
+        self.assertIn("EQ_DrawEditorFieldValue", page_tile)
         self.assertIn("EQ_DrawAnalyzerTileFull", page_tile)
         self.assertNotIn("EQ_ClearPageTitleStrip", page_tile)
         self.assertNotIn("EQ_ClearPageContentStrip", page_tile)
@@ -147,6 +149,8 @@ class EqualizerEditorTest(unittest.TestCase):
         dynamic = self.display[dynamic_start:dynamic_end]
         self.assertNotIn("EQ_UI_DYNAMIC_RECTS[index].w", dynamic)
         self.assertEqual(dynamic.count("EQ_ClearDynamicValue("), 3)
+        self.assertIn("#define EQ_UI_EDITOR_VALUE_CLEAR_W 96", self.display)
+        self.assertIn("#define EQ_UI_EDITOR_VALUE_CLEAR_H 22", self.display)
 
     def test_page_build_has_explicit_region_counts(self) -> None:
         self.assertIn("#define EQ_UI_PAGE_TILE_DYNAMIC_COUNT           16U",

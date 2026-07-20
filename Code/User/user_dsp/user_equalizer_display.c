@@ -46,6 +46,8 @@
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
 #define EQ_UI_EDITOR_INNER_X_OFFSET 26
 #define EQ_UI_EDITOR_INNER_W 16
+#define EQ_UI_EDITOR_VALUE_CLEAR_W 96
+#define EQ_UI_EDITOR_VALUE_CLEAR_H 22
 static const EQ_UI_RECT s_editor_field_rects[5] =
 {
     { 24, 398, 112, 70 },
@@ -2361,11 +2363,15 @@ static void EQ_DrawEditorFieldValue(unsigned int field)
         index = 3;
     else
         index = 4;
-    value_rect = s_editor_field_rects[index];
-    value_rect.y += 26;
-    value_rect.h -= 28;
-    EQ_LcdFillRect(value_rect.x + 1, value_rect.y,
-                   value_rect.w - 2, value_rect.h, EQ_COLOR_BG);
+    value_rect.x = s_editor_field_rects[index].x +
+        (s_editor_field_rects[index].w - EQ_UI_EDITOR_VALUE_CLEAR_W) / 2;
+    value_rect.y = s_editor_field_rects[index].y + 26 +
+        (s_editor_field_rects[index].h - 28 -
+         EQ_UI_EDITOR_VALUE_CLEAR_H) / 2;
+    value_rect.w = EQ_UI_EDITOR_VALUE_CLEAR_W;
+    value_rect.h = EQ_UI_EDITOR_VALUE_CLEAR_H;
+    EQ_LcdFillRect(value_rect.x, value_rect.y,
+                   value_rect.w, value_rect.h, EQ_COLOR_BG);
     band = EQ_ClampInt(s_ui_state.requested.editor_selected_band,
                        0, EQ_NUM_BANDS - 1);
     color = EQ_COLOR_TEXT;
@@ -2805,8 +2811,9 @@ static unsigned int EQ_DrawPageTile(void)
         else if ((tile >= EQ_UI_PAGE_TILE_EDITOR_FIELD_FIRST) &&
                  (tile <= EQ_UI_PAGE_TILE_EDITOR_FIELD_LAST))
         {
-            EQ_DrawEditorFieldFull(
-                (int)(tile - EQ_UI_PAGE_TILE_EDITOR_FIELD_FIRST));
+            index = (int)(tile - EQ_UI_PAGE_TILE_EDITOR_FIELD_FIRST);
+            EQ_DrawEditorFieldValue(
+                EQ_UI_EDITOR_FIELD_SELECTED_BAND << index);
             return 1U;
         }
         if (tile == EQ_UI_PAGE_TILE_EDITOR_SWAP)
