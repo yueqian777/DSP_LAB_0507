@@ -1743,12 +1743,6 @@ static int EQ_FormatLevel(char *buffer, int level)
     return 2;
 }
 
-static void EQ_ClearInside(const EQ_UI_RECT *rect)
-{
-    EQ_LcdFillRect(rect->x + 1, rect->y + 1,
-                   rect->w - 2, rect->h - 2, EQ_COLOR_BG);
-}
-
 static void EQ_ClearDynamicValue(const EQ_UI_RECT *rect)
 {
     EQ_LcdFillRect(
@@ -2495,7 +2489,6 @@ static void EQ_DrawChainJob(int index)
         enabled = s_ui_state.requested.clarity_enabled;
     else
         enabled = s_ui_state.requested.guard_enabled;
-    EQ_ClearInside(&EQ_UI_CHAIN_RECTS[index]);
     EQ_LcdDrawText(&EQ_UI_CHAIN_RECTS[index], labels[index], lengths[index],
                    EQ_FONT_SMALL,
                    enabled ? EQ_COLOR_ACTIVE : EQ_COLOR_MUTED, 1);
@@ -2822,7 +2815,6 @@ static unsigned int EQ_DrawPageTile(void)
 
     if (tile == EQ_UI_PAGE_TILE_DYNAMIC_CHAIN)
     {
-        EQ_DrawChainStatic();
         for (index = 0; index < EQ_UI_CHAIN_COUNT; index++)
         {
             EQ_DrawChainJob(index);
