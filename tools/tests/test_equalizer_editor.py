@@ -125,7 +125,7 @@ class EqualizerEditorTest(unittest.TestCase):
         self.assertNotIn("EQ_DrawEditorControlsFull", page_tile)
         self.assertNotIn("EQ_DrawEditorFieldFull", page_tile)
         self.assertIn("EQ_DrawEditorFieldValue", page_tile)
-        self.assertIn("EQ_DrawAnalyzerTileFull", page_tile)
+        self.assertIn("EQ_DrawAnalyzerTileSnapshot", page_tile)
         self.assertNotIn("EQ_DrawChainStatic", page_tile)
         self.assertNotIn("EQ_ClearPageTitleStrip", page_tile)
         self.assertNotIn("EQ_ClearPageContentStrip", page_tile)
@@ -140,12 +140,13 @@ class EqualizerEditorTest(unittest.TestCase):
         self.assertIn("EQ_UI_EDITOR_BAR_TOP + 1", editor_band)
 
         analyzer_start = self.display.index(
-            "static void EQ_DrawAnalyzerTileFull(int band)")
+            "static void EQ_DrawAnalyzerTileSnapshot(int band)")
         analyzer_end = self.display.index(
-            "static void EQ_DrawDynamicTileFull", analyzer_start)
+            "static void EQ_DrawDynamicTileSnapshot", analyzer_start)
         analyzer = self.display[analyzer_start:analyzer_end]
         self.assertNotIn("rect->w, 224", analyzer)
         self.assertIn("EQ_UI_ANALYZER_BAR_TOP + 1", analyzer)
+        self.assertNotIn("EQ_LcdDrawRect", analyzer)
 
         dynamic_start = analyzer_end
         dynamic_end = self.display.index(
@@ -153,6 +154,7 @@ class EqualizerEditorTest(unittest.TestCase):
         dynamic = self.display[dynamic_start:dynamic_end]
         self.assertNotIn("EQ_UI_DYNAMIC_RECTS[index].w", dynamic)
         self.assertEqual(dynamic.count("EQ_ClearDynamicValue("), 3)
+        self.assertNotIn("EQ_LcdDrawRect", dynamic)
         chain_start = self.display.index("static void EQ_DrawChainJob")
         chain_end = self.display.index(
             "static unsigned int EQ_DrawAnalyzerJob", chain_start)

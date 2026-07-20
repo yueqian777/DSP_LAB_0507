@@ -2111,23 +2111,9 @@ static void EQ_DrawDynamicStatic(void)
 }
 
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
-static void EQ_DrawAnalyzerTileFull(int band)
+static void EQ_DrawAnalyzerTileSnapshot(int band)
 {
-#if EQ_LCD_USE_CHINESE
-    static const unsigned char * const cn_labels[EQ_UI_ANALYZER_COUNT] =
-    {
-        s_analyzer_bass, s_analyzer_mud,
-        s_analyzer_presence, s_analyzer_brightness
-    };
-#else
-    static const char * const en_labels[EQ_UI_ANALYZER_COUNT] =
-    {
-        "BASS", "MUD", "PRES", "BRIGHT"
-    };
-    static const int en_lengths[EQ_UI_ANALYZER_COUNT] = { 4, 3, 4, 6 };
-#endif
     const EQ_UI_RECT *rect;
-    EQ_UI_RECT label_rect;
     EQ_UI_RECT value_rect;
     char buffer[5];
     int inner_x;
@@ -2136,36 +2122,11 @@ static void EQ_DrawAnalyzerTileFull(int band)
     int valid;
 
     rect = &EQ_UI_ANALYZER_RECTS[band];
-    if (band == 0)
-    {
-        EQ_UI_RECT scale_rect;
-        scale_rect.x = 8; scale_rect.y = 116;
-        scale_rect.w = 46; scale_rect.h = 18;
-        EQ_LcdDrawText(&scale_rect, "+20", 3, EQ_FONT_SMALL,
-                       EQ_COLOR_MUTED, 1);
-        scale_rect.y = EQ_UI_ANALYZER_ZERO_Y - 9;
-        EQ_LcdDrawText(&scale_rect, "0", 1, EQ_FONT_SMALL,
-                       EQ_COLOR_ZERO, 1);
-        scale_rect.y = 288;
-        EQ_LcdDrawText(&scale_rect, "-20", 3, EQ_FONT_SMALL,
-                       EQ_COLOR_MUTED, 1);
-    }
-    EQ_LcdDrawRect(rect->x, rect->y, rect->w, rect->h, EQ_COLOR_BORDER);
     inner_x = rect->x + EQ_UI_ANALYZER_INNER_X_OFFSET;
     EQ_LcdFillRect(inner_x + 1, EQ_UI_ANALYZER_BAR_TOP + 1,
                    EQ_UI_ANALYZER_INNER_W - 2,
                    EQ_UI_ANALYZER_BAR_BOTTOM -
                    EQ_UI_ANALYZER_BAR_TOP - 1, EQ_COLOR_BG);
-    EQ_LcdDrawRect(inner_x, EQ_UI_ANALYZER_BAR_TOP,
-                   EQ_UI_ANALYZER_INNER_W,
-                   EQ_UI_ANALYZER_BAR_BOTTOM -
-                   EQ_UI_ANALYZER_BAR_TOP + 1, EQ_COLOR_BORDER);
-    EQ_LcdDrawLine(inner_x - 6, EQ_UI_ANALYZER_ZERO_Y,
-                   inner_x - 2, EQ_UI_ANALYZER_ZERO_Y, EQ_COLOR_ZERO);
-    EQ_LcdDrawLine(inner_x + EQ_UI_ANALYZER_INNER_W + 1,
-                   EQ_UI_ANALYZER_ZERO_Y,
-                   inner_x + EQ_UI_ANALYZER_INNER_W + 5,
-                   EQ_UI_ANALYZER_ZERO_Y, EQ_COLOR_ZERO);
     pixel = EQ_ClampInt(s_ui_state.requested.band_pixel[band],
                         EQ_UI_ANALYZER_DRAW_TOP,
                         EQ_UI_ANALYZER_DRAW_BOTTOM);
@@ -2203,34 +2164,10 @@ static void EQ_DrawAnalyzerTileFull(int band)
         EQ_LcdDrawText(&value_rect, "--", 2,
                        EQ_FONT_SMALL, EQ_COLOR_MUTED, 1);
     }
-    label_rect.x = rect->x;
-    label_rect.y = 310;
-    label_rect.w = rect->w;
-    label_rect.h = 24;
-#if EQ_LCD_USE_CHINESE
-    EQ_DrawCnCentered(&label_rect, cn_labels[band], 2, EQ_COLOR_TEXT);
-#else
-    EQ_LcdDrawText(&label_rect, en_labels[band], en_lengths[band],
-                   EQ_FONT_SMALL, EQ_COLOR_TEXT, 1);
-#endif
 }
 
-static void EQ_DrawDynamicTileFull(int index)
+static void EQ_DrawDynamicTileSnapshot(int index)
 {
-#if EQ_LCD_USE_CHINESE
-    static const unsigned char * const cn_labels[EQ_UI_DYNAMIC_COUNT] =
-    {
-        s_dynamic_smart, s_dynamic_clarity, s_dynamic_guard
-    };
-    static const int cn_counts[EQ_UI_DYNAMIC_COUNT] = { 4, 3, 4 };
-#else
-    static const char * const en_labels[EQ_UI_DYNAMIC_COUNT] =
-    {
-        "SMART BASS", "CLARITY", "HF GUARD"
-    };
-    static const int en_lengths[EQ_UI_DYNAMIC_COUNT] = { 10, 7, 8 };
-#endif
-    EQ_UI_RECT label_rect;
     char buffer[3];
     int enabled;
     int strength;
@@ -2240,29 +2177,6 @@ static void EQ_DrawDynamicTileFull(int index)
     EQ_ClearDynamicValue(&EQ_UI_DYNAMIC_TOGGLE_RECTS[index]);
     EQ_ClearDynamicValue(&EQ_UI_DYNAMIC_STRENGTH_RECTS[index]);
     EQ_ClearDynamicValue(&EQ_UI_DYNAMIC_LEVEL_RECTS[index]);
-    label_rect.x = 24;
-    label_rect.y = EQ_UI_DYNAMIC_RECTS[index].y;
-    label_rect.w = 124;
-    label_rect.h = EQ_UI_DYNAMIC_RECTS[index].h;
-#if EQ_LCD_USE_CHINESE
-    EQ_DrawCnCentered(&label_rect, cn_labels[index],
-                      cn_counts[index], EQ_COLOR_TEXT);
-#else
-    EQ_LcdDrawText(&label_rect, en_labels[index], en_lengths[index],
-                   EQ_FONT_SMALL, EQ_COLOR_TEXT, 0);
-#endif
-    EQ_LcdDrawRect(EQ_UI_DYNAMIC_TOGGLE_RECTS[index].x,
-                   EQ_UI_DYNAMIC_TOGGLE_RECTS[index].y,
-                   EQ_UI_DYNAMIC_TOGGLE_RECTS[index].w,
-                   EQ_UI_DYNAMIC_TOGGLE_RECTS[index].h, EQ_COLOR_BORDER);
-    EQ_LcdDrawRect(EQ_UI_DYNAMIC_STRENGTH_RECTS[index].x,
-                   EQ_UI_DYNAMIC_STRENGTH_RECTS[index].y,
-                   EQ_UI_DYNAMIC_STRENGTH_RECTS[index].w,
-                   EQ_UI_DYNAMIC_STRENGTH_RECTS[index].h, EQ_COLOR_BORDER);
-    EQ_LcdDrawRect(EQ_UI_DYNAMIC_LEVEL_RECTS[index].x,
-                   EQ_UI_DYNAMIC_LEVEL_RECTS[index].y,
-                   EQ_UI_DYNAMIC_LEVEL_RECTS[index].w,
-                   EQ_UI_DYNAMIC_LEVEL_RECTS[index].h, EQ_COLOR_BORDER);
     enabled = (index == 0) ? s_ui_state.requested.smart_enabled :
               ((index == 1) ? s_ui_state.requested.clarity_enabled :
                               s_ui_state.requested.guard_enabled);
@@ -2825,13 +2739,13 @@ static unsigned int EQ_DrawPageTile(void)
              (tile <= EQ_UI_PAGE_TILE_DYNAMIC_ANALYZER_LAST))
     {
         index = (int)(tile - EQ_UI_PAGE_TILE_DYNAMIC_ANALYZER_FIRST);
-        EQ_DrawAnalyzerTileFull(index);
+        EQ_DrawAnalyzerTileSnapshot(index);
         return 1U;
     }
     else if ((tile >= EQ_UI_PAGE_TILE_DYNAMIC_ROW_FIRST) &&
              (tile <= EQ_UI_PAGE_TILE_DYNAMIC_ROW_LAST))
     {
-        EQ_DrawDynamicTileFull(
+        EQ_DrawDynamicTileSnapshot(
             (int)(tile - EQ_UI_PAGE_TILE_DYNAMIC_ROW_FIRST));
         return 1U;
     }
