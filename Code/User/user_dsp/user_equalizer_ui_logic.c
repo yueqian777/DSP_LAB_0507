@@ -737,7 +737,19 @@ void EqualizerUiLogic_Request(EQ_UI_STATE *state,
     {
         if (state->requested_page != state->page_target)
         {
-            EQ_UI_StartPageBuild(state, state->requested_page);
+            if (state->requested_page == state->displayed_page)
+            {
+                state->page_target = state->displayed_page;
+                state->page_tile_index = 0U;
+                state->page_tile_count = 0U;
+                state->page_building = 0U;
+                state->dirty_mask &= ~EQ_UI_PAGE_TILE_MASK;
+                EQ_UI_RecomputeAll(state, process_frame);
+            }
+            else
+            {
+                EQ_UI_StartPageBuild(state, state->requested_page);
+            }
         }
         else
         {

@@ -97,13 +97,29 @@ remains `PENDING_HARDWARE`.
 
 ## Raster and framebuffer guard
 
-The renderer captures the initialized FB0 base/end and audits them after the
-static layout, at low runtime cadence, after an overrun, or on operator request.
-Fixed canaries guard the framebuffer boundary. Address mismatch, sync loss,
-FIFO underflow, unknown raster fault, or canary failure latches the evidence,
-sets the runtime mask to zero, and leaves the audio path active. Runtime code
-does not call `Lcd_Init()`, restart raster, clear the full screen, or allocate a
-second framebuffer.
+Editor builds allocate one page-independent framebuffer for Dynamic Status and
+one for Editor in external DDR. LCDC runs in double-frame mode with FB0 and FB1
+initially pointing to the Dynamic buffer. A completed hidden page is published
+only at frame boundaries: EOF0 updates the idle FB0 descriptor, EOF1 updates
+the idle FB1 descriptor, and the software page changes only after both
+descriptors point to the same target. A request arriving after only one
+descriptor changed is deferred until that swap converges.
+
+The renderer audits both initialized descriptor base/end pairs after the static
+layout, at low runtime cadence, after an overrun, or on operator request. Fixed
+canaries guard both framebuffer boundaries. Address mismatch, ambiguous EOF,
+sync loss, FIFO underflow, unknown raster fault, or canary failure latches the
+evidence, sets the runtime mask to zero, and leaves the audio path active.
+Runtime code does not call `Lcd_Init()`, restart raster, or clear a visible full
+screen.
+
+Before startup changes LCDC from the board driver's single-frame setup to the
+two-descriptor mode, it disables Raster and waits for `LCD_STAT.DONE`. A startup
+timeout leaves Raster and runtime drawing disabled. The runtime fault path also
+requests Raster stop first; it rebinds FB0/FB1 only after observing `DONE`.
+Otherwise it leaves Raster disabled and preserves the physical descriptor
+state for DSS diagnosis. `EQ_DebugLcdRasterStopTimeoutCount` records either
+failure without blocking the audio loop for another full frame.
 
 ## Memory and build gates
 
@@ -123,8 +139,10 @@ The editor state is 64 bytes; complete UI and editor state is 620 bytes in the
 TI C6000 map, or 656 bytes with Touch state and transform.
 
 Dynamic page state remains independent from editor applied/draft/submitted
-state. Page construction is tiled and latest-wins; one service draws one tile
-and never clears the full framebuffer. The editor columns render applied gains
-only. Snapshot construction is event-driven and limited to one request per
-processed frame. Host renderer trace proves fixed bounds and call ordering,
+state. Page construction redraws one complete fixed region at a time in the
+hidden page buffer; each region is cleared immediately before that region is
+redrawn. It never clears the visible full framebuffer. The editor columns
+render applied gains only. Snapshot construction is event-driven and limited
+to one request per processed frame. Host renderer trace proves fixed bounds,
+call ordering, two-EOF publication, and rapid reverse-request serialization,
 but is an `OFFLINE_RENDER_PREVIEW`, not a photograph or real-LCD pass.

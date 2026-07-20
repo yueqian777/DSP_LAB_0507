@@ -77,8 +77,13 @@ class EqualizerUiTraceTest(unittest.TestCase):
             self.assertTrue(any(
                 item["operation"] == "fill_rect" and
                 item["job"] == 27 and item["page"] == 1 and
-                item["x"] == 0 and item["y"] == 78 and
-                item["w"] == 800 and item["h"] == 4
+                item["x"] == 24 and item["y"] == 112 and
+                item["w"] == 68 and item["h"] == 218
+                for item in editor_trace
+            ))
+            self.assertFalse(any(
+                item["operation"] == "fill_rect" and
+                item["job"] == 27 and item["w"] == 800
                 for item in editor_trace
             ))
             self.assertTrue(any(

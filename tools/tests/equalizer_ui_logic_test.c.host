@@ -627,11 +627,12 @@ static int test_editor_pages_jobs_and_touch(void)
     snapshot.page = EQ_UI_PAGE_DYNAMIC_STATUS;
     EqualizerUiLogic_Request(&state, &snapshot, EQ_UI_RUNTIME_ALL, 1001UL);
     failures += require_true(EqualizerUiLogic_GetPageTileIndex(&state) == 0U &&
-        state.page_target == EQ_UI_PAGE_DYNAMIC_STATUS,
-        "page request is latest wins");
-    failures += require_true(flush_jobs(&state, 1002UL) ==
-        (int)EQ_UI_PAGE_TILE_DYNAMIC_COUNT,
-        "cancelled page rebuilds current page safely");
+        EqualizerUiLogic_GetPageTileCount(&state) == 0U &&
+        state.page_target == EQ_UI_PAGE_DYNAMIC_STATUS &&
+        !EqualizerUiLogic_IsPageBuilding(&state),
+        "latest request cancels a hidden-page build");
+    failures += require_true(flush_jobs(&state, 1002UL) == 0,
+        "cancelling hidden build never redraws the visible page");
 
     snapshot.page = EQ_UI_PAGE_EQ_EDITOR;
     EqualizerUiLogic_Request(&state, &snapshot, EQ_UI_RUNTIME_ALL, 2000UL);

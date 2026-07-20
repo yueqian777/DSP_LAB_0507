@@ -36,6 +36,16 @@ static void make_snapshot(EQ_UI_SNAPSHOT *snapshot)
     }
 }
 
+static void make_healthy_hardware(EQ_LCD_HW_SNAPSHOT *hardware)
+{
+    memset(hardware, 0, sizeof(*hardware));
+    hardware->frame_base = EQ_DebugLcdExpectedFrameBase;
+    hardware->frame_end = EQ_DebugLcdExpectedFrameEnd;
+    hardware->frame1_base = EQ_DebugLcdExpectedFrameBase;
+    hardware->frame1_end = EQ_DebugLcdExpectedFrameEnd;
+    hardware->raster_control = 1UL;
+}
+
 static int flush_jobs(unsigned long frame)
 {
     unsigned long offset;
@@ -78,10 +88,9 @@ int main(void)
         EQ_DebugEditorHitboxCountSize == EQ_TEST_EDITOR_HITBOX_COUNT,
         "retained debug cardinalities");
     EqualizerDisplay_Init();
-    memset(&hardware, 0, sizeof(hardware));
-    hardware.frame_base = EQ_DebugLcdExpectedFrameBase;
-    hardware.frame_end = EQ_DebugLcdExpectedFrameEnd;
-    hardware.raster_control = 1UL;
+    failures += require_true(EQ_DebugLcdRasterStopTimeoutCount == 0UL,
+                             "raster stop timeout starts clear");
+    make_healthy_hardware(&hardware);
     hardware.raster_status = 0x04UL;
     EqualizerDisplay_TestSetHardwareSnapshot(&hardware);
     failures += require_true(EqualizerDisplay_DrawStaticLayout() == 1,
@@ -150,40 +159,53 @@ int main(void)
     failures += require_true(job == EQ_UI_JOB_PAGE_TILE,
                              "page build services one tile");
     failures += require_true(
-        EQ_DebugLcdPageRasterPaused == 1U &&
-        EQ_DebugLcdPageRasterPauseCount == 1UL &&
-        EQ_DebugLcdPageRasterResumeCount == 0UL,
-        "page build pauses raster once");
+        EQ_DebugLcdDoubleBufferEnabled == 1U &&
+        EQ_DebugLcdPageRasterPaused == 0U &&
+        EQ_DebugLcdPageRasterPauseCount == 0UL &&
+        EQ_DebugLcdPageRasterResumeCount == 0UL &&
+        EQ_DebugLcdSwapPending == 0U,
+        "page build keeps raster active on the front buffer");
     snapshot.page = EQ_UI_PAGE_DYNAMIC_STATUS;
     EqualizerDisplay_RequestSnapshot(&snapshot, 41UL);
     snapshot.page = EQ_UI_PAGE_EQ_EDITOR;
     EqualizerDisplay_RequestSnapshot(&snapshot, 42UL);
     failures += require_true(
-        flush_jobs(256UL) == (int)EQ_UI_PAGE_TILE_EDITOR_COUNT,
-        "latest page request restarts a complete editor tile build");
+        flush_jobs(256UL) == (int)EQ_UI_PAGE_TILE_EDITOR_COUNT + 2,
+        "latest page request builds editor then waits for both EOFs");
     failures += require_true(
         !EqualizerDisplay_IsPageBuilding() &&
         EqualizerDisplay_GetDisplayedPage() == EQ_UI_PAGE_EQ_EDITOR,
         "displayed page changes only after final tile");
     failures += require_true(
         EQ_DebugLcdPageRasterPaused == 0U &&
-        EQ_DebugLcdPageRasterPauseCount == 1UL &&
-        EQ_DebugLcdPageRasterResumeCount == 1UL &&
+        EQ_DebugLcdPageRasterPauseCount == 0UL &&
+        EQ_DebugLcdPageRasterResumeCount == 0UL &&
+        EQ_DebugLcdFrontPage == EQ_UI_PAGE_EQ_EDITOR &&
+        EQ_DebugLcdSwapPending == 0U &&
+        EQ_DebugLcdSwapDescriptorMask == 3U &&
+        EQ_DebugLcdSwapRequestCount == 1UL &&
+        EQ_DebugLcdSwapCompleteCount == 1UL &&
+        EQ_DebugLcdEofCount == 2UL &&
+        EQ_DebugLcdEofAmbiguousCount == 0UL &&
         EQ_DebugLcdRasterFaultCount == 0UL,
-        "editor page resumes raster without a false fault");
+        "editor page becomes front only after both descriptor EOFs");
     snapshot.page = EQ_UI_PAGE_DYNAMIC_STATUS;
     EqualizerDisplay_RequestSnapshot(&snapshot, 100UL);
     failures += require_true(
-        flush_jobs(256UL) == (int)EQ_UI_PAGE_TILE_DYNAMIC_COUNT &&
+        flush_jobs(256UL) == (int)EQ_UI_PAGE_TILE_DYNAMIC_COUNT + 2 &&
         EqualizerDisplay_GetDisplayedPage() ==
             EQ_UI_PAGE_DYNAMIC_STATUS,
-        "dynamic page rebuild is also bounded by tiles");
+        "dynamic page uses region jobs and an EOF boundary");
     failures += require_true(
         EQ_DebugLcdPageRasterPaused == 0U &&
-        EQ_DebugLcdPageRasterPauseCount == 2UL &&
-        EQ_DebugLcdPageRasterResumeCount == 2UL &&
+        EQ_DebugLcdPageRasterPauseCount == 0UL &&
+        EQ_DebugLcdPageRasterResumeCount == 0UL &&
+        EQ_DebugLcdFrontPage == EQ_UI_PAGE_DYNAMIC_STATUS &&
+        EQ_DebugLcdSwapRequestCount == 2UL &&
+        EQ_DebugLcdSwapCompleteCount == 2UL &&
+        EQ_DebugLcdEofCount == 4UL &&
         EQ_DebugLcdRasterFaultCount == 0UL,
-        "dynamic page resumes raster without a false fault");
+        "dynamic page returns through EOF without pausing raster");
     failures += require_true(
         EQ_DebugLcdBoundsFailureCount == 0UL &&
         EQ_DebugLcdUnexpectedFullRedrawCount == unexpected + 1UL,
@@ -305,10 +327,7 @@ int main(void)
                              "hard job cancels pending");
 
     EqualizerDisplay_Init();
-    memset(&hardware, 0, sizeof(hardware));
-    hardware.frame_base = EQ_DebugLcdExpectedFrameBase;
-    hardware.frame_end = EQ_DebugLcdExpectedFrameEnd;
-    hardware.raster_control = 1UL;
+    make_healthy_hardware(&hardware);
     EqualizerDisplay_TestSetHardwareSnapshot(&hardware);
     EQ_DebugLcdRuntimeMask = EQ_UI_RUNTIME_ALL;
     EqualizerDisplay_AuditHardware(100UL, 1);
@@ -316,8 +335,10 @@ int main(void)
                              "healthy hardware audit");
     failures += require_true(
         EQ_DebugLcdCurrentFrameBase == EQ_DebugLcdExpectedFrameBase &&
-        EQ_DebugLcdCurrentFrameEnd == EQ_DebugLcdExpectedFrameEnd,
-        "frame address snapshot");
+        EQ_DebugLcdCurrentFrameEnd == EQ_DebugLcdExpectedFrameEnd &&
+        EQ_DebugLcdCurrentFrame1Base == EQ_DebugLcdExpectedFrameBase &&
+        EQ_DebugLcdCurrentFrame1End == EQ_DebugLcdExpectedFrameEnd,
+        "both frame descriptor address snapshots");
 
     hardware.irq_status = 0x24UL;
     EqualizerDisplay_TestSetHardwareSnapshot(&hardware);
@@ -342,10 +363,7 @@ int main(void)
                              "latched hardware fault rejects UI re-enable");
 
     EqualizerDisplay_Init();
-    memset(&hardware, 0, sizeof(hardware));
-    hardware.frame_base = EQ_DebugLcdExpectedFrameBase;
-    hardware.frame_end = EQ_DebugLcdExpectedFrameEnd;
-    hardware.raster_control = 1UL;
+    make_healthy_hardware(&hardware);
     hardware.raster_status = 0x04UL;
     EqualizerDisplay_TestSetHardwareSnapshot(&hardware);
     EQ_DebugLcdRuntimeMask = EQ_UI_RUNTIME_ALL;
@@ -356,9 +374,8 @@ int main(void)
                              "sync lost latches fault");
 
     EqualizerDisplay_Init();
-    memset(&hardware, 0, sizeof(hardware));
-    hardware.frame_base = EQ_DebugLcdExpectedFrameBase;
-    hardware.frame_end = EQ_DebugLcdExpectedFrameEnd;
+    make_healthy_hardware(&hardware);
+    hardware.raster_control = 0UL;
     EqualizerDisplay_TestSetHardwareSnapshot(&hardware);
     EQ_DebugLcdRuntimeMask = EQ_UI_RUNTIME_ALL;
     EqualizerDisplay_AuditHardware(175UL, 1);
@@ -368,10 +385,7 @@ int main(void)
                              "disabled raster latches fault");
 
     EqualizerDisplay_Init();
-    memset(&hardware, 0, sizeof(hardware));
-    hardware.frame_base = EQ_DebugLcdExpectedFrameBase;
-    hardware.frame_end = EQ_DebugLcdExpectedFrameEnd;
-    hardware.raster_control = 1UL;
+    make_healthy_hardware(&hardware);
     EqualizerDisplay_TestSetHardwareSnapshot(&hardware);
     EqualizerDisplay_TestSetCanaryFailure(1);
     EQ_DebugLcdRuntimeMask = EQ_UI_RUNTIME_ALL;
@@ -385,10 +399,8 @@ int main(void)
                              "canary failure disables runtime UI");
 
     EqualizerDisplay_Init();
-    memset(&hardware, 0, sizeof(hardware));
+    make_healthy_hardware(&hardware);
     hardware.frame_base = EQ_DebugLcdExpectedFrameBase + 4UL;
-    hardware.frame_end = EQ_DebugLcdExpectedFrameEnd;
-    hardware.raster_control = 1UL;
     EqualizerDisplay_TestSetHardwareSnapshot(&hardware);
     EQ_DebugLcdRuntimeMask = EQ_UI_RUNTIME_ALL;
     EqualizerDisplay_AuditHardware(300UL, 1);
@@ -398,10 +410,7 @@ int main(void)
         "frame mismatch latches fault");
 
     EqualizerDisplay_Init();
-    memset(&hardware, 0, sizeof(hardware));
-    hardware.frame_base = EQ_DebugLcdExpectedFrameBase;
-    hardware.frame_end = EQ_DebugLcdExpectedFrameEnd;
-    hardware.raster_control = 1UL;
+    make_healthy_hardware(&hardware);
     EqualizerDisplay_TestSetHardwareSnapshot(&hardware);
     EQ_DebugLcdHardwareAuditRequest = 1U;
     EqualizerDisplay_AuditHardware(400UL, 0);
@@ -410,6 +419,97 @@ int main(void)
         EQ_DebugLcdFramebufferCanaryCheckCount == 1UL &&
         EQ_DebugLcdFaultLatched == 0U,
         "operator request performs one healthy audit");
+
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+    EqualizerDisplay_Init();
+    make_healthy_hardware(&hardware);
+    EqualizerDisplay_TestSetHardwareSnapshot(&hardware);
+    failures += require_true(EqualizerDisplay_DrawStaticLayout() == 1,
+                              "rapid reverse static draw");
+    EqualizerDisplay_BeginRuntime();
+    make_snapshot(&snapshot);
+    EQ_DebugLcdRuntimeMask = EQ_UI_RUNTIME_ALL;
+    snapshot.page = EQ_UI_PAGE_EQ_EDITOR;
+    EqualizerDisplay_RequestSnapshot(&snapshot, 500UL);
+    for (job = 0; job < (int)EQ_UI_PAGE_TILE_EDITOR_COUNT - 1; job++)
+    {
+        (void)EqualizerDisplay_ServiceOneJob(
+            500UL + (2UL * (unsigned long)job));
+    }
+    (void)EqualizerDisplay_ServiceOneJob(600UL);
+    (void)EqualizerDisplay_ServiceOneJob(601UL);
+    EqualizerDisplay_AuditHardware(601UL, 1);
+    failures += require_true(
+        EQ_DebugLcdSwapPending == 1U &&
+        EQ_DebugLcdSwapDescriptorMask == 1U &&
+        EQ_DebugLcdEofCount == 1UL &&
+        EQ_DebugLcdFaultLatched == 0U,
+        "one switched descriptor is a valid in-progress boundary");
+    snapshot.page = EQ_UI_PAGE_DYNAMIC_STATUS;
+    EqualizerDisplay_RequestSnapshot(&snapshot, 602UL);
+    failures += require_true(
+        EqualizerDisplay_IsPageBuilding() &&
+        EqualizerDisplay_GetDisplayedPage() == EQ_UI_PAGE_DYNAMIC_STATUS &&
+        EQ_DebugLcdSwapPending == 1U &&
+        EQ_DebugLcdSwapTargetPage == EQ_UI_PAGE_EQ_EDITOR &&
+        EQ_DebugLcdSwapDescriptorMask == 1U,
+        "rapid reverse cannot cancel a partial descriptor swap");
+    (void)EqualizerDisplay_ServiceOneJob(603UL);
+    failures += require_true(
+        EqualizerDisplay_IsPageBuilding() &&
+        EqualizerDisplay_GetDisplayedPage() == EQ_UI_PAGE_EQ_EDITOR &&
+        EQ_DebugLcdSwapCompleteCount == 1UL,
+        "latest page request starts after the first swap converges");
+    job = flush_jobs(700UL);
+    failures += require_true(
+        job >= (int)EQ_UI_PAGE_TILE_DYNAMIC_COUNT + 2 && job < 64 &&
+        EqualizerDisplay_GetDisplayedPage() == EQ_UI_PAGE_DYNAMIC_STATUS &&
+        EQ_DebugLcdSwapRequestCount == 2UL &&
+        EQ_DebugLcdSwapCompleteCount == 2UL &&
+        EQ_DebugLcdEofCount == 4UL &&
+        EQ_DebugLcdEofAmbiguousCount == 0UL &&
+        EQ_DebugLcdFaultLatched == 0U,
+        "rapid reverse converges both descriptors without a fault");
+
+    EqualizerDisplay_Init();
+    make_healthy_hardware(&hardware);
+    EqualizerDisplay_TestSetHardwareSnapshot(&hardware);
+    failures += require_true(EqualizerDisplay_DrawStaticLayout() == 1,
+                              "fault convergence static draw");
+    EqualizerDisplay_BeginRuntime();
+    make_snapshot(&snapshot);
+    EQ_DebugLcdRuntimeMask = EQ_UI_RUNTIME_ALL;
+    snapshot.page = EQ_UI_PAGE_EQ_EDITOR;
+    EqualizerDisplay_RequestSnapshot(&snapshot, 900UL);
+    for (job = 0; job < (int)EQ_UI_PAGE_TILE_EDITOR_COUNT - 1; job++)
+    {
+        (void)EqualizerDisplay_ServiceOneJob(
+            900UL + (2UL * (unsigned long)job));
+    }
+    (void)EqualizerDisplay_ServiceOneJob(1000UL);
+    (void)EqualizerDisplay_ServiceOneJob(1001UL);
+    EqualizerDisplay_AuditHardware(1001UL, 1);
+    hardware.frame_base = EQ_DebugLcdCurrentFrameBase;
+    hardware.frame_end = EQ_DebugLcdCurrentFrameEnd;
+    hardware.frame1_base = EQ_DebugLcdCurrentFrame1Base;
+    hardware.frame1_end = EQ_DebugLcdCurrentFrame1End;
+    hardware.raster_control = 1UL;
+    hardware.raster_status = 0x20UL;
+    EqualizerDisplay_TestSetHardwareSnapshot(&hardware);
+    EqualizerDisplay_AuditHardware(1002UL, 1);
+    EqualizerDisplay_AuditHardware(1003UL, 1);
+    failures += require_true(
+        EQ_DebugLcdFaultLatched == 1U &&
+        EQ_DebugLcdRuntimeMask == 0U &&
+        EQ_DebugLcdSwapPending == 0U &&
+        EQ_DebugLcdSwapDescriptorMask == 0U &&
+        EQ_DebugLcdFrontPage == EQ_UI_PAGE_DYNAMIC_STATUS &&
+        EQ_DebugLcdCurrentFrameBase == EQ_DebugLcdExpectedFrameBase &&
+        EQ_DebugLcdCurrentFrame1Base == EQ_DebugLcdExpectedFrameBase &&
+        EQ_DebugLcdHwSnapshot.raster_control == 0UL &&
+        !EqualizerDisplay_HasPendingJob(),
+        "hardware fault stops raster and converges partial descriptors");
+#endif
 
     printf("equalizer_display failures=%d\n", failures);
     return (failures == 0) ? 0 : 1;

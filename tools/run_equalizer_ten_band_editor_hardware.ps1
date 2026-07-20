@@ -134,8 +134,10 @@ foreach ($define in @(
 if (($buildResult.job_count -ne 27) -or
     ($buildResult.dynamic_hitbox_count -ne 12) -or
     ($buildResult.editor_hitbox_count -ne 20) -or
-    ($buildResult.framebuffer_symbol_count -ne 1) -or
-    ($buildResult.second_framebuffer_symbol_hits -ne 0) -or
+    ($buildResult.framebuffer_symbol_count -ne 2) -or
+    ($buildResult.second_framebuffer_symbol_hits -ne 1) -or
+    ($buildResult.offscreen_buffer_object_count -ne 2) -or
+    ($buildResult.offscreen_buffer_bytes -ne $buildResult.framebuffer_bytes) -or
     ($buildResult.editor_state_bytes -le 0)) {
     throw "H build UI/editor/link contract failed"
 }
@@ -166,6 +168,14 @@ $symbolText = (& $nmPath -l $program 2>&1) -join "`n"
 if ($LASTEXITCODE -ne 0) {
     throw "nm6x could not inspect the H Project 3.3 artifact"
 }
+$lcdDoubleBufferDebugSymbols = @(
+    "EQ_DebugLcdDoubleBufferEnabled", "EQ_DebugLcdFrontPage",
+    "EQ_DebugLcdSwapTargetPage", "EQ_DebugLcdSwapPending",
+    "EQ_DebugLcdSwapDescriptorMask", "EQ_DebugLcdEofCount",
+    "EQ_DebugLcdEofAmbiguousCount", "EQ_DebugLcdSwapRequestCount",
+    "EQ_DebugLcdSwapCompleteCount", "EQ_DebugLcdCurrentFrame1Base",
+    "EQ_DebugLcdCurrentFrame1End", "EQ_DebugLcdRasterStopTimeoutCount"
+)
 $requiredSymbols = @(
     "EQ_DebugBuildGitSha", "EQ_DebugBuildDirty", "EQ_DebugInitStage",
     "EQ_DebugTouchRawX", "EQ_DebugTouchRawY", "EQ_DebugTouchScreenX",
@@ -213,11 +223,13 @@ $requiredSymbols = @(
     "EQ_DebugHarshnessGuardSaturationCount",
     "EQ_DebugHarshnessGuardNonFiniteCount",
     "EQ_UI_DYNAMIC_HITBOXES", "EQ_UI_EDITOR_HITBOXES"
-)
+) + $lcdDoubleBufferDebugSymbols
+$requiredSymbolPresence = [ordered]@{}
 foreach ($symbol in $requiredSymbols) {
     if ($symbolText -notmatch ("\b{0}\b" -f [regex]::Escape($symbol))) {
         throw "H artifact diagnostic contract missing symbol: $symbol"
     }
+    $requiredSymbolPresence[$symbol] = $true
 }
 
 $retainedSizeSymbols = @(
@@ -344,13 +356,19 @@ finally {
     dynamic_hitbox_count = $buildResult.dynamic_hitbox_count
     editor_hitbox_count = $buildResult.editor_hitbox_count
     framebuffer_count = $buildResult.framebuffer_symbol_count
+    framebuffer_symbols = $buildResult.framebuffer_symbol_names
     second_framebuffer_count = $buildResult.second_framebuffer_symbol_hits
+    framebuffer_bytes = $buildResult.framebuffer_bytes
+    offscreen_buffer_object_count = $buildResult.offscreen_buffer_object_count
+    offscreen_buffer_bytes = $buildResult.offscreen_buffer_bytes
     editor_state_bytes = $buildResult.editor_state_bytes
     program = $program
     program_sha256 = $programSha256
     build_matrix_summary = $matrixSummaryPath
     retained_size_symbols = $retainedSizeSymbols
     retained_size_symbols_missing = @()
+    required_symbol_presence = $requiredSymbolPresence
+    lcd_double_buffer_debug_symbols = $lcdDoubleBufferDebugSymbols
     endurance_minutes = $EnduranceMinutes
     interaction_timeout_seconds = $InteractionTimeoutSeconds
     operator_instructions = $instructionPath

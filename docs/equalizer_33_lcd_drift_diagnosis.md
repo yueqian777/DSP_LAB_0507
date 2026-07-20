@@ -141,3 +141,26 @@ change the historical conclusion: hardened Dynamic Status, physical Touch,
 editor visuals, and combined endurance remain `PENDING_HARDWARE`. In
 particular, an offline PNG cannot prove that the dynamic or editor page no
 longer drifts on the physical LCD.
+
+## Current double-buffer correction
+
+The historical single-framebuffer evidence above is retained as the failure
+record. The current Editor implementation no longer edits the scanned page
+while constructing another page. Dynamic Status and Editor own separate
+800x480 RGB565 buffers in external DDR, and each fixed region is cleared and
+redrawn immediately in the hidden buffer.
+
+LCDC uses FB0 and FB1 descriptors in double-frame mode. EOF0 publishes the
+target address to idle FB0, EOF1 publishes it to idle FB1, and software accepts
+the page only after both descriptors match. A rapid reverse request during a
+partial descriptor swap is queued and starts after convergence. Host C89 tests
+cover this ordering and the TI C6000 full Editor profile compiles and links with
+zero warnings and `link_errors=0x0`. Absence of circular shift on the physical
+LCD remains `PENDING_HARDWARE` until the board is loaded and observed.
+
+DMA mode and descriptor reconfiguration now occurs only after Raster disable
+has produced `LCD_STAT.DONE`. Startup waits with a bounded timeout before
+building either page. A runtime hardware fault performs only a short bounded
+poll: when `DONE` is not yet visible it keeps Raster off, does not rewrite a
+possibly active descriptor, and retains the partial-swap evidence. The stop
+timeout counter is part of the DSS acceptance contract and must remain zero.

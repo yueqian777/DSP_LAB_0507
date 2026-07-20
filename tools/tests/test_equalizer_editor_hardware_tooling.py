@@ -116,8 +116,10 @@ class EqualizerEditorHardwareToolingTest(unittest.TestCase):
             "job_count -ne 27",
             "dynamic_hitbox_count -ne 12",
             "editor_hitbox_count -ne 20",
-            "framebuffer_symbol_count -ne 1",
-            "second_framebuffer_symbol_hits -ne 0",
+            "framebuffer_symbol_count -ne 2",
+            "second_framebuffer_symbol_hits -ne 1",
+            "offscreen_buffer_object_count -ne 2",
+            "offscreen_buffer_bytes -ne $buildResult.framebuffer_bytes",
             "editor_state_bytes -le 0",
         ):
             with self.subTest(token=token):
@@ -125,6 +127,43 @@ class EqualizerEditorHardwareToolingTest(unittest.TestCase):
         self.assertLess(
             source.index("CLEAN_BUILD_PROFILE=H_project33_full"),
             source.index("Start-Process"),
+        )
+
+    def test_h_profile_requires_double_buffer_debug_symbols_in_result(self):
+        source = RUNNER.read_text(encoding="utf-8")
+        symbols = (
+            "EQ_DebugLcdDoubleBufferEnabled",
+            "EQ_DebugLcdFrontPage",
+            "EQ_DebugLcdSwapTargetPage",
+            "EQ_DebugLcdSwapPending",
+            "EQ_DebugLcdSwapDescriptorMask",
+            "EQ_DebugLcdEofCount",
+            "EQ_DebugLcdEofAmbiguousCount",
+            "EQ_DebugLcdSwapRequestCount",
+            "EQ_DebugLcdSwapCompleteCount",
+            "EQ_DebugLcdCurrentFrame1Base",
+            "EQ_DebugLcdCurrentFrame1End",
+            "EQ_DebugLcdRasterStopTimeoutCount",
+        )
+        required_start = source.index("$lcdDoubleBufferDebugSymbols = @(")
+        required_end = source.index(")\n$requiredSymbols = @(", required_start)
+        required_block = source[required_start:required_end]
+        for symbol in symbols:
+            with self.subTest(symbol=symbol):
+                self.assertIn(symbol, required_block)
+        self.assertIn(
+            ") + $lcdDoubleBufferDebugSymbols", source
+        )
+        self.assertIn(
+            "required_symbol_presence = $requiredSymbolPresence", source
+        )
+        self.assertIn(
+            "lcd_double_buffer_debug_symbols = $lcdDoubleBufferDebugSymbols",
+            source,
+        )
+        self.assertIn(
+            "framebuffer_symbols = $buildResult.framebuffer_symbol_names",
+            source,
         )
 
     def test_operator_visual_templates_remain_operator_owned(self):
@@ -171,6 +210,7 @@ class EqualizerEditorHardwareToolingTest(unittest.TestCase):
             "EQ_DebugLcdRasterFaultCount",
             "EQ_DebugLcdFifoUnderflowCount",
             "EQ_DebugLcdFramebufferCanaryFailureCount",
+            "EQ_DebugLcdRasterStopTimeoutCount",
             "EQ_DebugDeadlineMissCount",
             "EQ_DebugFrameServiceOverlapCount",
             "EQ_DebugFrameServiceDroppedCount",
@@ -286,6 +326,11 @@ class EqualizerEditorHardwareToolingTest(unittest.TestCase):
             "EQ_DebugLcdAnalyzerMaxStripHeight",
             "EQ_DebugLcdAnalyzerStripCount",
             "EQ_DebugLcdAnalyzerValueCount",
+            "EQ_DebugLcdDoubleBufferEnabled",
+            "EQ_DebugLcdSwapDescriptorMask",
+            "EQ_DebugLcdEofAmbiguousCount",
+            "EQ_DebugLcdCurrentFrame1Base",
+            "EQ_DebugLcdCurrentFrame1End",
             "EQ_DebugLcdCategoryCount[",
             "EQ_DebugLcdCategoryMaxCycles[",
             "EQ_DebugLcdJobTypeCount[",

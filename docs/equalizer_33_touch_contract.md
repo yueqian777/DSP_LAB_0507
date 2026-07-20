@@ -73,8 +73,10 @@ non-overlapping.
 Band selectors change only the selected index. Minus and plus change the local
 draft by one half-dB step and retain the existing press/release latch, so a
 held press cannot repeat. Apply submits one SET_ALL request and Reset submits
-RESET_FLAT. While page tiles are incomplete, old-page content actions are
-rejected and counted; page switch remains latest-wins.
+RESET_FLAT. While hidden-page regions are incomplete, old-page content actions
+are rejected and counted. Page switch is latest-wins until descriptor
+publication starts; after one DMA descriptor has changed, the latest request is
+retained and applied only after both descriptors converge at EOF boundaries.
 
 `EQ_ENABLE_TEN_BAND_EDITOR_TOUCH` defaults to 0 and is rejected unless both
 the editor and Project 3.3 Touch are enabled. These Host contracts do not prove

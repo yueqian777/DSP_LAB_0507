@@ -1033,6 +1033,8 @@ static void initialize_context(STRESS_CONTEXT *context)
     memset(&hardware, 0, sizeof(hardware));
     hardware.frame_base = EQ_DebugLcdExpectedFrameBase;
     hardware.frame_end = EQ_DebugLcdExpectedFrameEnd;
+    hardware.frame1_base = EQ_DebugLcdExpectedFrameBase;
+    hardware.frame1_end = EQ_DebugLcdExpectedFrameEnd;
     hardware.raster_control = 1UL;
     EqualizerDisplay_TestSetHardwareSnapshot(&hardware);
     CHECK(context, EqualizerDisplay_DrawStaticLayout() == 1);

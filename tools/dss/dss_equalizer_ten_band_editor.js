@@ -205,10 +205,22 @@ var symbols = {
     lcd_canary_checks: "EQ_DebugLcdFramebufferCanaryCheckCount",
     lcd_canary_failures: "EQ_DebugLcdFramebufferCanaryFailureCount",
     lcd_fault_latched: "EQ_DebugLcdFaultLatched",
+    lcd_double_buffer_enabled: "EQ_DebugLcdDoubleBufferEnabled",
+    lcd_front_page: "EQ_DebugLcdFrontPage",
+    lcd_swap_target_page: "EQ_DebugLcdSwapTargetPage",
+    lcd_swap_pending: "EQ_DebugLcdSwapPending",
+    lcd_swap_descriptor_mask: "EQ_DebugLcdSwapDescriptorMask",
+    lcd_eof_count: "EQ_DebugLcdEofCount",
+    lcd_eof_ambiguous: "EQ_DebugLcdEofAmbiguousCount",
+    lcd_swap_requests: "EQ_DebugLcdSwapRequestCount",
+    lcd_swap_completes: "EQ_DebugLcdSwapCompleteCount",
+    lcd_raster_stop_timeout: "EQ_DebugLcdRasterStopTimeoutCount",
     lcd_expected_base: "EQ_DebugLcdExpectedFrameBase",
     lcd_expected_end: "EQ_DebugLcdExpectedFrameEnd",
     lcd_current_base: "EQ_DebugLcdCurrentFrameBase",
-    lcd_current_end: "EQ_DebugLcdCurrentFrameEnd"
+    lcd_current_end: "EQ_DebugLcdCurrentFrameEnd",
+    lcd_current1_base: "EQ_DebugLcdCurrentFrame1Base",
+    lcd_current1_end: "EQ_DebugLcdCurrentFrame1End"
 };
 
 function jsonQuote(value) {
@@ -762,14 +774,21 @@ function verifyLcdSafety(before, after, name, durationMilliseconds) {
         name + ": LCD redraw/bounds/auto-disable fault");
     requireCondition(after.lcd_raster_fault == 0 &&
         after.lcd_sync_lost == 0 && after.lcd_fifo_underflow == 0 &&
-        after.lcd_frame_mismatch == 0 && after.lcd_fault_latched == 0,
+        after.lcd_frame_mismatch == 0 && after.lcd_fault_latched == 0 &&
+        after.lcd_raster_stop_timeout == 0,
         name + ": raster/fifo/frame fault is nonzero");
+    requireCondition(after.lcd_double_buffer_enabled == 1 &&
+        after.lcd_swap_pending == 0 && after.lcd_eof_ambiguous == 0 &&
+        after.lcd_front_page == after.displayed_page,
+        name + ": double-buffer page state is not stable");
     requireCondition(after.lcd_canary_failures == 0 &&
         delta(after, before, "lcd_canary_checks") > 0,
         name + ": framebuffer canary check failed or did not run");
     requireCondition(after.lcd_current_base == after.lcd_expected_base &&
-        after.lcd_current_end == after.lcd_expected_end,
-        name + ": active framebuffer address does not match expected range");
+        after.lcd_current_end == after.lcd_expected_end &&
+        after.lcd_current1_base == after.lcd_expected_base &&
+        after.lcd_current1_end == after.lcd_expected_end,
+        name + ": framebuffer descriptors do not match expected range");
     requireCondition(after.lcd_job_type_count.length ==
         after.array_sizes.lcd_job_type_count,
         name + ": LCD job snapshot length mismatch");

@@ -95,8 +95,50 @@ class EqualizerUiBuildMatrixContractTest(unittest.TestCase):
         for index, name in enumerate(names):
             next_name = names[index + 1] if index + 1 < len(names) else None
             block = self.profile(name, next_name)
-            expected = 0 if name == "B_project33_lcd_off" else 1
+            if name == "B_project33_lcd_off":
+                expected = 0
+            elif name.startswith(("F_", "G_", "H_")):
+                expected = 2
+            else:
+                expected = 1
             self.assertIn(f"expected_framebuffer_count = {expected}", block)
+            expected_second = 1 if expected == 2 else 0
+            self.assertIn(
+                "expected_second_framebuffer_symbol_hits = "
+                f"{expected_second}",
+                block,
+            )
+
+    def test_editor_profiles_require_exact_second_framebuffer_symbol(self) -> None:
+        for name, next_name in (
+            ("F_project33_editor_readonly", "G_project33_editor_touch"),
+            ("G_project33_editor_touch", "H_project33_full"),
+            ("H_project33_full", None),
+        ):
+            with self.subTest(profile=name):
+                block = self.profile(name, next_name)
+                self.assertIn("expected_framebuffer_count = 2", block)
+                self.assertIn(
+                    "expected_second_framebuffer_symbol_hits = 1", block
+                )
+        for token in (
+            '$_.name -eq "EQ_LcdEditorBuffer"',
+            '@("EQ_LcdEditorBuffer", "Lcd_Buffer")',
+            "Unexpected framebuffer symbol set",
+            "Unexpected EQ_LcdEditorBuffer count",
+        ):
+            self.assertIn(token, self.script)
+
+    def test_offscreen_section_matches_all_large_framebuffers(self) -> None:
+        self.assertIn("$_.size -ge 700000", self.script)
+        self.assertIn(
+            "$framebufferBytes += [long]$framebufferSymbol.size",
+            self.script,
+        )
+        self.assertIn("$offscreenMatches.Count -ne", self.script)
+        self.assertIn(
+            "$offscreenBufferBytes -ne $framebufferBytes", self.script
+        )
 
     def test_link_and_memory_evidence_fields_are_collected(self) -> None:
         for token in (
@@ -108,7 +150,8 @@ class EqualizerUiBuildMatrixContractTest(unittest.TestCase):
             "dynamic_hitbox_count", "editor_hitbox_count",
             "editor_runtime_symbol_hits", "ui_subband_symbol_hits",
             "ui_subband_object_hits", "framebuffer_symbol_count",
-            "framebuffer_bytes", "offscreen_buffer_bytes",
+            "framebuffer_symbol_names", "framebuffer_bytes",
+            "offscreen_buffer_bytes",
             "offscreen_buffer_object_count", "second_framebuffer_symbol_hits",
         ):
             self.assertIn(token, self.script)
@@ -118,7 +161,8 @@ class EqualizerUiBuildMatrixContractTest(unittest.TestCase):
             "Editor runtime symbols retained while Editor is OFF",
             "UI symbols or objects placed in .subband_l2",
             "Unexpected linked framebuffer count",
-            "Second framebuffer candidate detected",
+            "Unexpected framebuffer symbol set",
+            "Unexpected EQ_LcdEditorBuffer count",
             "Unexpected UI job count",
             "Unexpected dynamic hitbox count",
             "Unexpected editor hitbox count",

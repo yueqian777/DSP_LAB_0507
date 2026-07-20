@@ -73,6 +73,7 @@ $profiles = @(
         expected_dynamic_hitbox_count = 0
         expected_editor_hitbox_count = 0
         expected_framebuffer_count = 1
+        expected_second_framebuffer_symbol_hits = 0
         defines = @(
             "--define=DSP_LAB_PROJECT_SELECT=32"
             "--define=EQ_USE_GENERATED_BUILD_ID=1"
@@ -99,6 +100,7 @@ $profiles = @(
         expected_dynamic_hitbox_count = 0
         expected_editor_hitbox_count = 0
         expected_framebuffer_count = 0
+        expected_second_framebuffer_symbol_hits = 0
         defines = "$project33 --define=EQ_ENABLE_LCD_DISPLAY=0 " +
             "--define=EQ_ENABLE_PROJECT33_TOUCH=0 " +
             "--define=EQ_ENABLE_TEN_BAND_EDITOR=0 " +
@@ -117,6 +119,7 @@ $profiles = @(
         expected_dynamic_hitbox_count = 12
         expected_editor_hitbox_count = 0
         expected_framebuffer_count = 1
+        expected_second_framebuffer_symbol_hits = 0
         defines = "$project33 --define=EQ_ENABLE_LCD_DISPLAY=1 " +
             "--define=EQ_ENABLE_PROJECT33_TOUCH=0 " +
             "--define=EQ_ENABLE_TEN_BAND_EDITOR=0 " +
@@ -135,6 +138,7 @@ $profiles = @(
         expected_dynamic_hitbox_count = 12
         expected_editor_hitbox_count = 0
         expected_framebuffer_count = 1
+        expected_second_framebuffer_symbol_hits = 0
         defines = "$project33 --define=EQ_ENABLE_LCD_DISPLAY=1 " +
             "--define=EQ_ENABLE_PROJECT33_TOUCH=0 " +
             "--define=EQ_ENABLE_TEN_BAND_EDITOR=0 " +
@@ -153,6 +157,7 @@ $profiles = @(
         expected_dynamic_hitbox_count = 12
         expected_editor_hitbox_count = 0
         expected_framebuffer_count = 1
+        expected_second_framebuffer_symbol_hits = 0
         defines = "$project33 --define=EQ_ENABLE_LCD_DISPLAY=1 " +
             "--define=EQ_ENABLE_PROJECT33_TOUCH=1 " +
             "--define=EQ_ENABLE_TEN_BAND_EDITOR=0 " +
@@ -170,7 +175,8 @@ $profiles = @(
         expected_job_count = 27
         expected_dynamic_hitbox_count = 12
         expected_editor_hitbox_count = 20
-        expected_framebuffer_count = 1
+        expected_framebuffer_count = 2
+        expected_second_framebuffer_symbol_hits = 1
         defines = "$project33 --define=EQ_ENABLE_LCD_DISPLAY=1 " +
             "--define=EQ_ENABLE_PROJECT33_TOUCH=0 " +
             "--define=EQ_ENABLE_TEN_BAND_EDITOR=1 " +
@@ -188,7 +194,8 @@ $profiles = @(
         expected_job_count = 27
         expected_dynamic_hitbox_count = 12
         expected_editor_hitbox_count = 20
-        expected_framebuffer_count = 1
+        expected_framebuffer_count = 2
+        expected_second_framebuffer_symbol_hits = 1
         defines = "$project33 --define=EQ_ENABLE_LCD_DISPLAY=1 " +
             "--define=EQ_ENABLE_PROJECT33_TOUCH=1 " +
             "--define=EQ_ENABLE_TEN_BAND_EDITOR=1 " +
@@ -206,7 +213,8 @@ $profiles = @(
         expected_job_count = 27
         expected_dynamic_hitbox_count = 12
         expected_editor_hitbox_count = 20
-        expected_framebuffer_count = 1
+        expected_framebuffer_count = 2
+        expected_second_framebuffer_symbol_hits = 1
         defines = "$project33 --define=EQ_ENABLE_LCD_DISPLAY=1 " +
             "--define=EQ_ENABLE_PROJECT33_TOUCH=1 " +
             "--define=EQ_ENABLE_TEN_BAND_EDITOR=1 " +
@@ -466,15 +474,22 @@ try {
 
         $framebufferSymbols = @($symbolTable | Where-Object {
             (($_.type -eq "OBJT") -or ($_.type -eq "COMN")) -and
-            ($_.name -eq "Lcd_Buffer")
-        })
-        $largeFramebufferSymbols = @($symbolTable | Where-Object {
-            (($_.type -eq "OBJT") -or ($_.type -eq "COMN")) -and
             ($_.size -ge 700000)
         })
-        $secondFramebufferSymbolHits = @($largeFramebufferSymbols |
-            Where-Object { $_.name -ne "Lcd_Buffer" }).Count
-        $framebufferBytes = Get-SymbolSize $symbolTable "Lcd_Buffer"
+        $secondFramebufferSymbolHits = @($framebufferSymbols |
+            Where-Object { $_.name -eq "EQ_LcdEditorBuffer" }).Count
+        $framebufferBytes = 0L
+        foreach ($framebufferSymbol in $framebufferSymbols) {
+            $framebufferBytes += [long]$framebufferSymbol.size
+        }
+        $expectedFramebufferNames = if ($profile.expected_framebuffer_count -eq 0) {
+            @()
+        } elseif ($profile.editor_enabled -ne 0) {
+            @("EQ_LcdEditorBuffer", "Lcd_Buffer")
+        } else {
+            @("Lcd_Buffer")
+        }
+        $actualFramebufferNames = @($framebufferSymbols.name | Sort-Object)
         $offscreenMatches = [regex]::Matches(
             $mapText,
             '(?im)^\s*[0-9a-f]+\s+([0-9a-f]+)\s+' +
@@ -526,8 +541,17 @@ try {
                 "$($framebufferSymbols.Count) != " +
                 "$($profile.expected_framebuffer_count)"
         }
-        if ($secondFramebufferSymbolHits -ne 0) {
-            throw "Second framebuffer candidate detected: $($profile.name)"
+        if (($actualFramebufferNames -join "|") -ne
+            ($expectedFramebufferNames -join "|")) {
+            throw "Unexpected framebuffer symbol set: $($profile.name) " +
+                "[$($actualFramebufferNames -join ',')] != " +
+                "[$($expectedFramebufferNames -join ',')]"
+        }
+        if ($secondFramebufferSymbolHits -ne
+            $profile.expected_second_framebuffer_symbol_hits) {
+            throw "Unexpected EQ_LcdEditorBuffer count: $($profile.name) " +
+                "$secondFramebufferSymbolHits != " +
+                "$($profile.expected_second_framebuffer_symbol_hits)"
         }
         if (($offscreenMatches.Count -ne
              $profile.expected_framebuffer_count) -or
@@ -569,6 +593,7 @@ try {
             ui_subband_symbol_hits = $uiSubbandSymbols.Count
             ui_subband_object_hits = $uiSubbandObjectHits
             framebuffer_symbol_count = $framebufferSymbols.Count
+            framebuffer_symbol_names = $actualFramebufferNames
             framebuffer_bytes = $framebufferBytes
             offscreen_buffer_bytes = $offscreenBufferBytes
             offscreen_buffer_object_count = $offscreenMatches.Count
