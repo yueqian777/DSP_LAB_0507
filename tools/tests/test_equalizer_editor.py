@@ -159,17 +159,24 @@ class EqualizerEditorTest(unittest.TestCase):
         chain_end = self.display.index(
             "static unsigned int EQ_DrawAnalyzerJob", chain_start)
         self.assertNotIn("EQ_ClearInside", self.display[chain_start:chain_end])
+        self.assertIn("EQ_UI_PAGE_TILE_DYNAMIC_CHAIN_FIRST", page_tile)
+        self.assertIn("EQ_UI_PAGE_TILE_DYNAMIC_CHAIN_LAST", page_tile)
+        self.assertIn(
+            "tile - EQ_UI_PAGE_TILE_DYNAMIC_CHAIN_FIRST", page_tile)
+        self.assertNotIn("index < EQ_UI_CHAIN_COUNT", page_tile)
         self.assertIn("#define EQ_UI_EDITOR_VALUE_CLEAR_W 96", self.display)
         self.assertIn("#define EQ_UI_EDITOR_VALUE_CLEAR_H 22", self.display)
 
     def test_page_build_has_explicit_region_counts(self) -> None:
-        self.assertIn("#define EQ_UI_PAGE_TILE_DYNAMIC_COUNT           16U",
+        self.assertIn("#define EQ_UI_PAGE_TILE_DYNAMIC_COUNT           18U",
                       self.ui_header)
         self.assertIn("#define EQ_UI_PAGE_TILE_EDITOR_COUNT            24U",
                       self.ui_header)
         self.assertIn("EQ_UI_PAGE_TILE_EDITOR_FIELD_LAST       22U",
                       self.ui_header)
-        self.assertIn("EQ_UI_PAGE_TILE_DYNAMIC_ROW_LAST        14U",
+        self.assertIn("EQ_UI_PAGE_TILE_DYNAMIC_CHAIN_LAST      9U",
+                      self.ui_header)
+        self.assertIn("EQ_UI_PAGE_TILE_DYNAMIC_ROW_LAST        16U",
                       self.ui_header)
         self.assertNotIn("EQ_UI_PAGE_CLEAR_STRIP_HEIGHT", self.display)
 

@@ -2732,12 +2732,11 @@ static unsigned int EQ_DrawPageTile(void)
         return 0U;
     }
 
-    if (tile == EQ_UI_PAGE_TILE_DYNAMIC_CHAIN)
+    if ((tile >= EQ_UI_PAGE_TILE_DYNAMIC_CHAIN_FIRST) &&
+        (tile <= EQ_UI_PAGE_TILE_DYNAMIC_CHAIN_LAST))
     {
-        for (index = 0; index < EQ_UI_CHAIN_COUNT; index++)
-        {
-            EQ_DrawChainJob(index);
-        }
+        index = (int)(tile - EQ_UI_PAGE_TILE_DYNAMIC_CHAIN_FIRST);
+        EQ_DrawChainJob(index);
         return 1U;
     }
     else if ((tile >= EQ_UI_PAGE_TILE_DYNAMIC_ANALYZER_FIRST) &&

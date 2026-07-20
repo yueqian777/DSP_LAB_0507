@@ -1433,14 +1433,15 @@ static void EQ_UI_CompleteDynamicPageTile(EQ_UI_STATE *state,
 {
     int index;
 
-    if (tile == EQ_UI_PAGE_TILE_DYNAMIC_CHAIN)
+    if ((tile >= EQ_UI_PAGE_TILE_DYNAMIC_CHAIN_FIRST) &&
+        (tile <= EQ_UI_PAGE_TILE_DYNAMIC_CHAIN_LAST))
     {
-        state->chain_displayed_enabled[0] =
-            (unsigned char)state->requested.smart_enabled;
-        state->chain_displayed_enabled[1] =
-            (unsigned char)state->requested.clarity_enabled;
-        state->chain_displayed_enabled[2] =
-            (unsigned char)state->requested.guard_enabled;
+        index = (int)(tile - EQ_UI_PAGE_TILE_DYNAMIC_CHAIN_FIRST);
+        state->chain_displayed_enabled[index] =
+            (unsigned char)((index == 0) ? state->requested.smart_enabled :
+                            ((index == 1) ?
+                             state->requested.clarity_enabled :
+                             state->requested.guard_enabled));
     }
     else if ((tile >= EQ_UI_PAGE_TILE_DYNAMIC_ANALYZER_FIRST) &&
              (tile <= EQ_UI_PAGE_TILE_DYNAMIC_ANALYZER_LAST))
