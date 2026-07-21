@@ -1,0 +1,690 @@
+{
+  "pass": true,
+  "commit_sha": "b64282660e686a79eb4ba838f5918f0b18dec2fb",
+  "output_sha256": "78520eff999ba604f5adef5498944c4814f3bdeae28a0bfc81e51457976744a3",
+  "evidence_classes": [
+    "HOST_MODEL",
+    "BOARD_INTERNAL_DIGITAL"
+  ],
+  "response": {
+    "pass": true,
+    "evidence_class": "BOARD_INTERNAL_DIGITAL",
+    "reference_class": "HOST_MODEL",
+    "magnitude_error_limit_db": 0.15,
+    "impulse_peak_pcm16": 29490,
+    "impulse_peak_dbfs": -0.9152381717980183,
+    "magnitude_error_p95_db": 0.01788275542061297,
+    "magnitude_error_max_db": 0.07757936642268248,
+    "group_delay_error_p95_samples": 0.5173245276965042,
+    "group_delay_error_max_samples": 12.17622859146929,
+    "group_delay_has_no_fabricated_limit": true,
+    "cases": [
+      {
+        "case": "FLAT",
+        "preamp_db": 0.0,
+        "clip_count": 0,
+        "flat_impulse_byte_exact": true,
+        "magnitude_error_p95_db": 0.0,
+        "magnitude_error_max_db": 0.0,
+        "phase_error_max_rad": 0.0,
+        "group_delay_error_p95_samples": 0.0,
+        "group_delay_error_max_samples": 0.0,
+        "group_delay_valid_point_count": 2945
+      },
+      {
+        "case": "BASS",
+        "preamp_db": -4.082157135009766,
+        "clip_count": 0,
+        "flat_impulse_byte_exact": true,
+        "magnitude_error_p95_db": 0.022671087030384895,
+        "magnitude_error_max_db": 0.07757936642268248,
+        "phase_error_max_rad": 0.018531548225141095,
+        "group_delay_error_p95_samples": 0.8636257386904768,
+        "group_delay_error_max_samples": 12.17622859146929,
+        "group_delay_valid_point_count": 2945
+      },
+      {
+        "case": "VOCAL",
+        "preamp_db": -4.300339698791504,
+        "clip_count": 0,
+        "flat_impulse_byte_exact": true,
+        "magnitude_error_p95_db": 0.006227302487831696,
+        "magnitude_error_max_db": 0.04812351359137246,
+        "phase_error_max_rad": 0.007006069962462974,
+        "group_delay_error_p95_samples": 0.4093578136844168,
+        "group_delay_error_max_samples": 5.371377366444335,
+        "group_delay_valid_point_count": 2945
+      },
+      {
+        "case": "TREBLE",
+        "preamp_db": -3.9103469848632812,
+        "clip_count": 0,
+        "flat_impulse_byte_exact": true,
+        "magnitude_error_p95_db": 0.007086585938784919,
+        "magnitude_error_max_db": 0.06359946812817441,
+        "phase_error_max_rad": 0.012885344959840407,
+        "group_delay_error_p95_samples": 0.4807729004109629,
+        "group_delay_error_max_samples": 6.340203340035991,
+        "group_delay_valid_point_count": 2945
+      },
+      {
+        "case": "V_SHAPE",
+        "preamp_db": -2.8192741870880127,
+        "clip_count": 0,
+        "flat_impulse_byte_exact": true,
+        "magnitude_error_p95_db": 0.008419314293921789,
+        "magnitude_error_max_db": 0.043538090192517975,
+        "phase_error_max_rad": 0.004487679314366749,
+        "group_delay_error_p95_samples": 0.7111308094755695,
+        "group_delay_error_max_samples": 4.5163554111393225,
+        "group_delay_valid_point_count": 2945
+      },
+      {
+        "case": "CUSTOM_STRESS",
+        "preamp_db": -5.4308342933654785,
+        "clip_count": 0,
+        "flat_impulse_byte_exact": true,
+        "magnitude_error_p95_db": 0.007470700131683164,
+        "magnitude_error_max_db": 0.050910002515136554,
+        "phase_error_max_rad": 0.005937664572613965,
+        "group_delay_error_p95_samples": 0.5080180435527598,
+        "group_delay_error_max_samples": 5.618611797585629,
+        "group_delay_valid_point_count": 2945
+      }
+    ]
+  },
+  "thd": {
+    "pass": true,
+    "evidence_label": "BOARD_INTERNAL_DIGITAL_NO_DAC_ANALOG_THD",
+    "case_count": 36,
+    "measured_case_count": 30,
+    "not_measurable_case_count": 6,
+    "not_measurable_reason": "At 15.966796875 kHz, 2*f exceeds the 25 kHz Nyquist frequency; no 2nd-20th in-band harmonic exists, so THD is not fabricated.",
+    "failure_count": 0,
+    "thd_limit_db": -60.0,
+    "output_thd_worst_db": -82.02559057336242,
+    "output_thd_median_db": -90.17505922457232,
+    "thd_increase_max_db": 14.595467972296461,
+    "normal_mode_clip_count": 0,
+    "external_analog_thd": "NOT_MEASURED",
+    "cases": [
+      {
+        "case": "FLAT",
+        "frequency_hz": 97.65625,
+        "input_thd_db": -90.69054840512025,
+        "output_thd_db": -90.69054840512025,
+        "thd_increase_db": 0.0,
+        "clip_count": 0,
+        "measurement_status": "MEASURED",
+        "pass": true
+      },
+      {
+        "case": "BASS",
+        "frequency_hz": 97.65625,
+        "input_thd_db": -90.69054840512025,
+        "output_thd_db": -90.9503717702593,
+        "thd_increase_db": -0.2598233651390416,
+        "clip_count": 0,
+        "measurement_status": "MEASURED",
+        "pass": true
+      },
+      {
+        "case": "VOCAL",
+        "frequency_hz": 97.65625,
+        "input_thd_db": -90.69054840512025,
+        "output_thd_db": -85.79503860915345,
+        "thd_increase_db": 4.895509795966802,
+        "clip_count": 0,
+        "measurement_status": "MEASURED",
+        "pass": true
+      },
+      {
+        "case": "TREBLE",
+        "frequency_hz": 97.65625,
+        "input_thd_db": -90.69054840512025,
+        "output_thd_db": -89.28828199726792,
+        "thd_increase_db": 1.4022664078523377,
+        "clip_count": 0,
+        "measurement_status": "MEASURED",
+        "pass": true
+      },
+      {
+        "case": "V_SHAPE",
+        "frequency_hz": 97.65625,
+        "input_thd_db": -90.69054840512025,
+        "output_thd_db": -93.85769111901892,
+        "thd_increase_db": -3.16714271389867,
+        "clip_count": 0,
+        "measurement_status": "MEASURED",
+        "pass": true
+      },
+      {
+        "case": "CUSTOM_STRESS",
+        "frequency_hz": 97.65625,
+        "input_thd_db": -90.69054840512025,
+        "output_thd_db": -87.70630114232965,
+        "thd_increase_db": 2.9842472627906034,
+        "clip_count": 0,
+        "measurement_status": "MEASURED",
+        "pass": true
+      },
+      {
+        "case": "FLAT",
+        "frequency_hz": 390.625,
+        "input_thd_db": -84.32590785618254,
+        "output_thd_db": -84.32590785618254,
+        "thd_increase_db": 0.0,
+        "clip_count": 0,
+        "measurement_status": "MEASURED",
+        "pass": true
+      },
+      {
+        "case": "BASS",
+        "frequency_hz": 390.625,
+        "input_thd_db": -84.32590785618254,
+        "output_thd_db": -84.08971739011628,
+        "thd_increase_db": 0.2361904660662617,
+        "clip_count": 0,
+        "measurement_status": "MEASURED",
+        "pass": true
+      },
+      {
+        "case": "VOCAL",
+        "frequency_hz": 390.625,
+        "input_thd_db": -84.32590785618254,
+        "output_thd_db": -84.03636210703084,
+        "thd_increase_db": 0.2895457491516993,
+        "clip_count": 0,
+        "measurement_status": "MEASURED",
+        "pass": true
+      },
+      {
+        "case": "TREBLE",
+        "frequency_hz": 390.625,
+        "input_thd_db": -84.32590785618254,
+        "output_thd_db": -82.02559057336242,
+        "thd_increase_db": 2.3003172828201173,
+        "clip_count": 0,
+        "measurement_status": "MEASURED",
+        "pass": true
+      },
+      {
+        "case": "V_SHAPE",
+        "frequency_hz": 390.625,
+        "input_thd_db": -84.32590785618254,
+        "output_thd_db": -82.69361473800005,
+        "thd_increase_db": 1.6322931181824885,
+        "clip_count": 0,
+        "measurement_status": "MEASURED",
+        "pass": true
+      },
+      {
+        "case": "CUSTOM_STRESS",
+        "frequency_hz": 390.625,
+        "input_thd_db": -84.32590785618254,
+        "output_thd_db": -88.69649520065019,
+        "thd_increase_db": -4.370587344467651,
+        "clip_count": 0,
+        "measurement_status": "MEASURED",
+        "pass": true
+      },
+      {
+        "case": "FLAT",
+        "frequency_hz": 976.5625,
+        "input_thd_db": -86.40357382886627,
+        "output_thd_db": -86.40357382886627,
+        "thd_increase_db": 0.0,
+        "clip_count": 0,
+        "measurement_status": "MEASURED",
+        "pass": true
+      },
+      {
+        "case": "BASS",
+        "frequency_hz": 976.5625,
+        "input_thd_db": -86.40357382886627,
+        "output_thd_db": -86.19008999080775,
+        "thd_increase_db": 0.21348383805852222,
+        "clip_count": 0,
+        "measurement_status": "MEASURED",
+        "pass": true
+      },
+      {
+        "case": "VOCAL",
+        "frequency_hz": 976.5625,
+        "input_thd_db": -86.40357382886627,
+        "output_thd_db": -89.6595700440244,
+        "thd_increase_db": -3.2559962151581345,
+        "clip_count": 0,
+        "measurement_status": "MEASURED",
+        "pass": true
+      },
+      {
+        "case": "TREBLE",
+        "frequency_hz": 976.5625,
+        "input_thd_db": -86.40357382886627,
+        "output_thd_db": -84.84314145050787,
+        "thd_increase_db": 1.5604323783583993,
+        "clip_count": 0,
+        "measurement_status": "MEASURED",
+        "pass": true
+      },
+      {
+        "case": "V_SHAPE",
+        "frequency_hz": 976.5625,
+        "input_thd_db": -86.40357382886627,
+        "output_thd_db": -83.5222622010253,
+        "thd_increase_db": 2.8813116278409723,
+        "clip_count": 0,
+        "measurement_status": "MEASURED",
+        "pass": true
+      },
+      {
+        "case": "CUSTOM_STRESS",
+        "frequency_hz": 976.5625,
+        "input_thd_db": -86.40357382886627,
+        "output_thd_db": -88.21960701226382,
+        "thd_increase_db": -1.8160331833975505,
+        "clip_count": 0,
+        "measurement_status": "MEASURED",
+        "pass": true
+      },
+      {
+        "case": "FLAT",
+        "frequency_hz": 4003.90625,
+        "input_thd_db": -110.8614003374532,
+        "output_thd_db": -110.8614003374532,
+        "thd_increase_db": 0.0,
+        "clip_count": 0,
+        "measurement_status": "MEASURED",
+        "pass": true
+      },
+      {
+        "case": "BASS",
+        "frequency_hz": 4003.90625,
+        "input_thd_db": -110.8614003374532,
+        "output_thd_db": -102.83305000532066,
+        "thd_increase_db": 8.028350332132547,
+        "clip_count": 0,
+        "measurement_status": "MEASURED",
+        "pass": true
+      },
+      {
+        "case": "VOCAL",
+        "frequency_hz": 4003.90625,
+        "input_thd_db": -110.8614003374532,
+        "output_thd_db": -107.15831695253044,
+        "thd_increase_db": 3.7030833849227633,
+        "clip_count": 0,
+        "measurement_status": "MEASURED",
+        "pass": true
+      },
+      {
+        "case": "TREBLE",
+        "frequency_hz": 4003.90625,
+        "input_thd_db": -110.8614003374532,
+        "output_thd_db": -107.35164051582218,
+        "thd_increase_db": 3.5097598216310217,
+        "clip_count": 0,
+        "measurement_status": "MEASURED",
+        "pass": true
+      },
+      {
+        "case": "V_SHAPE",
+        "frequency_hz": 4003.90625,
+        "input_thd_db": -110.8614003374532,
+        "output_thd_db": -102.77370375760859,
+        "thd_increase_db": 8.087696579844618,
+        "clip_count": 0,
+        "measurement_status": "MEASURED",
+        "pass": true
+      },
+      {
+        "case": "CUSTOM_STRESS",
+        "frequency_hz": 4003.90625,
+        "input_thd_db": -110.8614003374532,
+        "output_thd_db": -96.26593236515674,
+        "thd_increase_db": 14.595467972296461,
+        "clip_count": 0,
+        "measurement_status": "MEASURED",
+        "pass": true
+      },
+      {
+        "case": "FLAT",
+        "frequency_hz": 8007.8125,
+        "input_thd_db": -100.08769670164855,
+        "output_thd_db": -100.08769670164855,
+        "thd_increase_db": 0.0,
+        "clip_count": 0,
+        "measurement_status": "MEASURED",
+        "pass": true
+      },
+      {
+        "case": "BASS",
+        "frequency_hz": 8007.8125,
+        "input_thd_db": -100.08769670164855,
+        "output_thd_db": -101.03266538711155,
+        "thd_increase_db": -0.944968685462996,
+        "clip_count": 0,
+        "measurement_status": "MEASURED",
+        "pass": true
+      },
+      {
+        "case": "VOCAL",
+        "frequency_hz": 8007.8125,
+        "input_thd_db": -100.08769670164855,
+        "output_thd_db": -98.44916644439107,
+        "thd_increase_db": 1.6385302572574858,
+        "clip_count": 0,
+        "measurement_status": "MEASURED",
+        "pass": true
+      },
+      {
+        "case": "TREBLE",
+        "frequency_hz": 8007.8125,
+        "input_thd_db": -100.08769670164855,
+        "output_thd_db": -100.77876912358667,
+        "thd_increase_db": -0.6910724219381166,
+        "clip_count": 0,
+        "measurement_status": "MEASURED",
+        "pass": true
+      },
+      {
+        "case": "V_SHAPE",
+        "frequency_hz": 8007.8125,
+        "input_thd_db": -100.08769670164855,
+        "output_thd_db": -98.88431861949756,
+        "thd_increase_db": 1.2033780821509907,
+        "clip_count": 0,
+        "measurement_status": "MEASURED",
+        "pass": true
+      },
+      {
+        "case": "CUSTOM_STRESS",
+        "frequency_hz": 8007.8125,
+        "input_thd_db": -100.08769670164855,
+        "output_thd_db": -97.2319321145375,
+        "thd_increase_db": 2.8557645871110537,
+        "clip_count": 0,
+        "measurement_status": "MEASURED",
+        "pass": true
+      },
+      {
+        "case": "FLAT",
+        "frequency_hz": 15966.796875,
+        "input_thd_db": null,
+        "output_thd_db": null,
+        "thd_increase_db": "NOT_MEASURABLE",
+        "clip_count": 0,
+        "measurement_status": "NOT_MEASURABLE_NO_IN_BAND_HARMONICS",
+        "pass": null
+      },
+      {
+        "case": "BASS",
+        "frequency_hz": 15966.796875,
+        "input_thd_db": null,
+        "output_thd_db": null,
+        "thd_increase_db": "NOT_MEASURABLE",
+        "clip_count": 0,
+        "measurement_status": "NOT_MEASURABLE_NO_IN_BAND_HARMONICS",
+        "pass": null
+      },
+      {
+        "case": "VOCAL",
+        "frequency_hz": 15966.796875,
+        "input_thd_db": null,
+        "output_thd_db": null,
+        "thd_increase_db": "NOT_MEASURABLE",
+        "clip_count": 0,
+        "measurement_status": "NOT_MEASURABLE_NO_IN_BAND_HARMONICS",
+        "pass": null
+      },
+      {
+        "case": "TREBLE",
+        "frequency_hz": 15966.796875,
+        "input_thd_db": null,
+        "output_thd_db": null,
+        "thd_increase_db": "NOT_MEASURABLE",
+        "clip_count": 0,
+        "measurement_status": "NOT_MEASURABLE_NO_IN_BAND_HARMONICS",
+        "pass": null
+      },
+      {
+        "case": "V_SHAPE",
+        "frequency_hz": 15966.796875,
+        "input_thd_db": null,
+        "output_thd_db": null,
+        "thd_increase_db": "NOT_MEASURABLE",
+        "clip_count": 0,
+        "measurement_status": "NOT_MEASURABLE_NO_IN_BAND_HARMONICS",
+        "pass": null
+      },
+      {
+        "case": "CUSTOM_STRESS",
+        "frequency_hz": 15966.796875,
+        "input_thd_db": null,
+        "output_thd_db": null,
+        "thd_increase_db": "NOT_MEASURABLE",
+        "clip_count": 0,
+        "measurement_status": "NOT_MEASURABLE_NO_IN_BAND_HARMONICS",
+        "pass": null
+      }
+    ]
+  },
+  "reference_snr": {
+    "pass": true,
+    "evidence_class": "BOARD_INTERNAL_DIGITAL",
+    "reference_class": "HOST_MODEL_HIGH_PRECISION_PCM16",
+    "case_count": 18,
+    "failure_count": 0,
+    "minimum_finite_reference_snr_db": 54.269450385880575,
+    "flat_all_byte_exact": true,
+    "external_analog_snr": "NOT_MEASURED",
+    "cases": [
+      {
+        "case": "FLAT",
+        "signal": "deterministic_broadband_noise",
+        "aligned_delay_samples": 0,
+        "reference_snr_db": "BYTE_EXACT",
+        "correlation": 1.0,
+        "energy_ratio": 1.0,
+        "max_abs_error": 0,
+        "clipped_samples": 0,
+        "pass": true
+      },
+      {
+        "case": "FLAT",
+        "signal": "music_like",
+        "aligned_delay_samples": 0,
+        "reference_snr_db": "BYTE_EXACT",
+        "correlation": 1.0,
+        "energy_ratio": 1.0,
+        "max_abs_error": 0,
+        "clipped_samples": 0,
+        "pass": true
+      },
+      {
+        "case": "FLAT",
+        "signal": "multitone",
+        "aligned_delay_samples": 0,
+        "reference_snr_db": "BYTE_EXACT",
+        "correlation": 1.0,
+        "energy_ratio": 1.0,
+        "max_abs_error": 0,
+        "clipped_samples": 0,
+        "pass": true
+      },
+      {
+        "case": "BASS",
+        "signal": "deterministic_broadband_noise",
+        "aligned_delay_samples": 0,
+        "reference_snr_db": 54.30935561268947,
+        "correlation": 0.9999997871688309,
+        "energy_ratio": 1.0036259450840852,
+        "max_abs_error": 7,
+        "clipped_samples": 0,
+        "pass": true
+      },
+      {
+        "case": "BASS",
+        "signal": "music_like",
+        "aligned_delay_samples": 0,
+        "reference_snr_db": 55.62048366755613,
+        "correlation": 0.9999997862759373,
+        "energy_ratio": 1.0030441354059672,
+        "max_abs_error": 4,
+        "clipped_samples": 0,
+        "pass": true
+      },
+      {
+        "case": "BASS",
+        "signal": "multitone",
+        "aligned_delay_samples": 0,
+        "reference_snr_db": 54.269450385880575,
+        "correlation": 0.9999997614860354,
+        "energy_ratio": 1.0036164006365687,
+        "max_abs_error": 3,
+        "clipped_samples": 0,
+        "pass": true
+      },
+      {
+        "case": "VOCAL",
+        "signal": "deterministic_broadband_noise",
+        "aligned_delay_samples": 0,
+        "reference_snr_db": 66.53979886987429,
+        "correlation": 0.999999889111527,
+        "energy_ratio": 1.000014335948373,
+        "max_abs_error": 2,
+        "clipped_samples": 0,
+        "pass": true
+      },
+      {
+        "case": "VOCAL",
+        "signal": "music_like",
+        "aligned_delay_samples": 0,
+        "reference_snr_db": 62.5511564499448,
+        "correlation": 0.9999997475224816,
+        "energy_ratio": 0.9995487631909722,
+        "max_abs_error": 1,
+        "clipped_samples": 0,
+        "pass": true
+      },
+      {
+        "case": "VOCAL",
+        "signal": "multitone",
+        "aligned_delay_samples": 0,
+        "reference_snr_db": 66.25628036902145,
+        "correlation": 0.9999998817687626,
+        "energy_ratio": 0.9999633094450497,
+        "max_abs_error": 1,
+        "clipped_samples": 0,
+        "pass": true
+      },
+      {
+        "case": "TREBLE",
+        "signal": "deterministic_broadband_noise",
+        "aligned_delay_samples": 0,
+        "reference_snr_db": 67.0779937691073,
+        "correlation": 0.9999999020163456,
+        "energy_ratio": 1.0000053459367908,
+        "max_abs_error": 2,
+        "clipped_samples": 0,
+        "pass": true
+      },
+      {
+        "case": "TREBLE",
+        "signal": "music_like",
+        "aligned_delay_samples": 0,
+        "reference_snr_db": 60.357407768534365,
+        "correlation": 0.9999996146058704,
+        "energy_ratio": 1.0007745204689948,
+        "max_abs_error": 2,
+        "clipped_samples": 0,
+        "pass": true
+      },
+      {
+        "case": "TREBLE",
+        "signal": "multitone",
+        "aligned_delay_samples": 0,
+        "reference_snr_db": 67.64230414431134,
+        "correlation": 0.9999999153024336,
+        "energy_ratio": 1.000103764092957,
+        "max_abs_error": 1,
+        "clipped_samples": 0,
+        "pass": true
+      },
+      {
+        "case": "V_SHAPE",
+        "signal": "deterministic_broadband_noise",
+        "aligned_delay_samples": 0,
+        "reference_snr_db": 69.87503807144864,
+        "correlation": 0.9999999489855558,
+        "energy_ratio": 0.99994022426239,
+        "max_abs_error": 2,
+        "clipped_samples": 0,
+        "pass": true
+      },
+      {
+        "case": "V_SHAPE",
+        "signal": "music_like",
+        "aligned_delay_samples": 0,
+        "reference_snr_db": 68.80335731679173,
+        "correlation": 0.9999999346862034,
+        "energy_ratio": 0.9999336521499793,
+        "max_abs_error": 1,
+        "clipped_samples": 0,
+        "pass": true
+      },
+      {
+        "case": "V_SHAPE",
+        "signal": "multitone",
+        "aligned_delay_samples": 0,
+        "reference_snr_db": 66.40948292578419,
+        "correlation": 0.9999998866015605,
+        "energy_ratio": 0.9999151528266695,
+        "max_abs_error": 1,
+        "clipped_samples": 0,
+        "pass": true
+      },
+      {
+        "case": "CUSTOM_STRESS",
+        "signal": "deterministic_broadband_noise",
+        "aligned_delay_samples": 0,
+        "reference_snr_db": 69.86935659271704,
+        "correlation": 0.9999999484736285,
+        "energy_ratio": 1.0000020307037922,
+        "max_abs_error": 1,
+        "clipped_samples": 0,
+        "pass": true
+      },
+      {
+        "case": "CUSTOM_STRESS",
+        "signal": "music_like",
+        "aligned_delay_samples": 0,
+        "reference_snr_db": 68.82324158927369,
+        "correlation": 0.99999993516228,
+        "energy_ratio": 1.0000759414083111,
+        "max_abs_error": 1,
+        "clipped_samples": 0,
+        "pass": true
+      },
+      {
+        "case": "CUSTOM_STRESS",
+        "signal": "multitone",
+        "aligned_delay_samples": 0,
+        "reference_snr_db": 66.34457798432209,
+        "correlation": 0.999999884062595,
+        "energy_ratio": 0.9999749354311718,
+        "max_abs_error": 1,
+        "clipped_samples": 0,
+        "pass": true
+      }
+    ]
+  },
+  "not_measured": {
+    "EXTERNAL_ANALOG_THD": "NOT_MEASURED",
+    "EXTERNAL_ANALOG_SNR": "NOT_MEASURED",
+    "EXTERNAL_ANALOG_FREQUENCY_RESPONSE": "NOT_MEASURED",
+    "SPL": "NOT_MEASURED",
+    "ADC_ENOB": "NOT_MEASURED"
+  }
+}

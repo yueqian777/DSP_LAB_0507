@@ -1,0 +1,10 @@
+{
+    "pass":  true,
+    "commit_sha":  "b64282660e686a79eb4ba838f5918f0b18dec2fb",
+    "output_sha256":  "78520eff999ba604f5adef5498944c4814f3bdeae28a0bfc81e51457976744a3",
+    "warning_count":  0,
+    "link_errors":  "0x0",
+    "result_directory":  "EXTERNAL_TEMP/final_metrics",
+    "analysis_directory":  "EXTERNAL_TEMP/final_metrics/analysis",
+    "final_board_state":  "RUNNING_DISCONNECTED"
+}
