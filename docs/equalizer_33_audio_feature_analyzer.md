@@ -9,8 +9,11 @@ builder dependency. It cannot modify the audio path.
 
 The default cadence is one analysis per eight input frames. The caller owns
 the analyzer state and decides when background execution is safe. Project 3.3
-starts with `EQ_DebugAnalyzerEnabled=0`; only an explicit CCS Watch write can
-enable capture and analysis.
+starts with `EQ_DebugAnalyzerEnabled=1` when the Analyzer is compiled, the LCD
+is enabled, and `EQ_UI_RUNTIME_DEFAULT_MASK` contains
+`EQ_UI_RUNTIME_ANALYZER`. Builds without that visible Analyzer surface retain
+the disabled default. CCS Watch can still override the runtime value or request
+an Analyzer reset.
 
 ## Signal Processing
 

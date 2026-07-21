@@ -444,7 +444,7 @@ class EqualizerFlowContractTest(unittest.TestCase):
         self.assertIn("TSCL = 0;", self.source)
         self.assertNotIn("TSCH =", self.source)
 
-    def test_analyzer_defaults_off_and_has_watch_diagnostics(self) -> None:
+    def test_analyzer_runtime_default_follows_ui_mask(self) -> None:
         self.assertIn("#define EQ_ENABLE_AUDIO_FEATURE_ANALYZER 0", self.header)
         self.assertIn(
             "volatile const unsigned int EQ_DebugAnalyzerCompiled =\n"
@@ -456,7 +456,27 @@ class EqualizerFlowContractTest(unittest.TestCase):
             self.header,
         )
         self.assertEqual(self.source.count("EQ_DebugAnalyzerCompiled"), 1)
-        self.assertIn("EQ_DebugAnalyzerEnabled = 0U", self.source)
+        self.assertIn(
+            "((EQ_UI_RUNTIME_DEFAULT_MASK & EQ_UI_RUNTIME_ANALYZER) != 0U)",
+            self.source,
+        )
+        self.assertIn(
+            "#define EQ_ANALYZER_RUNTIME_DEFAULT_ENABLED 1U",
+            self.source,
+        )
+        self.assertIn(
+            "#define EQ_ANALYZER_RUNTIME_DEFAULT_ENABLED 0U",
+            self.source,
+        )
+        self.assertIn(
+            "volatile unsigned int EQ_DebugAnalyzerEnabled =\n"
+            "    EQ_ANALYZER_RUNTIME_DEFAULT_ENABLED;",
+            self.source,
+        )
+        self.assertIn(
+            "EQ_DebugAnalyzerEnabled = EQ_ANALYZER_RUNTIME_DEFAULT_ENABLED;",
+            self.source,
+        )
         for name in (
             "EQ_DebugAnalyzerResetRequest",
             "EQ_DebugAnalyzerPending",

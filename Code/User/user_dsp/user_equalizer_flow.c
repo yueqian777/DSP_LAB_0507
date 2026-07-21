@@ -18,6 +18,14 @@
 #include "equalizer_build_id.h"
 #include "string.h"
 
+#if (EQ_ENABLE_AUDIO_FEATURE_ANALYZER != 0) && \
+    (EQ_ENABLE_LCD_DISPLAY != 0) && \
+    ((EQ_UI_RUNTIME_DEFAULT_MASK & EQ_UI_RUNTIME_ANALYZER) != 0U)
+#define EQ_ANALYZER_RUNTIME_DEFAULT_ENABLED 1U
+#else
+#define EQ_ANALYZER_RUNTIME_DEFAULT_ENABLED 0U
+#endif
+
 #ifndef EQ_ALGO_ONLY
 
 #include "dac_api.h"
@@ -425,7 +433,8 @@ volatile const unsigned long EQ_DebugUiTotalStateBytes =
 #endif
 volatile const unsigned int EQ_DebugAnalyzerCompiled =
     EQ_ENABLE_AUDIO_FEATURE_ANALYZER;
-volatile unsigned int EQ_DebugAnalyzerEnabled = 0U;
+volatile unsigned int EQ_DebugAnalyzerEnabled =
+    EQ_ANALYZER_RUNTIME_DEFAULT_ENABLED;
 volatile unsigned int EQ_DebugAnalyzerResetRequest = 0U;
 volatile unsigned int EQ_DebugAnalyzerPending = 0U;
 volatile unsigned int EQ_DebugAnalyzerValid = 0U;
@@ -3211,6 +3220,7 @@ void Equalizer_Flow_Example(void)
 #if EQ_ENABLE_AUDIO_FEATURE_ANALYZER != 0
     AudioFeatureAnalyzer_Init(&EQ_AudioAnalyzerState);
     memset(EQ_AnalyzerInput, 0, sizeof(EQ_AnalyzerInput));
+    EQ_DebugAnalyzerEnabled = EQ_ANALYZER_RUNTIME_DEFAULT_ENABLED;
     EqualizerAnalyzerRuntime_Init(&EQ_AnalyzerLastEnabled);
     EQ_ClearPublishedAnalyzerState(0);
     EQ_DebugAnalyzerResetRequest = 0U;
