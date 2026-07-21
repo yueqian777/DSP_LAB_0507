@@ -23,7 +23,7 @@ SAMPLE_RATE = 50000.0
 FRAME_LEN = 1024
 CAPTURE_SAMPLES = 8192
 PREROLL_SAMPLES = 4 * FRAME_LEN
-IMPULSE_PEAK = 16384.0
+IMPULSE_PEAK = 29490.0
 THD_LIMIT_DB = -60.0
 MAGNITUDE_ERROR_LIMIT_DB = 0.15
 CASE_NAMES = ("FLAT", "BASS", "VOCAL", "TREBLE", "V_SHAPE",
@@ -159,6 +159,8 @@ def analyze_response(response: np.ndarray,
         "evidence_class": "BOARD_INTERNAL_DIGITAL",
         "reference_class": "HOST_MODEL",
         "magnitude_error_limit_db": MAGNITUDE_ERROR_LIMIT_DB,
+        "impulse_peak_pcm16": int(IMPULSE_PEAK),
+        "impulse_peak_dbfs": 20.0 * math.log10(IMPULSE_PEAK / 32767.0),
         "magnitude_error_p95_db": float(np.percentile(all_magnitude_errors, 95.0)),
         "magnitude_error_max_db": float(maximum_magnitude_error),
         "group_delay_error_p95_samples": float(

@@ -177,62 +177,65 @@ $env:DSP_TEST_OUTPUT_SHA256 = $outputHash
 $dssStdout = Join-Path $rawDir "dss_stdout.log"
 $dssStderr = Join-Path $rawDir "dss_stderr.log"
 
+$restoreResult = "SKIPPED"
 try {
-    $process = Start-Process -FilePath $dss -ArgumentList @($dssScript) `
-        -PassThru -WindowStyle Hidden -RedirectStandardOutput $dssStdout `
-        -RedirectStandardError $dssStderr
-    if (-not $process.WaitForExit($DssTimeoutMinutes * 60 * 1000)) {
-        & taskkill.exe /PID $process.Id /T /F | Out-Null
-        throw "Final metrics DSS timed out."
-    }
-    $process.WaitForExit()
-    $process.Refresh()
-    if (($null -ne $process.ExitCode) -and ($process.ExitCode -ne 0)) {
-        throw "Final metrics DSS failed with exit code $($process.ExitCode)."
-    }
-    $dssSummaryPath = Join-Path $rawDir "dss_summary.json"
-    if (-not (Test-Path -LiteralPath $dssSummaryPath)) {
-        throw "DSS did not produce dss_summary.json."
-    }
-    $dssSummary = Get-Content -Raw -LiteralPath $dssSummaryPath |
-        ConvertFrom-Json
-    if (-not $dssSummary.pass) {
-        throw "DSS metrics failed: $($dssSummary.error)"
-    }
+    try {
+        $process = Start-Process -FilePath $dss -ArgumentList @($dssScript) `
+            -PassThru -WindowStyle Hidden -RedirectStandardOutput $dssStdout `
+            -RedirectStandardError $dssStderr
+        if (-not $process.WaitForExit($DssTimeoutMinutes * 60 * 1000)) {
+            & taskkill.exe /PID $process.Id /T /F | Out-Null
+            throw "Final metrics DSS timed out."
+        }
+        $process.WaitForExit()
+        $process.Refresh()
+        if (($null -ne $process.ExitCode) -and ($process.ExitCode -ne 0)) {
+            throw "Final metrics DSS failed with exit code $($process.ExitCode)."
+        }
+        $dssSummaryPath = Join-Path $rawDir "dss_summary.json"
+        if (-not (Test-Path -LiteralPath $dssSummaryPath)) {
+            throw "DSS did not produce dss_summary.json."
+        }
+        $dssSummary = Get-Content -Raw -LiteralPath $dssSummaryPath |
+            ConvertFrom-Json
+        if (-not $dssSummary.pass) {
+            throw "DSS metrics failed: $($dssSummary.error)"
+        }
 
-    & $PythonPath -B $analyzer --raw-dir $rawDir --output-dir $analysisDir
-    if ($LASTEXITCODE -ne 0) {
-        throw "Final metrics analysis failed."
-    }
-
-    $restoreResult = "SKIPPED"
-    if (-not $SkipRestore) {
-        $restoreBuildDir = Join-Path $OutputDirectory "restore_h_build"
-        & (Join-Path $root "tools\run_equalizer_ui_build_matrix.ps1") `
-            -ProfileNames H_project33_full -OutputDirectory $restoreBuildDir
+        & $PythonPath -B $analyzer --raw-dir $rawDir --output-dir $analysisDir
         if ($LASTEXITCODE -ne 0) {
-            throw "H restore build failed."
+            throw "Final metrics analysis failed."
         }
-        $restoreHash = (Get-FileHash -LiteralPath $program -Algorithm SHA256).Hash.ToLowerInvariant()
-        $env:DSP_TEST_PROGRAM = ($program -replace "\\", "/")
-        $env:DSP_TEST_RESULT_PATH = ((Join-Path $OutputDirectory `
-            "restore_h_running.json") -replace "\\", "/")
-        $restoreStdout = Join-Path $OutputDirectory "restore_h_stdout.log"
-        $restoreStderr = Join-Path $OutputDirectory "restore_h_stderr.log"
-        $restoreProcess = Start-Process -FilePath $dss -ArgumentList @($restoreScript) `
-            -PassThru -WindowStyle Hidden -RedirectStandardOutput $restoreStdout `
-            -RedirectStandardError $restoreStderr
-        if (-not $restoreProcess.WaitForExit($DssTimeoutMinutes * 60 * 1000)) {
-            & taskkill.exe /PID $restoreProcess.Id /T /F | Out-Null
-            throw "H restore DSS timed out."
+    }
+    finally {
+        if (-not $SkipRestore) {
+            $restoreBuildDir = Join-Path $OutputDirectory "restore_h_build"
+            & (Join-Path $root "tools\run_equalizer_ui_build_matrix.ps1") `
+                -ProfileNames H_project33_full -OutputDirectory $restoreBuildDir
+            if ($LASTEXITCODE -ne 0) {
+                throw "H restore build failed."
+            }
+            $restoreHash = (Get-FileHash -LiteralPath $program -Algorithm SHA256).Hash.ToLowerInvariant()
+            $env:DSP_TEST_PROGRAM = ($program -replace "\\", "/")
+            $env:DSP_TEST_RESULT_PATH = ((Join-Path $OutputDirectory `
+                "restore_h_running.json") -replace "\\", "/")
+            $restoreStdout = Join-Path $OutputDirectory "restore_h_stdout.log"
+            $restoreStderr = Join-Path $OutputDirectory "restore_h_stderr.log"
+            $restoreProcess = Start-Process -FilePath $dss -ArgumentList @($restoreScript) `
+                -PassThru -WindowStyle Hidden -RedirectStandardOutput $restoreStdout `
+                -RedirectStandardError $restoreStderr
+            if (-not $restoreProcess.WaitForExit($DssTimeoutMinutes * 60 * 1000)) {
+                & taskkill.exe /PID $restoreProcess.Id /T /F | Out-Null
+                throw "H restore DSS timed out."
+            }
+            $restoreProcess.WaitForExit()
+            $restoreProcess.Refresh()
+            if (($null -ne $restoreProcess.ExitCode) -and
+                ($restoreProcess.ExitCode -ne 0)) {
+                throw "H restore DSS failed with exit code $($restoreProcess.ExitCode)."
+            }
+            $restoreResult = "RUNNING_DISCONNECTED"
         }
-        $restoreProcess.WaitForExit()
-        $restoreProcess.Refresh()
-        if (($null -ne $restoreProcess.ExitCode) -and
-            ($restoreProcess.ExitCode -ne 0)) {
-            throw "H restore DSS failed with exit code $($restoreProcess.ExitCode)."
-        }
-        $restoreResult = "RUNNING_DISCONNECTED"
     }
 
     [ordered]@{

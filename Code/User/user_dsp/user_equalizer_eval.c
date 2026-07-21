@@ -2110,7 +2110,8 @@ static int EQ_FinalMetricsRunResponse(void)
                    sizeof(EQ_FinalMetricsFrameInput));
             if (frame == 0)
             {
-                EQ_FinalMetricsFrameInput[0] = (short)16384;
+                EQ_FinalMetricsFrameInput[0] =
+                    (short)EQ_FINAL_METRICS_IMPULSE_PEAK;
             }
             EQ_FinalMetricsProcessFrame(&EQ_FinalMetricsState,
                                         EQ_FinalMetricsFrameInput,
@@ -2350,6 +2351,7 @@ void EqualizerEval_BoardFinalMetrics(void)
         EQ_DebugFinalMetricsStatus = EQ_FINAL_METRICS_STATUS_READY;
     }
 #if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+    asm(" SWBP 0 ");
     while (1)
     {
     }

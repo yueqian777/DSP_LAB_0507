@@ -58,7 +58,8 @@ int main(void)
               "SNR case has no clipping");
     }
 
-    check(EQ_FinalMetricsResponsePacked[0] == 0x00004000U,
+    check(EQ_FinalMetricsResponsePacked[0] ==
+              (unsigned int)EQ_FINAL_METRICS_IMPULSE_PEAK,
           "FLAT impulse first packed word is identity");
     for (index = 1; index < EQ_FINAL_METRICS_PACKED_WORDS; index++)
     {

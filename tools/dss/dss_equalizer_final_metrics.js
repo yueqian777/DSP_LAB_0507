@@ -29,6 +29,7 @@ var CAPTURE_SAMPLES = 8192;
 var PREROLL_SAMPLES = 4096;
 var PACKED_WORDS = CAPTURE_SAMPLES / 2;
 var REFERENCE_PACKED_WORDS = (CAPTURE_SAMPLES + PREROLL_SAMPLES) / 2;
+var FRAME_BUDGET_CYCLES = 9338880;
 var EXPECTED_CASES = CASE_COUNT *
     (1 + THD_FREQUENCY_COUNT + SNR_SIGNAL_COUNT);
 
@@ -103,19 +104,13 @@ function requireCondition(condition, message) {
     if (!condition) throw message;
 }
 
-function runFor(milliseconds) {
-    debugSession.target.runAsynch();
-    Thread.sleep(milliseconds);
-    debugSession.target.halt();
-}
-
 function saveRaw(symbol, path, words) {
     debugSession.memory.saveRaw(Memory.Page.PROGRAM,
         debugSession.symbol.getAddress(symbol), path, words, 32, false);
 }
 
 try {
-    var status, waited, hostStartNs, hostEndNs;
+    var status, hostStartNs, hostEndNs;
     var responseClip, thdClip, snrClip, maxFrameCycles;
     var result;
 
@@ -137,15 +132,9 @@ try {
     Thread.sleep(500);
 
     hostStartNs = System.nanoTime();
-    waited = 0;
-    status = 0;
-    while (waited < 120000) {
-        runFor(1000);
-        waited += 1000;
-        status = numberValue("EQ_DebugFinalMetricsStatus");
-        if (status == 2 || status == 3) break;
-    }
+    debugSession.target.run();
     hostEndNs = System.nanoTime();
+    status = numberValue("EQ_DebugFinalMetricsStatus");
 
     requireCondition(numberValue("EQ_DebugFinalMetricsCompiled") == 1,
                      "Final metrics harness was not compiled");
@@ -186,9 +175,13 @@ try {
             CASE_COUNT * SNR_SIGNAL_COUNT * PACKED_WORDS);
 
     maxFrameCycles = numberValue("EQ_DebugFinalMetricsMaxFrameCycles");
+    requireCondition(maxFrameCycles > 0 &&
+                     maxFrameCycles < FRAME_BUDGET_CYCLES,
+                     "Measured frame cycles exceed the 20.48 ms budget: " +
+                     maxFrameCycles);
     result = {
         pass: true,
-        evidence_class: "BOARD_INTERNAL_DIGITAL",
+        evidence_classes: ["BOARD_INTERNAL_DIGITAL", "BOARD_REALTIME_COUNTER"],
         measurement_name: "PROJECT33_FINAL_STATIC_EQ_METRICS",
         commit_sha: expectedFullSha,
         build_git_sha: readCString("EQ_DebugFinalMetricsBuildGitSha", 16),
@@ -200,11 +193,13 @@ try {
         sample_rate_hz: 50000,
         frame_len: 1024,
         capture_samples: CAPTURE_SAMPLES,
+        impulse_peak_pcm16: 29490,
         preroll_samples: PREROLL_SAMPLES,
         completed_cases: EXPECTED_CASES,
         max_frame_cycles: maxFrameCycles,
-        frame_budget_cycles_at_300mhz: 6144000,
-        max_frame_budget_ratio: maxFrameCycles / 6144000.0,
+        frame_budget_cycles_at_456mhz: FRAME_BUDGET_CYCLES,
+        max_frame_budget_ratio: maxFrameCycles / FRAME_BUDGET_CYCLES,
+        cycle_capture_method: "CONTINUOUS_RUN_TO_SWBP_NO_PERIODIC_HALT",
         response_clip_count: responseClip,
         thd_clip_count: thdClip,
         snr_clip_count: snrClip,

@@ -41,6 +41,7 @@ class FinalMetricsHarnessTests(unittest.TestCase):
         flow = (ROOT / "Code/User/user_dsp/user_equalizer_flow.c").read_text(
             encoding="utf-8")
         self.assertIn("#define EQ_ENABLE_FINAL_METRICS_BOARD_TEST 0", header)
+        self.assertIn("#define EQ_FINAL_METRICS_IMPULSE_PEAK        29490", header)
         self.assertIn("EqualizerEval_BoardFinalMetrics();", flow)
         self.assertIn("#pragma diag_suppress 179", flow)
         with tempfile.TemporaryDirectory(prefix="eq_final_metrics_obj_") as temp:
@@ -93,6 +94,8 @@ class FinalMetricsHarnessTests(unittest.TestCase):
 
         for contract in (
             "debugSession.memory.loadProgram(program)",
+            "debugSession.target.run();",
+            "FRAME_BUDGET_CYCLES = 9338880",
             "EQ_DebugFinalMetricsCompiled",
             "EQ_DebugFinalMetricsBuildGitSha",
             "EQ_DebugFinalMetricsBuildDirty",
@@ -107,6 +110,15 @@ class FinalMetricsHarnessTests(unittest.TestCase):
             "debugSession.target.disconnect()",
         ):
             self.assertIn(contract, dss)
+        self.assertNotIn("runFor(1000)", dss)
+        self.assertIn('asm(" SWBP 0 ")', (
+            ROOT / "Code/User/user_dsp/user_equalizer_eval.c").read_text(
+                encoding="utf-8"))
+
+        restore_marker = runner.index('$restoreResult = "SKIPPED"')
+        restore_finally = runner.index("finally {", restore_marker)
+        full_image = runner.index("H_project33_full", restore_marker)
+        self.assertLess(restore_finally, full_image)
 
 
 class FinalMetricsAnalyzerTests(unittest.TestCase):
@@ -115,6 +127,9 @@ class FinalMetricsAnalyzerTests(unittest.TestCase):
         np.asarray(samples, dtype="<i2").tofile(path)
 
     def test_synthetic_capture_contract(self) -> None:
+        self.assertEqual(ANALYZER.IMPULSE_PEAK, 29490.0)
+        self.assertGreater(ANALYZER.IMPULSE_PEAK / 32767.0, 0.89)
+        self.assertLess(ANALYZER.IMPULSE_PEAK / 32767.0, 0.91)
         with tempfile.TemporaryDirectory(prefix="eq_final_metrics_analysis_") as temp:
             raw_dir = Path(temp) / "raw"
             output_dir = Path(temp) / "output"
