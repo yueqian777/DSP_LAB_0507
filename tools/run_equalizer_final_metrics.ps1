@@ -133,6 +133,16 @@ foreach ($symbol in @("EqualizerEval_BoardFinalMetrics",
         throw "Metrics program is missing symbol: $symbol"
     }
 }
+$stateSymbol = [regex]::Match(
+    $symbols, "(?im)^([0-9a-f]{8})\s+\w\s+EQ_FinalMetricsState\s*$")
+if (-not $stateSymbol.Success) {
+    throw "Metrics program is missing EQ_FinalMetricsState address evidence."
+}
+$stateAddress = [Convert]::ToUInt32($stateSymbol.Groups[1].Value, 16)
+if (($stateAddress -lt 0x00800000) -or ($stateAddress -ge 0x00840000)) {
+    throw ("EQ_FinalMetricsState is outside DSPL2RAM: 0x{0:x8}" -f
+        $stateAddress)
+}
 
 $metricsProgram = Join-Path $rawDir "project33_final_metrics.out"
 $metricsMap = Join-Path $rawDir "project33_final_metrics.map"
@@ -157,6 +167,8 @@ $buildSummary = [ordered]@{
     link_errors = "0x0"
     output_bytes = (Get-Item $metricsProgram).Length
     output_sha256 = $outputHash
+    metrics_state_address = ("0x{0:x8}" -f $stateAddress)
+    metrics_state_memory = "DSPL2RAM/.subband_l2"
     target = "TMS320C6748"
     debug_probe = "Texas Instruments XDS100v3 USB Debug Probe"
     sample_rate_hz = 50000

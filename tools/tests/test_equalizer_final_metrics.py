@@ -114,6 +114,12 @@ class FinalMetricsHarnessTests(unittest.TestCase):
         self.assertIn('asm(" SWBP 0 ")', (
             ROOT / "Code/User/user_dsp/user_equalizer_eval.c").read_text(
                 encoding="utf-8"))
+        self.assertIn(
+            '#pragma DATA_SECTION(EQ_FinalMetricsState, ".subband_l2")',
+            (ROOT / "Code/User/user_dsp/user_equalizer_eval.c").read_text(
+                encoding="utf-8"))
+        self.assertIn("EQ_FinalMetricsState is outside DSPL2RAM", runner)
+        self.assertIn('metrics_state_memory = "DSPL2RAM/.subband_l2"', runner)
 
         restore_marker = runner.index('$restoreResult = "SKIPPED"')
         restore_finally = runner.index("finally {", restore_marker)
