@@ -56,11 +56,11 @@ class EqualizerUiBuildMatrixContractTest(unittest.TestCase):
 
     def test_editor_profile_defines_and_runtime_masks(self) -> None:
         cases = (
-            ("D_project33_dynamic", "E_project33_touch", 1, 0, 0, 0, 15),
-            ("E_project33_touch", "F_project33_editor_readonly", 1, 1, 0, 0, 15),
-            ("F_project33_editor_readonly", "G_project33_editor_touch", 1, 0, 1, 0, 49),
-            ("G_project33_editor_touch", "H_project33_full", 1, 1, 1, 1, 49),
-            ("H_project33_full", None, 1, 1, 1, 1, 63),
+            ("D_project33_dynamic", "E_project33_touch", 1, 0, 0, 0, 7),
+            ("E_project33_touch", "F_project33_editor_readonly", 1, 1, 0, 0, 7),
+            ("F_project33_editor_readonly", "G_project33_editor_touch", 1, 0, 1, 0, 25),
+            ("G_project33_editor_touch", "H_project33_full", 1, 1, 1, 1, 25),
+            ("H_project33_full", None, 1, 1, 1, 1, 31),
         )
         for name, next_name, lcd, touch, editor, editor_touch, mask in cases:
             with self.subTest(profile=name):
@@ -78,8 +78,8 @@ class EqualizerUiBuildMatrixContractTest(unittest.TestCase):
     def test_readonly_mask_contains_only_preset_editor_and_page(self) -> None:
         block = self.profile("F_project33_editor_readonly",
                              "G_project33_editor_touch")
-        self.assertIn("runtime_mask = 49", block)
-        self.assertEqual(49, 0x01 | 0x10 | 0x20)
+        self.assertIn("runtime_mask = 25", block)
+        self.assertEqual(25, 0x01 | 0x08 | 0x10)
 
     def test_framebuffer_expectation_matches_each_profile(self) -> None:
         names = (

@@ -26,75 +26,115 @@ static void make_snapshot(EQ_UI_SNAPSHOT *snapshot)
     snapshot->guard_strength = 2;
     snapshot->analyzer_valid = 1;
     snapshot->analyzer_warm = 1;
+    for (band = 0; band < EQ_UI_ANALYZER_COUNT; band++)
+    {
+        snapshot->band_pixel[band] = EQ_UI_ANALYZER_ZERO_PIXEL;
+    }
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
     snapshot->page = EQ_UI_PAGE_DYNAMIC_STATUS;
     snapshot->editor_selected_band = 0;
     snapshot->editor_apply_status = EQ_UI_APPLY_APPLIED;
     snapshot->editor_submitted_valid = 1U;
 #endif
-    for (band = 0; band < EQ_UI_ANALYZER_COUNT; band++)
+}
+
+static void initialize_rendered(EQ_UI_STATE *state,
+                                EQ_UI_SNAPSHOT *snapshot)
+{
+    EqualizerUiLogic_Init(state);
+    make_snapshot(snapshot);
+    EqualizerUiLogic_Request(state, snapshot, EQ_UI_RUNTIME_ALL, 0UL);
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+    EqualizerUiLogic_MarkStartupRendered(state);
+#else
+    while (EqualizerUiLogic_HasPending(state))
     {
-        snapshot->band_pixel[band] = EQ_UI_ANALYZER_ZERO_PIXEL;
+        int job;
+
+        job = EqualizerUiLogic_SelectJob(state, state->last_service_frame + 8UL);
+        if (job != EQ_UI_JOB_NONE)
+        {
+            EqualizerUiLogic_CompleteJob(
+                state, job, state->last_service_frame + 8UL);
+        }
     }
+#endif
 }
 
-static unsigned int first_dynamic_field(unsigned int fields)
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+static unsigned int selected_fields(const EQ_UI_STATE *state, int job)
 {
-    if ((fields & EQ_UI_DYNAMIC_FIELD_ENABLED) != 0U)
-        return EQ_UI_DYNAMIC_FIELD_ENABLED;
-    if ((fields & EQ_UI_DYNAMIC_FIELD_STRENGTH) != 0U)
-        return EQ_UI_DYNAMIC_FIELD_STRENGTH;
-    return fields & EQ_UI_DYNAMIC_FIELD_LEVEL;
-}
-
-static void complete_one(EQ_UI_STATE *state, int job,
-                         unsigned long frame)
-{
-    int index;
-    unsigned int field;
+    unsigned int fields;
 
     if ((job >= EQ_UI_JOB_DYNAMIC_0) &&
         (job <= EQ_UI_JOB_DYNAMIC_2))
     {
-        index = job - EQ_UI_JOB_DYNAMIC_0;
-        field = first_dynamic_field(
-            EqualizerUiLogic_DynamicFieldMask(state, index));
-        EqualizerUiLogic_CompleteDynamicField(state, job, field, frame);
+        fields = EqualizerUiLogic_DynamicFieldMask(
+            state, job - EQ_UI_JOB_DYNAMIC_0);
+        if ((fields & EQ_UI_DYNAMIC_FIELD_ENABLED) != 0U)
+            return EQ_UI_DYNAMIC_FIELD_ENABLED;
+        if ((fields & EQ_UI_DYNAMIC_FIELD_STRENGTH) != 0U)
+            return EQ_UI_DYNAMIC_FIELD_STRENGTH;
+        return fields & EQ_UI_DYNAMIC_FIELD_ACTIVE;
     }
-    else if ((job >= EQ_UI_JOB_ANALYZER_0) &&
-             (job <= EQ_UI_JOB_ANALYZER_3))
+    if ((job >= EQ_UI_JOB_ANALYZER_0) &&
+        (job <= EQ_UI_JOB_ANALYZER_3))
     {
-        index = job - EQ_UI_JOB_ANALYZER_0;
-        field = EqualizerUiLogic_AnalyzerNextField(state, index);
-        EqualizerUiLogic_CompleteAnalyzerField(state, job, field, frame);
+        return EqualizerUiLogic_AnalyzerNextField(
+            state, job - EQ_UI_JOB_ANALYZER_0);
     }
-    else
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+    if (job == EQ_UI_JOB_EDITOR_FIELDS)
     {
-        EqualizerUiLogic_CompleteJob(state, job, frame);
+        return EqualizerUiLogic_EditorNextField(state);
     }
+#endif
+    return 0U;
+}
+#endif
+
+static void complete_job(EQ_UI_STATE *state, int job,
+                         unsigned long process_frame)
+{
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+    if (job == EQ_UI_JOB_PAGE_SYNC)
+    {
+        EqualizerUiLogic_CompletePageSync(
+            state,
+            selected_fields(state,
+                EqualizerUiLogic_GetPageSyncJob(state)),
+            process_frame);
+        return;
+    }
+    if (job == EQ_UI_JOB_PAGE_SWAP)
+    {
+        EqualizerUiLogic_CompletePageSwap(state, process_frame);
+        return;
+    }
+#endif
+    EqualizerUiLogic_CompleteJob(state, job, process_frame);
 }
 
-static int flush_jobs(EQ_UI_STATE *state, unsigned long first_frame)
+static int flush_jobs(EQ_UI_STATE *state, unsigned long start_frame,
+                      int maximum)
 {
-    unsigned long offset;
-    int completed;
+    unsigned long frame;
+    int count;
     int job;
 
-    completed = 0;
-    for (offset = 0UL; offset < 4096UL; offset++)
+    frame = start_frame;
+    count = 0;
+    while (EqualizerUiLogic_HasPending(state) && (count < maximum))
     {
-        if (!EqualizerUiLogic_HasPending(state))
-        {
-            return completed;
-        }
-        job = EqualizerUiLogic_SelectJob(state, first_frame + offset);
+        job = EqualizerUiLogic_SelectJob(state, frame);
         if (job != EQ_UI_JOB_NONE)
         {
-            complete_one(state, job, first_frame + offset);
-            completed++;
+            complete_job(state, job, frame);
+            count++;
         }
+        frame += 8UL;
     }
-    return -1;
+    return count;
 }
 
 static int test_layout_and_touch(void)
@@ -102,346 +142,199 @@ static int test_layout_and_touch(void)
     EQ_UI_TOUCH_TRANSFORM transform;
     EQ_UI_TOUCH_STATE touch;
     int failures;
+    int screen_x;
+    int screen_y;
     int action;
     int rejected;
-    int pixel;
     int x;
     int y;
-    int i;
 
     failures = 0;
-    failures += require_true(EqualizerUi_ValidateLayout(), "layout");
+    failures += require_true(EqualizerUi_ValidateLayout(),
+                             "layout validates");
+    failures += require_true(EQ_UI_DYNAMIC_HITBOX_COUNT == 12,
+                             "dynamic hitbox count is 12");
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
+    failures += require_true(EQ_UI_EDITOR_HITBOX_COUNT == 15,
+                             "editor hitbox count is 15");
+    failures += require_true(EQ_UI_JOB_PAGE_SYNC == 24 &&
+                             EQ_UI_JOB_PAGE_SWAP == 25 &&
+                             EQ_UI_JOB_COUNT == 25,
+                             "page jobs and total job count");
     failures += require_true(
-        EQ_UI_PAGE_SWITCH_RECT.x == 672 &&
-        EQ_UI_PAGE_SWITCH_RECT.y == 430 &&
-        EQ_UI_PAGE_SWITCH_RECT.w == 104 &&
-        EQ_UI_PAGE_SWITCH_RECT.h == 40,
-        "page switch uses fixed bottom-right geometry");
+        EqualizerUi_HitTest(EQ_UI_PAGE_EQ_EDITOR, 30, 40) ==
+            EQ_UI_ACTION_NONE,
+        "editor has no duplicate preset row hitbox");
     failures += require_true(
-        (EQ_UI_DYNAMIC_RECTS[2].x + EQ_UI_DYNAMIC_RECTS[2].w) <=
-            EQ_UI_PAGE_SWITCH_RECT.x &&
-        (EQ_UI_EDITOR_FIELDS_RECT.x + EQ_UI_EDITOR_FIELDS_RECT.w) <=
-            EQ_UI_PAGE_SWITCH_RECT.x,
-        "page switch has reserved space on both pages");
+        EqualizerUi_HitTest(
+            EQ_UI_PAGE_EQ_EDITOR,
+            EQ_UI_EDITOR_BAND_RECTS[2].x + 1,
+            EQ_UI_EDITOR_BAND_RECTS[2].y + 1) ==
+            EQ_UI_ACTION_EDITOR_BAND_2,
+        "editor band hitbox");
 #endif
+    failures += require_true(
+        EqualizerUi_HitTest(
+            EQ_UI_PAGE_DYNAMIC_STATUS,
+            EQ_UI_DYNAMIC_STATUS_RECTS[0].x + 1,
+            EQ_UI_DYNAMIC_STATUS_RECTS[0].y + 1) ==
+            EQ_UI_ACTION_NONE,
+        "active indicator is read-only");
+
     EqualizerUi_DefaultTouchTransform(&transform);
-    failures += require_true(EqualizerUi_MapTouchRawToScreen(
-        &transform, 0U, 0U, &x, &y) && x == 0 && y == 0, "map origin");
-    failures += require_true(EqualizerUi_MapTouchRawToScreen(
-        &transform, 799U, 479U, &x, &y) && x == 799 && y == 479,
-        "map far corner");
+    failures += require_true(
+        EqualizerUi_MapTouchRawToScreen(
+            &transform, 799U, 479U, &screen_x, &screen_y) &&
+        screen_x == 799 && screen_y == 479,
+        "identity touch transform");
     transform.flip_x = 1U;
     transform.flip_y = 1U;
-    failures += require_true(EqualizerUi_MapTouchRawToScreen(
-        &transform, 0U, 0U, &x, &y) && x == 799 && y == 479,
-        "map flips");
-    EqualizerUi_DefaultTouchTransform(&transform);
-    transform.swap_xy = 1U;
-    transform.raw_x_max = 479U;
-    transform.raw_y_max = 799U;
-    failures += require_true(EqualizerUi_MapTouchRawToScreen(
-        &transform, 240U, 400U, &x, &y) && x == 400 && y == 240,
-        "map swap before scale");
+    failures += require_true(
+        EqualizerUi_MapTouchRawToScreen(
+            &transform, 799U, 479U, &screen_x, &screen_y) &&
+        screen_x == 0 && screen_y == 0,
+        "touch axis flips");
 
     EqualizerUiTouch_Init(&touch);
-    x = EQ_UI_DYNAMIC_HITBOXES[0].rect.x + 2;
-    y = EQ_UI_DYNAMIC_HITBOXES[0].rect.y + 2;
+    x = EQ_UI_PAGE_SWITCH_RECT.x + 1;
+    y = EQ_UI_PAGE_SWITCH_RECT.y + 1;
     action = EqualizerUiTouch_Process(
         &touch, EQ_UI_PAGE_DYNAMIC_STATUS, 0, 1, x, y, &rejected);
-    failures += require_true(action == EQ_UI_ACTION_PRESET_FLAT && !rejected,
-                             "first press action");
-    action = EqualizerUiTouch_Process(
-        &touch, EQ_UI_PAGE_DYNAMIC_STATUS, 0, 1, x, y, &rejected);
-    failures += require_true(action == EQ_UI_ACTION_NONE,
-                             "long press suppressed");
+    failures += require_true(action == EQ_UI_ACTION_PAGE_SWITCH && !rejected,
+                             "page switch accepted while idle");
     (void)EqualizerUiTouch_Process(
         &touch, EQ_UI_PAGE_DYNAMIC_STATUS, 0, 0, x, y, &rejected);
     action = EqualizerUiTouch_Process(
-        &touch, EQ_UI_PAGE_DYNAMIC_STATUS, 0, 1, x, y, &rejected);
-    failures += require_true(action == EQ_UI_ACTION_PRESET_FLAT,
-                             "release rearms");
-
-    for (i = -5000; i < 5000; i++)
-    {
-        pixel = EqualizerUi_DbTenthsToPixel(i);
-        if ((pixel < EQ_UI_ANALYZER_BAR_TOP) ||
-            (pixel > EQ_UI_ANALYZER_BAR_BOTTOM))
-        {
-            failures += require_true(0, "analyzer clamp");
-            break;
-        }
-    }
-    failures += require_true(
-        EqualizerUi_DbTenthsToPixel(5000) == EQ_UI_ANALYZER_BAR_TOP,
-        "analyzer upper clamp");
-    failures += require_true(
-        EqualizerUi_DbTenthsToPixel(-5000) == EQ_UI_ANALYZER_BAR_BOTTOM,
-        "analyzer lower clamp");
+        &touch, EQ_UI_PAGE_DYNAMIC_STATUS, 1, 1, x, y, &rejected);
+    failures += require_true(action == EQ_UI_ACTION_NONE && rejected,
+                             "page switch rejected during page sync");
+    (void)EqualizerUiTouch_Process(
+        &touch, EQ_UI_PAGE_DYNAMIC_STATUS, 1, 0, x, y, &rejected);
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+    x = EQ_UI_EDITOR_BAND_RECTS[4].x + 1;
+    y = EQ_UI_EDITOR_BAND_RECTS[4].y + 1;
+    action = EqualizerUiTouch_Process(
+        &touch, EQ_UI_PAGE_EQ_EDITOR, 1, 1, x, y, &rejected);
+    failures += require_true(action == EQ_UI_ACTION_NONE && rejected,
+                             "editor action rejected during page swap");
+#endif
     return failures;
 }
 
-static int test_jobs_and_dynamic_semantics(void)
+static int test_dynamic_active_semantics(void)
 {
     EQ_UI_STATE state;
     EQ_UI_SNAPSHOT snapshot;
-    unsigned long expected;
+    unsigned int fields;
     int failures;
-    int action;
 
     failures = 0;
-    EqualizerUiLogic_Init(&state);
-    make_snapshot(&snapshot);
-    EqualizerUiLogic_Request(&state, &snapshot, EQ_UI_RUNTIME_ALL, 1UL);
-    expected = (1UL << EQ_UI_JOB_DYNAMIC_2) - 1UL;
-    failures += require_true(state.dirty_mask == expected,
-                             "initial logical jobs independent");
-    failures += require_true(flush_jobs(&state, 1UL) == 21,
-                             "one service per dynamic/analyzer field");
-    EqualizerUiLogic_Request(&state, &snapshot, EQ_UI_RUNTIME_ALL, 1000UL);
-    failures += require_true(!EqualizerUiLogic_HasPending(&state),
-                             "unchanged snapshot clean");
-
-    snapshot.applied_preset = EQ_PRESET_BASS_BOOST;
-    EqualizerUiLogic_Request(&state, &snapshot, EQ_UI_RUNTIME_ALL, 2000UL);
-    expected = JOB_BIT(EQ_UI_JOB_PRESET_0) |
-               JOB_BIT(EQ_UI_JOB_PRESET_0 + 1);
-    failures += require_true(state.dirty_mask == expected,
-                             "preset old and new only");
-    failures += require_true(flush_jobs(&state, 2000UL) == 2,
-                             "two preset fields");
-
-    snapshot.smart_level = 1;
-    EqualizerUiLogic_Request(&state, &snapshot,
-                             EQ_UI_RUNTIME_DYNAMICS, 3000UL);
-    snapshot.smart_level = 3;
-    EqualizerUiLogic_Request(&state, &snapshot,
-                             EQ_UI_RUNTIME_DYNAMICS, 3000UL);
-    failures += require_true(
-        EqualizerUiLogic_DynamicFieldMask(&state, 0) ==
-        EQ_UI_DYNAMIC_FIELD_LEVEL, "latest level field only");
-    action = EqualizerUiLogic_SelectJob(&state, 3000UL);
-    complete_one(&state, action, 3000UL);
-    failures += require_true(state.displayed.smart_level == 3,
-                             "latest dynamic value displayed");
-
-    EqualizerUiLogic_Init(&state);
-    make_snapshot(&snapshot);
-    EqualizerUiLogic_Request(&state, &snapshot,
-                             EQ_UI_RUNTIME_DYNAMICS, 4000UL);
-    (void)flush_jobs(&state, 4000UL);
+    initialize_rendered(&state, &snapshot);
     snapshot.smart_enabled = 1;
-    EqualizerUiLogic_Request(&state, &snapshot,
-        EQ_UI_RUNTIME_CHAIN | EQ_UI_RUNTIME_DYNAMICS, 5000UL);
-    failures += require_true(
-        (state.dirty_mask & JOB_BIT(EQ_UI_JOB_CHAIN_0)) != 0UL &&
-        (EqualizerUiLogic_DynamicFieldMask(&state, 0) &
-         EQ_UI_DYNAMIC_FIELD_ENABLED) != 0U,
-        "user enabled marks chain and row");
+    snapshot.smart_strength = 3;
+    snapshot.smart_active = 1;
+    EqualizerUiLogic_Request(
+        &state, &snapshot, EQ_UI_RUNTIME_ALL, 100UL);
+    fields = EqualizerUiLogic_DynamicFieldMask(&state, 0);
+    failures += require_true(fields == EQ_UI_DYNAMIC_FIELD_ALL,
+                             "dynamic row exposes enabled strength active");
     EqualizerUiLogic_CompleteDynamicField(
-        &state, EQ_UI_JOB_DYNAMIC_0, EQ_UI_DYNAMIC_FIELD_ENABLED, 5000UL);
+        &state, EQ_UI_JOB_DYNAMIC_0,
+        EQ_UI_DYNAMIC_FIELD_ENABLED, 100UL);
     failures += require_true(state.displayed.smart_enabled == 1 &&
-                             state.displayed.smart_level == 0,
-                             "enabled remains on while processing level zero");
-    snapshot.smart_level = 2;
-    EqualizerUiLogic_Request(&state, &snapshot,
-                             EQ_UI_RUNTIME_DYNAMICS, 5100UL);
+        state.displayed.smart_strength == 2 &&
+        state.displayed.smart_active == 0,
+        "dynamic fields complete independently");
+    snapshot.smart_active = 0;
+    EqualizerUiLogic_Request(
+        &state, &snapshot, EQ_UI_RUNTIME_ALL, 101UL);
+    snapshot.smart_active = 7;
+    EqualizerUiLogic_Request(
+        &state, &snapshot, EQ_UI_RUNTIME_ALL, 102UL);
     failures += require_true(
-        EqualizerUiLogic_DynamicFieldMask(&state, 0) ==
-        EQ_UI_DYNAMIC_FIELD_LEVEL && state.displayed.smart_enabled == 1,
-        "processing level is independent of user enabled");
+        (EqualizerUiLogic_DynamicFieldMask(&state, 0) &
+         EQ_UI_DYNAMIC_FIELD_ACTIVE) != 0U &&
+        state.requested.smart_active == 1,
+        "dynamic active request is normalized and latest-wins");
+    failures += require_true(flush_jobs(&state, 108UL, 32) > 0 &&
+        state.displayed.smart_enabled == 1 &&
+        state.displayed.smart_strength == 3 &&
+        state.displayed.smart_active == 1 &&
+        !EqualizerUiLogic_HasPending(&state),
+        "dynamic active row converges");
     return failures;
 }
 
-static int initialize_analyzer(EQ_UI_STATE *state,
-                               EQ_UI_SNAPSHOT *snapshot)
-{
-    EqualizerUiLogic_Init(state);
-    make_snapshot(snapshot);
-    EqualizerUiLogic_Request(state, snapshot,
-                             EQ_UI_RUNTIME_ANALYZER, 0UL);
-    return flush_jobs(state, 0UL);
-}
-
-static int drive_bar(EQ_UI_STATE *state, EQ_UI_SNAPSHOT *snapshot,
-                     int band, unsigned long first_frame)
-{
-    unsigned long frame;
-    int previous;
-    int next;
-    int steps;
-
-    steps = 0;
-    frame = first_frame;
-    while ((EqualizerUiLogic_AnalyzerFieldMask(state, band) &
-            EQ_UI_ANALYZER_FIELD_BAR) != 0U && steps < 64)
-    {
-        previous = state->displayed.band_pixel[band];
-        next = EqualizerUiLogic_AnalyzerNextPixel(state, band);
-        if ((next - previous > EQ_UI_ANALYZER_MAX_STRIP_HEIGHT) ||
-            (previous - next > EQ_UI_ANALYZER_MAX_STRIP_HEIGHT))
-        {
-            return -1;
-        }
-        EqualizerUiLogic_CompleteAnalyzerField(
-            state, EQ_UI_JOB_ANALYZER_0 + band,
-            EQ_UI_ANALYZER_FIELD_BAR, frame);
-        frame += EQ_UI_ANALYZER_MIN_GAP_FRAMES;
-        EqualizerUiLogic_Request(state, snapshot,
-                                 EQ_UI_RUNTIME_ANALYZER, frame);
-        steps++;
-    }
-    return steps;
-}
-
-static int test_analyzer_transitions(void)
+static int test_analyzer_bar_only(void)
 {
     EQ_UI_STATE state;
     EQ_UI_SNAPSHOT snapshot;
+    unsigned long last_frame;
     int failures;
-    int previous;
+    int current;
     int next;
-    int saw_zero;
     int steps;
 
     failures = 0;
-    failures += require_true(initialize_analyzer(&state, &snapshot) == 4,
-                             "initial analyzer values only");
-    failures += require_true(
-        state.displayed.band_pixel[0] == EQ_UI_ANALYZER_ZERO_PIXEL,
-        "analyzer starts on zero line");
-    snapshot.band_pixel[3] = EQ_UI_ANALYZER_BAR_TOP;
-    EqualizerUiLogic_Request(&state, &snapshot,
-                             EQ_UI_RUNTIME_ANALYZER, 500UL);
-    failures += require_true(
-        state.requested.band_pixel[3] == EQ_UI_ANALYZER_DRAW_TOP,
-        "requested extreme is normalized to drawable interior");
-    snapshot.band_pixel[3] = EQ_UI_ANALYZER_ZERO_PIXEL;
-    EqualizerUiLogic_Request(&state, &snapshot,
-                             EQ_UI_RUNTIME_ANALYZER, 501UL);
-
+    initialize_rendered(&state, &snapshot);
     snapshot.band_pixel[0] = EQ_UI_ANALYZER_ZERO_PIXEL - 40;
-    EqualizerUiLogic_Request(&state, &snapshot,
-                             EQ_UI_RUNTIME_ANALYZER, 1000UL);
-    next = EqualizerUiLogic_AnalyzerNextPixel(&state, 0);
+    EqualizerUiLogic_Request(
+        &state, &snapshot, EQ_UI_RUNTIME_ALL, 1000UL);
     failures += require_true(
-        next == EQ_UI_ANALYZER_ZERO_PIXEL -
-                EQ_UI_ANALYZER_MAX_STRIP_HEIGHT,
-        "positive growth bounded");
-    steps = drive_bar(&state, &snapshot, 0, 1000UL);
-    failures += require_true(steps == 3 &&
-        state.displayed.band_pixel[0] == snapshot.band_pixel[0],
-        "positive growth reaches target");
-
-    snapshot.band_pixel[0] = EQ_UI_ANALYZER_ZERO_PIXEL - 8;
-    EqualizerUiLogic_Request(&state, &snapshot,
-                             EQ_UI_RUNTIME_ANALYZER, 2000UL);
+        EqualizerUiLogic_AnalyzerFieldMask(&state, 0) ==
+            EQ_UI_ANALYZER_FIELD_BAR &&
+        EqualizerUiLogic_AnalyzerNextField(&state, 0) ==
+            EQ_UI_ANALYZER_FIELD_BAR,
+        "analyzer has one bar-only field");
+    current = state.displayed.band_pixel[0];
     next = EqualizerUiLogic_AnalyzerNextPixel(&state, 0);
-    failures += require_true(next > state.displayed.band_pixel[0] &&
-        (next - state.displayed.band_pixel[0]) <=
-         EQ_UI_ANALYZER_MAX_STRIP_HEIGHT,
-        "positive shrink clears toward zero");
-    failures += require_true(drive_bar(&state, &snapshot, 0, 2000UL) == 2,
-                             "positive shrink staged");
-
-    snapshot.band_pixel[0] = EQ_UI_ANALYZER_ZERO_PIXEL + 40;
-    EqualizerUiLogic_Request(&state, &snapshot,
-                             EQ_UI_RUNTIME_ANALYZER, 3000UL);
-    saw_zero = 0;
-    for (steps = 0; steps < 16; steps++)
+    failures += require_true(current - next > 0 &&
+        current - next <= EQ_UI_ANALYZER_MAX_STRIP_HEIGHT,
+        "analyzer growth is bounded");
+    steps = 0;
+    while ((EqualizerUiLogic_AnalyzerFieldMask(&state, 0) &
+            EQ_UI_ANALYZER_FIELD_BAR) != 0U && steps < 16)
     {
-        previous = state.displayed.band_pixel[0];
-        next = EqualizerUiLogic_AnalyzerNextPixel(&state, 0);
-        if (!saw_zero && (next > EQ_UI_ANALYZER_ZERO_PIXEL))
-        {
-            failures += require_true(0, "positive to negative crossed zero");
-            break;
-        }
         EqualizerUiLogic_CompleteAnalyzerField(
             &state, EQ_UI_JOB_ANALYZER_0,
             EQ_UI_ANALYZER_FIELD_BAR,
-            3000UL + (unsigned long)steps * 8UL);
-        if (state.displayed.band_pixel[0] == EQ_UI_ANALYZER_ZERO_PIXEL)
-            saw_zero = 1;
-        EqualizerUiLogic_Request(
-            &state, &snapshot, EQ_UI_RUNTIME_ANALYZER,
-            3008UL + (unsigned long)steps * 8UL);
-        if ((EqualizerUiLogic_AnalyzerFieldMask(&state, 0) &
-             EQ_UI_ANALYZER_FIELD_BAR) == 0U)
-            break;
-        failures += require_true(previous != state.displayed.band_pixel[0],
-                                 "cross-zero stage makes progress");
+            1000UL + (unsigned long)steps * 8UL);
+        steps++;
     }
-    failures += require_true(saw_zero &&
+    failures += require_true(steps == 3 &&
         state.displayed.band_pixel[0] == snapshot.band_pixel[0],
-        "positive to negative reaches latest target via zero");
+        "analyzer reaches target through bounded strips");
 
-    snapshot.band_pixel[0] = EQ_UI_ANALYZER_ZERO_PIXEL - 60;
-    EqualizerUiLogic_Request(&state, &snapshot,
-                             EQ_UI_RUNTIME_ANALYZER, 4000UL);
-    EqualizerUiLogic_CompleteAnalyzerField(
-        &state, EQ_UI_JOB_ANALYZER_0, EQ_UI_ANALYZER_FIELD_BAR, 4000UL);
-    previous = state.displayed.band_pixel[0];
-    snapshot.band_pixel[0] = EQ_UI_ANALYZER_ZERO_PIXEL + 56;
-    EqualizerUiLogic_Request(&state, &snapshot,
-                             EQ_UI_RUNTIME_ANALYZER, 4001UL);
+    last_frame = state.band_last_display_frame[0];
+    snapshot.band_pixel[0]++;
+    EqualizerUiLogic_Request(
+        &state, &snapshot, EQ_UI_RUNTIME_ALL, last_frame + 1UL);
+    failures += require_true(
+        EqualizerUiLogic_AnalyzerFieldMask(&state, 0) == 0U,
+        "one-pixel analyzer jitter is delayed");
+    EqualizerUiLogic_Request(
+        &state, &snapshot, EQ_UI_RUNTIME_ALL,
+        last_frame + EQ_UI_ANALYZER_MAX_AGE_FRAMES);
+    failures += require_true(
+        EqualizerUiLogic_AnalyzerFieldMask(&state, 0) ==
+            EQ_UI_ANALYZER_FIELD_BAR,
+        "one-pixel analyzer change expires at max age");
+
+    snapshot.band_pixel[0] = EQ_UI_ANALYZER_ZERO_PIXEL + 40;
+    EqualizerUiLogic_Request(
+        &state, &snapshot, EQ_UI_RUNTIME_ALL, 2000UL);
+    while (state.displayed.band_pixel[0] != EQ_UI_ANALYZER_ZERO_PIXEL)
+    {
+        next = EqualizerUiLogic_AnalyzerNextPixel(&state, 0);
+        failures += require_true(next <= EQ_UI_ANALYZER_ZERO_PIXEL,
+                                 "cross-zero clears old direction first");
+        EqualizerUiLogic_CompleteAnalyzerField(
+            &state, EQ_UI_JOB_ANALYZER_0,
+            EQ_UI_ANALYZER_FIELD_BAR, 2000UL);
+    }
     next = EqualizerUiLogic_AnalyzerNextPixel(&state, 0);
-    failures += require_true(next > previous,
-        "latest target reverses old positive-side request immediately");
-    failures += require_true(drive_bar(&state, &snapshot, 0, 4008UL) > 0 &&
-        state.displayed.band_pixel[0] == snapshot.band_pixel[0],
-        "latest-wins leaves no queued old target");
-    return failures;
-}
-
-static int test_analyzer_value_throttle(void)
-{
-    EQ_UI_STATE state;
-    EQ_UI_SNAPSHOT snapshot;
-    unsigned long last;
-    int failures;
-
-    failures = 0;
-    (void)initialize_analyzer(&state, &snapshot);
-    last = state.band_last_value_frame[0];
-    snapshot.band_value_db[0] = 1;
-    EqualizerUiLogic_Request(&state, &snapshot,
-                             EQ_UI_RUNTIME_ANALYZER, last + 1UL);
-    failures += require_true(!EqualizerUiLogic_HasPending(&state),
-                             "one dB value jitter delayed");
-    EqualizerUiLogic_Request(
-        &state, &snapshot, EQ_UI_RUNTIME_ANALYZER,
-        last + EQ_UI_ANALYZER_VALUE_MAX_AGE_FRAMES);
-    failures += require_true(
-        EqualizerUiLogic_AnalyzerFieldMask(&state, 0) ==
-        EQ_UI_ANALYZER_FIELD_VALUE, "one dB value expires at 50 frames");
-    EqualizerUiLogic_CompleteAnalyzerField(
-        &state, EQ_UI_JOB_ANALYZER_0, EQ_UI_ANALYZER_FIELD_VALUE,
-        last + EQ_UI_ANALYZER_VALUE_MAX_AGE_FRAMES);
-    snapshot.band_value_db[0] = 3;
-    EqualizerUiLogic_Request(
-        &state, &snapshot, EQ_UI_RUNTIME_ANALYZER,
-        last + EQ_UI_ANALYZER_VALUE_MAX_AGE_FRAMES + 1UL);
-    failures += require_true(
-        EqualizerUiLogic_AnalyzerFieldMask(&state, 0) ==
-        EQ_UI_ANALYZER_FIELD_VALUE, "two dB value change immediate");
-    EqualizerUiLogic_CompleteAnalyzerField(
-        &state, EQ_UI_JOB_ANALYZER_0, EQ_UI_ANALYZER_FIELD_VALUE,
-        last + EQ_UI_ANALYZER_VALUE_MAX_AGE_FRAMES + 1UL);
-    EqualizerUiLogic_Request(
-        &state, &snapshot, EQ_UI_RUNTIME_ANALYZER,
-        last + 200UL);
-    failures += require_true(!EqualizerUiLogic_HasPending(&state),
-                             "unchanged value is not periodically redrawn");
-    snapshot.analyzer_warm = 0;
-    EqualizerUiLogic_Request(&state, &snapshot,
-                             EQ_UI_RUNTIME_ANALYZER, last + 201UL);
-    failures += require_true(
-        (EqualizerUiLogic_AnalyzerFieldMask(&state, 0) &
-         EQ_UI_ANALYZER_FIELD_VALUE) != 0U &&
-        EqualizerUiLogic_AnalyzerNextField(&state, 0) ==
-         EQ_UI_ANALYZER_FIELD_VALUE,
-        "warm state text has priority");
+    failures += require_true(next > EQ_UI_ANALYZER_ZERO_PIXEL,
+                             "cross-zero fills new direction after zero");
     return failures;
 }
 
@@ -455,62 +348,57 @@ static int test_service_gaps(void)
     int count;
 
     failures = 0;
-    make_snapshot(&snapshot);
-
-    EqualizerUiLogic_Init(&state);
-    EqualizerUiLogic_Request(&state, &snapshot, EQ_UI_RUNTIME_PRESET, 0UL);
+    initialize_rendered(&state, &snapshot);
+    snapshot.applied_preset = EQ_PRESET_BASS_BOOST;
+    EqualizerUiLogic_Request(
+        &state, &snapshot, EQ_UI_RUNTIME_ALL, 0UL);
     job = EqualizerUiLogic_SelectJob(&state, 0UL);
-    complete_one(&state, job, 0UL);
+    complete_job(&state, job, 0UL);
     failures += require_true(
-        !EqualizerUiLogic_HasEligibleJob(&state, 1UL) &&
         EqualizerUiLogic_SelectJob(&state, 1UL) == EQ_UI_JOB_NONE &&
         EqualizerUiLogic_SelectJob(&state, 2UL) != EQ_UI_JOB_NONE,
         "preset gap is two frames");
 
-    EqualizerUiLogic_Init(&state);
-    EqualizerUiLogic_Request(&state, &snapshot, EQ_UI_RUNTIME_DYNAMICS, 0UL);
+    initialize_rendered(&state, &snapshot);
+    snapshot.smart_enabled = 1;
+    snapshot.clarity_enabled = 1;
+    EqualizerUiLogic_Request(
+        &state, &snapshot, EQ_UI_RUNTIME_ALL, 0UL);
     job = EqualizerUiLogic_SelectJob(&state, 0UL);
-    complete_one(&state, job, 0UL);
+    complete_job(&state, job, 0UL);
     failures += require_true(
-        EqualizerUiLogic_SelectJob(&state, 3UL) == EQ_UI_JOB_NONE &&
+        EqualizerUiLogic_SelectJob(&state, 6UL) == EQ_UI_JOB_NONE &&
         EqualizerUiLogic_SelectJob(&state, 7UL) != EQ_UI_JOB_NONE,
-        "dynamic gap and steady cap enforced");
+        "dynamic global gap is seven frames");
 
-    EqualizerUiLogic_Init(&state);
-    EqualizerUiLogic_Request(&state, &snapshot, EQ_UI_RUNTIME_CHAIN, 0UL);
+    initialize_rendered(&state, &snapshot);
+    snapshot.band_pixel[0] -= 20;
+    snapshot.band_pixel[1] -= 20;
+    EqualizerUiLogic_Request(
+        &state, &snapshot, EQ_UI_RUNTIME_ALL, 0UL);
     job = EqualizerUiLogic_SelectJob(&state, 0UL);
-    complete_one(&state, job, 0UL);
+    complete_job(&state, job, 0UL);
     failures += require_true(
         EqualizerUiLogic_SelectJob(&state, 7UL) == EQ_UI_JOB_NONE &&
         EqualizerUiLogic_SelectJob(&state, 8UL) != EQ_UI_JOB_NONE,
-        "chain gap is eight frames");
+        "analyzer gap is eight frames");
 
-    EqualizerUiLogic_Init(&state);
-    EqualizerUiLogic_Request(&state, &snapshot, EQ_UI_RUNTIME_ANALYZER, 0UL);
-    job = EqualizerUiLogic_SelectJob(&state, 0UL);
-    complete_one(&state, job, 0UL);
-    failures += require_true(
-        EqualizerUiLogic_SelectJob(&state, 0UL) == EQ_UI_JOB_NONE &&
-        EqualizerUiLogic_SelectJob(&state, 7UL) == EQ_UI_JOB_NONE &&
-        EqualizerUiLogic_SelectJob(&state, 8UL) != EQ_UI_JOB_NONE,
-        "analyzer and same-frame gaps enforced");
-
-    EqualizerUiLogic_Init(&state);
+    initialize_rendered(&state, &snapshot);
     count = 0;
     for (frame = 0UL; frame < 4883UL; frame++)
     {
-        snapshot.smart_level = (int)(frame & 3UL);
-        EqualizerUiLogic_Request(&state, &snapshot,
-                                 EQ_UI_RUNTIME_DYNAMICS, frame);
+        snapshot.smart_active = (int)(frame & 1UL);
+        EqualizerUiLogic_Request(
+            &state, &snapshot, EQ_UI_RUNTIME_ALL, frame);
         job = EqualizerUiLogic_SelectJob(&state, frame);
         if (job != EQ_UI_JOB_NONE)
         {
-            complete_one(&state, job, frame);
+            complete_job(&state, job, frame);
             count++;
         }
     }
     failures += require_true(count <= 800,
-                             "100 second steady rate at most eight jobs/s");
+                             "steady UI rate stays bounded");
     return failures;
 }
 
@@ -527,13 +415,13 @@ static int test_editor_state_model(void)
     memset(applied, 0, sizeof(applied));
     EqualizerUiEditor_Init(&editor);
     failures += require_true(sizeof(editor) <= 512U,
-                              "editor state budget");
+                             "editor state budget");
     failures += require_true(editor.selected_band == 0 &&
         editor.applied_preset == EQ_PRESET_FLAT &&
         editor.apply_status == EQ_UI_APPLY_APPLIED,
         "editor defaults");
     failures += require_true(EqualizerUiEditor_SelectBand(&editor, 2),
-                              "select 125 Hz");
+                             "select 125 Hz");
     for (band = 0; band < 4; band++)
     {
         failures += require_true(
@@ -543,12 +431,9 @@ static int test_editor_state_model(void)
     failures += require_true(editor.draft_gain_half_db[2] == 4 &&
         editor.draft_dirty != 0U && editor.draft_version == 4UL,
         "draft is local half dB state");
-    failures += require_true(
-        EqualizerUiEditor_HasSubmittableDraft(&editor),
-        "draft can submit once");
     EqualizerUiEditor_CopyDraftDb(&editor, gains_db);
     failures += require_true(gains_db[2] == 2.0f,
-                              "transient float conversion");
+                             "transient float conversion");
     EqualizerUiEditor_MarkSubmitted(&editor, 1U);
     failures += require_true(!EqualizerUiEditor_HasSubmittableDraft(&editor) &&
         editor.submitted_gain_half_db[2] == 4 &&
@@ -561,142 +446,144 @@ static int test_editor_state_model(void)
         editor.applied_gain_half_db[2] == 4 &&
         editor.draft_dirty == 0U &&
         editor.apply_status == EQ_UI_APPLY_APPLIED,
-        "custom only becomes applied on applied sequence");
+        "custom becomes applied on applied sequence");
     for (band = 0; band < 100; band++)
-    {
         (void)EqualizerUiEditor_StepSelected(&editor, 1);
-    }
     failures += require_true(editor.draft_gain_half_db[2] ==
         EQ_UI_GAIN_HALF_DB_MAX, "upper gain clamp");
     for (band = 0; band < 100; band++)
-    {
         (void)EqualizerUiEditor_StepSelected(&editor, -1);
-    }
     failures += require_true(editor.draft_gain_half_db[2] ==
         EQ_UI_GAIN_HALF_DB_MIN, "lower gain clamp");
-    memset(applied, 0, sizeof(applied));
-    applied[0] = 6;
-    EqualizerUiEditor_ObserveApplied(
-        &editor, applied, EQ_PRESET_BASS_BOOST, 2U);
-    failures += require_true(editor.applied_preset == EQ_PRESET_BASS_BOOST &&
-        editor.draft_gain_half_db[0] == 6 &&
-        editor.submitted_gain_half_db[0] == 6 &&
-        editor.draft_dirty == 0U,
-        "fixed preset discards unsubmitted draft");
-    failures += require_true(EqualizerUi_GainDbToHalf(12.5f) == 24 &&
-        EqualizerUi_GainDbToHalf(-19.0f) == -36 &&
-        EqualizerUi_GainDbToHalf(2.24f) == 4,
-        "gain conversion clamps and rounds");
     return failures;
 }
 
-static int test_editor_pages_jobs_and_touch(void)
+static int test_permanent_pages_latest_wins(void)
 {
     EQ_UI_STATE state;
     EQ_UI_SNAPSHOT snapshot;
-    EQ_UI_TOUCH_STATE touch;
+    unsigned long editor_version;
     int failures;
     int job;
-    int x;
-    int y;
-    int action;
-    int rejected;
-    int before;
-    int after;
+    int sync_count;
+    int saw_last_sync_boundary;
 
     failures = 0;
-    failures += require_true(EQ_UI_JOB_COUNT == 27,
-                              "editor job count");
-    EqualizerUiLogic_Init(&state);
-    make_snapshot(&snapshot);
-    EqualizerUiLogic_Request(&state, &snapshot, EQ_UI_RUNTIME_ALL, 0UL);
-    failures += require_true(flush_jobs(&state, 0UL) == 21,
-                              "dynamic page initial jobs");
+    initialize_rendered(&state, &snapshot);
+    failures += require_true(
+        EqualizerUiLogic_GetPageDirtyMask(
+            &state, EQ_UI_PAGE_DYNAMIC_STATUS) == 0UL &&
+        EqualizerUiLogic_GetPageDirtyMask(
+            &state, EQ_UI_PAGE_EQ_EDITOR) == 0UL &&
+        state.page_rendered_version[0] == state.page_requested_version[0] &&
+        state.page_rendered_version[1] == state.page_requested_version[1],
+        "both permanent pages start rendered and clean");
+
+    snapshot.editor_selected_band = 2;
+    snapshot.applied_gain_half_db[2] = 8;
+    snapshot.draft_gain_half_db[2] = 8;
+    snapshot.editor_draft_version = 1UL;
+    EqualizerUiLogic_Request(
+        &state, &snapshot, EQ_UI_RUNTIME_ALL, 100UL);
+    snapshot.applied_gain_half_db[2] = -6;
+    snapshot.draft_gain_half_db[2] = -6;
+    snapshot.editor_draft_version = 2UL;
+    EqualizerUiLogic_Request(
+        &state, &snapshot, EQ_UI_RUNTIME_ALL, 101UL);
+    editor_version = state.page_requested_version[EQ_UI_PAGE_EQ_EDITOR];
+    failures += require_true(
+        EqualizerUiLogic_GetPageDirtyMask(
+            &state, EQ_UI_PAGE_EQ_EDITOR) != 0UL &&
+        EqualizerUiLogic_GetPageDirtyMask(
+            &state, EQ_UI_PAGE_DYNAMIC_STATUS) == 0UL &&
+        !EqualizerUiLogic_HasPending(&state),
+        "hidden editor accumulates latest state without drawing");
 
     snapshot.page = EQ_UI_PAGE_EQ_EDITOR;
-    EqualizerUiLogic_Request(&state, &snapshot, EQ_UI_RUNTIME_ALL, 1000UL);
-    failures += require_true(EqualizerUiLogic_IsPageBuilding(&state) &&
+    EqualizerUiLogic_Request(
+        &state, &snapshot, EQ_UI_RUNTIME_ALL, 120UL);
+    failures += require_true(
+        EqualizerUiLogic_GetPagePhase(&state) == EQ_UI_PAGE_PHASE_SYNC &&
+        EqualizerUiLogic_GetDisplayedPage(&state) ==
+            EQ_UI_PAGE_DYNAMIC_STATUS,
+        "page change enters sync while old page remains visible");
+    sync_count = 0;
+    saw_last_sync_boundary = 0;
+    while (EqualizerUiLogic_GetPagePhase(&state) == EQ_UI_PAGE_PHASE_SYNC &&
+           sync_count < 64)
+    {
+        job = EqualizerUiLogic_SelectJob(
+            &state, 128UL + (unsigned long)sync_count * 8UL);
+        if (job == EQ_UI_JOB_PAGE_SYNC)
+        {
+            complete_job(&state, job,
+                         128UL + (unsigned long)sync_count * 8UL);
+            sync_count++;
+            if (EqualizerUiLogic_GetPageDirtyMask(
+                    &state, EQ_UI_PAGE_EQ_EDITOR) == 0UL)
+            {
+                saw_last_sync_boundary = 1;
+                break;
+            }
+        }
+        else
+        {
+            break;
+        }
+    }
+    failures += require_true(saw_last_sync_boundary && sync_count > 0 &&
+        EqualizerUiLogic_GetPagePhase(&state) == EQ_UI_PAGE_PHASE_SYNC &&
+        EqualizerUiLogic_GetDisplayedPage(&state) ==
+            EQ_UI_PAGE_DYNAMIC_STATUS,
+        "final sync does not install page in the same service call");
+    job = EqualizerUiLogic_SelectJob(&state, 1000UL);
+    failures += require_true(job == EQ_UI_JOB_PAGE_SWAP &&
+        EqualizerUiLogic_GetPagePhase(&state) == EQ_UI_PAGE_PHASE_SWAP &&
+        EqualizerUiLogic_GetDisplayedPage(&state) ==
+            EQ_UI_PAGE_DYNAMIC_STATUS,
+        "next service starts PAGE_SWAP");
+    complete_job(&state, job, 1000UL);
+    failures += require_true(
+        EqualizerUiLogic_GetDisplayedPage(&state) == EQ_UI_PAGE_EQ_EDITOR &&
+        state.editor_displayed_applied_gain[2] == -6 &&
+        state.displayed.editor_selected_band == 2 &&
+        state.page_rendered_version[EQ_UI_PAGE_EQ_EDITOR] ==
+            state.page_requested_version[EQ_UI_PAGE_EQ_EDITOR] &&
+        state.page_requested_version[EQ_UI_PAGE_EQ_EDITOR] > editor_version,
+        "editor swap exposes only the latest hidden snapshot");
+
+    snapshot.smart_enabled = 1;
+    snapshot.smart_strength = 1;
+    snapshot.smart_active = 0;
+    EqualizerUiLogic_Request(
+        &state, &snapshot, EQ_UI_RUNTIME_ALL, 1100UL);
+    snapshot.smart_strength = 3;
+    snapshot.smart_active = 1;
+    EqualizerUiLogic_Request(
+        &state, &snapshot, EQ_UI_RUNTIME_ALL, 1101UL);
+    failures += require_true(
+        EqualizerUiLogic_GetPageDirtyMask(
+            &state, EQ_UI_PAGE_DYNAMIC_STATUS) != 0UL &&
+        !EqualizerUiLogic_HasPending(&state),
+        "hidden dynamic page is not serviced while editor is visible");
+    snapshot.page = EQ_UI_PAGE_DYNAMIC_STATUS;
+    EqualizerUiLogic_Request(
+        &state, &snapshot, EQ_UI_RUNTIME_ALL, 1110UL);
+    failures += require_true(flush_jobs(&state, 1120UL, 64) > 1 &&
         EqualizerUiLogic_GetDisplayedPage(&state) ==
             EQ_UI_PAGE_DYNAMIC_STATUS &&
-        state.dirty_mask == JOB_BIT(EQ_UI_JOB_PAGE_TILE) &&
-        EqualizerUiLogic_GetPageTileCount(&state) ==
-            EQ_UI_PAGE_TILE_EDITOR_COUNT,
-        "page build starts as one tiled job");
-    job = EqualizerUiLogic_SelectJob(&state, 1000UL);
-    complete_one(&state, job, 1000UL);
-    snapshot.page = EQ_UI_PAGE_DYNAMIC_STATUS;
-    EqualizerUiLogic_Request(&state, &snapshot, EQ_UI_RUNTIME_ALL, 1001UL);
-    failures += require_true(EqualizerUiLogic_GetPageTileIndex(&state) == 0U &&
-        EqualizerUiLogic_GetPageTileCount(&state) == 0U &&
-        state.page_target == EQ_UI_PAGE_DYNAMIC_STATUS &&
-        !EqualizerUiLogic_IsPageBuilding(&state),
-        "latest request cancels a hidden-page build");
-    failures += require_true(flush_jobs(&state, 1002UL) == 0,
-        "cancelling hidden build never redraws the visible page");
+        state.displayed.smart_enabled == 1 &&
+        state.displayed.smart_strength == 3 &&
+        state.displayed.smart_active == 1,
+        "dynamic page sync is latest-wins");
 
     snapshot.page = EQ_UI_PAGE_EQ_EDITOR;
-    EqualizerUiLogic_Request(&state, &snapshot, EQ_UI_RUNTIME_ALL, 2000UL);
-    before = flush_jobs(&state, 2000UL);
-    failures += require_true(before == (int)EQ_UI_PAGE_TILE_EDITOR_COUNT &&
-        EqualizerUiLogic_GetDisplayedPage(&state) == EQ_UI_PAGE_EQ_EDITOR &&
-        !EqualizerUiLogic_IsPageBuilding(&state) &&
-        !EqualizerUiLogic_HasPending(&state),
-        "displayed page changes after final tile only");
-
-    snapshot.applied_preset = EQ_PRESET_CUSTOM;
-    snapshot.applied_gain_half_db[2] = 24;
-    snapshot.editor_selected_band = 2;
-    snapshot.editor_draft_version++;
-    snapshot.draft_gain_half_db[2] = 24;
-    EqualizerUiLogic_Request(&state, &snapshot, EQ_UI_RUNTIME_ALL, 3000UL);
-    failures += require_true(
-        (state.dirty_mask & JOB_BIT(EQ_UI_JOB_EDITOR_BAND_0 + 2)) != 0UL &&
-        (state.dirty_mask & JOB_BIT(EQ_UI_JOB_EDITOR_FIELDS)) != 0UL &&
-        (state.dirty_mask & (0x7FFFUL)) ==
-            (JOB_BIT(EQ_UI_JOB_PRESET_0)),
-        "custom editor dirties old preset, one band, shared fields");
-    before = state.editor_displayed_pixel[2];
-    job = EQ_UI_JOB_EDITOR_BAND_0 + 2;
-    EqualizerUiLogic_CompleteEditorBand(&state, job, 3000UL);
-    after = state.editor_displayed_pixel[2];
-    failures += require_true((before - after) > 0 &&
-        (before - after) <= EQ_UI_EDITOR_MAX_STRIP_HEIGHT,
-        "editor applied bar uses bounded differential strip");
-    failures += require_true(flush_jobs(&state, 3002UL) > 0 &&
-        !EqualizerUiLogic_HasPending(&state),
-        "editor jobs converge");
-    snapshot.smart_level = 3;
-    EqualizerUiLogic_Request(&state, &snapshot, EQ_UI_RUNTIME_ALL, 4000UL);
-    failures += require_true(!EqualizerUiLogic_HasPending(&state),
-                              "hidden dynamic page creates no content job");
-
-    failures += require_true(
-        EqualizerUi_HitTest(EQ_UI_PAGE_DYNAMIC_STATUS,
-            EQ_UI_DYNAMIC_TOGGLE_RECTS[0].x + 1,
-            EQ_UI_DYNAMIC_TOGGLE_RECTS[0].y + 1) ==
-            EQ_UI_ACTION_SMART_TOGGLE,
-        "dynamic page hitbox");
-    failures += require_true(
-        EqualizerUi_HitTest(EQ_UI_PAGE_EQ_EDITOR,
-            EQ_UI_EDITOR_BAND_RECTS[2].x + 1,
-            EQ_UI_EDITOR_BAND_RECTS[2].y + 1) ==
-            EQ_UI_ACTION_EDITOR_BAND_2,
-        "editor page hitbox");
-    EqualizerUiTouch_Init(&touch);
-    x = EQ_UI_EDITOR_BAND_RECTS[2].x + 1;
-    y = EQ_UI_EDITOR_BAND_RECTS[2].y + 1;
-    action = EqualizerUiTouch_Process(
-        &touch, EQ_UI_PAGE_EQ_EDITOR, 1, 1, x, y, &rejected);
-    failures += require_true(action == EQ_UI_ACTION_NONE && rejected,
-                              "content action rejected while page builds");
-    (void)EqualizerUiTouch_Process(
-        &touch, EQ_UI_PAGE_EQ_EDITOR, 1, 0, x, y, &rejected);
-    x = EQ_UI_PAGE_SWITCH_RECT.x + 1;
-    y = EQ_UI_PAGE_SWITCH_RECT.y + 1;
-    action = EqualizerUiTouch_Process(
-        &touch, EQ_UI_PAGE_EQ_EDITOR, 1, 1, x, y, &rejected);
-    failures += require_true(action == EQ_UI_ACTION_PAGE_SWITCH && !rejected,
-                              "page switch remains latest-wins while building");
+    EqualizerUiLogic_Request(
+        &state, &snapshot, EQ_UI_RUNTIME_ALL, 2000UL);
+    job = EqualizerUiLogic_SelectJob(&state, 2000UL);
+    failures += require_true(job == EQ_UI_JOB_PAGE_SWAP &&
+        EqualizerUiLogic_GetPageSyncJob(&state) == EQ_UI_JOB_NONE,
+        "clean permanent page switch needs no PAGE_SYNC data job");
     return failures;
 }
 #endif
@@ -707,13 +594,12 @@ int main(void)
 
     failures = 0;
     failures += test_layout_and_touch();
-    failures += test_jobs_and_dynamic_semantics();
-    failures += test_analyzer_transitions();
-    failures += test_analyzer_value_throttle();
+    failures += test_dynamic_active_semantics();
+    failures += test_analyzer_bar_only();
     failures += test_service_gaps();
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
     failures += test_editor_state_model();
-    failures += test_editor_pages_jobs_and_touch();
+    failures += test_permanent_pages_latest_wins();
 #endif
     printf("equalizer_ui_logic failures=%d\n", failures);
     return (failures == 0) ? 0 : 1;

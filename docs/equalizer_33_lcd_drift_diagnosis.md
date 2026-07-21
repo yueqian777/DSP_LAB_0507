@@ -146,9 +146,10 @@ longer drifts on the physical LCD.
 
 The historical single-framebuffer evidence above is retained as the failure
 record. The current Editor implementation no longer edits the scanned page
-while constructing another page. Dynamic Status and Editor own separate
-800x480 RGB565 buffers in external DDR, and each fixed region is cleared and
-redrawn immediately in the hidden buffer.
+while constructing another page. Dynamic Status and Editor own permanent
+separate 800x480 RGB565 buffers in external DDR. Both complete static pages
+are drawn before Raster starts. Runtime page switching synchronizes only the
+latest dirty data regions; it never clears or rebuilds the hidden page.
 
 LCDC uses FB0 and FB1 descriptors in double-frame mode. EOF0 publishes the
 target address to idle FB0, EOF1 publishes it to idle FB1, and software accepts
@@ -157,6 +158,13 @@ partial descriptor swap is queued and starts after convergence. Host C89 tests
 cover this ordering and the TI C6000 full Editor profile compiles and links with
 zero warnings and `link_errors=0x0`. Absence of circular shift on the physical
 LCD remains `PENDING_HARDWARE` until the board is loaded and observed.
+
+The fixed 18/24 page-tile construction is replaced by `PAGE_SYNC` and
+`PAGE_SWAP`. `PAGE_SYNC` writes one target-page data region and performs a real
+dirty-range `CacheWB` only when the corresponding MAR marks DDR cacheable.
+`PAGE_SWAP` draws nothing. A 64-entry fixed EOF/swap ring replaces repeated DSS
+halts during a run. Burst16/FIFO8 remains unchanged until new nonzero FUF/SYNC
+evidence justifies a controlled burst16/burst8 A/B test.
 
 DMA mode and descriptor reconfiguration now occurs only after Raster disable
 has produced `LCD_STAT.DONE`. Startup waits with a bounded timeout before

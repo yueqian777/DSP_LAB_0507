@@ -14,12 +14,13 @@
 
 #define TEST_JOB_BIT(job_) (1UL << ((job_) - 1))
 #define TEST_PRESET_MASK 0x001FUL
-#define TEST_CHAIN_MASK 0x00E0UL
-#define TEST_ANALYZER_MASK 0x0F00UL
-#define TEST_DYNAMIC_MASK 0x7000UL
-#define TEST_EDITOR_MASK 0x03FF8000UL
-#define TEST_PAGE_MASK 0x04000000UL
-#define TEST_VALID_JOB_MASK ((1UL << EQ_UI_JOB_COUNT) - 1UL)
+#define TEST_ANALYZER_MASK 0x01E0UL
+#define TEST_DYNAMIC_MASK 0x0E00UL
+#define TEST_DYNAMIC_PAGE_MASK \
+    (TEST_PRESET_MASK | TEST_ANALYZER_MASK | TEST_DYNAMIC_MASK)
+#define TEST_EDITOR_MASK 0x007FF000UL
+#define TEST_VALID_DIRTY_MASK \
+    (TEST_DYNAMIC_PAGE_MASK | TEST_EDITOR_MASK)
 
 typedef enum
 {
@@ -273,14 +274,13 @@ static void fill_snapshot(STRESS_CONTEXT *context)
     context->snapshot.smart_strength = context->dynamic_strength[0];
     context->snapshot.clarity_strength = context->dynamic_strength[1];
     context->snapshot.guard_strength = context->dynamic_strength[2];
-    context->snapshot.smart_level = context->dynamic_strength[0];
-    context->snapshot.clarity_level = context->dynamic_strength[1];
-    context->snapshot.guard_level = context->dynamic_strength[2];
+    context->snapshot.smart_active = context->dynamic_enabled[0];
+    context->snapshot.clarity_active = context->dynamic_enabled[1];
+    context->snapshot.guard_active = context->dynamic_enabled[2];
     context->snapshot.analyzer_valid = (int)context->analyzer_valid;
     context->snapshot.analyzer_warm = (int)context->analyzer_warm;
     for (band = 0; band < EQ_UI_ANALYZER_COUNT; band++)
     {
-        context->snapshot.band_value_db[band] = context->analyzer_db[band];
         context->snapshot.band_pixel[band] = EqualizerUi_DbTenthsToPixel(
             context->analyzer_db[band] * 10);
     }
@@ -296,23 +296,23 @@ static void check_display_pending(STRESS_CONTEXT *context)
 
     mask = EQ_DebugLcdPendingMask;
     displayed_page = EqualizerDisplay_GetDisplayedPage();
-    CHECK(context, (mask & ~TEST_VALID_JOB_MASK) == 0UL);
+    CHECK(context, (mask & ~TEST_VALID_DIRTY_MASK) == 0UL);
     CHECK(context, EQ_UI_JOB_COUNT <= 32);
     CHECK(context, (displayed_page == EQ_UI_PAGE_DYNAMIC_STATUS) ||
                    (displayed_page == EQ_UI_PAGE_EQ_EDITOR));
     if (EqualizerDisplay_IsPageBuilding())
     {
-        CHECK(context, (mask & ~TEST_PAGE_MASK) == 0UL);
-    }
-    else if (displayed_page == EQ_UI_PAGE_EQ_EDITOR)
-    {
-        CHECK(context, (mask & (TEST_CHAIN_MASK | TEST_ANALYZER_MASK |
-                                TEST_DYNAMIC_MASK)) == 0UL);
+        CHECK(context, (EQ_DebugLcdPagePhase == EQ_UI_PAGE_PHASE_SYNC) ||
+                       (EQ_DebugLcdPagePhase == EQ_UI_PAGE_PHASE_SWAP));
     }
     else
     {
-        CHECK(context, (mask & TEST_EDITOR_MASK) == 0UL);
+        CHECK(context, EQ_DebugLcdPagePhase == EQ_UI_PAGE_PHASE_IDLE);
     }
+    CHECK(context, EQ_DebugLcdDynamicDirtyMask ==
+                   (mask & TEST_DYNAMIC_PAGE_MASK));
+    CHECK(context, EQ_DebugLcdEditorDirtyMask ==
+                   (mask & TEST_EDITOR_MASK));
 }
 
 static void request_display_snapshot(STRESS_CONTEXT *context)
@@ -447,7 +447,8 @@ static int perform_action(STRESS_CONTEXT *context, int action_kind)
             }
             break;
         case STRESS_PRESET:
-            if (page_building == 0)
+            if ((displayed_page == EQ_UI_PAGE_DYNAMIC_STATUS) &&
+                (page_building == 0))
             {
                 index = (int)(random_value % EQ_PRESET_COUNT);
                 expected = EQ_UI_ACTION_PRESET_FLAT + index;
@@ -459,12 +460,15 @@ static int perform_action(STRESS_CONTEXT *context, int action_kind)
             }
             break;
         case STRESS_PAGE_SWITCH:
-            (void)touch_rect(context, &EQ_UI_PAGE_SWITCH_RECT,
-                             EQ_UI_ACTION_PAGE_SWITCH);
-            context->requested_page =
-                (context->requested_page == EQ_UI_PAGE_DYNAMIC_STATUS) ?
-                EQ_UI_PAGE_EQ_EDITOR : EQ_UI_PAGE_DYNAMIC_STATUS;
-            touch_serviced = 1;
+            if (page_building == 0)
+            {
+                (void)touch_rect(context, &EQ_UI_PAGE_SWITCH_RECT,
+                                 EQ_UI_ACTION_PAGE_SWITCH);
+                context->requested_page =
+                    (context->requested_page == EQ_UI_PAGE_DYNAMIC_STATUS) ?
+                    EQ_UI_PAGE_EQ_EDITOR : EQ_UI_PAGE_DYNAMIC_STATUS;
+                touch_serviced = 1;
+            }
             break;
         case STRESS_DYNAMIC_TOGGLE:
             if ((displayed_page == EQ_UI_PAGE_DYNAMIC_STATUS) &&
@@ -788,6 +792,8 @@ static void check_state_invariants(STRESS_CONTEXT *context)
     CHECK(context, EQ_DebugLcdBoundsFailureCount == 0UL);
     CHECK(context, EQ_DebugLcdUnexpectedFullRedrawCount == 0UL);
     CHECK(context, EQ_DebugLcdAutoDisabledCount == 0UL);
+    CHECK(context, EQ_DebugLcdWritebackFailureCount == 0UL);
+    CHECK(context, EQ_DebugLcdSwapTraceCount <= EQ_LCD_SWAP_TRACE_DEPTH);
     check_builder_state(context);
     finite = bank_is_finite(&context->equalizer.active_bank);
     if ((finite != 0) && (context->equalizer.pending_bank_valid != 0))
@@ -945,7 +951,7 @@ static void run_ui_action_coverage(STRESS_CONTEXT *context)
 
     CHECK(context, wait_for_displayed_page(
         context, EQ_UI_PAGE_EQ_EDITOR));
-    for (kind = STRESS_SELECT_BAND; kind <= STRESS_PRESET; kind++)
+    for (kind = STRESS_SELECT_BAND; kind <= STRESS_RESET; kind++)
     {
         accepted_before = context->accepted_count[kind];
         run_frame(context, kind, 0);
@@ -959,6 +965,11 @@ static void run_ui_action_coverage(STRESS_CONTEXT *context)
                    accepted_before + 1UL);
     CHECK(context, wait_for_displayed_page(
         context, EQ_UI_PAGE_DYNAMIC_STATUS));
+
+    accepted_before = context->accepted_count[STRESS_PRESET];
+    run_frame(context, STRESS_PRESET, 0);
+    CHECK(context, context->accepted_count[STRESS_PRESET] ==
+                   accepted_before + 1UL);
 
     for (kind = STRESS_DYNAMIC_TOGGLE; kind <= STRESS_STRENGTH; kind++)
     {
@@ -1037,10 +1048,12 @@ static void initialize_context(STRESS_CONTEXT *context)
     hardware.frame1_end = EQ_DebugLcdExpectedFrameEnd;
     hardware.raster_control = 1UL;
     EqualizerDisplay_TestSetHardwareSnapshot(&hardware);
+    EQ_DebugLcdRuntimeMask = EQ_UI_RUNTIME_ALL;
+    fill_snapshot(context);
+    EqualizerDisplay_RequestSnapshot(&context->snapshot, context->frame);
     CHECK(context, EqualizerDisplay_DrawStaticLayout() == 1);
     CHECK(context, EQ_DebugLcdBoundsFailureCount == 0UL);
     EqualizerDisplay_BeginRuntime();
-    EQ_DebugLcdRuntimeMask = EQ_UI_RUNTIME_ALL;
     request_display_snapshot(context);
 }
 

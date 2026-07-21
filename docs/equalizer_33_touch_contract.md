@@ -42,8 +42,9 @@ own offset, swap, or inversion.
 | Clarity strength | 286,386,96,40 |
 | Guard toggle | 166,430,96,40 |
 | Guard strength | 286,430,96,40 |
+| Editor page switch | 672,430,104,40 |
 
-Host validation checks all 11 rectangles are in bounds and non-overlapping.
+Host validation checks all 12 rectangles are in bounds and non-overlapping.
 Strength cycles LOW -> MEDIUM -> HIGH -> LOW and is independent of enable.
 
 ## Press lifecycle
@@ -64,19 +65,19 @@ of physical hitbox accuracy. Visual and physical-touch validation remains
 ## Optional editor page
 
 Feature source `6c3daca0cfd645704446a60c5fe189ffeb0b8645` makes hit testing page-aware.
-The preserved Dynamic Status page now has 12 hitboxes, adding the fixed page
-switch. Editor builds add a separate 20-hitbox table: five presets, ten band
-selectors, minus, plus, Apply, Reset Flat, and page switch. Cross-page
+The preserved Dynamic Status page has 12 hitboxes. Editor builds add a
+separate 15-hitbox table: ten band selectors, minus, plus, Apply, Flat, and
+page switch. The duplicated Editor preset hitboxes are removed. Cross-page
 coordinate reuse is permitted; each individual table is bounded and
 non-overlapping.
 
 Band selectors change only the selected index. Minus and plus change the local
 draft by one half-dB step and retain the existing press/release latch, so a
 held press cannot repeat. Apply submits one SET_ALL request and Reset submits
-RESET_FLAT. While hidden-page regions are incomplete, old-page content actions
-are rejected and counted. Page switch is latest-wins until descriptor
-publication starts; after one DMA descriptor has changed, the latest request is
-retained and applied only after both descriptors converge at EOF boundaries.
+RESET_FLAT. While `PAGE_SYNC` or `PAGE_SWAP` is active, every Touch action,
+including another page switch, is rejected and counted. A request retained
+after descriptor publication is applied only after both descriptors converge
+at EOF boundaries.
 
 `EQ_ENABLE_TEN_BAND_EDITOR_TOUCH` defaults to 0 and is rejected unless both
 the editor and Project 3.3 Touch are enabled. These Host contracts do not prove

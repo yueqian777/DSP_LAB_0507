@@ -126,14 +126,14 @@ foreach ($define in @(
         "--define=EQ_ENABLE_PROJECT33_TOUCH=1",
         "--define=EQ_ENABLE_TEN_BAND_EDITOR=1",
         "--define=EQ_ENABLE_TEN_BAND_EDITOR_TOUCH=1",
-        "--define=EQ_UI_RUNTIME_DEFAULT_MASK=63")) {
+        "--define=EQ_UI_RUNTIME_DEFAULT_MASK=31")) {
     if ($buildResult.defines -notmatch [regex]::Escape($define)) {
         throw "H build macro missing: $define"
     }
 }
-if (($buildResult.job_count -ne 27) -or
+if (($buildResult.job_count -ne 25) -or
     ($buildResult.dynamic_hitbox_count -ne 12) -or
-    ($buildResult.editor_hitbox_count -ne 20) -or
+    ($buildResult.editor_hitbox_count -ne 15) -or
     ($buildResult.framebuffer_symbol_count -ne 2) -or
     ($buildResult.second_framebuffer_symbol_hits -ne 1) -or
     ($buildResult.offscreen_buffer_object_count -ne 2) -or
@@ -172,9 +172,18 @@ $lcdDoubleBufferDebugSymbols = @(
     "EQ_DebugLcdDoubleBufferEnabled", "EQ_DebugLcdFrontPage",
     "EQ_DebugLcdSwapTargetPage", "EQ_DebugLcdSwapPending",
     "EQ_DebugLcdSwapDescriptorMask", "EQ_DebugLcdEofCount",
+    "EQ_DebugLcdEof0Count", "EQ_DebugLcdEof1Count",
     "EQ_DebugLcdEofAmbiguousCount", "EQ_DebugLcdSwapRequestCount",
     "EQ_DebugLcdSwapCompleteCount", "EQ_DebugLcdCurrentFrame1Base",
-    "EQ_DebugLcdCurrentFrame1End", "EQ_DebugLcdRasterStopTimeoutCount"
+    "EQ_DebugLcdCurrentFrame1End", "EQ_DebugLcdRasterStopTimeoutCount",
+    "EQ_DebugLcdCacheMode", "EQ_DebugLcdBufferMar",
+    "EQ_DebugLcdEditorBufferMar", "EQ_DebugLcdWritebackCount",
+    "EQ_DebugLcdWritebackBytes", "EQ_DebugLcdWritebackFailureCount",
+    "EQ_DebugLcdPagePhase", "EQ_DebugLcdDynamicDirtyMask",
+    "EQ_DebugLcdEditorDirtyMask", "EQ_DebugLcdPageRequestedVersion",
+    "EQ_DebugLcdPageRenderedVersion", "EQ_DebugLcdSwapTrace",
+    "EQ_DebugLcdSwapTraceWriteIndex", "EQ_DebugLcdSwapTraceCount",
+    "EQ_DebugLcdSwapTraceWrapCount"
 )
 $requiredSymbols = @(
     "EQ_DebugBuildGitSha", "EQ_DebugBuildDirty", "EQ_DebugInitStage",
@@ -201,7 +210,7 @@ $requiredSymbols = @(
     "EQ_DebugLcdCategoryLastCycles", "EQ_DebugLcdCategoryMaxCycles",
     "EQ_DebugLcdJobTypeCount", "EQ_DebugLcdJobTypeLastCycles",
     "EQ_DebugLcdJobTypeMaxCycles", "EQ_DebugLcdAnalyzerMaxStripHeight",
-    "EQ_DebugLcdAnalyzerStripCount", "EQ_DebugLcdAnalyzerValueCount",
+    "EQ_DebugLcdAnalyzerStripCount",
     "EQ_DebugLcdRasterFaultCount", "EQ_DebugLcdFifoUnderflowCount",
     "EQ_DebugLcdFramebufferCanaryFailureCount",
     "EQ_DebugAnalyzerEnabled", "EQ_DebugAnalyzerValid",

@@ -71,7 +71,8 @@ class EqualizerUiHostTest(unittest.TestCase):
                     "display_en",
                     f"{msys_path(DISPLAY_HARNESS)} {msys_path(LOGIC)} "
                     f"{msys_path(DISPLAY)}",
-                    "-DEQ_ENABLE_LCD_DISPLAY=1 -DEQ_LCD_USE_CHINESE=0",
+                    "-DEQ_ENABLE_LCD_DISPLAY=1 -DEQ_LCD_USE_CHINESE=0 "
+                    "-Wno-unused-function",
                     "equalizer_display failures=0",
                 ),
                 (
@@ -180,7 +181,7 @@ class EqualizerUiSourceContractTest(unittest.TestCase):
         )
         self.assertIn("EQ_UI_ANALYZER_MAX_STRIP_HEIGHT 16",
                       self.logic_header)
-        self.assertIn("EQ_UI_ANALYZER_VALUE_MAX_AGE_FRAMES 50UL",
+        self.assertIn("EQ_UI_ANALYZER_MAX_AGE_FRAMES 50UL",
                       self.logic_header)
 
     def test_dynamic_runtime_clear_is_bounded_to_value_footprint(self) -> None:
@@ -202,9 +203,14 @@ class EqualizerUiSourceContractTest(unittest.TestCase):
             "EQ_DebugSmartBassEnabled",
             "EQ_DebugDynamicClarityEnabled",
             "EQ_DebugHarshnessGuardEnabled",
+            "EQ_DebugSmartBassProcessingActive",
+            "EQ_DebugDynamicClarityProcessingActive",
+            "EQ_DebugHarshnessGuardProcessingActive",
+            "snapshot->smart_active",
+            "snapshot->clarity_active",
+            "snapshot->guard_active",
         ):
             self.assertIn(token, snapshot)
-        self.assertNotIn("ProcessingActive", snapshot)
         self.assertIn("EqualizerDisplay_HasEligibleJob(", self.flow)
 
     def test_renderer_uses_bounded_local_rectangles(self) -> None:
@@ -300,22 +306,67 @@ class EqualizerUiSourceContractTest(unittest.TestCase):
         loop = self.flow[self.flow.index("while (1)"):]
         self.assertNotIn("EqualizerDisplay_Init(", loop)
 
-    def test_chain_uses_ascii_separator_and_geometric_arrows(self) -> None:
-        combined = self.display + self.logic
-        arrow_start = self.display.index("static void EQ_DrawChainArrow(")
-        chain_start = self.display.index("static void EQ_DrawChainStatic(void)")
-        arrow_body = self.display[arrow_start:chain_start]
-        chain_end = self.display.index("static void EQ_DrawAnalyzerStatic(void)",
-                                       chain_start)
-        chain_body = self.display[chain_start:chain_end]
+    def test_removed_chain_and_analyzer_value_paths_do_not_return(self) -> None:
+        combined = self.display + self.header + self.logic + self.logic_header
+        for forbidden in (
+            "EQ_DrawChain", "EQ_UI_CHAIN", "EQ_UI_RUNTIME_CHAIN",
+            "band_value_db", "EQ_UI_ANALYZER_FIELD_VALUE",
+            "EQ_DebugLcdAnalyzerValueCount", "EQ_FormatSignedDb",
+            "EQ_UI_DYNAMIC_FIELD_LEVEL", "smart_level",
+            "clarity_level", "guard_level",
+        ):
+            self.assertNotIn(forbidden, combined)
+        self.assertIn("EQ_UI_ANALYZER_FIELD_BAR", self.logic_header)
+        self.assertIn("EQ_UI_DYNAMIC_FIELD_ACTIVE", self.logic_header)
 
-        self.assertIn("EQ_LcdDrawHLine(", arrow_body)
-        self.assertEqual(arrow_body.count("EQ_LcdDrawLine("), 2)
-        self.assertEqual(chain_body.count(
-            'EQ_DrawChainArrow(&rect, " -> ");'), 5)
-        self.assertNotIn('EQ_LcdDrawText(&rect, " -> "', chain_body)
-        self.assertNotIn("\u2192", combined)
-        self.assertLess(648, 800)
+    def test_cache_debug_and_fixed_swap_ring_contract(self) -> None:
+        for token in (
+            "EQ_DebugLcdCacheMode",
+            "EQ_DebugLcdWritebackCount",
+            "EQ_DebugLcdWritebackBytes",
+            "EQ_DebugLcdWritebackFailureCount",
+            "#define EQ_LCD_SWAP_TRACE_DEPTH   64U",
+            "EQ_DebugLcdSwapTrace[EQ_LCD_SWAP_TRACE_DEPTH]",
+            "EQ_DebugLcdSwapTraceWriteIndex",
+            "EQ_DebugLcdSwapTraceCount",
+            "EQ_DebugLcdSwapTraceWrapCount",
+        ):
+            self.assertIn(token, self.header)
+        detect_start = self.display.index(
+            "static void EQ_DetectFramebufferCacheMode(void)")
+        detect_end = self.display.index(
+            "static void EQ_ResetDirtyBounds", detect_start)
+        detect = self.display[detect_start:detect_end]
+        self.assertIn("DSPCACHE_MAR(", detect)
+        self.assertIn("DSPCACHE_MAR_PC", detect)
+
+        flush_start = self.display.index(
+            "static void EQ_WritebackRange(")
+        flush_end = self.display.index("static int EQ_BeginDraw", flush_start)
+        flush = self.display[flush_start:flush_end]
+        self.assertIn("EQ_LCD_CACHE_CACHEABLE", flush)
+        self.assertIn("CacheWB(", flush)
+        self.assertIn("EQ_DebugLcdWritebackBytes += bytes", flush)
+        self.assertIn("s_dirty_x0", flush)
+        self.assertIn("s_dirty_y1", flush)
+
+        trace_start = self.display.index("static void EQ_RecordSwapTrace(")
+        trace_end = self.display.index(
+            "static void EQ_ClearStartupFaultStatus", trace_start)
+        trace = self.display[trace_start:trace_end]
+        self.assertIn("EQ_DebugLcdSwapTraceWriteIndex", trace)
+        self.assertIn("EQ_LCD_SWAP_TRACE_DEPTH", trace)
+        self.assertNotIn("printf(", trace)
+        self.assertNotIn("malloc(", trace)
+
+    def test_touch_rejects_every_page_transition_phase(self) -> None:
+        start = self.logic.index("int EqualizerUiTouch_Process(")
+        end = self.logic.index("int EqualizerUi_ActionToPreset", start)
+        touch = self.logic[start:end]
+        self.assertIn("if (page_building != 0)", touch)
+        reject = touch[touch.index("if (page_building != 0)"):]
+        self.assertIn("action = EQ_UI_ACTION_NONE", reject)
+        self.assertNotIn("EQ_UI_ACTION_PAGE_SWITCH)", reject)
 
     def test_touch_mapping_and_actions_are_centralized(self) -> None:
         self.assertEqual(self.logic.count(
@@ -403,7 +454,6 @@ class EqualizerUiSourceContractTest(unittest.TestCase):
         for token in (
             "#define EQ_UI_PRESET_MIN_GAP_FRAMES  2UL",
             "#define EQ_UI_DYNAMIC_MIN_GAP_FRAMES 4UL",
-            "#define EQ_UI_CHAIN_MIN_GAP_FRAMES   8UL",
             "#define EQ_UI_ANALYZER_MIN_GAP_FRAMES 8UL",
             "#define EQ_UI_STEADY_MIN_GAP_FRAMES  7UL",
         ):

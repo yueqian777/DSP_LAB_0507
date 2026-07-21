@@ -177,11 +177,10 @@ function snapshot() {
         lcd_analyzer_max_strip_height: numberValue(
             "EQ_DebugLcdAnalyzerMaxStripHeight"),
         lcd_analyzer_strips: numberValue("EQ_DebugLcdAnalyzerStripCount"),
-        lcd_analyzer_values: numberValue("EQ_DebugLcdAnalyzerValueCount"),
-        lcd_category_count: readArray("EQ_DebugLcdCategoryCount", 4),
+        lcd_category_count: readArray("EQ_DebugLcdCategoryCount", 3),
         lcd_category_max_cycles: readArray(
             "EQ_DebugLcdCategoryMaxCycles", 4),
-        lcd_job_type_count: readArray("EQ_DebugLcdJobTypeCount", 15),
+        lcd_job_type_count: readArray("EQ_DebugLcdJobTypeCount", 12),
         lcd_job_type_max_cycles: readArray(
             "EQ_DebugLcdJobTypeMaxCycles", 15),
 

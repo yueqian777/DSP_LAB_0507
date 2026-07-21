@@ -112,10 +112,10 @@ class EqualizerEditorHardwareToolingTest(unittest.TestCase):
             "--define=EQ_ENABLE_PROJECT33_TOUCH=1",
             "--define=EQ_ENABLE_TEN_BAND_EDITOR=1",
             "--define=EQ_ENABLE_TEN_BAND_EDITOR_TOUCH=1",
-            "--define=EQ_UI_RUNTIME_DEFAULT_MASK=63",
-            "job_count -ne 27",
+            "--define=EQ_UI_RUNTIME_DEFAULT_MASK=31",
+            "job_count -ne 25",
             "dynamic_hitbox_count -ne 12",
-            "editor_hitbox_count -ne 20",
+            "editor_hitbox_count -ne 15",
             "framebuffer_symbol_count -ne 2",
             "second_framebuffer_symbol_hits -ne 1",
             "offscreen_buffer_object_count -ne 2",
@@ -325,7 +325,6 @@ class EqualizerEditorHardwareToolingTest(unittest.TestCase):
             "EQ_DebugLcdOver5msCount",
             "EQ_DebugLcdAnalyzerMaxStripHeight",
             "EQ_DebugLcdAnalyzerStripCount",
-            "EQ_DebugLcdAnalyzerValueCount",
             "EQ_DebugLcdDoubleBufferEnabled",
             "EQ_DebugLcdSwapDescriptorMask",
             "EQ_DebugLcdEofAmbiguousCount",
@@ -358,6 +357,7 @@ class EqualizerEditorHardwareToolingTest(unittest.TestCase):
         for token in required:
             with self.subTest(token=token):
                 self.assertIn(token, source)
+        self.assertNotIn("EQ_DebugLcdAnalyzerValueCount", source)
 
     def test_touch_calibration_and_automated_operator_boundary(self):
         source = DSS.read_text(encoding="utf-8")

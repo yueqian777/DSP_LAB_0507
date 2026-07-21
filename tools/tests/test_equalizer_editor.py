@@ -80,8 +80,11 @@ class EqualizerEditorTest(unittest.TestCase):
 
     def test_default_is_disabled_and_mask_fits(self) -> None:
         self.assertIn("#define EQ_ENABLE_TEN_BAND_EDITOR 0", self.ui_header)
-        self.assertIn("#define EQ_UI_JOB_COUNT         27", self.ui_header)
-        self.assertIn("#define EQ_UI_CATEGORY_COUNT    6", self.ui_header)
+        self.assertIn("#define EQ_UI_JOB_PAGE_SYNC     24", self.ui_header)
+        self.assertIn("#define EQ_UI_JOB_PAGE_SWAP     25", self.ui_header)
+        self.assertIn("#define EQ_UI_JOB_COUNT         25", self.ui_header)
+        self.assertIn("#define EQ_UI_CATEGORY_COUNT    5", self.ui_header)
+        self.assertIn("#define EQ_UI_EDITOR_HITBOX_COUNT 15", self.ui_header)
         self.assertIn("(EQ_UI_JOB_COUNT <= 32) ? 1 : -1", self.ui_header)
         self.assertIn("typedef signed char EQ_UI_GAIN_HALF_DB", self.ui_header)
 
@@ -108,83 +111,86 @@ class EqualizerEditorTest(unittest.TestCase):
                           "active_gain_db", "pending_bank"):
             self.assertNotIn(forbidden, submit)
 
-    def test_page_build_refreshes_persistent_hidden_regions(self) -> None:
-        start = self.display.index(
-            "static unsigned int EQ_DrawPageTile(void)")
-        end = self.display.index("static unsigned int EQ_DrawJob", start)
-        page_tile = self.display[start:end]
-        self.assertNotIn("Lcd_Clear", page_tile)
-        self.assertNotIn("EQ_UI_SCREEN_HEIGHT", page_tile)
-        self.assertIn("EqualizerUiLogic_GetPageTileIndex", page_tile)
-        self.assertIn("tile == EQ_UI_PAGE_TILE_SWITCH", page_tile)
-        self.assertNotIn("EQ_DrawPageSwitch", page_tile)
-        self.assertNotIn("EQ_DrawPageTitle", page_tile)
-        self.assertNotIn("EQ_DrawPresetStatic", page_tile)
-        self.assertIn("EQ_DrawPresetJob", page_tile)
-        self.assertIn("EQ_DrawEditorBandFull", page_tile)
-        self.assertNotIn("EQ_DrawEditorControlsFull", page_tile)
-        self.assertNotIn("EQ_DrawEditorFieldFull", page_tile)
-        self.assertIn("EQ_DrawEditorFieldValue", page_tile)
-        self.assertIn("EQ_DrawAnalyzerTileSnapshot", page_tile)
-        self.assertNotIn("EQ_DrawChainStatic", page_tile)
-        self.assertNotIn("EQ_ClearPageTitleStrip", page_tile)
-        self.assertNotIn("EQ_ClearPageContentStrip", page_tile)
+    def test_permanent_pages_only_sync_runtime_data_regions(self) -> None:
+        self.assertNotIn("EQ_DrawPageTile", self.display)
+        self.assertNotIn("EQ_UI_PAGE_TILE_", self.ui_header + self.display)
+        self.assertNotIn("EQ_DrawChain", self.display)
+        self.assertNotIn("EQ_UI_CHAIN", self.ui_header + self.ui_source)
 
-        editor_start = self.display.index(
-            "static void EQ_DrawEditorBandFull(int band)")
-        editor_end = self.display.index("#endif", editor_start)
-        editor_band = self.display[editor_start:editor_end]
-        self.assertNotIn(
-            "EQ_LcdFillRect(rect->x, rect->y, rect->w, rect->h",
-            editor_band)
-        self.assertIn("EQ_UI_EDITOR_BAR_TOP + 1", editor_band)
+        draw_start = self.display.index(
+            "static unsigned int EQ_DrawJob(int job)")
+        draw_end = self.display.index("static unsigned long EQ_ReadCycles",
+                                      draw_start)
+        draw = self.display[draw_start:draw_end]
+        self.assertIn("if (job == EQ_UI_JOB_PAGE_SYNC)", draw)
+        self.assertIn("EqualizerUiLogic_GetPageSyncJob", draw)
+        self.assertIn("EqualizerUiLogic_GetPageTarget", draw)
+        self.assertIn("EQ_DrawDataJob(data_job)", draw)
+        for forbidden in (
+            "EQ_DrawPageTitle", "EQ_DrawPageSwitch", "EQ_DrawPresetStatic",
+            "EQ_DrawAnalyzerStatic", "EQ_DrawDynamicStatic",
+            "EQ_DrawEditorBandFull", "EQ_DrawEditorControlsFull",
+        ):
+            self.assertNotIn(forbidden, draw)
+
+        static_start = self.display.index(
+            "int EqualizerDisplay_DrawStaticLayout(void)")
+        static_end = self.display.index(
+            "void EqualizerDisplay_BeginRuntime(void)", static_start)
+        static = self.display[static_start:static_end]
+        editor_start = static.index(
+            "EQ_SetDrawPage(EQ_UI_PAGE_EQ_EDITOR);")
+        editor_end = static.index(
+            "EQ_SetDrawPage(EQ_UI_PAGE_DYNAMIC_STATUS);", editor_start)
+        editor = static[editor_start:editor_end]
+        self.assertIn("EQ_DrawEditorBandFull", editor)
+        self.assertIn("EQ_DrawEditorControlsFull", editor)
+        self.assertIn("EQ_DrawEditorFieldFull", editor)
+        self.assertNotIn("EQ_DrawPreset", editor)
+        self.assertIn("EqualizerUiLogic_MarkStartupRendered", static)
 
         analyzer_start = self.display.index(
-            "static void EQ_DrawAnalyzerTileSnapshot(int band)")
+            "static unsigned int EQ_DrawAnalyzerJob(int band)")
         analyzer_end = self.display.index(
-            "static void EQ_DrawDynamicTileSnapshot", analyzer_start)
+            "static int EQ_DynamicEnabled", analyzer_start)
         analyzer = self.display[analyzer_start:analyzer_end]
-        self.assertNotIn("rect->w, 224", analyzer)
-        self.assertIn("EQ_UI_ANALYZER_BAR_TOP + 1", analyzer)
-        self.assertNotIn("EQ_LcdDrawRect", analyzer)
+        self.assertIn("EQ_UI_ANALYZER_FIELD_BAR", analyzer)
+        self.assertNotIn("VALUE", analyzer)
+        self.assertNotIn("FormatSignedDb", analyzer)
 
-        dynamic_start = analyzer_end
+        dynamic_start = self.display.index(
+            "static unsigned int EQ_DrawDynamicJob(int index)")
         dynamic_end = self.display.index(
-            "static const char *EQ_EditorPresetText", dynamic_start)
+            "#if EQ_ENABLE_TEN_BAND_EDITOR", dynamic_start)
         dynamic = self.display[dynamic_start:dynamic_end]
-        self.assertNotIn("EQ_UI_DYNAMIC_RECTS[index].w", dynamic)
-        self.assertEqual(dynamic.count("EQ_ClearDynamicValue("), 3)
-        self.assertNotIn("EQ_LcdDrawRect", dynamic)
-        chain_start = self.display.index("static void EQ_DrawChainJob")
-        chain_end = self.display.index(
-            "static unsigned int EQ_DrawAnalyzerJob", chain_start)
-        self.assertNotIn("EQ_ClearInside", self.display[chain_start:chain_end])
-        self.assertIn("EQ_UI_PAGE_TILE_DYNAMIC_CHAIN_FIRST", page_tile)
-        self.assertIn("EQ_UI_PAGE_TILE_DYNAMIC_CHAIN_LAST", page_tile)
-        self.assertIn(
-            "tile - EQ_UI_PAGE_TILE_DYNAMIC_CHAIN_FIRST", page_tile)
-        self.assertNotIn("index < EQ_UI_CHAIN_COUNT", page_tile)
-        self.assertIn("#define EQ_UI_EDITOR_VALUE_CLEAR_W 96", self.display)
-        self.assertIn("#define EQ_UI_EDITOR_VALUE_CLEAR_H 22", self.display)
+        self.assertIn("EQ_UI_DYNAMIC_FIELD_ACTIVE", dynamic)
+        self.assertIn("EQ_UI_DYNAMIC_STATUS_RECTS", dynamic)
+        self.assertNotIn("LEVEL", dynamic)
 
-    def test_page_build_has_explicit_region_counts(self) -> None:
-        self.assertIn("#define EQ_UI_PAGE_TILE_DYNAMIC_COUNT           18U",
-                      self.ui_header)
-        self.assertIn("#define EQ_UI_PAGE_TILE_EDITOR_COUNT            24U",
-                      self.ui_header)
-        self.assertIn("EQ_UI_PAGE_TILE_EDITOR_FIELD_LAST       22U",
-                      self.ui_header)
-        self.assertIn("EQ_UI_PAGE_TILE_DYNAMIC_CHAIN_LAST      9U",
-                      self.ui_header)
-        self.assertIn("EQ_UI_PAGE_TILE_DYNAMIC_ROW_LAST        16U",
-                      self.ui_header)
-        self.assertNotIn("EQ_UI_PAGE_CLEAR_STRIP_HEIGHT", self.display)
+    def test_page_state_uses_sync_swap_and_versions(self) -> None:
+        for token in (
+            "EQ_UI_PAGE_PHASE_SYNC",
+            "EQ_UI_PAGE_PHASE_SWAP",
+            "page_requested_version[2]",
+            "page_rendered_version[2]",
+            "page_sync_job",
+            "EqualizerUiLogic_GetPageDirtyMask",
+        ):
+            self.assertIn(token, self.ui_header)
+        self.assertNotIn("page_tile_index", self.ui_header)
+        self.assertNotIn("page_tile_count", self.ui_header)
 
-    def test_page_tile_forces_lcdc_audit(self) -> None:
-        self.assertIn(
-            "if (job == EQ_UI_JOB_PAGE_TILE)",
-            self.display)
-        self.assertIn("force_hardware_audit = 1", self.display)
+    def test_completed_page_swap_forces_lcdc_audit(self) -> None:
+        service_start = self.display.index(
+            "int EqualizerDisplay_ServiceOneJob(unsigned long process_frame)")
+        service_end = self.display.index(
+            "void EqualizerDisplay_CancelRuntimeJobs", service_start)
+        service = self.display[service_start:service_end]
+        self.assertIn("if (job == EQ_UI_JOB_PAGE_SWAP)", service)
+        self.assertIn("swap_completed = 1", service)
+        self.assertIn("force_hardware_audit = 1", service)
+        self.assertLess(service.index("if (job == EQ_UI_JOB_PAGE_SWAP)"),
+                        service.index("EQ_BeginDraw()"))
 
     def test_page_build_uses_double_buffer_and_eof_swap(self) -> None:
         self.assertIn("EQ_LcdEditorBuffer", self.display)
@@ -252,9 +258,11 @@ class EqualizerEditorTest(unittest.TestCase):
             "int EqualizerDisplay_GetDisplayedPage", request_start)
         request = self.display[request_start:request_end]
         self.assertLess(request.index("EQ_SwapStateLock();"),
-                        request.index("EQ_CompleteAcknowledgedPageSwap("))
+                        request.index("EqualizerUiLogic_Request("))
+        self.assertLess(request.index("EqualizerUiLogic_Request("),
+                        request.index("EQ_CancelPageSwap();"))
         self.assertLess(request.index("EQ_CancelPageSwap();"),
-                        request.index("EQ_SwapStateUnlock();"))
+                         request.index("EQ_SwapStateUnlock();"))
 
         cancel_start = self.display.index(
             "void EqualizerDisplay_CancelRuntimeJobs(void)")

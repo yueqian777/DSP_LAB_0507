@@ -109,7 +109,7 @@ class EqualizerLcdDynamicRunnerContractTest(unittest.TestCase):
             "--define=EQ_ENABLE_HARSHNESS_GUARD=1",
             "--define=EQ_ENABLE_LCD_DISPLAY=1",
             "--define=EQ_ENABLE_PROJECT33_TOUCH=0",
-            "--define=EQ_UI_RUNTIME_DEFAULT_MASK=15",
+            "--define=EQ_UI_RUNTIME_DEFAULT_MASK=7",
             "--define=EQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN=0",
             "<link_errors>0x0</link_errors>",
             "warning_count", "error_count", "build_dirty = 0",

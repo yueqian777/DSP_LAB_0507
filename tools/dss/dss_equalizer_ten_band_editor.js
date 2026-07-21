@@ -197,7 +197,6 @@ var symbols = {
     lcd_auto_disabled: "EQ_DebugLcdAutoDisabledCount",
     lcd_analyzer_max_strip_height: "EQ_DebugLcdAnalyzerMaxStripHeight",
     lcd_analyzer_strip_count: "EQ_DebugLcdAnalyzerStripCount",
-    lcd_analyzer_value_count: "EQ_DebugLcdAnalyzerValueCount",
     lcd_raster_fault: "EQ_DebugLcdRasterFaultCount",
     lcd_sync_lost: "EQ_DebugLcdSyncLostCount",
     lcd_fifo_underflow: "EQ_DebugLcdFifoUnderflowCount",
@@ -1105,8 +1104,7 @@ function runDynamicStatusCheck() {
     runFor(3000);
     after = snapshot();
     requireCondition(delta(after, before, "lcd_jobs") > 0 &&
-        after.lcd_analyzer_strip_count > before.lcd_analyzer_strip_count &&
-        after.lcd_analyzer_value_count > before.lcd_analyzer_value_count,
+        after.lcd_analyzer_strip_count > before.lcd_analyzer_strip_count,
         "Dynamic Status analyzer jobs did not update");
     verifyAnalyzerAndDynamics(before, after, "Dynamic Status");
     verifyAudioSafety(before, after, "Dynamic Status");

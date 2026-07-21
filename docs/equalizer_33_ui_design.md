@@ -1,148 +1,109 @@
 # Project 3.3 Status UI Design
 
-## Scope and evidence state
+## Scope and evidence
 
-The UI is a Project 3.3-only extension. It does not change the RBJ design,
-presets, preamp, 120 ms crossfade, Analyzer math, dynamic-stage parameters,
-ADC/DAC/EDMA/PRU, or Project 3.2. Build `5d1525a` is the preserved circular-
-shift baseline. Renderer-state hardening is `67a22ef`; bounded Analyzer updates
-are `b23a7ce`.
+The LCD work is isolated to Project 3.3. It does not change the 50 kHz audio
+path, frame size, RBJ filters, preset gains, headroom, transitions, Analyzer
+math, dynamic-stage parameters, ADC/DAC/EDMA/PRU, or Project 3.2.
 
-Host contracts and the clean CCS A-E matrix are verified. The static alignment
-page passed a ten-minute board run and operator observation on `67a22ef`.
-Dynamic Status on the hardened renderer, Chinese glyph appearance under that
-load, and physical Touch accuracy remain `PENDING_HARDWARE`.
+The current implementation is Host and CCS build testable. Physical LCD,
+Touch, audio-continuity, and endurance acceptance remain `PENDING_HARDWARE`
+until the exact build is loaded and observed without debugger halts.
 
-## Fixed 800x480 layout
+## Permanent page caches
 
-The page has five fixed bands:
+Editor builds own two fixed DDR2 framebuffers:
 
-1. Static title: ten-band dynamic equalizer system.
-2. Presets: FLAT, BASS, VOCAL, TREBLE, and V-SHAPE.
-3. One-line chain: `ADC -> EQ -> BASS -> CLR -> HF -> DAC`.
-4. Four Analyzer slots: Bass, Mud, Presence, and Brightness.
-5. Three dynamic rows: Smart Bass, Dynamic Clarity, and Harshness Guard.
+- Dynamic Status: `Lcd_Buffer`.
+- EQ Editor: `EQ_LcdEditorBuffer`.
 
-The preset rectangles are `(26,34,140,40)`, `(178,34,140,40)`,
-`(330,34,140,40)`, `(482,34,140,40)`, and `(634,34,140,40)`. Analyzer
-slots are `(60,116,125,190)`, `(245,116,125,190)`, `(430,116,125,190)`,
-and `(615,116,125,190)`. Dynamic rows start at y=342, 386, and 430.
+Before Raster is enabled, the renderer draws both complete pages, initializes
+their rendered state, and points FB0 and FB1 at Dynamic Status. Runtime never
+rebuilds a page title, background, static border, frequency label, or module
+name. Each framebuffer remains the permanent cache for its page.
 
-Chinese text uses the local 16x16 bitmap renderer and is enabled by default
-with `EQ_LCD_USE_CHINESE=1`. Source control strings remain ASCII-only. The
-English renderer remains build-tested with `EQ_LCD_USE_CHINESE=0`. Chain
-arrows are always ASCII `->`.
+Hidden-page state is latest-wins. A new snapshot overwrites the previous
+request and recomputes dirty regions against that page's rendered state. A
+hidden page is normally not drawn. Immediately before a switch, `PAGE_SYNC`
+updates at most one still-dirty target-page data region per service call. Once
+the target is clean, the next service call runs `PAGE_SWAP`; it draws nothing
+and only starts or observes the descriptor swap.
 
-## Static and runtime boundary
+`page_requested_version[2]` and `page_rendered_version[2]` make this contract
+observable. A rendered version advances only when that page has no dirty data
+regions.
 
-`EqualizerDisplay_DrawStaticLayout()` completes before `Adc_Start()` and
-`Dac_Start()`. It draws the background, title, fixed labels, button frames,
-chain arrows, Analyzer frames/zero marks, and dynamic-row names once.
+## Dynamic Status
 
-After `EqualizerDisplay_BeginRuntime()`, a static-layout request cannot draw;
-it increments `EQ_DebugLcdUnexpectedFullRedrawCount`. Runtime rendering only
-clears and redraws one bounded region. Request functions compare snapshots and
-set dirty bits; they never call an LCD primitive.
+The fixed 800x480 page contains:
 
-## Dirty jobs
+- FLAT, BASS, VOCAL, TREBLE, and V-SHAPE preset controls.
+- BASS, MUD, PRES, and HIGH Analyzer bars with a fixed zero line.
+- SMART BASS, CLARITY, and HF GUARD rows.
+- ON/OFF, LOW/MID/HIGH, and an ACTIVE/IDLE marker for each dynamic stage.
+- one EDITOR page switch.
 
-There are 15 logical jobs:
+The old ADC/EQ/BASS/CLR/HF/DAC chain, geometric arrows, Analyzer dB text,
+left-side +20/0/-20 text, and dynamic Level numbers are removed. Analyzer
+runtime work is one differential strip of at most 16 pixels. Invalid or
+non-warm snapshots clear the bar to the zero line without drawing a numeric
+value.
 
-- Jobs 1-5: one job for each applied-preset button.
-- Jobs 6-8: BASS, CLR, and HF chain segments.
-- Jobs 9-12: one job for each Analyzer bar.
-- Jobs 13-15: Smart Bass, Clarity, and Guard rows.
+Dynamic Status has 12 non-overlapping hitboxes: five presets, three toggles,
+three strength controls, and the page switch.
 
-Each dynamic-row job carries independent ENABLED, STRENGTH, and LEVEL field
-bits. The renderer completes at most one field per service call, so a row with
-three changed values requires three bounded services. Displayed state advances
-only after the corresponding region is drawn. A new snapshot replaces an
-undrawn old request rather than accumulating history.
+## Jobs and scheduling
 
-Applied preset controls highlighting; requested preset never highlights
-early. Analyzer values are clamped to -20..+20 dB and mapped with integer
-arithmetic to y=124..298, while drawable pixels remain inside y=125..297.
-Each band separately tracks requested/displayed pixels and value text.
+Editor OFF has 12 jobs:
 
-An Analyzer service performs exactly one operation: clear one old strip, fill
-one new strip, or redraw one value field. A strip is at most 16 pixels high.
-A cross-zero move first reaches the fixed zero line and then fills the other
-side. A newer target replaces unfinished historical motion. Value text changes
-when integer dB differs by at least 2 dB, valid/warm changes, or 50 audio frames
-have elapsed.
+- 1-5: preset highlight regions.
+- 6-9: Analyzer bars.
+- 10-12: dynamic rows.
 
-## Audio-first service
+Editor ON has 25 jobs:
 
-LCD service is allowed only after the current AD/DA audio work and only when
-all audio/pending flags are clear. Touch, builder, and Analyzer work performed
-in the pass prevent an LCD job. The flags are checked again immediately before
-drawing and immediately after drawing.
+- 1-12: Dynamic Status data jobs.
+- 13-22: ten Editor applied-gain bars.
+- 23: one Editor field region.
+- 24: `EQ_UI_JOB_PAGE_SYNC`.
+- 25: `EQ_UI_JOB_PAGE_SWAP`.
 
-- Maximum work per service: one bounded field or Analyzer strip.
-- Preset minimum gap: 2 processed frames, 40.96 ms.
-- Dynamic-row minimum gap: 4 processed frames, 81.92 ms.
-- Chain and Analyzer minimum gap: 8 processed frames, 163.84 ms.
-- Global steady minimum gap: 7 processed frames; average at most 8 jobs/s.
-- Control quiet period: 3 processed frames, 61.44 ms.
-- Goal threshold: 456000 cycles, 1 ms at 456 MHz.
-- Normal acceptance threshold: 912000 cycles, 2 ms at 456 MHz.
-- Hard threshold: 2280000 cycles, 5 ms at 456 MHz.
+There are no chain jobs and no fixed page-tile counts. Runtime service remains
+audio-first and performs at most one bounded LCD job after AD/DA work and only
+when all audio flags are clear. The normal acceptance limit remains 912000
+cycles (2 ms at 456 MHz); the threshold is not raised to hide a large region.
 
-A hard overrun auto-disables runtime LCD jobs instead of delaying audio. A
-normal job above 2 ms fails the current stability contract even when it remains
-below the 5 ms fail-closed threshold. The historical `5d1525a` run reached
-1,800,578 cycles and 149 jobs above 2 ms; it is a failure baseline under the
-current contract, not an accepted final result. Dynamic timing for `b23a7ce`
-remains `PENDING_HARDWARE`.
+## EOF publication
 
-## Raster and framebuffer guard
+LCDC remains in double-frame mode. FB0 and FB1 initially reference Dynamic
+Status. EOF0 updates only FB0 and EOF1 updates only FB1. The software displayed
+page changes only after both descriptors reference the same target. A request
+that arrives after one descriptor has changed is retained as the latest
+deferred page and is applied only after the current swap converges.
 
-Editor builds allocate one page-independent framebuffer for Dynamic Status and
-one for Editor in external DDR. LCDC runs in double-frame mode with FB0 and FB1
-initially pointing to the Dynamic buffer. A completed hidden page is published
-only at frame boundaries: EOF0 updates the idle FB0 descriptor, EOF1 updates
-the idle FB1 descriptor, and the software page changes only after both
-descriptors point to the same target. A request arriving after only one
-descriptor changed is deferred until that swap converges.
+All Touch actions, including another page-switch action, are rejected while
+`PAGE_SYNC` or `PAGE_SWAP` is active. The target page becomes touchable only
+after descriptor convergence and logical publication.
 
-The renderer audits both initialized descriptor base/end pairs after the static
-layout, at low runtime cadence, after an overrun, or on operator request. Fixed
-canaries guard both framebuffer boundaries. Address mismatch, ambiguous EOF,
-sync loss, FIFO underflow, unknown raster fault, or canary failure latches the
-evidence, sets the runtime mask to zero, and leaves the audio path active.
-Runtime code does not call `Lcd_Init()`, restart raster, or clear a visible full
-screen.
+## Cache visibility
 
-Before startup changes LCDC from the board driver's single-frame setup to the
-two-descriptor mode, it disables Raster and waits for `LCD_STAT.DONE`. A startup
-timeout leaves Raster and runtime drawing disabled. The runtime fault path also
-requests Raster stop first; it rebinds FB0/FB1 only after observing `DONE`.
-Otherwise it leaves Raster disabled and preserves the physical descriptor
-state for DSS diagnosis. `EQ_DebugLcdRasterStopTimeoutCount` records either
-failure without blocking the audio loop for another full frame.
+Both framebuffer addresses are classified through their actual C6748 MAR
+registers. `EQ_DebugLcdCacheMode` reports unknown, non-cacheable, cacheable, or
+mixed. The raw MAR values are retained separately for both buffers.
 
-## Memory and build gates
+For non-cacheable buffers, no cache API is called. For cacheable buffers, the
+renderer calls the StarterWare `CacheWB` API for the real dirty bounding range
+before a later `PAGE_SWAP` can set `swap_pending`. Startup writes back each
+complete DMA frame, including palette bytes. Count, byte, and failure
+diagnostics are exported. No MAR setting is changed by this feature.
 
-`EQ_ENABLE_LCD_DISPLAY=0` removes the runtime UI state and LCD diagnostics.
-`EQ_ENABLE_PROJECT33_TOUCH=1` is rejected unless LCD is enabled. The source
-defaults remain LCD=0, Touch=0, and runtime mask=0. The current UI state is 312
-bytes; touch state plus transform is 36 bytes. The A-E matrix keeps Project 3.3
-`.subband_l2` at 20,380 bytes for LCD OFF, static, dynamic, and Touch profiles.
+## Fault evidence
 
-## Offline ten-band editor extension
+A 64-entry fixed ring records cycle, process frame, EOF mask, FB0/FB1 base,
+front page, target page, pending state, descriptor mask, completion state, and
+raster status. The ISR performs only fixed-size assignments; it does not print
+or allocate memory. The ring is intended for one debugger read after a run.
 
-The values above describe the preserved editor-OFF Status UI. Feature source
-`6c3daca0cfd645704446a60c5fe189ffeb0b8645` adds an optional second page behind
-`EQ_ENABLE_TEN_BAND_EDITOR`, which still defaults to 0. Editor ON uses 27 jobs:
-the original 15, ten applied-gain strip jobs, editor fields, and page tiles.
-The editor state is 64 bytes; complete UI and editor state is 620 bytes in the
-TI C6000 map, or 656 bytes with Touch state and transform.
-
-Dynamic page state remains independent from editor applied/draft/submitted
-state. Page construction redraws one complete fixed region at a time in the
-hidden page buffer; each region is cleared immediately before that region is
-redrawn. It never clears the visible full framebuffer. The editor columns
-render applied gains only. Snapshot construction is event-driven and limited
-to one request per processed frame. Host renderer trace proves fixed bounds,
-call ordering, two-EOF publication, and rapid reverse-request serialization,
-but is an `OFFLINE_RENDER_PREVIEW`, not a photograph or real-LCD pass.
+Existing exact-address, sync-loss, FIFO-underflow, canary, bounds, ambiguous
+EOF, and raster-stop diagnostics remain. Burst16 and FIFO threshold8 are
+unchanged. Burst8 A/B is permitted only after new physical FUF/SYNC evidence.

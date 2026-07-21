@@ -79,14 +79,14 @@ class EqualizerUiTraceTest(unittest.TestCase):
             ]
             self.assertTrue(any(
                 item["operation"] == "fill_rect" and
-                item["job"] == 27 and item["page"] == 1 and
+                item["job"] == 0 and item["page"] == 1 and
                 item["x"] == 51 and item["y"] == 137 and
                 item["w"] == 14 and item["h"] == 149
                 for item in editor_trace
             ))
             self.assertFalse(any(
                 item["operation"] == "fill_rect" and
-                item["job"] == 27 and
+                item["job"] == 24 and
                 ((item["w"] == 800) or
                  (item["x"] == 24 and item["y"] == 112 and
                   item["w"] == 68 and item["h"] == 218))
@@ -101,7 +101,7 @@ class EqualizerUiTraceTest(unittest.TestCase):
             ))
             self.assertFalse(any(
                 item["operation"] == "draw_rect" and
-                item["job"] == 27 and item["page"] == 1 and
+                item["job"] == 24 and item["page"] == 1 and
                 item["x"] == 672 and item["y"] == 430 and
                 item["w"] == 104 and item["h"] == 40
                 for item in editor_trace
@@ -110,7 +110,7 @@ class EqualizerUiTraceTest(unittest.TestCase):
                 (output / "page_transition_intermediate.json").read_text(
                     encoding="utf-8")
             )
-            self.assertEqual(intermediate["completed_jobs"], 9)
+            self.assertEqual(intermediate["completed_jobs"], 1)
             self.assertEqual(intermediate["pending_jobs"], 1)
             self.assertEqual(intermediate["displayed_page"], 0)
             self.assertEqual(intermediate["page_building"], 1)

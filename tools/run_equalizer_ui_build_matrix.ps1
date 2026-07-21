@@ -115,7 +115,7 @@ $profiles = @(
         editor_enabled = 0
         editor_touch_enabled = 0
         runtime_mask = 0
-        expected_job_count = 15
+        expected_job_count = 12
         expected_dynamic_hitbox_count = 12
         expected_editor_hitbox_count = 0
         expected_framebuffer_count = 1
@@ -133,8 +133,8 @@ $profiles = @(
         touch_enabled = 0
         editor_enabled = 0
         editor_touch_enabled = 0
-        runtime_mask = 15
-        expected_job_count = 15
+        runtime_mask = 7
+        expected_job_count = 12
         expected_dynamic_hitbox_count = 12
         expected_editor_hitbox_count = 0
         expected_framebuffer_count = 1
@@ -143,7 +143,7 @@ $profiles = @(
             "--define=EQ_ENABLE_PROJECT33_TOUCH=0 " +
             "--define=EQ_ENABLE_TEN_BAND_EDITOR=0 " +
             "--define=EQ_ENABLE_TEN_BAND_EDITOR_TOUCH=0 " +
-            "--define=EQ_UI_RUNTIME_DEFAULT_MASK=15 " +
+            "--define=EQ_UI_RUNTIME_DEFAULT_MASK=7 " +
             "--define=EQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN=0 $diagnosticsOff"
     }
     [pscustomobject]@{
@@ -152,8 +152,8 @@ $profiles = @(
         touch_enabled = 1
         editor_enabled = 0
         editor_touch_enabled = 0
-        runtime_mask = 15
-        expected_job_count = 15
+        runtime_mask = 7
+        expected_job_count = 12
         expected_dynamic_hitbox_count = 12
         expected_editor_hitbox_count = 0
         expected_framebuffer_count = 1
@@ -162,7 +162,7 @@ $profiles = @(
             "--define=EQ_ENABLE_PROJECT33_TOUCH=1 " +
             "--define=EQ_ENABLE_TEN_BAND_EDITOR=0 " +
             "--define=EQ_ENABLE_TEN_BAND_EDITOR_TOUCH=0 " +
-            "--define=EQ_UI_RUNTIME_DEFAULT_MASK=15 " +
+            "--define=EQ_UI_RUNTIME_DEFAULT_MASK=7 " +
             "--define=EQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN=0 $diagnosticsOff"
     }
     [pscustomobject]@{
@@ -171,17 +171,17 @@ $profiles = @(
         touch_enabled = 0
         editor_enabled = 1
         editor_touch_enabled = 0
-        runtime_mask = 49
-        expected_job_count = 27
+        runtime_mask = 25
+        expected_job_count = 25
         expected_dynamic_hitbox_count = 12
-        expected_editor_hitbox_count = 20
+        expected_editor_hitbox_count = 15
         expected_framebuffer_count = 2
         expected_second_framebuffer_symbol_hits = 1
         defines = "$project33 --define=EQ_ENABLE_LCD_DISPLAY=1 " +
             "--define=EQ_ENABLE_PROJECT33_TOUCH=0 " +
             "--define=EQ_ENABLE_TEN_BAND_EDITOR=1 " +
             "--define=EQ_ENABLE_TEN_BAND_EDITOR_TOUCH=0 " +
-            "--define=EQ_UI_RUNTIME_DEFAULT_MASK=49 " +
+            "--define=EQ_UI_RUNTIME_DEFAULT_MASK=25 " +
             "--define=EQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN=0 $diagnosticsOff"
     }
     [pscustomobject]@{
@@ -190,17 +190,17 @@ $profiles = @(
         touch_enabled = 1
         editor_enabled = 1
         editor_touch_enabled = 1
-        runtime_mask = 49
-        expected_job_count = 27
+        runtime_mask = 25
+        expected_job_count = 25
         expected_dynamic_hitbox_count = 12
-        expected_editor_hitbox_count = 20
+        expected_editor_hitbox_count = 15
         expected_framebuffer_count = 2
         expected_second_framebuffer_symbol_hits = 1
         defines = "$project33 --define=EQ_ENABLE_LCD_DISPLAY=1 " +
             "--define=EQ_ENABLE_PROJECT33_TOUCH=1 " +
             "--define=EQ_ENABLE_TEN_BAND_EDITOR=1 " +
             "--define=EQ_ENABLE_TEN_BAND_EDITOR_TOUCH=1 " +
-            "--define=EQ_UI_RUNTIME_DEFAULT_MASK=49 " +
+            "--define=EQ_UI_RUNTIME_DEFAULT_MASK=25 " +
             "--define=EQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN=0 $diagnosticsOff"
     }
     [pscustomobject]@{
@@ -209,17 +209,17 @@ $profiles = @(
         touch_enabled = 1
         editor_enabled = 1
         editor_touch_enabled = 1
-        runtime_mask = 63
-        expected_job_count = 27
+        runtime_mask = 31
+        expected_job_count = 25
         expected_dynamic_hitbox_count = 12
-        expected_editor_hitbox_count = 20
+        expected_editor_hitbox_count = 15
         expected_framebuffer_count = 2
         expected_second_framebuffer_symbol_hits = 1
         defines = "$project33 --define=EQ_ENABLE_LCD_DISPLAY=1 " +
             "--define=EQ_ENABLE_PROJECT33_TOUCH=1 " +
             "--define=EQ_ENABLE_TEN_BAND_EDITOR=1 " +
             "--define=EQ_ENABLE_TEN_BAND_EDITOR_TOUCH=1 " +
-            "--define=EQ_UI_RUNTIME_DEFAULT_MASK=63 " +
+            "--define=EQ_UI_RUNTIME_DEFAULT_MASK=31 " +
             "--define=EQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN=0 $diagnosticsOff"
     }
 )

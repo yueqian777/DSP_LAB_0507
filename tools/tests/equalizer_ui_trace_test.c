@@ -120,12 +120,22 @@ static int write_source_metadata(const char *path, const char *commit,
             "  \"requested_page\": %d,\n"
             "  \"displayed_page\": %d,\n"
             "  \"page_building\": %d,\n"
+            "  \"page_phase\": %u,\n"
+            "  \"dynamic_dirty_mask\": %lu,\n"
+            "  \"editor_dirty_mask\": %lu,\n"
+            "  \"swap_pending\": %u,\n"
+            "  \"swap_descriptor_mask\": %u,\n"
             "  \"snapshot\": {\"applied_preset\": %d, "
             "\"selected_band\": %d, \"apply_status\": %d},\n"
             "  \"applied_gain_half_db\": ",
             commit, name, snapshot->page,
             EqualizerDisplay_GetDisplayedPage(),
             EqualizerDisplay_IsPageBuilding(),
+            EQ_DebugLcdPagePhase,
+            EQ_DebugLcdDynamicDirtyMask,
+            EQ_DebugLcdEditorDirtyMask,
+            EQ_DebugLcdSwapPending,
+            EQ_DebugLcdSwapDescriptorMask,
             snapshot->applied_preset,
             snapshot->editor_selected_band,
             snapshot->editor_apply_status);
@@ -173,9 +183,9 @@ static int render_preview(const char *directory, const char *commit,
         snapshot.smart_enabled = 1;
         snapshot.clarity_enabled = 1;
         snapshot.guard_enabled = 1;
-        snapshot.smart_level = 3;
-        snapshot.clarity_level = 3;
-        snapshot.guard_level = 3;
+        snapshot.smart_active = 1;
+        snapshot.clarity_active = 1;
+        snapshot.guard_active = 1;
     }
     else if (preview_index >= 3)
     {
@@ -240,6 +250,7 @@ static int render_preview(const char *directory, const char *commit,
 
     EqualizerDisplay_Init();
     EQ_DebugLcdRuntimeMask = EQ_UI_RUNTIME_ALL;
+    EqualizerDisplay_RequestSnapshot(&snapshot, 0UL);
     if (!EqualizerDisplay_TestTraceOpen(trace_path))
     {
         return 0;
@@ -252,7 +263,7 @@ static int render_preview(const char *directory, const char *commit,
     EqualizerDisplay_BeginRuntime();
     EqualizerDisplay_RequestSnapshot(&snapshot, 10UL);
     completed_jobs = flush_jobs(10UL,
-        (preview_index == 9) ? 9 : 1000);
+        (preview_index == 9) ? 1 : 1000);
     EqualizerDisplay_TestTraceClose();
     if (EQ_DebugLcdBoundsFailureCount != 0UL)
     {
