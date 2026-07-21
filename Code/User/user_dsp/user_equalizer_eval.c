@@ -1,8 +1,9 @@
 /**
  * user_equalizer_eval.c
  *
- * Strict host-side quality checks for Project 3.3.  This file is compiled
- * only for EQ_ALGO_ONLY; the board build carries no offline test buffers.
+ * Strict host-side quality checks for Project 3.3. The production board
+ * build carries no offline buffers; a dedicated default-off build can run
+ * the same Equalizer_ProcessFrame path and expose DAC-pre PCM through JTAG.
  */
 
 #include "user_equalizer_eval.h"
@@ -1869,9 +1870,499 @@ int main(void)
 
 #else
 
+#if EQ_ENABLE_FINAL_METRICS_BOARD_TEST != 0
+
+#include "user_equalizer.h"
+#include "equalizer_build_id.h"
+#include "math.h"
+#include "string.h"
+
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+#include "c6x.h"
+#pragma DATA_SECTION(EQ_FinalMetricsResponsePacked, ".far")
+#pragma DATA_SECTION(EQ_FinalMetricsThdInputPacked, ".far")
+#pragma DATA_SECTION(EQ_FinalMetricsThdOutputPacked, ".far")
+#pragma DATA_SECTION(EQ_FinalMetricsSnrInputPacked, ".far")
+#pragma DATA_SECTION(EQ_FinalMetricsSnrOutputPacked, ".far")
+#pragma DATA_SECTION(EQ_FinalMetricsFrameInput, ".far")
+#pragma DATA_SECTION(EQ_FinalMetricsFrameOutput, ".far")
+#pragma DATA_ALIGN(EQ_FinalMetricsResponsePacked, 8)
+#pragma DATA_ALIGN(EQ_FinalMetricsThdInputPacked, 8)
+#pragma DATA_ALIGN(EQ_FinalMetricsThdOutputPacked, 8)
+#pragma DATA_ALIGN(EQ_FinalMetricsSnrInputPacked, 8)
+#pragma DATA_ALIGN(EQ_FinalMetricsSnrOutputPacked, 8)
+#pragma DATA_ALIGN(EQ_FinalMetricsFrameInput, 8)
+#pragma DATA_ALIGN(EQ_FinalMetricsFrameOutput, 8)
+#endif
+
+#define EQ_FINAL_METRICS_PI 3.14159265358979323846
+#define EQ_FINAL_METRICS_SETTLE_FRAMES 8
+#define EQ_FINAL_METRICS_DISCARD_FRAMES 4
+#define EQ_FINAL_METRICS_THD_PEAK 4125.0
+
+#if (EQ_FRAME_LEN <= 0) || ((EQ_FRAME_LEN % 2) != 0) || \
+    ((EQ_FINAL_METRICS_CAPTURE_SAMPLES % EQ_FRAME_LEN) != 0)
+#error "Final metrics require an even frame length that divides the capture"
+#endif
+
+unsigned int EQ_FinalMetricsResponsePacked[
+    EQ_FINAL_METRICS_CASE_COUNT * EQ_FINAL_METRICS_PACKED_WORDS];
+unsigned int EQ_FinalMetricsThdInputPacked[
+    EQ_FINAL_METRICS_THD_FREQUENCY_COUNT *
+    EQ_FINAL_METRICS_PACKED_WORDS];
+unsigned int EQ_FinalMetricsThdOutputPacked[
+    EQ_FINAL_METRICS_CASE_COUNT *
+    EQ_FINAL_METRICS_THD_FREQUENCY_COUNT *
+    EQ_FINAL_METRICS_PACKED_WORDS];
+unsigned int EQ_FinalMetricsSnrInputPacked[
+    EQ_FINAL_METRICS_SNR_SIGNAL_COUNT *
+    EQ_FINAL_METRICS_REFERENCE_PACKED_WORDS];
+unsigned int EQ_FinalMetricsSnrOutputPacked[
+    EQ_FINAL_METRICS_CASE_COUNT *
+    EQ_FINAL_METRICS_SNR_SIGNAL_COUNT *
+    EQ_FINAL_METRICS_PACKED_WORDS];
+
+static short EQ_FinalMetricsFrameInput[EQ_FRAME_LEN];
+static short EQ_FinalMetricsFrameOutput[EQ_FRAME_LEN];
+static EQ_STATE EQ_FinalMetricsState;
+
+volatile unsigned long EQ_FinalMetricsResponseClipCount[
+    EQ_FINAL_METRICS_CASE_COUNT];
+volatile unsigned long EQ_FinalMetricsThdClipCount[
+    EQ_FINAL_METRICS_CASE_COUNT *
+    EQ_FINAL_METRICS_THD_FREQUENCY_COUNT];
+volatile unsigned long EQ_FinalMetricsSnrClipCount[
+    EQ_FINAL_METRICS_CASE_COUNT *
+    EQ_FINAL_METRICS_SNR_SIGNAL_COUNT];
+volatile unsigned int EQ_DebugFinalMetricsStatus =
+    EQ_FINAL_METRICS_STATUS_BOOT;
+volatile unsigned long EQ_DebugFinalMetricsCompletedCases = 0UL;
+volatile unsigned long EQ_DebugFinalMetricsMaxFrameCycles = 0UL;
+volatile unsigned long EQ_DebugFinalMetricsErrorCount = 0UL;
+volatile const unsigned int EQ_DebugFinalMetricsCompiled =
+    EQ_ENABLE_FINAL_METRICS_BOARD_TEST;
+volatile const char EQ_DebugFinalMetricsBuildGitSha[] = EQ_BUILD_GIT_SHA;
+volatile const int EQ_DebugFinalMetricsBuildDirty = EQ_BUILD_DIRTY;
+
+static const float EQ_FinalMetricsCustomGainDb[EQ_NUM_BANDS] =
+{
+    -3.0f, -1.0f, 1.0f, 3.0f, 4.0f,
+     2.0f,  0.0f, -2.0f, 1.0f, 3.0f
+};
+
+static const double EQ_FinalMetricsThdFrequencyHz[
+    EQ_FINAL_METRICS_THD_FREQUENCY_COUNT] =
+{
+    97.65625, 390.625, 976.5625,
+    4003.90625, 8007.8125, 15966.796875
+};
+
+static short EQ_FinalMetricsRoundPcm(double value)
+{
+    if (value > 32767.0)
+    {
+        return (short)32767;
+    }
+    if (value < -32768.0)
+    {
+        return (short)-32768;
+    }
+    return (short)((value >= 0.0) ? (value + 0.5) : (value - 0.5));
+}
+
+static void EQ_FinalMetricsPackFrame(unsigned int *destination,
+                                     unsigned long sample_offset,
+                                     const short *frame)
+{
+    unsigned long sample;
+    unsigned long packed_index;
+
+    packed_index = sample_offset / 2UL;
+    for (sample = 0UL; sample < (unsigned long)EQ_FRAME_LEN; sample += 2UL)
+    {
+        destination[packed_index++] =
+            (unsigned int)(unsigned short)frame[sample] |
+            ((unsigned int)(unsigned short)frame[sample + 1UL] << 16);
+    }
+}
+
+static void EQ_FinalMetricsProcessFrame(EQ_STATE *state,
+                                        const short *input,
+                                        short *output)
+{
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+    unsigned int cycle_start;
+    unsigned long cycles;
+
+    cycle_start = TSCL;
+#endif
+    Equalizer_ProcessFrame(state, input, output, EQ_FRAME_LEN);
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+    cycles = (unsigned long)(TSCL - cycle_start);
+    if (cycles > EQ_DebugFinalMetricsMaxFrameCycles)
+    {
+        EQ_DebugFinalMetricsMaxFrameCycles = cycles;
+    }
+#endif
+}
+
+static int EQ_FinalMetricsConfigure(int case_index)
+{
+    int frame;
+
+    Equalizer_Init(&EQ_FinalMetricsState);
+    Equalizer_SetCoreMode(&EQ_FinalMetricsState, EQ_CORE_RBJ_CASCADE);
+    if (case_index < EQ_PRESET_COUNT)
+    {
+        Equalizer_ApplyPreset(&EQ_FinalMetricsState, case_index);
+    }
+    else if (case_index == EQ_PRESET_COUNT)
+    {
+        Equalizer_SetAllGainsDb(&EQ_FinalMetricsState,
+                               EQ_FinalMetricsCustomGainDb);
+    }
+    else
+    {
+        return 0;
+    }
+    memset(EQ_FinalMetricsFrameInput, 0,
+           sizeof(EQ_FinalMetricsFrameInput));
+    for (frame = 0; frame < EQ_FINAL_METRICS_SETTLE_FRAMES; frame++)
+    {
+        EQ_FinalMetricsProcessFrame(&EQ_FinalMetricsState,
+                                    EQ_FinalMetricsFrameInput,
+                                    EQ_FinalMetricsFrameOutput);
+    }
+    if ((Equalizer_HasPendingTransition(&EQ_FinalMetricsState) != 0) ||
+        (Equalizer_ActiveBankMatchesTarget(&EQ_FinalMetricsState) == 0))
+    {
+        return 0;
+    }
+    EQ_FinalMetricsState.clip_count = 0UL;
+    return 1;
+}
+
+static short EQ_FinalMetricsThdSample(int frequency_index,
+                                      unsigned long sample_index)
+{
+    double phase;
+
+    phase = 2.0 * EQ_FINAL_METRICS_PI *
+            EQ_FinalMetricsThdFrequencyHz[frequency_index] *
+            (double)sample_index / (double)EQ_SAMPLE_RATE;
+    return EQ_FinalMetricsRoundPcm(
+        EQ_FINAL_METRICS_THD_PEAK * sin(phase));
+}
+
+static short EQ_FinalMetricsSnrSample(int signal_index,
+                                      unsigned long sample_index,
+                                      unsigned int *noise_state)
+{
+    double time;
+    double value;
+
+    if (signal_index == 0)
+    {
+        *noise_state = *noise_state * 1664525U + 1013904223U;
+        return (short)((int)((*noise_state >> 16) & 0x1fffU) - 4096);
+    }
+    time = (double)sample_index / (double)EQ_SAMPLE_RATE;
+    if (signal_index == 1)
+    {
+        value = 900.0 * sin(2.0 * EQ_FINAL_METRICS_PI * 97.65625 * time) +
+                850.0 * sin(2.0 * EQ_FINAL_METRICS_PI * 390.625 * time) +
+                700.0 * sin(2.0 * EQ_FINAL_METRICS_PI * 976.5625 * time) +
+                600.0 * sin(2.0 * EQ_FINAL_METRICS_PI * 1953.125 * time) +
+                500.0 * sin(2.0 * EQ_FINAL_METRICS_PI * 5859.375 * time);
+    }
+    else
+    {
+        value = 550.0 * sin(2.0 * EQ_FINAL_METRICS_PI * 244.140625 * time) +
+                550.0 * sin(2.0 * EQ_FINAL_METRICS_PI * 732.421875 * time) +
+                550.0 * sin(2.0 * EQ_FINAL_METRICS_PI * 1708.984375 * time) +
+                550.0 * sin(2.0 * EQ_FINAL_METRICS_PI * 3662.109375 * time) +
+                550.0 * sin(2.0 * EQ_FINAL_METRICS_PI * 7568.359375 * time) +
+                550.0 * sin(2.0 * EQ_FINAL_METRICS_PI * 14892.578125 * time);
+    }
+    return EQ_FinalMetricsRoundPcm(value);
+}
+
+static int EQ_FinalMetricsRunResponse(void)
+{
+    int case_index;
+    int frame;
+    unsigned long sample_offset;
+    unsigned int *destination;
+
+    for (case_index = 0; case_index < EQ_FINAL_METRICS_CASE_COUNT;
+         case_index++)
+    {
+        if (EQ_FinalMetricsConfigure(case_index) == 0)
+        {
+            return 0;
+        }
+        destination = &EQ_FinalMetricsResponsePacked[
+            case_index * EQ_FINAL_METRICS_PACKED_WORDS];
+        for (frame = 0; frame <
+             EQ_FINAL_METRICS_CAPTURE_SAMPLES / EQ_FRAME_LEN; frame++)
+        {
+            memset(EQ_FinalMetricsFrameInput, 0,
+                   sizeof(EQ_FinalMetricsFrameInput));
+            if (frame == 0)
+            {
+                EQ_FinalMetricsFrameInput[0] = (short)16384;
+            }
+            EQ_FinalMetricsProcessFrame(&EQ_FinalMetricsState,
+                                        EQ_FinalMetricsFrameInput,
+                                        EQ_FinalMetricsFrameOutput);
+            sample_offset = (unsigned long)frame *
+                            (unsigned long)EQ_FRAME_LEN;
+            EQ_FinalMetricsPackFrame(destination, sample_offset,
+                                     EQ_FinalMetricsFrameOutput);
+        }
+        EQ_FinalMetricsResponseClipCount[case_index] =
+            EQ_FinalMetricsState.clip_count;
+        EQ_DebugFinalMetricsCompletedCases++;
+    }
+    return 1;
+}
+
+static int EQ_FinalMetricsRunThd(void)
+{
+    int case_index;
+    int frequency_index;
+    int frame;
+    int sample;
+    unsigned long absolute_index;
+    unsigned long capture_offset;
+    unsigned long output_index;
+    unsigned int *input_destination;
+    unsigned int *output_destination;
+
+    for (case_index = 0; case_index < EQ_FINAL_METRICS_CASE_COUNT;
+         case_index++)
+    {
+        for (frequency_index = 0;
+             frequency_index < EQ_FINAL_METRICS_THD_FREQUENCY_COUNT;
+             frequency_index++)
+        {
+            if (EQ_FinalMetricsConfigure(case_index) == 0)
+            {
+                return 0;
+            }
+            absolute_index = 0UL;
+            for (frame = 0; frame < EQ_FINAL_METRICS_DISCARD_FRAMES;
+                 frame++)
+            {
+                for (sample = 0; sample < EQ_FRAME_LEN; sample++)
+                {
+                    EQ_FinalMetricsFrameInput[sample] =
+                        EQ_FinalMetricsThdSample(frequency_index,
+                                                absolute_index++);
+                }
+                EQ_FinalMetricsProcessFrame(&EQ_FinalMetricsState,
+                                            EQ_FinalMetricsFrameInput,
+                                            EQ_FinalMetricsFrameOutput);
+            }
+            input_destination = &EQ_FinalMetricsThdInputPacked[
+                frequency_index * EQ_FINAL_METRICS_PACKED_WORDS];
+            output_index =
+                ((unsigned long)case_index *
+                 (unsigned long)EQ_FINAL_METRICS_THD_FREQUENCY_COUNT +
+                 (unsigned long)frequency_index) *
+                (unsigned long)EQ_FINAL_METRICS_PACKED_WORDS;
+            output_destination =
+                &EQ_FinalMetricsThdOutputPacked[output_index];
+            for (frame = 0; frame <
+                 EQ_FINAL_METRICS_CAPTURE_SAMPLES / EQ_FRAME_LEN; frame++)
+            {
+                for (sample = 0; sample < EQ_FRAME_LEN; sample++)
+                {
+                    EQ_FinalMetricsFrameInput[sample] =
+                        EQ_FinalMetricsThdSample(frequency_index,
+                                                absolute_index++);
+                }
+                EQ_FinalMetricsProcessFrame(&EQ_FinalMetricsState,
+                                            EQ_FinalMetricsFrameInput,
+                                            EQ_FinalMetricsFrameOutput);
+                capture_offset = (unsigned long)frame *
+                                 (unsigned long)EQ_FRAME_LEN;
+                if (case_index == 0)
+                {
+                    EQ_FinalMetricsPackFrame(input_destination,
+                                             capture_offset,
+                                             EQ_FinalMetricsFrameInput);
+                }
+                EQ_FinalMetricsPackFrame(output_destination,
+                                         capture_offset,
+                                         EQ_FinalMetricsFrameOutput);
+            }
+            EQ_FinalMetricsThdClipCount[
+                case_index * EQ_FINAL_METRICS_THD_FREQUENCY_COUNT +
+                frequency_index] = EQ_FinalMetricsState.clip_count;
+            EQ_DebugFinalMetricsCompletedCases++;
+        }
+    }
+    return 1;
+}
+
+static int EQ_FinalMetricsRunSnr(void)
+{
+    int case_index;
+    int signal_index;
+    int frame;
+    int sample;
+    unsigned long absolute_index;
+    unsigned long capture_offset;
+    unsigned long output_index;
+    unsigned int noise_state;
+    unsigned int *input_destination;
+    unsigned int *output_destination;
+
+    for (case_index = 0; case_index < EQ_FINAL_METRICS_CASE_COUNT;
+         case_index++)
+    {
+        for (signal_index = 0;
+             signal_index < EQ_FINAL_METRICS_SNR_SIGNAL_COUNT;
+             signal_index++)
+        {
+            if (EQ_FinalMetricsConfigure(case_index) == 0)
+            {
+                return 0;
+            }
+            absolute_index = 0UL;
+            noise_state = 0x13579bdfU;
+            input_destination = &EQ_FinalMetricsSnrInputPacked[
+                signal_index * EQ_FINAL_METRICS_REFERENCE_PACKED_WORDS];
+            for (frame = 0; frame < EQ_FINAL_METRICS_DISCARD_FRAMES;
+                 frame++)
+            {
+                for (sample = 0; sample < EQ_FRAME_LEN; sample++)
+                {
+                    EQ_FinalMetricsFrameInput[sample] =
+                        EQ_FinalMetricsSnrSample(signal_index,
+                                                absolute_index++,
+                                                &noise_state);
+                }
+                EQ_FinalMetricsProcessFrame(&EQ_FinalMetricsState,
+                                            EQ_FinalMetricsFrameInput,
+                                            EQ_FinalMetricsFrameOutput);
+                if (case_index == 0)
+                {
+                    capture_offset = (unsigned long)frame *
+                                     (unsigned long)EQ_FRAME_LEN;
+                    EQ_FinalMetricsPackFrame(input_destination,
+                                             capture_offset,
+                                             EQ_FinalMetricsFrameInput);
+                }
+            }
+            output_index =
+                ((unsigned long)case_index *
+                 (unsigned long)EQ_FINAL_METRICS_SNR_SIGNAL_COUNT +
+                 (unsigned long)signal_index) *
+                (unsigned long)EQ_FINAL_METRICS_PACKED_WORDS;
+            output_destination =
+                &EQ_FinalMetricsSnrOutputPacked[output_index];
+            for (frame = 0; frame <
+                 EQ_FINAL_METRICS_CAPTURE_SAMPLES / EQ_FRAME_LEN; frame++)
+            {
+                for (sample = 0; sample < EQ_FRAME_LEN; sample++)
+                {
+                    EQ_FinalMetricsFrameInput[sample] =
+                        EQ_FinalMetricsSnrSample(signal_index,
+                                                absolute_index++,
+                                                &noise_state);
+                }
+                EQ_FinalMetricsProcessFrame(&EQ_FinalMetricsState,
+                                            EQ_FinalMetricsFrameInput,
+                                            EQ_FinalMetricsFrameOutput);
+                capture_offset = (unsigned long)frame *
+                                 (unsigned long)EQ_FRAME_LEN;
+                if (case_index == 0)
+                {
+                    EQ_FinalMetricsPackFrame(input_destination,
+                                             (unsigned long)
+                                             EQ_FINAL_METRICS_PREROLL_SAMPLES +
+                                             capture_offset,
+                                             EQ_FinalMetricsFrameInput);
+                }
+                EQ_FinalMetricsPackFrame(output_destination,
+                                         capture_offset,
+                                         EQ_FinalMetricsFrameOutput);
+            }
+            EQ_FinalMetricsSnrClipCount[
+                case_index * EQ_FINAL_METRICS_SNR_SIGNAL_COUNT +
+                signal_index] = EQ_FinalMetricsState.clip_count;
+            EQ_DebugFinalMetricsCompletedCases++;
+        }
+    }
+    return 1;
+}
+
+void EqualizerEval_BoardFinalMetrics(void)
+{
+    if ((EQ_DebugFinalMetricsBuildDirty != 0) ||
+        (EQ_DebugFinalMetricsBuildGitSha[0] == '\0'))
+    {
+        EQ_DebugFinalMetricsStatus = EQ_FINAL_METRICS_STATUS_ERROR;
+        EQ_DebugFinalMetricsErrorCount++;
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+        while (1)
+        {
+        }
+#else
+        return;
+#endif
+    }
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+    TSCL = 0;
+#endif
+    EQ_DebugFinalMetricsStatus = EQ_FINAL_METRICS_STATUS_RUNNING;
+    EQ_DebugFinalMetricsCompletedCases = 0UL;
+    EQ_DebugFinalMetricsMaxFrameCycles = 0UL;
+    EQ_DebugFinalMetricsErrorCount = 0UL;
+    memset(EQ_FinalMetricsResponsePacked, 0,
+           sizeof(EQ_FinalMetricsResponsePacked));
+    memset(EQ_FinalMetricsThdInputPacked, 0,
+           sizeof(EQ_FinalMetricsThdInputPacked));
+    memset(EQ_FinalMetricsThdOutputPacked, 0,
+           sizeof(EQ_FinalMetricsThdOutputPacked));
+    memset(EQ_FinalMetricsSnrInputPacked, 0,
+           sizeof(EQ_FinalMetricsSnrInputPacked));
+    memset(EQ_FinalMetricsSnrOutputPacked, 0,
+           sizeof(EQ_FinalMetricsSnrOutputPacked));
+    memset((void *)EQ_FinalMetricsResponseClipCount, 0,
+           sizeof(EQ_FinalMetricsResponseClipCount));
+    memset((void *)EQ_FinalMetricsThdClipCount, 0,
+           sizeof(EQ_FinalMetricsThdClipCount));
+    memset((void *)EQ_FinalMetricsSnrClipCount, 0,
+           sizeof(EQ_FinalMetricsSnrClipCount));
+
+    if ((EQ_FinalMetricsRunResponse() == 0) ||
+        (EQ_FinalMetricsRunThd() == 0) ||
+        (EQ_FinalMetricsRunSnr() == 0))
+    {
+        EQ_DebugFinalMetricsStatus = EQ_FINAL_METRICS_STATUS_ERROR;
+        EQ_DebugFinalMetricsErrorCount++;
+    }
+    else
+    {
+        EQ_DebugFinalMetricsStatus = EQ_FINAL_METRICS_STATUS_READY;
+    }
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+    while (1)
+    {
+    }
+#endif
+}
+
+#else
+
 int EqualizerEval_OfflineTest_All(void)
 {
     return -1;
 }
+
+#endif /* EQ_ENABLE_FINAL_METRICS_BOARD_TEST */
 
 #endif /* EQ_ALGO_ONLY */

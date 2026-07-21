@@ -14,6 +14,7 @@
 #include "user_harshness_guard.h"
 #include "user_dynamic_clarity_benchmark.h"
 #include "user_equalizer_display.h"
+#include "user_equalizer_eval.h"
 #include "user_equalizer_response.h"
 #include "equalizer_build_id.h"
 #include "string.h"
@@ -3151,6 +3152,9 @@ static void EQ_FillDacInactiveBuffer(void)
 
 void Equalizer_Flow_Example(void)
 {
+#if EQ_ENABLE_FINAL_METRICS_BOARD_TEST != 0
+    EqualizerEval_BoardFinalMetrics();
+#else
     unsigned char flag_ad_done;
 #if EQ_ENABLE_LCD_DISPLAY != 0
     int audio_serviced;
@@ -3797,6 +3801,7 @@ void Equalizer_Flow_Example(void)
         }
 #endif
     }
+#endif
 }
 
 #else
