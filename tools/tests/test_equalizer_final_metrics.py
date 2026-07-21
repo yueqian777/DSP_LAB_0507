@@ -42,6 +42,7 @@ class FinalMetricsHarnessTests(unittest.TestCase):
             encoding="utf-8")
         self.assertIn("#define EQ_ENABLE_FINAL_METRICS_BOARD_TEST 0", header)
         self.assertIn("EqualizerEval_BoardFinalMetrics();", flow)
+        self.assertIn("#pragma diag_suppress 179", flow)
         with tempfile.TemporaryDirectory(prefix="eq_final_metrics_obj_") as temp:
             object_path = Path(temp) / "production.o"
             run_msys(
@@ -81,6 +82,8 @@ class FinalMetricsHarnessTests(unittest.TestCase):
             "--define=EQ_ENABLE_AUDIO_FEATURE_ANALYZER=0",
             "--define=EQ_ENABLE_LCD_DISPLAY=0",
             "<link_errors>0x0</link_errors>",
+            '$ErrorActionPreference = "Continue"',
+            "buildExitCode",
             "warningCount -ne 0",
             "H_project33_full",
             "dss_project33_leave_running.js",

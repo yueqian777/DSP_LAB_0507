@@ -84,16 +84,29 @@ $defines = @(
 ) -join " "
 
 $buildLog = Join-Path $OutputDirectory "metrics_build.log"
-$cleanOutput = & $gmake -C (Join-Path $root "Debug") clean 2>&1
-if ($LASTEXITCODE -ne 0) {
+$nativeErrorActionPreference = $ErrorActionPreference
+try {
+    $ErrorActionPreference = "Continue"
+    $cleanOutput = & $gmake -C (Join-Path $root "Debug") clean 2>&1
+    $cleanExitCode = $LASTEXITCODE
+} finally {
+    $ErrorActionPreference = $nativeErrorActionPreference
+}
+if ($cleanExitCode -ne 0) {
     $cleanOutput | Set-Content -Encoding utf8 $buildLog
     throw "Metrics clean failed; see $buildLog"
 }
 $buildStart = [DateTime]::UtcNow
-$buildOutput = & $gmake -B -C (Join-Path $root "Debug") all `
-    "GEN_OPTS__FLAG=$defines" 2>&1
+try {
+    $ErrorActionPreference = "Continue"
+    $buildOutput = & $gmake -B -C (Join-Path $root "Debug") all `
+        "GEN_OPTS__FLAG=$defines" 2>&1
+    $buildExitCode = $LASTEXITCODE
+} finally {
+    $ErrorActionPreference = $nativeErrorActionPreference
+}
 @($cleanOutput) + @($buildOutput) | Set-Content -Encoding utf8 $buildLog
-if ($LASTEXITCODE -ne 0) {
+if ($buildExitCode -ne 0) {
     throw "Metrics build failed; see $buildLog"
 }
 foreach ($artifact in @($program, $map, $linkInfo)) {
@@ -137,6 +150,9 @@ $buildSummary = [ordered]@{
     evidence_class = "BUILD_EVIDENCE"
     configuration = "Project33 final internal-digital metrics"
     defines = $defines
+    test_only_suppressed_diagnostics = @(
+        "179-D: unused production scheduler roots in dedicated flow build"
+    )
     warning_count = $warningCount
     link_errors = "0x0"
     output_bytes = (Get-Item $metricsProgram).Length
