@@ -36,6 +36,7 @@ var LCD_NORMAL_JOB_CYCLES = 912000;
 var LCD_HARD_CYCLES = 2280000;
 var MAX_ANALYZER_STRIP_HEIGHT = 16;
 var MAX_LCD_JOBS_PER_SECOND = 8;
+var LCD_SWAP_TRACE_DEPTH = 64;
 var UINT32_MODULUS = 4294967296;
 var PAGE_DYNAMIC = 0;
 var PAGE_EDITOR = 1;
@@ -62,7 +63,7 @@ var ACTION_EDITOR_MINUS = 23;
 var ACTION_EDITOR_PLUS = 24;
 var ACTION_EDITOR_APPLY = 25;
 var ACTION_EDITOR_RESET_FLAT = 26;
-var FULL_UI_RUNTIME_MASK = 63;
+var FULL_UI_RUNTIME_MASK = 31;
 var script = null;
 var debugServer = null;
 var debugSession = null;
@@ -210,9 +211,23 @@ var symbols = {
     lcd_swap_pending: "EQ_DebugLcdSwapPending",
     lcd_swap_descriptor_mask: "EQ_DebugLcdSwapDescriptorMask",
     lcd_eof_count: "EQ_DebugLcdEofCount",
+    lcd_eof0_count: "EQ_DebugLcdEof0Count",
+    lcd_eof1_count: "EQ_DebugLcdEof1Count",
     lcd_eof_ambiguous: "EQ_DebugLcdEofAmbiguousCount",
     lcd_swap_requests: "EQ_DebugLcdSwapRequestCount",
     lcd_swap_completes: "EQ_DebugLcdSwapCompleteCount",
+    lcd_cache_mode: "EQ_DebugLcdCacheMode",
+    lcd_buffer_mar: "EQ_DebugLcdBufferMar",
+    lcd_editor_buffer_mar: "EQ_DebugLcdEditorBufferMar",
+    lcd_writeback_count: "EQ_DebugLcdWritebackCount",
+    lcd_writeback_bytes: "EQ_DebugLcdWritebackBytes",
+    lcd_writeback_failures: "EQ_DebugLcdWritebackFailureCount",
+    lcd_page_phase: "EQ_DebugLcdPagePhase",
+    lcd_dynamic_dirty_mask: "EQ_DebugLcdDynamicDirtyMask",
+    lcd_editor_dirty_mask: "EQ_DebugLcdEditorDirtyMask",
+    lcd_swap_trace_write_index: "EQ_DebugLcdSwapTraceWriteIndex",
+    lcd_swap_trace_count: "EQ_DebugLcdSwapTraceCount",
+    lcd_swap_trace_wrap_count: "EQ_DebugLcdSwapTraceWrapCount",
     lcd_raster_stop_timeout: "EQ_DebugLcdRasterStopTimeoutCount",
     lcd_expected_base: "EQ_DebugLcdExpectedFrameBase",
     lcd_expected_end: "EQ_DebugLcdExpectedFrameEnd",
@@ -339,6 +354,8 @@ function snapshot() {
     state.editor_draft_gain_db = [];
     state.editor_submitted_gain_db = [];
     state.editor_applied_gain_db = [];
+    state.lcd_page_requested_version = [];
+    state.lcd_page_rendered_version = [];
     for (index = 0; index < 10; index++) {
         state.band_gain_db.push(numberValue(
             "EQ_DebugBandGainDb[" + index + "]"));
@@ -348,6 +365,12 @@ function snapshot() {
             "(int)EQ_DebugUiEditorSubmittedGainHalfDb[" + index + "]"));
         state.editor_applied_gain_db.push(0.5 * numberValue(
             "(int)EQ_DebugUiEditorAppliedGainHalfDb[" + index + "]"));
+    }
+    for (index = 0; index < 2; index++) {
+        state.lcd_page_requested_version.push(numberValue(
+            "EQ_DebugLcdPageRequestedVersion[" + index + "]"));
+        state.lcd_page_rendered_version.push(numberValue(
+            "EQ_DebugLcdPageRenderedVersion[" + index + "]"));
     }
     state.lcd_category_count = [];
     state.lcd_category_last_cycles = [];
@@ -372,6 +395,40 @@ function snapshot() {
             "EQ_DebugLcdJobTypeMaxCycles[" + index + "]"));
     }
     return state;
+}
+
+function readSwapTrace() {
+    var count = numberValue("EQ_DebugLcdSwapTraceCount");
+    var writeIndex = numberValue("EQ_DebugLcdSwapTraceWriteIndex");
+    var wrapCount = numberValue("EQ_DebugLcdSwapTraceWrapCount");
+    var oldest = count < LCD_SWAP_TRACE_DEPTH ? 0 : writeIndex;
+    var entries = [], offset, index, prefix;
+    requireCondition(count >= 0 && count <= LCD_SWAP_TRACE_DEPTH,
+        "LCD swap trace count is invalid: " + count);
+    for (offset = 0; offset < count; offset++) {
+        index = (oldest + offset) % LCD_SWAP_TRACE_DEPTH;
+        prefix = "EQ_DebugLcdSwapTrace[" + index + "].";
+        entries.push({
+            cycle: numberValue(prefix + "cycle"),
+            process_frame: numberValue(prefix + "process_frame"),
+            eof_mask: numberValue(prefix + "eof_mask"),
+            frame_base: numberValue(prefix + "frame_base"),
+            frame1_base: numberValue(prefix + "frame1_base"),
+            front_page: numberValue(prefix + "front_page"),
+            target_page: numberValue(prefix + "target_page"),
+            swap_pending: numberValue(prefix + "swap_pending"),
+            descriptor_mask: numberValue(prefix + "descriptor_mask"),
+            swap_complete: numberValue(prefix + "swap_complete"),
+            raster_status: numberValue(prefix + "raster_status")
+        });
+    }
+    return {
+        depth: LCD_SWAP_TRACE_DEPTH,
+        count: count,
+        write_index: writeIndex,
+        wrap_count: wrapCount,
+        entries: entries
+    };
 }
 
 function delta(after, before, name) {
@@ -778,8 +835,29 @@ function verifyLcdSafety(before, after, name, durationMilliseconds) {
         name + ": raster/fifo/frame fault is nonzero");
     requireCondition(after.lcd_double_buffer_enabled == 1 &&
         after.lcd_swap_pending == 0 && after.lcd_eof_ambiguous == 0 &&
-        after.lcd_front_page == after.displayed_page,
+        after.lcd_front_page == after.displayed_page &&
+        after.lcd_swap_requests == after.lcd_swap_completes &&
+        after.lcd_eof0_count > 0 && after.lcd_eof1_count > 0 &&
+        after.lcd_page_phase == 0,
         name + ": double-buffer page state is not stable");
+    requireCondition((after.lcd_cache_mode == 1 ||
+        after.lcd_cache_mode == 2) &&
+        after.lcd_writeback_failures == 0,
+        name + ": framebuffer cache mode/writeback state is invalid");
+    if (after.lcd_cache_mode == 1) {
+        requireCondition(after.lcd_writeback_count == 0 &&
+            after.lcd_writeback_bytes == 0,
+            name + ": non-cacheable framebuffer used CacheWB");
+    } else {
+        requireCondition(after.lcd_writeback_count >= 2 &&
+            after.lcd_writeback_bytes > 0,
+            name + ": cacheable framebuffers were not written back");
+    }
+    requireCondition(after.lcd_swap_trace_count > 0 &&
+        after.lcd_swap_trace_count <= LCD_SWAP_TRACE_DEPTH &&
+        after.lcd_page_requested_version.length == 2 &&
+        after.lcd_page_rendered_version.length == 2,
+        name + ": page version/swap trace diagnostics are invalid");
     requireCondition(after.lcd_canary_failures == 0 &&
         delta(after, before, "lcd_canary_checks") > 0,
         name + ": framebuffer canary check failed or did not run");
@@ -938,7 +1016,7 @@ function runPhysicalEditorSequence() {
     pageDynamic = waitForAction(ACTION_PAGE_SWITCH, "PAGE_TO_DYNAMIC");
     waitForPage(PAGE_DYNAMIC, "Dynamic Status page build");
     logStep("dynamic_status_restored", pageDynamic.before, snapshot(),
-        "page tile build completed;Dynamic Status displayed");
+        "page sync/swap completed;Dynamic Status displayed");
 }
 
 function runPhysicalMultiBandCustom() {
@@ -1036,7 +1114,7 @@ function runPageSwitchStress() {
         mid = snapshot();
         requireCondition(mid.requested_page == PAGE_DYNAMIC &&
             mid.page_building == 1,
-            "quick page switch did not observe an incomplete tile build");
+            "quick page switch did not observe active page sync/swap");
         quickObserved++;
         setRequestedPage(PAGE_EDITOR);
         waitForPage(PAGE_EDITOR, "quick latest-wins Editor " + index);
@@ -1058,7 +1136,7 @@ function runPageSwitchStress() {
     verifyAudioSafety(before, after, "controlled DSS page stress");
     verifyLcdSafety(before, after, "controlled DSS page stress", 0);
     logStep("controlled_dss_page_latest_wins", before, after,
-        "20 round trips;5 reversals while page tiles incomplete;final=Dynamic");
+        "20 round trips;5 reversals during page sync/swap;final=Dynamic");
 }
 
 function runStaleRequestCheck() {
@@ -1231,6 +1309,7 @@ function runEndurance() {
 
 var beforeAll = null;
 var finalState = null;
+var finalSwapTrace = null;
 try {
     requireCondition(new File(ccxml).exists(), "missing CCXML");
     requireCondition(new File(program).exists(), "missing program");
@@ -1285,6 +1364,7 @@ try {
     runDynamicStatusCheck();
     runCombinedInteractive();
     finalState = runEndurance().after;
+    finalSwapTrace = readSwapTrace();
 
     writeJson(summaryPath, {
         result_label: "AUTOMATED_BOARD_VALIDATION_COMPLETE",
@@ -1318,7 +1398,8 @@ try {
         operator_visual_result: "PENDING_OPERATOR",
         operator_listening_result: "PENDING_OPERATOR",
         automated_counters_are_not_visual_evidence: true,
-        final_state: finalState
+        final_state: finalState,
+        swap_trace: finalSwapTrace
     });
     System.out.println("HARDWARE_VALIDATION_COMPLETE");
 } catch (error) {

@@ -219,6 +219,7 @@ class EqualizerEditorHardwareToolingTest(unittest.TestCase):
             "LCD_NORMAL_JOB_CYCLES = 912000",
             "MAX_ANALYZER_STRIP_HEIGHT = 16",
             "MAX_LCD_JOBS_PER_SECOND = 8",
+            "FULL_UI_RUNTIME_MASK = 31",
             "enduranceMinutes * 60 * 1000",
             "enduranceMinutes >= 10",
         ]
@@ -330,6 +331,22 @@ class EqualizerEditorHardwareToolingTest(unittest.TestCase):
             "EQ_DebugLcdEofAmbiguousCount",
             "EQ_DebugLcdCurrentFrame1Base",
             "EQ_DebugLcdCurrentFrame1End",
+            "EQ_DebugLcdEof0Count",
+            "EQ_DebugLcdEof1Count",
+            "EQ_DebugLcdCacheMode",
+            "EQ_DebugLcdBufferMar",
+            "EQ_DebugLcdEditorBufferMar",
+            "EQ_DebugLcdWritebackCount",
+            "EQ_DebugLcdWritebackBytes",
+            "EQ_DebugLcdWritebackFailureCount",
+            "EQ_DebugLcdPagePhase",
+            "EQ_DebugLcdDynamicDirtyMask",
+            "EQ_DebugLcdEditorDirtyMask",
+            "EQ_DebugLcdPageRequestedVersion[",
+            "EQ_DebugLcdPageRenderedVersion[",
+            "EQ_DebugLcdSwapTraceCount",
+            "EQ_DebugLcdSwapTraceWriteIndex",
+            "EQ_DebugLcdSwapTraceWrapCount",
             "EQ_DebugLcdCategoryCount[",
             "EQ_DebugLcdCategoryMaxCycles[",
             "EQ_DebugLcdJobTypeCount[",
@@ -358,6 +375,8 @@ class EqualizerEditorHardwareToolingTest(unittest.TestCase):
             with self.subTest(token=token):
                 self.assertIn(token, source)
         self.assertNotIn("EQ_DebugLcdAnalyzerValueCount", source)
+        self.assertIn("function readSwapTrace()", source)
+        self.assertIn("swap_trace: finalSwapTrace", source)
 
     def test_touch_calibration_and_automated_operator_boundary(self):
         source = DSS.read_text(encoding="utf-8")
