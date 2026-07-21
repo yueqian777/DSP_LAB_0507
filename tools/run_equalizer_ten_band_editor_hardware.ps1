@@ -179,11 +179,14 @@ $lcdDoubleBufferDebugSymbols = @(
     "EQ_DebugLcdCacheMode", "EQ_DebugLcdBufferMar",
     "EQ_DebugLcdEditorBufferMar", "EQ_DebugLcdWritebackCount",
     "EQ_DebugLcdWritebackBytes", "EQ_DebugLcdWritebackFailureCount",
+    "EQ_DebugLcdBufferAddress", "EQ_DebugLcdBufferEndAddress",
+    "EQ_DebugLcdEditorBufferAddress", "EQ_DebugLcdEditorBufferEndAddress",
     "EQ_DebugLcdPagePhase", "EQ_DebugLcdDynamicDirtyMask",
     "EQ_DebugLcdEditorDirtyMask", "EQ_DebugLcdPageRequestedVersion",
     "EQ_DebugLcdPageRenderedVersion", "EQ_DebugLcdSwapTrace",
     "EQ_DebugLcdSwapTraceWriteIndex", "EQ_DebugLcdSwapTraceCount",
-    "EQ_DebugLcdSwapTraceWrapCount"
+    "EQ_DebugLcdSwapTraceWrapCount", "EQ_DebugLcdPageSyncMaxCycles",
+    "EQ_DebugLcdPageSyncMaxJob", "EQ_DebugLcdPageSyncLastOver2msJob"
 )
 $requiredSymbols = @(
     "EQ_DebugBuildGitSha", "EQ_DebugBuildDirty", "EQ_DebugInitStage",
@@ -272,7 +275,7 @@ $visualItems = @(
     [ordered]@{ id = "draft_applied_distinction"; description = "Draft and applied states are distinguishable" },
     [ordered]@{ id = "custom_state_correct"; description = "CUSTOM state is displayed correctly" },
     [ordered]@{ id = "page_switch_no_long_freeze"; description = "Page switching has no long full-screen freeze" },
-    [ordered]@{ id = "final_page_layout_complete"; description = "Layout is complete after final tile" },
+    [ordered]@{ id = "final_page_layout_complete"; description = "Layout is complete after page swap" },
     [ordered]@{ id = "no_visible_flicker"; description = "No obvious flicker" },
     [ordered]@{ id = "touch_hitbox_matches_rendered_control"; description = "Touch hitboxes align with rendered controls" }
 )
