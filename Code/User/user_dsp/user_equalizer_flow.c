@@ -105,13 +105,13 @@ typedef struct
     int applied_mode;
     int smart_enabled;
     int smart_strength;
-    int smart_level;
+    int smart_active;
     int clarity_enabled;
     int clarity_strength;
-    int clarity_level;
+    int clarity_active;
     int guard_enabled;
     int guard_strength;
-    int guard_level;
+    int guard_active;
     int page;
     int selected_band;
     int apply_status;
@@ -1542,21 +1542,22 @@ static int EQ_UiSnapshotEventChanged(void)
     if ((EQ_UiEventVersion.smart_enabled !=
          (int)EQ_DebugSmartBassEnabled) ||
         (EQ_UiEventVersion.smart_strength != EQ_DebugSmartBassStrength) ||
-        (EQ_UiEventVersion.smart_level != EQ_DebugSmartBassAppliedLevel))
+        (EQ_UiEventVersion.smart_active !=
+         (int)EQ_DebugSmartBassProcessingActive))
         return 1;
     if ((EQ_UiEventVersion.clarity_enabled !=
          (int)EQ_DebugDynamicClarityEnabled) ||
         (EQ_UiEventVersion.clarity_strength !=
          EQ_DebugDynamicClarityStrength) ||
-        (EQ_UiEventVersion.clarity_level !=
-         EQ_DebugDynamicClarityAppliedLevel))
+        (EQ_UiEventVersion.clarity_active !=
+         (int)EQ_DebugDynamicClarityProcessingActive))
         return 1;
     if ((EQ_UiEventVersion.guard_enabled !=
          (int)EQ_DebugHarshnessGuardEnabled) ||
         (EQ_UiEventVersion.guard_strength !=
          EQ_DebugHarshnessGuardStrength) ||
-        (EQ_UiEventVersion.guard_level !=
-         EQ_DebugHarshnessGuardAppliedLevel))
+        (EQ_UiEventVersion.guard_active !=
+         (int)EQ_DebugHarshnessGuardProcessingActive))
         return 1;
     if ((EQ_UiEventVersion.page != requested_page) ||
         (EQ_UiEventVersion.selected_band !=
@@ -1579,15 +1580,18 @@ static void EQ_RecordUiSnapshotEvent(void)
     EQ_UiEventVersion.applied_mode = EQ_DebugAppliedMode;
     EQ_UiEventVersion.smart_enabled = (int)EQ_DebugSmartBassEnabled;
     EQ_UiEventVersion.smart_strength = EQ_DebugSmartBassStrength;
-    EQ_UiEventVersion.smart_level = EQ_DebugSmartBassAppliedLevel;
+    EQ_UiEventVersion.smart_active =
+        (int)EQ_DebugSmartBassProcessingActive;
     EQ_UiEventVersion.clarity_enabled =
         (int)EQ_DebugDynamicClarityEnabled;
     EQ_UiEventVersion.clarity_strength = EQ_DebugDynamicClarityStrength;
-    EQ_UiEventVersion.clarity_level = EQ_DebugDynamicClarityAppliedLevel;
+    EQ_UiEventVersion.clarity_active =
+        (int)EQ_DebugDynamicClarityProcessingActive;
     EQ_UiEventVersion.guard_enabled =
         (int)EQ_DebugHarshnessGuardEnabled;
     EQ_UiEventVersion.guard_strength = EQ_DebugHarshnessGuardStrength;
-    EQ_UiEventVersion.guard_level = EQ_DebugHarshnessGuardAppliedLevel;
+    EQ_UiEventVersion.guard_active =
+        (int)EQ_DebugHarshnessGuardProcessingActive;
     EQ_UiEventVersion.page = EQ_DebugUiRequestedPage;
     EQ_UiEventVersion.selected_band = EQ_UiEditorState.selected_band;
     EQ_UiEventVersion.apply_status = EQ_UiEditorState.apply_status;
@@ -1604,29 +1608,27 @@ static void EQ_BuildUiSnapshot(EQ_UI_SNAPSHOT *snapshot)
     snapshot->smart_enabled =
         (EQ_DebugSmartBassEnabled != 0U) ? 1 : 0;
     snapshot->smart_strength = EQ_DebugSmartBassStrength;
-    snapshot->smart_level = EQ_DebugSmartBassAppliedLevel;
+    snapshot->smart_active = (int)EQ_DebugSmartBassProcessingActive;
     snapshot->clarity_enabled =
         (EQ_DebugDynamicClarityEnabled != 0U) ? 1 : 0;
     snapshot->clarity_strength = EQ_DebugDynamicClarityStrength;
-    snapshot->clarity_level = EQ_DebugDynamicClarityAppliedLevel;
+    snapshot->clarity_active =
+        (int)EQ_DebugDynamicClarityProcessingActive;
     snapshot->guard_enabled =
         (EQ_DebugHarshnessGuardEnabled != 0U) ? 1 : 0;
     snapshot->guard_strength = EQ_DebugHarshnessGuardStrength;
-    snapshot->guard_level = EQ_DebugHarshnessGuardAppliedLevel;
+    snapshot->guard_active =
+        (int)EQ_DebugHarshnessGuardProcessingActive;
     snapshot->analyzer_valid = (EQ_DebugAnalyzerValid != 0U) ? 1 : 0;
     snapshot->analyzer_warm = (EQ_DebugAnalyzerWarmup != 0U) ? 1 : 0;
 
     tenths = EQ_UiFloatToTenths(EQ_DebugAnalyzerBassDb);
-    snapshot->band_value_db[0] = EqualizerUi_RoundTenthsToDb(tenths);
     snapshot->band_pixel[0] = EqualizerUi_DbTenthsToPixel(tenths);
     tenths = EQ_UiFloatToTenths(EQ_DebugAnalyzerMudDb);
-    snapshot->band_value_db[1] = EqualizerUi_RoundTenthsToDb(tenths);
     snapshot->band_pixel[1] = EqualizerUi_DbTenthsToPixel(tenths);
     tenths = EQ_UiFloatToTenths(EQ_DebugAnalyzerPresenceDb);
-    snapshot->band_value_db[2] = EqualizerUi_RoundTenthsToDb(tenths);
     snapshot->band_pixel[2] = EqualizerUi_DbTenthsToPixel(tenths);
     tenths = EQ_UiFloatToTenths(EQ_DebugAnalyzerBrightnessDb);
-    snapshot->band_value_db[3] = EqualizerUi_RoundTenthsToDb(tenths);
     snapshot->band_pixel[3] = EqualizerUi_DbTenthsToPixel(tenths);
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
     snapshot->page = EQ_DebugUiRequestedPage;
@@ -3314,7 +3316,6 @@ void Equalizer_Flow_Example(void)
     EQ_DebugTouchLastCycles = 0UL;
     EQ_DebugTouchMaxCycles = 0UL;
 #endif
-    (void)EqualizerDisplay_DrawStaticLayout();
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
     EQ_RequestUiSnapshotIfChanged(
         &lcd_snapshot, EQ_DebugProcessFrames, 1);
@@ -3323,6 +3324,7 @@ void Equalizer_Flow_Example(void)
     EqualizerDisplay_RequestSnapshot(
         &lcd_snapshot, EQ_DebugProcessFrames);
 #endif
+    (void)EqualizerDisplay_DrawStaticLayout();
     EqualizerDisplay_BeginRuntime();
 #endif
 

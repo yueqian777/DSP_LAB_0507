@@ -91,18 +91,22 @@
 #define EQ_LCD_JOB_HARD_CYCLES       2280000UL
 #define EQ_LCD_HW_AUDIT_JOB_INTERVAL 64UL
 #define EQ_LCD_HW_AUDIT_FRAME_INTERVAL 256UL
-#define EQ_LCD_PAGE_TILE_INDEX_NONE 0xFFFFFFFFU
+#define EQ_LCD_PAGE_SYNC_JOB_NONE 0xFFFFFFFFU
+#define EQ_LCD_CACHE_UNKNOWN      0U
+#define EQ_LCD_CACHE_NONCACHEABLE 1U
+#define EQ_LCD_CACHE_CACHEABLE    2U
+#define EQ_LCD_CACHE_MIXED        3U
+#define EQ_LCD_SWAP_TRACE_DEPTH   64U
 
 #define EQ_LCD_CATEGORY_PRESET   0
 #define EQ_LCD_CATEGORY_DYNAMIC  1
-#define EQ_LCD_CATEGORY_CHAIN    2
-#define EQ_LCD_CATEGORY_ANALYZER 3
+#define EQ_LCD_CATEGORY_ANALYZER 2
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
-#define EQ_LCD_CATEGORY_EDITOR   4
-#define EQ_LCD_CATEGORY_PAGE     5
-#define EQ_LCD_CATEGORY_COUNT    6
+#define EQ_LCD_CATEGORY_EDITOR   3
+#define EQ_LCD_CATEGORY_PAGE     4
+#define EQ_LCD_CATEGORY_COUNT    5
 #else
-#define EQ_LCD_CATEGORY_COUNT    4
+#define EQ_LCD_CATEGORY_COUNT    3
 #endif
 
 #define EQ_LCD_ANALYZER_STRIP_NONE          0U
@@ -121,6 +125,21 @@ typedef struct
     unsigned long dma_control;
     unsigned long irq_status;
 } EQ_LCD_HW_SNAPSHOT;
+
+typedef struct
+{
+    unsigned long cycle;
+    unsigned long process_frame;
+    unsigned long eof_mask;
+    unsigned long frame_base;
+    unsigned long frame1_base;
+    int front_page;
+    int target_page;
+    unsigned int swap_pending;
+    unsigned int descriptor_mask;
+    unsigned int swap_complete;
+    unsigned long raster_status;
+} EQ_LCD_SWAP_TRACE_ENTRY;
 
 #if defined(EQ_ALGO_ONLY) || (EQ_ENABLE_LCD_DISPLAY != 0)
 extern volatile unsigned long EQ_DebugLcdRefreshCount;
@@ -144,9 +163,9 @@ extern volatile unsigned long EQ_DebugLcdLastJobStartCycles;
 extern volatile unsigned long EQ_DebugLcdLastJobEndCycles;
 extern volatile unsigned long EQ_DebugLcdLastJobCycles;
 extern volatile unsigned long EQ_DebugLcdMaxJobCycles;
-extern volatile unsigned long EQ_DebugLcdPageTileMaxCycles;
-extern volatile unsigned int EQ_DebugLcdPageTileMaxIndex;
-extern volatile unsigned int EQ_DebugLcdPageTileLastOver2msIndex;
+extern volatile unsigned long EQ_DebugLcdPageSyncMaxCycles;
+extern volatile unsigned int EQ_DebugLcdPageSyncMaxJob;
+extern volatile unsigned int EQ_DebugLcdPageSyncLastOver2msJob;
 extern volatile unsigned long EQ_DebugLcdLastJobTenthsMs;
 extern volatile unsigned long EQ_DebugLcdMaxJobTenthsMs;
 extern volatile int EQ_DebugLcdLastJob;
@@ -164,7 +183,25 @@ extern volatile unsigned long EQ_DebugLcdEofCount;
 extern volatile unsigned long EQ_DebugLcdEofAmbiguousCount;
 extern volatile unsigned long EQ_DebugLcdSwapRequestCount;
 extern volatile unsigned long EQ_DebugLcdSwapCompleteCount;
+extern volatile unsigned long EQ_DebugLcdEof0Count;
+extern volatile unsigned long EQ_DebugLcdEof1Count;
 extern volatile unsigned long EQ_DebugLcdRasterStopTimeoutCount;
+extern volatile unsigned int EQ_DebugLcdCacheMode;
+extern volatile unsigned long EQ_DebugLcdBufferMar;
+extern volatile unsigned long EQ_DebugLcdEditorBufferMar;
+extern volatile unsigned long EQ_DebugLcdWritebackCount;
+extern volatile unsigned long EQ_DebugLcdWritebackBytes;
+extern volatile unsigned long EQ_DebugLcdWritebackFailureCount;
+extern volatile unsigned int EQ_DebugLcdPagePhase;
+extern volatile unsigned long EQ_DebugLcdDynamicDirtyMask;
+extern volatile unsigned long EQ_DebugLcdEditorDirtyMask;
+extern volatile unsigned long EQ_DebugLcdPageRequestedVersion[2];
+extern volatile unsigned long EQ_DebugLcdPageRenderedVersion[2];
+extern volatile EQ_LCD_SWAP_TRACE_ENTRY
+    EQ_DebugLcdSwapTrace[EQ_LCD_SWAP_TRACE_DEPTH];
+extern volatile unsigned int EQ_DebugLcdSwapTraceWriteIndex;
+extern volatile unsigned int EQ_DebugLcdSwapTraceCount;
+extern volatile unsigned long EQ_DebugLcdSwapTraceWrapCount;
 extern volatile const unsigned int EQ_DebugLcdCategoryCountSize;
 extern volatile const unsigned int EQ_DebugLcdJobTypeCountSize;
 extern volatile const unsigned int EQ_DebugUiJobCountSize;
@@ -185,7 +222,6 @@ extern volatile unsigned int EQ_DebugLcdAnalyzerLastStripHeight;
 extern volatile unsigned int EQ_DebugLcdAnalyzerLastStripOperation;
 extern volatile unsigned int EQ_DebugLcdAnalyzerMaxStripHeight;
 extern volatile unsigned long EQ_DebugLcdAnalyzerStripCount;
-extern volatile unsigned long EQ_DebugLcdAnalyzerValueCount;
 extern volatile const unsigned long EQ_DebugUiStateBytes;
 extern volatile unsigned long EQ_DebugLcdExpectedFrameBase;
 extern volatile unsigned long EQ_DebugLcdExpectedFrameEnd;
@@ -241,6 +277,7 @@ void EqualizerDisplay_TestForceJobCycles(unsigned long cycles);
 void EqualizerDisplay_TestSetHardwareSnapshot(
     const EQ_LCD_HW_SNAPSHOT *snapshot);
 void EqualizerDisplay_TestSetCanaryFailure(int failed);
+void EqualizerDisplay_TestSetCacheMode(unsigned int mode);
 void EqualizerDisplay_TestDrawRect(int x, int y, int w, int h);
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
 void EqualizerDisplay_TestInjectEofStatus(unsigned long status);

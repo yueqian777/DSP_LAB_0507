@@ -21,48 +21,45 @@
 #define EQ_UI_SCREEN_HEIGHT 480
 
 #define EQ_UI_PRESET_COUNT  5
-#define EQ_UI_CHAIN_COUNT   3
 #define EQ_UI_ANALYZER_COUNT 4
 #define EQ_UI_DYNAMIC_COUNT 3
 #define EQ_UI_DYNAMIC_HITBOX_COUNT 12
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
-#define EQ_UI_EDITOR_HITBOX_COUNT 20
+#define EQ_UI_EDITOR_HITBOX_COUNT 15
 #define EQ_UI_HITBOX_COUNT EQ_UI_EDITOR_HITBOX_COUNT
 #else
 #define EQ_UI_HITBOX_COUNT EQ_UI_DYNAMIC_HITBOX_COUNT
 #endif
 
 #define EQ_UI_RUNTIME_PRESET   0x01U
-#define EQ_UI_RUNTIME_CHAIN    0x02U
-#define EQ_UI_RUNTIME_DYNAMICS 0x04U
-#define EQ_UI_RUNTIME_ANALYZER 0x08U
-#define EQ_UI_RUNTIME_EDITOR   0x10U
-#define EQ_UI_RUNTIME_PAGE     0x20U
+#define EQ_UI_RUNTIME_DYNAMICS 0x02U
+#define EQ_UI_RUNTIME_ANALYZER 0x04U
+#define EQ_UI_RUNTIME_EDITOR   0x08U
+#define EQ_UI_RUNTIME_PAGE     0x10U
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
-#define EQ_UI_RUNTIME_ALL      0x3FU
+#define EQ_UI_RUNTIME_ALL      0x1FU
 #else
-#define EQ_UI_RUNTIME_ALL      0x0FU
+#define EQ_UI_RUNTIME_ALL      0x07U
 #endif
 
 #define EQ_UI_JOB_NONE       0
 #define EQ_UI_JOB_PRESET_0   1
 #define EQ_UI_JOB_PRESET_4   (EQ_UI_JOB_PRESET_0 + 4)
-#define EQ_UI_JOB_CHAIN_0    6
-#define EQ_UI_JOB_CHAIN_2    (EQ_UI_JOB_CHAIN_0 + 2)
-#define EQ_UI_JOB_ANALYZER_0 9
+#define EQ_UI_JOB_ANALYZER_0 6
 #define EQ_UI_JOB_ANALYZER_3 (EQ_UI_JOB_ANALYZER_0 + 3)
-#define EQ_UI_JOB_DYNAMIC_0  13
+#define EQ_UI_JOB_DYNAMIC_0  10
 #define EQ_UI_JOB_DYNAMIC_2  (EQ_UI_JOB_DYNAMIC_0 + 2)
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
-#define EQ_UI_JOB_EDITOR_BAND_0 16
+#define EQ_UI_JOB_EDITOR_BAND_0 13
 #define EQ_UI_JOB_EDITOR_BAND_9 (EQ_UI_JOB_EDITOR_BAND_0 + 9)
-#define EQ_UI_JOB_EDITOR_FIELDS 26
-#define EQ_UI_JOB_PAGE_TILE     27
-#define EQ_UI_JOB_COUNT         27
-#define EQ_UI_CATEGORY_COUNT    6
+#define EQ_UI_JOB_EDITOR_FIELDS 23
+#define EQ_UI_JOB_PAGE_SYNC     24
+#define EQ_UI_JOB_PAGE_SWAP     25
+#define EQ_UI_JOB_COUNT         25
+#define EQ_UI_CATEGORY_COUNT    5
 #else
-#define EQ_UI_JOB_COUNT      15
-#define EQ_UI_CATEGORY_COUNT 4
+#define EQ_UI_JOB_COUNT      12
+#define EQ_UI_CATEGORY_COUNT 3
 #endif
 
 typedef char EQ_UI_JOB_COUNT_MUST_FIT_MASK[
@@ -70,12 +67,11 @@ typedef char EQ_UI_JOB_COUNT_MUST_FIT_MASK[
 
 #define EQ_UI_DYNAMIC_FIELD_ENABLED  0x01U
 #define EQ_UI_DYNAMIC_FIELD_STRENGTH 0x02U
-#define EQ_UI_DYNAMIC_FIELD_LEVEL    0x04U
+#define EQ_UI_DYNAMIC_FIELD_ACTIVE   0x04U
 #define EQ_UI_DYNAMIC_FIELD_ALL      0x07U
 
 #define EQ_UI_ANALYZER_FIELD_BAR   0x01U
-#define EQ_UI_ANALYZER_FIELD_VALUE 0x02U
-#define EQ_UI_ANALYZER_FIELD_ALL   0x03U
+#define EQ_UI_ANALYZER_FIELD_ALL   EQ_UI_ANALYZER_FIELD_BAR
 
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
 #define EQ_UI_EDITOR_FIELD_SELECTED_BAND 0x01U
@@ -94,26 +90,6 @@ typedef char EQ_UI_JOB_COUNT_MUST_FIT_MASK[
 #define EQ_UI_EDITOR_ZERO_PIXEL 196
 #define EQ_UI_EDITOR_MAX_STRIP_HEIGHT 16
 
-/* Each page tile redraws one complete UI region in the hidden framebuffer. */
-#define EQ_UI_PAGE_TILE_SWITCH                  0U
-#define EQ_UI_PAGE_TILE_TITLE                   1U
-#define EQ_UI_PAGE_TILE_PRESET_FIRST            2U
-#define EQ_UI_PAGE_TILE_PRESET_LAST             6U
-#define EQ_UI_PAGE_TILE_EDITOR_BAND_FIRST       7U
-#define EQ_UI_PAGE_TILE_EDITOR_BAND_LAST        16U
-#define EQ_UI_PAGE_TILE_EDITOR_CONTROLS         17U
-#define EQ_UI_PAGE_TILE_EDITOR_FIELD_FIRST      18U
-#define EQ_UI_PAGE_TILE_EDITOR_FIELD_LAST       22U
-#define EQ_UI_PAGE_TILE_EDITOR_SWAP             23U
-#define EQ_UI_PAGE_TILE_EDITOR_COUNT            24U
-#define EQ_UI_PAGE_TILE_DYNAMIC_CHAIN_FIRST     7U
-#define EQ_UI_PAGE_TILE_DYNAMIC_CHAIN_LAST      9U
-#define EQ_UI_PAGE_TILE_DYNAMIC_ANALYZER_FIRST  10U
-#define EQ_UI_PAGE_TILE_DYNAMIC_ANALYZER_LAST   13U
-#define EQ_UI_PAGE_TILE_DYNAMIC_ROW_FIRST       14U
-#define EQ_UI_PAGE_TILE_DYNAMIC_ROW_LAST        16U
-#define EQ_UI_PAGE_TILE_DYNAMIC_SWAP            17U
-#define EQ_UI_PAGE_TILE_DYNAMIC_COUNT           18U
 #endif
 
 #define EQ_UI_ANALYZER_MIN_TENTHS_DB (-200)
@@ -126,14 +102,10 @@ typedef char EQ_UI_JOB_COUNT_MUST_FIT_MASK[
     ((EQ_UI_ANALYZER_BAR_TOP + EQ_UI_ANALYZER_BAR_BOTTOM) / 2)
 #define EQ_UI_ANALYZER_HYSTERESIS_PX 2
 #define EQ_UI_ANALYZER_MAX_STRIP_HEIGHT 16
-#define EQ_UI_ANALYZER_VALUE_DELTA_DB 2
-#define EQ_UI_ANALYZER_VALUE_MAX_AGE_FRAMES 50UL
-#define EQ_UI_ANALYZER_MAX_AGE_FRAMES \
-    EQ_UI_ANALYZER_VALUE_MAX_AGE_FRAMES
+#define EQ_UI_ANALYZER_MAX_AGE_FRAMES 50UL
 
 #define EQ_UI_PRESET_MIN_GAP_FRAMES  2UL
 #define EQ_UI_DYNAMIC_MIN_GAP_FRAMES 4UL
-#define EQ_UI_CHAIN_MIN_GAP_FRAMES   8UL
 #define EQ_UI_ANALYZER_MIN_GAP_FRAMES 8UL
 #define EQ_UI_STEADY_MIN_GAP_FRAMES  7UL
 
@@ -147,6 +119,15 @@ typedef enum
     EQ_UI_PAGE_DYNAMIC_STATUS = 0,
     EQ_UI_PAGE_EQ_EDITOR = 1
 } EQ_UI_PAGE;
+
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+typedef enum
+{
+    EQ_UI_PAGE_PHASE_IDLE = 0,
+    EQ_UI_PAGE_PHASE_SYNC,
+    EQ_UI_PAGE_PHASE_SWAP
+} EQ_UI_PAGE_PHASE;
+#endif
 
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
 typedef signed char EQ_UI_GAIN_HALF_DB;
@@ -192,19 +173,18 @@ typedef struct
 
     int smart_enabled;
     int smart_strength;
-    int smart_level;
+    int smart_active;
 
     int clarity_enabled;
     int clarity_strength;
-    int clarity_level;
+    int clarity_active;
 
     int guard_enabled;
     int guard_strength;
-    int guard_level;
+    int guard_active;
 
     int analyzer_valid;
     int analyzer_warm;
-    int band_value_db[EQ_UI_ANALYZER_COUNT];
     int band_pixel[EQ_UI_ANALYZER_COUNT];
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
     EQ_UI_GAIN_HALF_DB applied_gain_half_db[EQ_NUM_BANDS];
@@ -228,7 +208,6 @@ typedef struct
     unsigned long dirty_mask;
     unsigned long displayed_valid_mask;
     unsigned long band_last_display_frame[EQ_UI_ANALYZER_COUNT];
-    unsigned long band_last_value_frame[EQ_UI_ANALYZER_COUNT];
     unsigned long category_last_service_frame[EQ_UI_CATEGORY_COUNT];
     unsigned long last_service_frame;
     unsigned long request_frame;
@@ -238,13 +217,11 @@ typedef struct
     unsigned int requested_valid;
     unsigned int preset_cursor;
     unsigned int dynamic_cursor;
-    unsigned int chain_cursor;
     unsigned int analyzer_cursor;
     unsigned int non_analyzer_streak;
     unsigned int category_last_service_valid_mask;
     unsigned int last_service_frame_valid;
     unsigned char preset_displayed_selected[EQ_UI_PRESET_COUNT];
-    unsigned char chain_displayed_enabled[EQ_UI_CHAIN_COUNT];
     unsigned char analyzer_displayed_valid[EQ_UI_ANALYZER_COUNT];
     unsigned char analyzer_displayed_warm[EQ_UI_ANALYZER_COUNT];
     unsigned char analyzer_displayed_field_valid[EQ_UI_ANALYZER_COUNT];
@@ -252,15 +229,17 @@ typedef struct
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
     unsigned int editor_field_mask;
     unsigned int editor_band_cursor;
-    unsigned int page_tile_index;
-    unsigned int page_tile_count;
     int displayed_page;
     int requested_page;
     int page_target;
-    unsigned int page_building;
+    int page_sync_job;
+    unsigned int page_phase;
+    unsigned long page_requested_version[2];
+    unsigned long page_rendered_version[2];
     unsigned char editor_band_displayed_valid[EQ_NUM_BANDS];
     unsigned char editor_band_displayed_selected[EQ_NUM_BANDS];
     EQ_UI_GAIN_HALF_DB editor_displayed_applied_gain[EQ_NUM_BANDS];
+    int editor_displayed_preset;
     int editor_displayed_pixel[EQ_NUM_BANDS];
     unsigned int editor_displayed_field_valid;
 #endif
@@ -323,12 +302,11 @@ typedef struct
 } EQ_UI_TOUCH_STATE;
 
 extern const EQ_UI_RECT EQ_UI_PRESET_RECTS[EQ_UI_PRESET_COUNT];
-extern const EQ_UI_RECT EQ_UI_CHAIN_RECTS[EQ_UI_CHAIN_COUNT];
 extern const EQ_UI_RECT EQ_UI_ANALYZER_RECTS[EQ_UI_ANALYZER_COUNT];
 extern const EQ_UI_RECT EQ_UI_DYNAMIC_RECTS[EQ_UI_DYNAMIC_COUNT];
 extern const EQ_UI_RECT EQ_UI_DYNAMIC_TOGGLE_RECTS[EQ_UI_DYNAMIC_COUNT];
 extern const EQ_UI_RECT EQ_UI_DYNAMIC_STRENGTH_RECTS[EQ_UI_DYNAMIC_COUNT];
-extern const EQ_UI_RECT EQ_UI_DYNAMIC_LEVEL_RECTS[EQ_UI_DYNAMIC_COUNT];
+extern const EQ_UI_RECT EQ_UI_DYNAMIC_STATUS_RECTS[EQ_UI_DYNAMIC_COUNT];
 extern const EQ_UI_RECT EQ_UI_PAGE_SWITCH_RECT;
 extern const EQ_UI_HITBOX
     EQ_UI_DYNAMIC_HITBOXES[EQ_UI_DYNAMIC_HITBOX_COUNT];
@@ -379,12 +357,19 @@ void EqualizerUiLogic_CompleteEditorBand(
 void EqualizerUiLogic_CompleteEditorField(
     EQ_UI_STATE *state, unsigned int completed_field,
     unsigned long process_frame);
-void EqualizerUiLogic_CompletePageTile(
+void EqualizerUiLogic_CompletePageSync(
+    EQ_UI_STATE *state, unsigned int completed_fields,
+    unsigned long process_frame);
+void EqualizerUiLogic_CompletePageSwap(
     EQ_UI_STATE *state, unsigned long process_frame);
+void EqualizerUiLogic_MarkStartupRendered(EQ_UI_STATE *state);
 int EqualizerUiLogic_GetDisplayedPage(const EQ_UI_STATE *state);
 int EqualizerUiLogic_IsPageBuilding(const EQ_UI_STATE *state);
-unsigned int EqualizerUiLogic_GetPageTileIndex(const EQ_UI_STATE *state);
-unsigned int EqualizerUiLogic_GetPageTileCount(const EQ_UI_STATE *state);
+int EqualizerUiLogic_GetPageTarget(const EQ_UI_STATE *state);
+int EqualizerUiLogic_GetPageSyncJob(const EQ_UI_STATE *state);
+unsigned int EqualizerUiLogic_GetPagePhase(const EQ_UI_STATE *state);
+unsigned long EqualizerUiLogic_GetPageDirtyMask(
+    const EQ_UI_STATE *state, int page);
 #endif
 void EqualizerUiLogic_Cancel(EQ_UI_STATE *state);
 

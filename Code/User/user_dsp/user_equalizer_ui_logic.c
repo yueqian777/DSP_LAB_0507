@@ -12,27 +12,26 @@
 
 #define EQ_UI_JOB_BIT(job_) (1UL << ((job_) - 1))
 #define EQ_UI_PRESET_MASK 0x001FUL
-#define EQ_UI_CHAIN_MASK 0x00E0UL
-#define EQ_UI_ANALYZER_MASK 0x0F00UL
-#define EQ_UI_DYNAMIC_MASK 0x7000UL
+#define EQ_UI_ANALYZER_MASK 0x01E0UL
+#define EQ_UI_DYNAMIC_MASK 0x0E00UL
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
-#define EQ_UI_EDITOR_BAND_MASK 0x01FF8000UL
-#define EQ_UI_EDITOR_FIELDS_MASK 0x02000000UL
-#define EQ_UI_PAGE_TILE_MASK 0x04000000UL
+#define EQ_UI_EDITOR_BAND_MASK 0x003FF000UL
+#define EQ_UI_EDITOR_FIELDS_MASK 0x00400000UL
 #define EQ_UI_EDITOR_MASK \
     (EQ_UI_EDITOR_BAND_MASK | EQ_UI_EDITOR_FIELDS_MASK)
+#define EQ_UI_DYNAMIC_PAGE_MASK \
+    (EQ_UI_PRESET_MASK | EQ_UI_ANALYZER_MASK | EQ_UI_DYNAMIC_MASK)
 #endif
 
 #define EQ_UI_CATEGORY_PRESET   0
 #define EQ_UI_CATEGORY_DYNAMIC  1
-#define EQ_UI_CATEGORY_CHAIN    2
-#define EQ_UI_CATEGORY_ANALYZER 3
+#define EQ_UI_CATEGORY_ANALYZER 2
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
-#define EQ_UI_CATEGORY_EDITOR   4
-#define EQ_UI_CATEGORY_PAGE     5
-#define EQ_UI_CATEGORY_COUNT    6
+#define EQ_UI_CATEGORY_EDITOR   3
+#define EQ_UI_CATEGORY_PAGE     4
+#define EQ_UI_CATEGORY_COUNT    5
 #else
-#define EQ_UI_CATEGORY_COUNT    4
+#define EQ_UI_CATEGORY_COUNT    3
 #endif
 
 const EQ_UI_RECT EQ_UI_PRESET_RECTS[EQ_UI_PRESET_COUNT] =
@@ -42,13 +41,6 @@ const EQ_UI_RECT EQ_UI_PRESET_RECTS[EQ_UI_PRESET_COUNT] =
     { 330, 34, 140, 40 },
     { 482, 34, 140, 40 },
     { 634, 34, 140, 40 }
-};
-
-const EQ_UI_RECT EQ_UI_CHAIN_RECTS[EQ_UI_CHAIN_COUNT] =
-{
-    { 342, 82, 52, 26 },
-    { 438, 82, 44, 26 },
-    { 526, 82, 36, 26 }
 };
 
 const EQ_UI_RECT EQ_UI_ANALYZER_RECTS[EQ_UI_ANALYZER_COUNT] =
@@ -80,11 +72,11 @@ const EQ_UI_RECT EQ_UI_DYNAMIC_STRENGTH_RECTS[EQ_UI_DYNAMIC_COUNT] =
     { 286, 430, 96, 40 }
 };
 
-const EQ_UI_RECT EQ_UI_DYNAMIC_LEVEL_RECTS[EQ_UI_DYNAMIC_COUNT] =
+const EQ_UI_RECT EQ_UI_DYNAMIC_STATUS_RECTS[EQ_UI_DYNAMIC_COUNT] =
 {
-    { 406, 342, 80, 40 },
-    { 406, 386, 80, 40 },
-    { 406, 430, 80, 40 }
+    { 416, 342, 40, 40 },
+    { 416, 386, 40, 40 },
+    { 416, 430, 40, 40 }
 };
 
 const EQ_UI_RECT EQ_UI_PAGE_SWITCH_RECT = { 672, 430, 104, 40 };
@@ -130,11 +122,6 @@ const EQ_UI_RECT EQ_UI_EDITOR_FIELDS_RECT = { 24, 398, 632, 70 };
 const EQ_UI_HITBOX
     EQ_UI_EDITOR_HITBOXES[EQ_UI_EDITOR_HITBOX_COUNT] =
 {
-    { { 26, 34, 140, 40 }, EQ_UI_ACTION_PRESET_FLAT },
-    { { 178, 34, 140, 40 }, EQ_UI_ACTION_PRESET_BASS },
-    { { 330, 34, 140, 40 }, EQ_UI_ACTION_PRESET_VOCAL },
-    { { 482, 34, 140, 40 }, EQ_UI_ACTION_PRESET_TREBLE },
-    { { 634, 34, 140, 40 }, EQ_UI_ACTION_PRESET_V_SHAPE },
     { { 24, 112, 68, 218 }, EQ_UI_ACTION_EDITOR_BAND_0 },
     { { 100, 112, 68, 218 }, EQ_UI_ACTION_EDITOR_BAND_1 },
     { { 176, 112, 68, 218 }, EQ_UI_ACTION_EDITOR_BAND_2 },
@@ -186,7 +173,8 @@ static int EQ_UI_AnalyzerTargetPixel(const EQ_UI_STATE *state, int band)
 static int EQ_UI_JobCategory(int job)
 {
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
-    if (job == EQ_UI_JOB_PAGE_TILE)
+    if ((job == EQ_UI_JOB_PAGE_SYNC) ||
+        (job == EQ_UI_JOB_PAGE_SWAP))
         return EQ_UI_CATEGORY_PAGE;
     if ((job >= EQ_UI_JOB_EDITOR_BAND_0) &&
         (job <= EQ_UI_JOB_EDITOR_FIELDS))
@@ -196,8 +184,6 @@ static int EQ_UI_JobCategory(int job)
         return EQ_UI_CATEGORY_PRESET;
     if ((job >= EQ_UI_JOB_DYNAMIC_0) && (job <= EQ_UI_JOB_DYNAMIC_2))
         return EQ_UI_CATEGORY_DYNAMIC;
-    if ((job >= EQ_UI_JOB_CHAIN_0) && (job <= EQ_UI_JOB_CHAIN_2))
-        return EQ_UI_CATEGORY_CHAIN;
     return EQ_UI_CATEGORY_ANALYZER;
 }
 
@@ -213,8 +199,6 @@ static unsigned long EQ_UI_CategoryMinGap(int category)
         return EQ_UI_PRESET_MIN_GAP_FRAMES;
     if (category == EQ_UI_CATEGORY_DYNAMIC)
         return EQ_UI_DYNAMIC_MIN_GAP_FRAMES;
-    if (category == EQ_UI_CATEGORY_CHAIN)
-        return EQ_UI_CHAIN_MIN_GAP_FRAMES;
     return EQ_UI_ANALYZER_MIN_GAP_FRAMES;
 }
 
@@ -275,14 +259,15 @@ static void EQ_UI_NormalizeSnapshot(EQ_UI_SNAPSHOT *snapshot)
     snapshot->applied_preset =
         EQ_UI_NormalizePreset(snapshot->applied_preset);
     snapshot->smart_enabled = (snapshot->smart_enabled != 0) ? 1 : 0;
+    snapshot->smart_active = (snapshot->smart_active != 0) ? 1 : 0;
     snapshot->clarity_enabled = (snapshot->clarity_enabled != 0) ? 1 : 0;
+    snapshot->clarity_active = (snapshot->clarity_active != 0) ? 1 : 0;
     snapshot->guard_enabled = (snapshot->guard_enabled != 0) ? 1 : 0;
+    snapshot->guard_active = (snapshot->guard_active != 0) ? 1 : 0;
     snapshot->analyzer_valid = (snapshot->analyzer_valid != 0) ? 1 : 0;
     snapshot->analyzer_warm = (snapshot->analyzer_warm != 0) ? 1 : 0;
     for (band = 0; band < EQ_UI_ANALYZER_COUNT; band++)
     {
-        snapshot->band_value_db[band] = EQ_UI_ClampInt(
-            snapshot->band_value_db[band], -20, 20);
         snapshot->band_pixel[band] = EQ_UI_ClampInt(
             snapshot->band_pixel[band],
             EQ_UI_ANALYZER_DRAW_TOP, EQ_UI_ANALYZER_DRAW_BOTTOM);
@@ -347,41 +332,14 @@ static void EQ_UI_RecomputePreset(EQ_UI_STATE *state)
     }
 }
 
-static void EQ_UI_RecomputeChain(EQ_UI_STATE *state)
-{
-    int requested_enabled[EQ_UI_CHAIN_COUNT];
-    int index;
-    int job;
-
-    state->dirty_mask &= ~EQ_UI_CHAIN_MASK;
-    if (((state->runtime_mask & EQ_UI_RUNTIME_CHAIN) == 0U) ||
-        (state->requested_valid == 0U))
-    {
-        return;
-    }
-    requested_enabled[0] = state->requested.smart_enabled;
-    requested_enabled[1] = state->requested.clarity_enabled;
-    requested_enabled[2] = state->requested.guard_enabled;
-    for (index = 0; index < EQ_UI_CHAIN_COUNT; index++)
-    {
-        job = EQ_UI_JOB_CHAIN_0 + index;
-        if ((EQ_UI_JobDisplayed(state, job) == 0) ||
-            (requested_enabled[index] !=
-             (int)state->chain_displayed_enabled[index]))
-        {
-            state->dirty_mask |= EQ_UI_JOB_BIT(job);
-        }
-    }
-}
-
 static void EQ_UI_RecomputeDynamics(EQ_UI_STATE *state)
 {
     int requested_enabled[EQ_UI_DYNAMIC_COUNT];
     int requested_strength[EQ_UI_DYNAMIC_COUNT];
-    int requested_level[EQ_UI_DYNAMIC_COUNT];
+    int requested_active[EQ_UI_DYNAMIC_COUNT];
     int displayed_enabled[EQ_UI_DYNAMIC_COUNT];
     int displayed_strength[EQ_UI_DYNAMIC_COUNT];
-    int displayed_level[EQ_UI_DYNAMIC_COUNT];
+    int displayed_active[EQ_UI_DYNAMIC_COUNT];
     int index;
     int job;
     unsigned int fields;
@@ -393,18 +351,18 @@ static void EQ_UI_RecomputeDynamics(EQ_UI_STATE *state)
     requested_strength[0] = state->requested.smart_strength;
     requested_strength[1] = state->requested.clarity_strength;
     requested_strength[2] = state->requested.guard_strength;
-    requested_level[0] = state->requested.smart_level;
-    requested_level[1] = state->requested.clarity_level;
-    requested_level[2] = state->requested.guard_level;
+    requested_active[0] = state->requested.smart_active;
+    requested_active[1] = state->requested.clarity_active;
+    requested_active[2] = state->requested.guard_active;
     displayed_enabled[0] = state->displayed.smart_enabled;
     displayed_enabled[1] = state->displayed.clarity_enabled;
     displayed_enabled[2] = state->displayed.guard_enabled;
     displayed_strength[0] = state->displayed.smart_strength;
     displayed_strength[1] = state->displayed.clarity_strength;
     displayed_strength[2] = state->displayed.guard_strength;
-    displayed_level[0] = state->displayed.smart_level;
-    displayed_level[1] = state->displayed.clarity_level;
-    displayed_level[2] = state->displayed.guard_level;
+    displayed_active[0] = state->displayed.smart_active;
+    displayed_active[1] = state->displayed.clarity_active;
+    displayed_active[2] = state->displayed.guard_active;
 
     for (index = 0; index < EQ_UI_DYNAMIC_COUNT; index++)
     {
@@ -426,10 +384,10 @@ static void EQ_UI_RecomputeDynamics(EQ_UI_STATE *state)
                 fields |= EQ_UI_DYNAMIC_FIELD_STRENGTH;
             }
             if (((state->dynamic_displayed_field_valid[index] &
-                  EQ_UI_DYNAMIC_FIELD_LEVEL) == 0U) ||
-                (requested_level[index] != displayed_level[index]))
+                  EQ_UI_DYNAMIC_FIELD_ACTIVE) == 0U) ||
+                (requested_active[index] != displayed_active[index]))
             {
-                fields |= EQ_UI_DYNAMIC_FIELD_LEVEL;
+                fields |= EQ_UI_DYNAMIC_FIELD_ACTIVE;
             }
         }
         state->dynamic_field_mask[index] = fields;
@@ -449,11 +407,8 @@ static void EQ_UI_RecomputeAnalyzer(EQ_UI_STATE *state,
     int target_pixel;
     int validity_changed;
     int pixel_changed;
-    int value_changed;
-    int valid_and_warm;
     int bar_was_pending;
     unsigned long bar_age;
-    unsigned long value_age;
     unsigned int fields;
 
     state->dirty_mask &= ~EQ_UI_ANALYZER_MASK;
@@ -478,35 +433,20 @@ static void EQ_UI_RecomputeAnalyzer(EQ_UI_STATE *state,
              (int)state->analyzer_displayed_valid[band]) ||
             (state->requested.analyzer_warm !=
              (int)state->analyzer_displayed_warm[band]);
-        valid_and_warm = (state->requested.analyzer_valid != 0) &&
-                         (state->requested.analyzer_warm != 0);
         current_pixel = EQ_UI_ClampInt(state->displayed.band_pixel[band],
                                        EQ_UI_ANALYZER_BAR_TOP,
                                        EQ_UI_ANALYZER_BAR_BOTTOM);
         target_pixel = EQ_UI_AnalyzerTargetPixel(state, band);
         pixel_changed = target_pixel - current_pixel;
-        value_changed = state->requested.band_value_db[band] -
-                        state->displayed.band_value_db[band];
         bar_age = process_frame - state->band_last_display_frame[band];
-        value_age = process_frame - state->band_last_value_frame[band];
-        if ((pixel_changed != 0) &&
-            (bar_was_pending || validity_changed ||
-             (EQ_UI_AbsInt(pixel_changed) >=
-              EQ_UI_ANALYZER_HYSTERESIS_PX) ||
-             (bar_age >= EQ_UI_ANALYZER_VALUE_MAX_AGE_FRAMES)))
+        if (validity_changed ||
+            ((pixel_changed != 0) &&
+             (bar_was_pending ||
+              (EQ_UI_AbsInt(pixel_changed) >=
+               EQ_UI_ANALYZER_HYSTERESIS_PX) ||
+              (bar_age >= EQ_UI_ANALYZER_MAX_AGE_FRAMES))))
         {
             fields |= EQ_UI_ANALYZER_FIELD_BAR;
-        }
-        if (((state->analyzer_displayed_field_valid[band] &
-              EQ_UI_ANALYZER_FIELD_VALUE) == 0U) ||
-            validity_changed ||
-            (valid_and_warm &&
-             (value_changed != 0) &&
-             ((EQ_UI_AbsInt(value_changed) >=
-                EQ_UI_ANALYZER_VALUE_DELTA_DB) ||
-              (value_age >= EQ_UI_ANALYZER_VALUE_MAX_AGE_FRAMES))))
-        {
-            fields |= EQ_UI_ANALYZER_FIELD_VALUE;
         }
         state->analyzer_field_mask[band] = fields;
         if (fields != 0U)
@@ -543,9 +483,7 @@ static void EQ_UI_RecomputeEditor(EQ_UI_STATE *state)
     state->dirty_mask &= ~EQ_UI_EDITOR_MASK;
     state->editor_field_mask = 0U;
     if (((state->runtime_mask & EQ_UI_RUNTIME_EDITOR) == 0U) ||
-        (state->requested_valid == 0U) ||
-        (state->displayed_page != EQ_UI_PAGE_EQ_EDITOR) ||
-        (state->page_building != 0U))
+        (state->requested_valid == 0U))
     {
         return;
     }
@@ -593,7 +531,7 @@ static void EQ_UI_RecomputeEditor(EQ_UI_STATE *state)
     }
     if (((state->editor_displayed_field_valid &
           EQ_UI_EDITOR_FIELD_CUSTOM_STATE) == 0U) ||
-        (state->displayed.applied_preset !=
+        (state->editor_displayed_preset !=
          state->requested.applied_preset) ||
         (state->displayed.editor_draft_dirty !=
          state->requested.editor_draft_dirty))
@@ -618,29 +556,23 @@ static void EQ_UI_RecomputeEditor(EQ_UI_STATE *state)
     }
 }
 
-static unsigned int EQ_UI_PageTileCount(int page)
+static unsigned long EQ_UI_PageMask(int page)
 {
     return (page == EQ_UI_PAGE_EQ_EDITOR) ?
-        EQ_UI_PAGE_TILE_EDITOR_COUNT : EQ_UI_PAGE_TILE_DYNAMIC_COUNT;
+        EQ_UI_EDITOR_MASK : EQ_UI_DYNAMIC_PAGE_MASK;
 }
 
-static void EQ_UI_StartPageBuild(EQ_UI_STATE *state, int page)
+static void EQ_UI_UpdateRenderedVersions(EQ_UI_STATE *state)
 {
-    int index;
-
-    state->dirty_mask = EQ_UI_PAGE_TILE_MASK;
-    state->page_target = page;
-    state->page_tile_index = 0U;
-    state->page_tile_count = EQ_UI_PageTileCount(page);
-    state->page_building = 1U;
-    state->editor_field_mask = 0U;
-    for (index = 0; index < EQ_UI_DYNAMIC_COUNT; index++)
+    if ((state->dirty_mask & EQ_UI_DYNAMIC_PAGE_MASK) == 0UL)
     {
-        state->dynamic_field_mask[index] = 0U;
+        state->page_rendered_version[EQ_UI_PAGE_DYNAMIC_STATUS] =
+            state->page_requested_version[EQ_UI_PAGE_DYNAMIC_STATUS];
     }
-    for (index = 0; index < EQ_UI_ANALYZER_COUNT; index++)
+    if ((state->dirty_mask & EQ_UI_EDITOR_MASK) == 0UL)
     {
-        state->analyzer_field_mask[index] = 0U;
+        state->page_rendered_version[EQ_UI_PAGE_EQ_EDITOR] =
+            state->page_requested_version[EQ_UI_PAGE_EQ_EDITOR];
     }
 }
 #endif
@@ -648,26 +580,13 @@ static void EQ_UI_StartPageBuild(EQ_UI_STATE *state, int page)
 static void EQ_UI_RecomputeAll(EQ_UI_STATE *state,
                                unsigned long process_frame)
 {
-#if EQ_ENABLE_TEN_BAND_EDITOR != 0
-    if (state->page_building != 0U)
-    {
-        state->dirty_mask = EQ_UI_PAGE_TILE_MASK;
-        return;
-    }
-    if (state->displayed_page == EQ_UI_PAGE_EQ_EDITOR)
-    {
-        state->dirty_mask &= ~(EQ_UI_CHAIN_MASK | EQ_UI_ANALYZER_MASK |
-                               EQ_UI_DYNAMIC_MASK);
-        EQ_UI_RecomputePreset(state);
-        EQ_UI_RecomputeEditor(state);
-        return;
-    }
-    state->dirty_mask &= ~EQ_UI_EDITOR_MASK;
-#endif
     EQ_UI_RecomputePreset(state);
     EQ_UI_RecomputeDynamics(state);
-    EQ_UI_RecomputeChain(state);
     EQ_UI_RecomputeAnalyzer(state, process_frame);
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+    EQ_UI_RecomputeEditor(state);
+    EQ_UI_UpdateRenderedVersions(state);
+#endif
 }
 
 void EqualizerUiLogic_Init(EQ_UI_STATE *state)
@@ -691,6 +610,7 @@ void EqualizerUiLogic_Init(EQ_UI_STATE *state)
     state->displayed.editor_selected_band = 0;
     state->requested.editor_apply_status = EQ_UI_APPLY_APPLIED;
     state->displayed.editor_apply_status = EQ_UI_APPLY_APPLIED;
+    state->editor_displayed_preset = EQ_PRESET_FLAT;
     for (band = 0; band < EQ_NUM_BANDS; band++)
     {
         state->editor_displayed_pixel[band] = EQ_UI_EDITOR_ZERO_PIXEL;
@@ -727,43 +647,57 @@ void EqualizerUiLogic_Request(EQ_UI_STATE *state,
         state->requested_page = EQ_UI_PAGE_DYNAMIC_STATUS;
         state->requested.page = EQ_UI_PAGE_DYNAMIC_STATUS;
     }
-    if ((state->page_building == 0U) &&
-        (state->requested_page != state->displayed_page))
+    state->page_requested_version[EQ_UI_PAGE_DYNAMIC_STATUS]++;
+    state->page_requested_version[EQ_UI_PAGE_EQ_EDITOR]++;
+#endif
+    EQ_UI_RecomputeAll(state, process_frame);
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+    if (state->page_phase == EQ_UI_PAGE_PHASE_IDLE)
     {
-        EQ_UI_StartPageBuild(state, state->requested_page);
-        return;
-    }
-    if (state->page_building != 0U)
-    {
-        if (state->requested_page != state->page_target)
+        if (state->requested_page != state->displayed_page)
         {
-            if (state->requested_page == state->displayed_page)
-            {
-                state->page_target = state->displayed_page;
-                state->page_tile_index = 0U;
-                state->page_tile_count = 0U;
-                state->page_building = 0U;
-                state->dirty_mask &= ~EQ_UI_PAGE_TILE_MASK;
-                EQ_UI_RecomputeAll(state, process_frame);
-            }
-            else
-            {
-                EQ_UI_StartPageBuild(state, state->requested_page);
-            }
+            state->page_target = state->requested_page;
+            state->page_sync_job = EQ_UI_JOB_NONE;
+            state->page_phase = EQ_UI_PAGE_PHASE_SYNC;
+        }
+    }
+    else if (state->requested_page != state->page_target)
+    {
+        if (state->requested_page == state->displayed_page)
+        {
+            state->page_target = state->displayed_page;
+            state->page_sync_job = EQ_UI_JOB_NONE;
+            state->page_phase = EQ_UI_PAGE_PHASE_IDLE;
         }
         else
         {
-            state->dirty_mask = EQ_UI_PAGE_TILE_MASK;
+            state->page_target = state->requested_page;
+            state->page_sync_job = EQ_UI_JOB_NONE;
+            state->page_phase = EQ_UI_PAGE_PHASE_SYNC;
         }
-        return;
     }
 #endif
-    EQ_UI_RecomputeAll(state, process_frame);
 }
 
 int EqualizerUiLogic_HasPending(const EQ_UI_STATE *state)
 {
-    return ((state != 0) && (state->dirty_mask != 0UL)) ? 1 : 0;
+    unsigned long visible_mask;
+
+    if (state == 0)
+    {
+        return 0;
+    }
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+    if (state->page_phase != EQ_UI_PAGE_PHASE_IDLE)
+    {
+        return 1;
+    }
+    visible_mask = EQ_UI_PageMask(state->displayed_page);
+#else
+    visible_mask = EQ_UI_PRESET_MASK | EQ_UI_ANALYZER_MASK |
+                   EQ_UI_DYNAMIC_MASK;
+#endif
+    return ((state->dirty_mask & visible_mask) != 0UL) ? 1 : 0;
 }
 
 int EqualizerUiLogic_HasEligibleJob(const EQ_UI_STATE *state,
@@ -774,38 +708,45 @@ int EqualizerUiLogic_HasEligibleJob(const EQ_UI_STATE *state,
         return 0;
     }
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
-    if (((state->dirty_mask & EQ_UI_PAGE_TILE_MASK) != 0UL) &&
-        EQ_UI_CategoryEligible(state, EQ_UI_CATEGORY_PAGE,
-                               process_frame))
+    if ((state->page_phase != EQ_UI_PAGE_PHASE_IDLE) &&
+        (EQ_UI_CategoryEligible(state, EQ_UI_CATEGORY_PAGE,
+                                process_frame) != 0))
     {
         return 1;
     }
-    if (((state->dirty_mask & EQ_UI_EDITOR_MASK) != 0UL) &&
+    if ((state->displayed_page == EQ_UI_PAGE_EQ_EDITOR) &&
+        ((state->dirty_mask & EQ_UI_EDITOR_MASK) != 0UL) &&
         EQ_UI_CategoryEligible(state, EQ_UI_CATEGORY_EDITOR,
                                process_frame))
     {
         return 1;
     }
 #endif
-    if (((state->dirty_mask & EQ_UI_PRESET_MASK) != 0UL) &&
+    if (
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+        (state->displayed_page == EQ_UI_PAGE_DYNAMIC_STATUS) &&
+#endif
+        ((state->dirty_mask & EQ_UI_PRESET_MASK) != 0UL) &&
         EQ_UI_CategoryEligible(state, EQ_UI_CATEGORY_PRESET,
                                process_frame))
     {
         return 1;
     }
-    if (((state->dirty_mask & EQ_UI_DYNAMIC_MASK) != 0UL) &&
+    if (
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+        (state->displayed_page == EQ_UI_PAGE_DYNAMIC_STATUS) &&
+#endif
+        ((state->dirty_mask & EQ_UI_DYNAMIC_MASK) != 0UL) &&
         EQ_UI_CategoryEligible(state, EQ_UI_CATEGORY_DYNAMIC,
                                process_frame))
     {
         return 1;
     }
-    if (((state->dirty_mask & EQ_UI_CHAIN_MASK) != 0UL) &&
-        EQ_UI_CategoryEligible(state, EQ_UI_CATEGORY_CHAIN,
-                               process_frame))
-    {
-        return 1;
-    }
-    return (((state->dirty_mask & EQ_UI_ANALYZER_MASK) != 0UL) &&
+    return (
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+            (state->displayed_page == EQ_UI_PAGE_DYNAMIC_STATUS) &&
+#endif
+            ((state->dirty_mask & EQ_UI_ANALYZER_MASK) != 0UL) &&
             EQ_UI_CategoryEligible(state, EQ_UI_CATEGORY_ANALYZER,
                                    process_frame)) ? 1 : 0;
 }
@@ -831,6 +772,47 @@ static int EQ_UI_SelectFromRange(unsigned long dirty_mask,
     return EQ_UI_JOB_NONE;
 }
 
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+static int EQ_UI_SelectPageDataJob(EQ_UI_STATE *state, int page)
+{
+    int job;
+
+    if (page == EQ_UI_PAGE_EQ_EDITOR)
+    {
+        job = EQ_UI_SelectFromRange(state->dirty_mask,
+                                   EQ_UI_JOB_EDITOR_BAND_0,
+                                   EQ_NUM_BANDS,
+                                   &state->editor_band_cursor);
+        if (job != EQ_UI_JOB_NONE)
+        {
+            return job;
+        }
+        return ((state->dirty_mask & EQ_UI_EDITOR_FIELDS_MASK) != 0UL) ?
+            EQ_UI_JOB_EDITOR_FIELDS : EQ_UI_JOB_NONE;
+    }
+    job = EQ_UI_SelectFromRange(state->dirty_mask,
+                               EQ_UI_JOB_PRESET_0,
+                               EQ_UI_PRESET_COUNT,
+                               &state->preset_cursor);
+    if (job != EQ_UI_JOB_NONE)
+    {
+        return job;
+    }
+    job = EQ_UI_SelectFromRange(state->dirty_mask,
+                               EQ_UI_JOB_DYNAMIC_0,
+                               EQ_UI_DYNAMIC_COUNT,
+                               &state->dynamic_cursor);
+    if (job != EQ_UI_JOB_NONE)
+    {
+        return job;
+    }
+    return EQ_UI_SelectFromRange(state->dirty_mask,
+                                 EQ_UI_JOB_ANALYZER_0,
+                                 EQ_UI_ANALYZER_COUNT,
+                                 &state->analyzer_cursor);
+}
+#endif
+
 int EqualizerUiLogic_SelectJob(EQ_UI_STATE *state,
                                unsigned long process_frame)
 {
@@ -841,15 +823,31 @@ int EqualizerUiLogic_SelectJob(EQ_UI_STATE *state,
         return EQ_UI_JOB_NONE;
     }
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
-    if (((state->dirty_mask & EQ_UI_PAGE_TILE_MASK) != 0UL) &&
+    if ((state->page_phase != EQ_UI_PAGE_PHASE_IDLE) &&
         (EQ_UI_CategoryEligible(state, EQ_UI_CATEGORY_PAGE,
                                 process_frame) != 0))
     {
-        return EQ_UI_JOB_PAGE_TILE;
+        if (state->page_phase == EQ_UI_PAGE_PHASE_SYNC)
+        {
+            job = EQ_UI_SelectPageDataJob(state, state->page_target);
+            if (job != EQ_UI_JOB_NONE)
+            {
+                state->page_sync_job = job;
+                return EQ_UI_JOB_PAGE_SYNC;
+            }
+            state->page_sync_job = EQ_UI_JOB_NONE;
+            state->page_phase = EQ_UI_PAGE_PHASE_SWAP;
+        }
+        return EQ_UI_JOB_PAGE_SWAP;
     }
 #endif
-    if (EQ_UI_CategoryEligible(state, EQ_UI_CATEGORY_PRESET,
+    if (
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+        (state->displayed_page == EQ_UI_PAGE_DYNAMIC_STATUS) &&
+#endif
+        (EQ_UI_CategoryEligible(state, EQ_UI_CATEGORY_PRESET,
                                process_frame) != 0)
+       )
     {
         job = EQ_UI_SelectFromRange(state->dirty_mask,
                                    EQ_UI_JOB_PRESET_0,
@@ -862,8 +860,10 @@ int EqualizerUiLogic_SelectJob(EQ_UI_STATE *state,
         }
     }
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
-    if (EQ_UI_CategoryEligible(state, EQ_UI_CATEGORY_EDITOR,
+    if ((state->displayed_page == EQ_UI_PAGE_EQ_EDITOR) &&
+        (EQ_UI_CategoryEligible(state, EQ_UI_CATEGORY_EDITOR,
                                process_frame) != 0)
+       )
     {
         job = EQ_UI_SelectFromRange(state->dirty_mask,
                                    EQ_UI_JOB_EDITOR_BAND_0,
@@ -879,7 +879,11 @@ int EqualizerUiLogic_SelectJob(EQ_UI_STATE *state,
         }
     }
 #endif
-    if ((state->non_analyzer_streak >= 3U) &&
+    if (
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+        (state->displayed_page == EQ_UI_PAGE_DYNAMIC_STATUS) &&
+#endif
+        (state->non_analyzer_streak >= 3U) &&
         ((state->dirty_mask & EQ_UI_ANALYZER_MASK) != 0UL) &&
         (EQ_UI_CategoryEligible(state, EQ_UI_CATEGORY_ANALYZER,
                                 process_frame) != 0))
@@ -891,8 +895,13 @@ int EqualizerUiLogic_SelectJob(EQ_UI_STATE *state,
         state->non_analyzer_streak = 0U;
         return job;
     }
-    if (EQ_UI_CategoryEligible(state, EQ_UI_CATEGORY_DYNAMIC,
+    if (
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+        (state->displayed_page == EQ_UI_PAGE_DYNAMIC_STATUS) &&
+#endif
+        (EQ_UI_CategoryEligible(state, EQ_UI_CATEGORY_DYNAMIC,
                                process_frame) != 0)
+       )
     {
         job = EQ_UI_SelectFromRange(state->dirty_mask,
                                    EQ_UI_JOB_DYNAMIC_0,
@@ -904,22 +913,14 @@ int EqualizerUiLogic_SelectJob(EQ_UI_STATE *state,
             return job;
         }
     }
-    if (EQ_UI_CategoryEligible(state, EQ_UI_CATEGORY_CHAIN,
-                               process_frame) != 0)
-    {
-        job = EQ_UI_SelectFromRange(state->dirty_mask,
-                                   EQ_UI_JOB_CHAIN_0,
-                                   EQ_UI_CHAIN_COUNT,
-                                   &state->chain_cursor);
-        if (job != EQ_UI_JOB_NONE)
-        {
-            state->non_analyzer_streak++;
-            return job;
-        }
-    }
     job = EQ_UI_JOB_NONE;
-    if (EQ_UI_CategoryEligible(state, EQ_UI_CATEGORY_ANALYZER,
+    if (
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+        (state->displayed_page == EQ_UI_PAGE_DYNAMIC_STATUS) &&
+#endif
+        (EQ_UI_CategoryEligible(state, EQ_UI_CATEGORY_ANALYZER,
                                process_frame) != 0)
+       )
     {
         job = EQ_UI_SelectFromRange(state->dirty_mask,
                                    EQ_UI_JOB_ANALYZER_0,
@@ -958,37 +959,13 @@ unsigned int EqualizerUiLogic_AnalyzerFieldMask(
 unsigned int EqualizerUiLogic_AnalyzerNextField(
     const EQ_UI_STATE *state, int analyzer_index)
 {
-    unsigned int fields;
-    int validity_changed;
-
     if ((state == 0) || (analyzer_index < 0) ||
         (analyzer_index >= EQ_UI_ANALYZER_COUNT))
     {
         return 0U;
     }
-    fields = state->analyzer_field_mask[analyzer_index];
-    validity_changed =
-        (state->requested.analyzer_valid !=
-         (int)state->analyzer_displayed_valid[analyzer_index]) ||
-        (state->requested.analyzer_warm !=
-         (int)state->analyzer_displayed_warm[analyzer_index]);
-    if (((fields & EQ_UI_ANALYZER_FIELD_VALUE) != 0U) &&
-        validity_changed)
-    {
-        return EQ_UI_ANALYZER_FIELD_VALUE;
-    }
-    if (((fields & EQ_UI_ANALYZER_FIELD_VALUE) != 0U) &&
-        ((state->request_frame -
-          state->band_last_value_frame[analyzer_index]) >=
-         EQ_UI_ANALYZER_VALUE_MAX_AGE_FRAMES))
-    {
-        return EQ_UI_ANALYZER_FIELD_VALUE;
-    }
-    if ((fields & EQ_UI_ANALYZER_FIELD_BAR) != 0U)
-    {
-        return EQ_UI_ANALYZER_FIELD_BAR;
-    }
-    return fields & EQ_UI_ANALYZER_FIELD_VALUE;
+    return state->analyzer_field_mask[analyzer_index] &
+           EQ_UI_ANALYZER_FIELD_BAR;
 }
 
 int EqualizerUiLogic_AnalyzerNextPixel(
@@ -1033,11 +1010,6 @@ void EqualizerUiLogic_CompleteJob(EQ_UI_STATE *state, int job,
         return;
     }
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
-    if (job == EQ_UI_JOB_PAGE_TILE)
-    {
-        EqualizerUiLogic_CompletePageTile(state, process_frame);
-        return;
-    }
     if ((job >= EQ_UI_JOB_EDITOR_BAND_0) &&
         (job <= EQ_UI_JOB_EDITOR_BAND_9))
     {
@@ -1061,7 +1033,7 @@ void EqualizerUiLogic_CompleteJob(EQ_UI_STATE *state, int job,
         else if ((field & EQ_UI_DYNAMIC_FIELD_STRENGTH) != 0U)
             field = EQ_UI_DYNAMIC_FIELD_STRENGTH;
         else
-            field &= EQ_UI_DYNAMIC_FIELD_LEVEL;
+            field &= EQ_UI_DYNAMIC_FIELD_ACTIVE;
         EqualizerUiLogic_CompleteDynamicField(
             state, job, field, process_frame);
         return;
@@ -1090,16 +1062,10 @@ void EqualizerUiLogic_CompleteJob(EQ_UI_STATE *state, int job,
                 state->requested.applied_preset;
         }
     }
-    else if ((job >= EQ_UI_JOB_CHAIN_0) && (job <= EQ_UI_JOB_CHAIN_2))
-    {
-        index = job - EQ_UI_JOB_CHAIN_0;
-        state->chain_displayed_enabled[index] =
-            (unsigned char)((index == 0) ? state->requested.smart_enabled :
-                            ((index == 1) ?
-                             state->requested.clarity_enabled :
-                             state->requested.guard_enabled));
-    }
     EQ_UI_RecordService(state, job, process_frame);
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+    EQ_UI_UpdateRenderedVersions(state);
+#endif
 }
 
 void EqualizerUiLogic_CompleteDynamicField(
@@ -1127,8 +1093,8 @@ void EqualizerUiLogic_CompleteDynamicField(
             state->displayed.smart_enabled = state->requested.smart_enabled;
         if ((fields & EQ_UI_DYNAMIC_FIELD_STRENGTH) != 0U)
             state->displayed.smart_strength = state->requested.smart_strength;
-        if ((fields & EQ_UI_DYNAMIC_FIELD_LEVEL) != 0U)
-            state->displayed.smart_level = state->requested.smart_level;
+        if ((fields & EQ_UI_DYNAMIC_FIELD_ACTIVE) != 0U)
+            state->displayed.smart_active = state->requested.smart_active;
     }
     else if (index == 1)
     {
@@ -1142,10 +1108,10 @@ void EqualizerUiLogic_CompleteDynamicField(
             state->displayed.clarity_strength =
                 state->requested.clarity_strength;
         }
-        if ((fields & EQ_UI_DYNAMIC_FIELD_LEVEL) != 0U)
+        if ((fields & EQ_UI_DYNAMIC_FIELD_ACTIVE) != 0U)
         {
-            state->displayed.clarity_level =
-                state->requested.clarity_level;
+            state->displayed.clarity_active =
+                state->requested.clarity_active;
         }
     }
     else
@@ -1154,8 +1120,8 @@ void EqualizerUiLogic_CompleteDynamicField(
             state->displayed.guard_enabled = state->requested.guard_enabled;
         if ((fields & EQ_UI_DYNAMIC_FIELD_STRENGTH) != 0U)
             state->displayed.guard_strength = state->requested.guard_strength;
-        if ((fields & EQ_UI_DYNAMIC_FIELD_LEVEL) != 0U)
-            state->displayed.guard_level = state->requested.guard_level;
+        if ((fields & EQ_UI_DYNAMIC_FIELD_ACTIVE) != 0U)
+            state->displayed.guard_active = state->requested.guard_active;
     }
     state->dynamic_displayed_field_valid[index] |=
         (unsigned char)fields;
@@ -1166,6 +1132,9 @@ void EqualizerUiLogic_CompleteDynamicField(
         state->displayed_valid_mask |= EQ_UI_JOB_BIT(job);
     }
     EQ_UI_RecordService(state, job, process_frame);
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+    EQ_UI_UpdateRenderedVersions(state);
+#endif
 }
 
 void EqualizerUiLogic_CompleteAnalyzerField(
@@ -1195,33 +1164,20 @@ void EqualizerUiLogic_CompleteAnalyzerField(
     {
         field = EqualizerUiLogic_AnalyzerNextField(state, index);
     }
-    if (field == EQ_UI_ANALYZER_FIELD_BAR)
+    next_pixel = EqualizerUiLogic_AnalyzerNextPixel(state, index);
+    target_pixel = EQ_UI_AnalyzerTargetPixel(state, index);
+    state->displayed.band_pixel[index] = next_pixel;
+    state->band_last_display_frame[index] = process_frame;
+    state->analyzer_displayed_valid[index] =
+        (unsigned char)state->requested.analyzer_valid;
+    state->analyzer_displayed_warm[index] =
+        (unsigned char)state->requested.analyzer_warm;
+    state->analyzer_displayed_field_valid[index] |=
+        EQ_UI_ANALYZER_FIELD_BAR;
+    if (next_pixel == target_pixel)
     {
-        next_pixel = EqualizerUiLogic_AnalyzerNextPixel(state, index);
-        target_pixel = EQ_UI_AnalyzerTargetPixel(state, index);
-        state->displayed.band_pixel[index] = next_pixel;
-        state->band_last_display_frame[index] = process_frame;
-        state->analyzer_displayed_field_valid[index] |=
-            EQ_UI_ANALYZER_FIELD_BAR;
-        if (next_pixel == target_pixel)
-        {
-            state->analyzer_field_mask[index] &=
-                ~EQ_UI_ANALYZER_FIELD_BAR;
-        }
-    }
-    else
-    {
-        state->displayed.band_value_db[index] =
-            state->requested.band_value_db[index];
-        state->analyzer_displayed_valid[index] =
-            (unsigned char)state->requested.analyzer_valid;
-        state->analyzer_displayed_warm[index] =
-            (unsigned char)state->requested.analyzer_warm;
-        state->band_last_value_frame[index] = process_frame;
-        state->analyzer_displayed_field_valid[index] |=
-            EQ_UI_ANALYZER_FIELD_VALUE;
         state->analyzer_field_mask[index] &=
-            ~EQ_UI_ANALYZER_FIELD_VALUE;
+            ~EQ_UI_ANALYZER_FIELD_BAR;
     }
     if (state->analyzer_field_mask[index] == 0U)
     {
@@ -1244,6 +1200,9 @@ void EqualizerUiLogic_CompleteAnalyzerField(
             state->requested.analyzer_warm;
     }
     EQ_UI_RecordService(state, job, process_frame);
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+    EQ_UI_UpdateRenderedVersions(state);
+#endif
 }
 
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
@@ -1342,6 +1301,7 @@ void EqualizerUiLogic_CompleteEditorBand(
         state->displayed_valid_mask |= EQ_UI_JOB_BIT(job);
     }
     EQ_UI_RecordService(state, job, process_frame);
+    EQ_UI_UpdateRenderedVersions(state);
 }
 
 static void EQ_UI_CopyEditorField(EQ_UI_STATE *state,
@@ -1374,7 +1334,7 @@ static void EQ_UI_CopyEditorField(EQ_UI_STATE *state,
     }
     else if (field == EQ_UI_EDITOR_FIELD_CUSTOM_STATE)
     {
-        state->displayed.applied_preset =
+        state->editor_displayed_preset =
             state->requested.applied_preset;
         state->displayed.editor_draft_dirty =
             state->requested.editor_draft_dirty;
@@ -1426,129 +1386,132 @@ void EqualizerUiLogic_CompleteEditorField(
         state->displayed_valid_mask |= EQ_UI_EDITOR_FIELDS_MASK;
     }
     EQ_UI_RecordService(state, EQ_UI_JOB_EDITOR_FIELDS, process_frame);
+    EQ_UI_UpdateRenderedVersions(state);
 }
 
-static void EQ_UI_CompleteDynamicPageTile(EQ_UI_STATE *state,
-                                          unsigned int tile)
+void EqualizerUiLogic_CompletePageSync(
+    EQ_UI_STATE *state, unsigned int completed_fields,
+    unsigned long process_frame)
 {
-    int index;
+    int job;
 
-    if ((tile >= EQ_UI_PAGE_TILE_DYNAMIC_CHAIN_FIRST) &&
-        (tile <= EQ_UI_PAGE_TILE_DYNAMIC_CHAIN_LAST))
-    {
-        index = (int)(tile - EQ_UI_PAGE_TILE_DYNAMIC_CHAIN_FIRST);
-        state->chain_displayed_enabled[index] =
-            (unsigned char)((index == 0) ? state->requested.smart_enabled :
-                            ((index == 1) ?
-                             state->requested.clarity_enabled :
-                             state->requested.guard_enabled));
-    }
-    else if ((tile >= EQ_UI_PAGE_TILE_DYNAMIC_ANALYZER_FIRST) &&
-             (tile <= EQ_UI_PAGE_TILE_DYNAMIC_ANALYZER_LAST))
-    {
-        index = (int)(tile - EQ_UI_PAGE_TILE_DYNAMIC_ANALYZER_FIRST);
-        state->displayed.band_value_db[index] =
-            state->requested.band_value_db[index];
-        state->displayed.band_pixel[index] =
-            EQ_UI_AnalyzerTargetPixel(state, index);
-        state->analyzer_displayed_valid[index] =
-            (unsigned char)state->requested.analyzer_valid;
-        state->analyzer_displayed_warm[index] =
-            (unsigned char)state->requested.analyzer_warm;
-        state->analyzer_displayed_field_valid[index] =
-            EQ_UI_ANALYZER_FIELD_ALL;
-    }
-    else if ((tile >= EQ_UI_PAGE_TILE_DYNAMIC_ROW_FIRST) &&
-             (tile <= EQ_UI_PAGE_TILE_DYNAMIC_ROW_LAST))
-    {
-        index = (int)(tile - EQ_UI_PAGE_TILE_DYNAMIC_ROW_FIRST);
-        if (index == 0)
-        {
-            state->displayed.smart_enabled = state->requested.smart_enabled;
-            state->displayed.smart_strength = state->requested.smart_strength;
-            state->displayed.smart_level = state->requested.smart_level;
-        }
-        else if (index == 1)
-        {
-            state->displayed.clarity_enabled =
-                state->requested.clarity_enabled;
-            state->displayed.clarity_strength =
-                state->requested.clarity_strength;
-            state->displayed.clarity_level =
-                state->requested.clarity_level;
-        }
-        else
-        {
-            state->displayed.guard_enabled = state->requested.guard_enabled;
-            state->displayed.guard_strength = state->requested.guard_strength;
-            state->displayed.guard_level = state->requested.guard_level;
-        }
-        state->dynamic_displayed_field_valid[index] =
-            EQ_UI_DYNAMIC_FIELD_ALL;
-    }
-}
-
-static void EQ_UI_CompleteEditorPageTile(EQ_UI_STATE *state,
-                                         unsigned int tile)
-{
-    int index;
-    unsigned int field;
-
-    if ((tile >= EQ_UI_PAGE_TILE_EDITOR_BAND_FIRST) &&
-        (tile <= EQ_UI_PAGE_TILE_EDITOR_BAND_LAST))
-    {
-        index = (int)(tile - EQ_UI_PAGE_TILE_EDITOR_BAND_FIRST);
-        state->editor_displayed_applied_gain[index] =
-            state->requested.applied_gain_half_db[index];
-        state->editor_displayed_pixel[index] = EQ_UI_EditorGainToPixel(
-            state->requested.applied_gain_half_db[index]);
-        state->editor_band_displayed_selected[index] =
-            (unsigned char)((state->requested.editor_selected_band ==
-                             index) ? 1U : 0U);
-        state->editor_band_displayed_valid[index] = 1U;
-    }
-    else if ((tile >= EQ_UI_PAGE_TILE_EDITOR_FIELD_FIRST) &&
-             (tile <= EQ_UI_PAGE_TILE_EDITOR_FIELD_LAST))
-    {
-        index = (int)(tile - EQ_UI_PAGE_TILE_EDITOR_FIELD_FIRST);
-        field = EQ_UI_EDITOR_FIELD_SELECTED_BAND << index;
-        EQ_UI_CopyEditorField(state, field);
-        state->editor_displayed_field_valid |= field;
-    }
-}
-
-void EqualizerUiLogic_CompletePageTile(
-    EQ_UI_STATE *state, unsigned long process_frame)
-{
-    unsigned int tile;
-
-    if ((state == 0) || (state->page_building == 0U) ||
-        ((state->dirty_mask & EQ_UI_PAGE_TILE_MASK) == 0UL))
+    if ((state == 0) ||
+        (state->page_phase != EQ_UI_PAGE_PHASE_SYNC))
     {
         return;
     }
-    tile = state->page_tile_index;
-    if (state->page_target == EQ_UI_PAGE_EQ_EDITOR)
+    job = state->page_sync_job;
+    if ((job >= EQ_UI_JOB_DYNAMIC_0) &&
+        (job <= EQ_UI_JOB_DYNAMIC_2))
     {
-        EQ_UI_CompleteEditorPageTile(state, tile);
+        EqualizerUiLogic_CompleteDynamicField(
+            state, job, completed_fields, process_frame);
     }
-    else
+    else if ((job >= EQ_UI_JOB_ANALYZER_0) &&
+             (job <= EQ_UI_JOB_ANALYZER_3))
     {
-        EQ_UI_CompleteDynamicPageTile(state, tile);
+        EqualizerUiLogic_CompleteAnalyzerField(
+            state, job, completed_fields, process_frame);
     }
-    state->page_tile_index++;
-    EQ_UI_RecordService(state, EQ_UI_JOB_PAGE_TILE, process_frame);
-    if (state->page_tile_index < state->page_tile_count)
+    else if ((job >= EQ_UI_JOB_EDITOR_BAND_0) &&
+             (job <= EQ_UI_JOB_EDITOR_BAND_9))
+    {
+        EqualizerUiLogic_CompleteEditorBand(
+            state, job, process_frame);
+    }
+    else if (job == EQ_UI_JOB_EDITOR_FIELDS)
+    {
+        EqualizerUiLogic_CompleteEditorField(
+            state, completed_fields, process_frame);
+    }
+    else if ((job >= EQ_UI_JOB_PRESET_0) &&
+             (job <= EQ_UI_JOB_PRESET_4))
+    {
+        EqualizerUiLogic_CompleteJob(state, job, process_frame);
+    }
+    state->page_sync_job = EQ_UI_JOB_NONE;
+    EQ_UI_UpdateRenderedVersions(state);
+    EQ_UI_RecordService(state, EQ_UI_JOB_PAGE_SYNC, process_frame);
+}
+
+void EqualizerUiLogic_CompletePageSwap(
+    EQ_UI_STATE *state, unsigned long process_frame)
+{
+    if ((state == 0) ||
+        (state->page_phase != EQ_UI_PAGE_PHASE_SWAP))
     {
         return;
     }
     state->displayed_page = state->page_target;
     state->displayed.page = state->displayed_page;
-    state->displayed.applied_preset = state->requested.applied_preset;
-    state->page_building = 0U;
-    state->dirty_mask &= ~EQ_UI_PAGE_TILE_MASK;
-    state->displayed_valid_mask |= EQ_UI_PAGE_TILE_MASK;
+    state->page_sync_job = EQ_UI_JOB_NONE;
+    state->page_phase = EQ_UI_PAGE_PHASE_IDLE;
+    EQ_UI_UpdateRenderedVersions(state);
+    EQ_UI_RecordService(state, EQ_UI_JOB_PAGE_SWAP, process_frame);
     EQ_UI_RecomputeAll(state, process_frame);
+}
+
+void EqualizerUiLogic_MarkStartupRendered(EQ_UI_STATE *state)
+{
+    int band;
+    int index;
+
+    if ((state == 0) || (state->requested_valid == 0U))
+    {
+        return;
+    }
+    state->displayed = state->requested;
+    state->displayed_page = EQ_UI_PAGE_DYNAMIC_STATUS;
+    state->displayed.page = EQ_UI_PAGE_DYNAMIC_STATUS;
+    state->page_target = EQ_UI_PAGE_DYNAMIC_STATUS;
+    state->page_phase = EQ_UI_PAGE_PHASE_IDLE;
+    state->page_sync_job = EQ_UI_JOB_NONE;
+    state->dirty_mask = 0UL;
+    state->displayed_valid_mask =
+        EQ_UI_DYNAMIC_PAGE_MASK | EQ_UI_EDITOR_MASK;
+    for (index = 0; index < EQ_UI_PRESET_COUNT; index++)
+    {
+        state->preset_displayed_selected[index] =
+            (unsigned char)((state->requested.applied_preset == index) ?
+                            1U : 0U);
+    }
+    for (index = 0; index < EQ_UI_DYNAMIC_COUNT; index++)
+    {
+        state->dynamic_field_mask[index] = 0U;
+        state->dynamic_displayed_field_valid[index] =
+            EQ_UI_DYNAMIC_FIELD_ALL;
+    }
+    for (band = 0; band < EQ_UI_ANALYZER_COUNT; band++)
+    {
+        state->analyzer_field_mask[band] = 0U;
+        state->displayed.band_pixel[band] =
+            EQ_UI_AnalyzerTargetPixel(state, band);
+        state->analyzer_displayed_valid[band] =
+            (unsigned char)state->requested.analyzer_valid;
+        state->analyzer_displayed_warm[band] =
+            (unsigned char)state->requested.analyzer_warm;
+        state->analyzer_displayed_field_valid[band] =
+            EQ_UI_ANALYZER_FIELD_ALL;
+    }
+    for (band = 0; band < EQ_NUM_BANDS; band++)
+    {
+        state->editor_band_displayed_valid[band] = 1U;
+        state->editor_band_displayed_selected[band] =
+            (unsigned char)((state->requested.editor_selected_band ==
+                             band) ? 1U : 0U);
+        state->editor_displayed_applied_gain[band] =
+            state->requested.applied_gain_half_db[band];
+        state->editor_displayed_pixel[band] =
+            EQ_UI_EditorGainToPixel(
+                state->requested.applied_gain_half_db[band]);
+    }
+    state->editor_field_mask = 0U;
+    state->editor_displayed_field_valid = EQ_UI_EDITOR_FIELD_ALL;
+    state->editor_displayed_preset = state->requested.applied_preset;
+    state->page_rendered_version[EQ_UI_PAGE_DYNAMIC_STATUS] =
+        state->page_requested_version[EQ_UI_PAGE_DYNAMIC_STATUS];
+    state->page_rendered_version[EQ_UI_PAGE_EQ_EDITOR] =
+        state->page_requested_version[EQ_UI_PAGE_EQ_EDITOR];
 }
 
 int EqualizerUiLogic_GetDisplayedPage(const EQ_UI_STATE *state)
@@ -1559,17 +1522,34 @@ int EqualizerUiLogic_GetDisplayedPage(const EQ_UI_STATE *state)
 
 int EqualizerUiLogic_IsPageBuilding(const EQ_UI_STATE *state)
 {
-    return ((state != 0) && (state->page_building != 0U)) ? 1 : 0;
+    return ((state != 0) &&
+            (state->page_phase != EQ_UI_PAGE_PHASE_IDLE)) ? 1 : 0;
 }
 
-unsigned int EqualizerUiLogic_GetPageTileIndex(const EQ_UI_STATE *state)
+int EqualizerUiLogic_GetPageTarget(const EQ_UI_STATE *state)
 {
-    return (state != 0) ? state->page_tile_index : 0U;
+    return (state != 0) ? state->page_target :
+        EQ_UI_PAGE_DYNAMIC_STATUS;
 }
 
-unsigned int EqualizerUiLogic_GetPageTileCount(const EQ_UI_STATE *state)
+int EqualizerUiLogic_GetPageSyncJob(const EQ_UI_STATE *state)
 {
-    return (state != 0) ? state->page_tile_count : 0U;
+    return (state != 0) ? state->page_sync_job : EQ_UI_JOB_NONE;
+}
+
+unsigned int EqualizerUiLogic_GetPagePhase(const EQ_UI_STATE *state)
+{
+    return (state != 0) ? state->page_phase : EQ_UI_PAGE_PHASE_IDLE;
+}
+
+unsigned long EqualizerUiLogic_GetPageDirtyMask(
+    const EQ_UI_STATE *state, int page)
+{
+    if (state == 0)
+    {
+        return 0UL;
+    }
+    return state->dirty_mask & EQ_UI_PageMask(page);
 }
 #endif
 
@@ -1592,9 +1572,9 @@ void EqualizerUiLogic_Cancel(EQ_UI_STATE *state)
     }
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
     state->editor_field_mask = 0U;
-    state->page_building = 0U;
-    state->page_tile_index = 0U;
-    state->page_tile_count = 0U;
+    state->page_phase = EQ_UI_PAGE_PHASE_IDLE;
+    state->page_sync_job = EQ_UI_JOB_NONE;
+    state->page_target = state->displayed_page;
 #endif
 }
 
@@ -1737,25 +1717,18 @@ int EqualizerUi_ValidateLayout(void)
             return 0;
         }
     }
-    for (i = 0; i < EQ_UI_CHAIN_COUNT; i++)
-    {
-        if (!EQ_UI_RectValid(&EQ_UI_CHAIN_RECTS[i]))
-        {
-            return 0;
-        }
-    }
     for (i = 0; i < EQ_UI_DYNAMIC_COUNT; i++)
     {
         if (!EQ_UI_RectValid(&EQ_UI_DYNAMIC_RECTS[i]) ||
             !EQ_UI_RectValid(&EQ_UI_DYNAMIC_TOGGLE_RECTS[i]) ||
             !EQ_UI_RectValid(&EQ_UI_DYNAMIC_STRENGTH_RECTS[i]) ||
-            !EQ_UI_RectValid(&EQ_UI_DYNAMIC_LEVEL_RECTS[i]) ||
+            !EQ_UI_RectValid(&EQ_UI_DYNAMIC_STATUS_RECTS[i]) ||
             !EQ_UI_RectContainsRect(&EQ_UI_DYNAMIC_RECTS[i],
                                     &EQ_UI_DYNAMIC_TOGGLE_RECTS[i]) ||
             !EQ_UI_RectContainsRect(&EQ_UI_DYNAMIC_RECTS[i],
                                     &EQ_UI_DYNAMIC_STRENGTH_RECTS[i]) ||
             !EQ_UI_RectContainsRect(&EQ_UI_DYNAMIC_RECTS[i],
-                                    &EQ_UI_DYNAMIC_LEVEL_RECTS[i]))
+                                    &EQ_UI_DYNAMIC_STATUS_RECTS[i]))
         {
             return 0;
         }
@@ -1931,8 +1904,7 @@ int EqualizerUiTouch_Process(EQ_UI_TOUCH_STATE *state,
     }
     state->press_latched = 1U;
     action = EqualizerUi_HitTest(page, screen_x, screen_y);
-    if ((page_building != 0) &&
-        (action != EQ_UI_ACTION_PAGE_SWITCH))
+    if (page_building != 0)
     {
         action = EQ_UI_ACTION_NONE;
         if (rejected != 0)
