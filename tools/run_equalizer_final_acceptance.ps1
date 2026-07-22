@@ -285,7 +285,6 @@ if ($Stage -eq "Build") {
             throw "Build dependency is missing: $path"
         }
     }
-    New-Item -ItemType Directory -Path $buildDir -Force | Out-Null
     $summaryPath = Join-Path $buildDir "build_matrix_summary.json"
     Write-Output "CLEAN_BUILD_PROFILE=H_project33_full"
     & $buildMatrix -RepoRoot $root -GmakePath $gmakePath -NmPath $nmPath `

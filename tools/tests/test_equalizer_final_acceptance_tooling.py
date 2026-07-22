@@ -153,6 +153,12 @@ class EqualizerFinalAcceptanceToolingTest(unittest.TestCase):
         self.assertLess(guard, source.index("Resolve-Path"))
         self.assertLess(guard, source.index("Start-Process"))
         self.assertNotIn("NoTouch120s,Hitbox27", source)
+        build_start = source.index('if ($Stage -eq "Build")')
+        build_end = source.index("$stageMap = @{", build_start)
+        self.assertNotIn(
+            "New-Item -ItemType Directory -Path $buildDir",
+            source[build_start:build_end],
+        )
 
     def test_runner_powershell_parses(self):
         quoted = str(RUNNER).replace("'", "''")
