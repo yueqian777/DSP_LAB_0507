@@ -204,6 +204,84 @@ function Save-NmOutput([string]$ProgramPath, [string]$Destination) {
     $lines -join "`n"
 }
 
+function Get-NmGlobalObjectRange([string]$NmText, [string]$SymbolName) {
+    $escapedName = [regex]::Escape($SymbolName)
+    $pattern = '^\s*\[[^\]]+\]\s+\|(?<address>0x[0-9a-fA-F]+)\|'
+    $pattern += '(?<size>\d+)\|GLOB\s+\|OBJT\s+\|.*\|'
+    $pattern += $escapedName + '\s*$'
+    $lines = @($NmText -split "`r?`n" | Where-Object {
+        $_ -match $pattern
+    })
+    if ($lines.Count -ne 1) {
+        throw "Expected one global object symbol named $SymbolName"
+    }
+    $match = [regex]::Match($lines[0], $pattern)
+    [pscustomobject]@{
+        address = [Convert]::ToUInt64(
+            $match.Groups["address"].Value.Substring(2), 16)
+        size = [Convert]::ToUInt64($match.Groups["size"].Value, 10)
+    }
+}
+
+function Get-OutSha256WithoutBuildTimestamp(
+    [string]$ProgramPath,
+    [string]$NmText
+) {
+    # TI embeds __DATE__/__TIME__ in the exported diagnostic timestamp. Mask
+    # only that symbol, then hash the complete ELF so code/data changes remain
+    # visible while a clean rebuild is allowed to have a new build time.
+    $bytes = [IO.File]::ReadAllBytes($ProgramPath)
+    if ($bytes.Length -lt 52 -or
+        $bytes[0] -ne 0x7f -or $bytes[1] -ne 0x45 -or
+        $bytes[2] -ne 0x4c -or $bytes[3] -ne 0x46 -or
+        $bytes[4] -ne 1 -or $bytes[5] -ne 1) {
+        throw "Expected a 32-bit ELF .out file: $ProgramPath"
+    }
+    $symbol = Get-NmGlobalObjectRange $NmText "EQ_DebugBuildTimestamp"
+    $programHeaderOffset = [uint64][BitConverter]::ToUInt32($bytes, 28)
+    $programHeaderSize = [uint64][BitConverter]::ToUInt16($bytes, 42)
+    $programHeaderCount = [uint64][BitConverter]::ToUInt16($bytes, 44)
+    $programHeadersEnd = $programHeaderOffset +
+        ($programHeaderSize * $programHeaderCount)
+    if ($programHeadersEnd -gt [uint64]$bytes.Length -or
+        $programHeaderSize -lt 32) {
+        throw "Invalid ELF program-header table: $ProgramPath"
+    }
+
+    $fileOffset = $null
+    for ($index = 0; $index -lt $programHeaderCount; $index++) {
+        $header = $programHeaderOffset + ($index * $programHeaderSize)
+        $type = [uint64][BitConverter]::ToUInt32($bytes, [int]$header)
+        if ($type -ne 1) {
+            continue
+        }
+        $segmentOffset = [uint64][BitConverter]::ToUInt32(
+            $bytes, [int]($header + 4))
+        $segmentAddress = [uint64][BitConverter]::ToUInt32(
+            $bytes, [int]($header + 8))
+        $segmentFileSize = [uint64][BitConverter]::ToUInt32(
+            $bytes, [int]($header + 16))
+        $segmentEnd = $segmentAddress + $segmentFileSize
+        if ($symbol.address -ge $segmentAddress -and
+            ($symbol.address + $symbol.size) -le $segmentEnd) {
+            $fileOffset = $segmentOffset +
+                ($symbol.address - $segmentAddress)
+            break
+        }
+    }
+    if ($null -eq $fileOffset -or
+        ($fileOffset + $symbol.size) -gt [uint64]$bytes.Length) {
+        throw "Cannot map EQ_DebugBuildTimestamp into $ProgramPath"
+    }
+
+    $canonical = [byte[]]$bytes.Clone()
+    for ($index = [uint64]0; $index -lt $symbol.size; $index++) {
+        $canonical[[int]($fileOffset + $index)] = 0
+    }
+    $digest = [Security.Cryptography.SHA256]::Create().ComputeHash($canonical)
+    ([BitConverter]::ToString($digest) -replace '-', '').ToLowerInvariant()
+}
+
 function Copy-DebugArtifacts([string]$Prefix) {
     $sources = [ordered]@{
         ".out" = Join-Path $root "Debug\DSP_LAB_0507.out"
@@ -312,6 +390,8 @@ if ($Stage -eq "Build") {
         ([string]$buildResult.out_sha256).ToLowerInvariant()) {
         throw "Saved production .out hash differs from build summary"
     }
+    $productionComparableHash = Get-OutSha256WithoutBuildTimestamp `
+        $productionProgram $productionNm
     & $PythonPath -B $buildExporter `
         --build-matrix $summaryPath `
         --map (Join-Path $buildDir "H_project33_full.map") `
@@ -334,12 +414,18 @@ if ($Stage -eq "Build") {
     $restoreResult = Get-BuildResult `
         (Join-Path $restoreDir "build_matrix_summary.json")
     $restoredProgram = Join-Path $root "Debug\DSP_LAB_0507.out"
+    $restoredNm = Save-NmOutput $restoredProgram `
+        (Join-Path $restoreDir "H_project33_full_nm.txt")
     $restoredHash = (Get-FileHash -Algorithm SHA256 `
         -LiteralPath $restoredProgram).Hash.ToLowerInvariant()
-    if ($restoredHash -ne $productionHash -or
-        $restoredHash -ne
+    if ($restoredHash -ne
         ([string]$restoreResult.out_sha256).ToLowerInvariant()) {
-        throw "Production H image was not restored exactly after timing build"
+        throw "Restored production .out hash differs from build summary"
+    }
+    $restoredComparableHash = Get-OutSha256WithoutBuildTimestamp `
+        $restoredProgram $restoredNm
+    if ($restoredComparableHash -ne $productionComparableHash) {
+        throw "Production H image changed outside EQ_DebugBuildTimestamp"
     }
     Assert-ExactGitState "post-build" | Out-Null
     [ordered]@{
@@ -351,12 +437,17 @@ if ($Stage -eq "Build") {
             EQ_ENABLE_FINAL_METRICS_BOARD_TEST = 0
         }
         production_out_sha256 = $productionHash
+        production_out_without_build_timestamp_sha256 = `
+            $productionComparableHash
         timing_profile = $timingResult.profile
         timing_out_sha256 = $timingResult.out_sha256
         timing_warning_count = $timingResult.warning_count
         timing_error_count = $timingResult.error_count
         timing_link_errors = $timingResult.link_errors
         production_restored_sha256 = $restoredHash
+        production_restored_out_without_build_timestamp_sha256 = `
+            $restoredComparableHash
+        production_restore_ignored_symbol = "EQ_DebugBuildTimestamp"
     } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath `
         (Join-Path $buildDir "build_provenance.json") -Encoding utf8
     Invoke-Processor

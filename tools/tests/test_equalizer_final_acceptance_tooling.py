@@ -143,6 +143,10 @@ class EqualizerFinalAcceptanceToolingTest(unittest.TestCase):
             "error_count",
             "link_errors",
             "Get-FileHash",
+            "Get-OutSha256WithoutBuildTimestamp",
+            "EQ_DebugBuildTimestamp",
+            "production_out_without_build_timestamp_sha256",
+            "production_restored_out_without_build_timestamp_sha256",
             "process_equalizer_final_acceptance.py",
             "export_project33_h_build_evidence.py",
             "operator_visual_observation_raw.json",
@@ -158,6 +162,29 @@ class EqualizerFinalAcceptanceToolingTest(unittest.TestCase):
         self.assertNotIn(
             "New-Item -ItemType Directory -Path $buildDir",
             source[build_start:build_end],
+        )
+
+    def test_runner_compares_restored_runtime_image_not_build_time(self):
+        source = RUNNER.read_text(encoding="utf-8")
+        helper_start = source.index(
+            "function Get-OutSha256WithoutBuildTimestamp("
+        )
+        helper_end = source.index("function Copy-DebugArtifacts", helper_start)
+        helper = source[helper_start:helper_end]
+        self.assertIn('"EQ_DebugBuildTimestamp"', helper)
+        self.assertIn("[IO.File]::ReadAllBytes", helper)
+        self.assertIn("[Security.Cryptography.SHA256]::Create()", helper)
+
+        build_start = source.index('if ($Stage -eq "Build")')
+        build_end = source.index("$stageMap = @{", build_start)
+        build = source[build_start:build_end]
+        self.assertIn(
+            "$restoredComparableHash -ne $productionComparableHash", build
+        )
+        self.assertNotIn("$restoredHash -ne $productionHash", build)
+        self.assertIn(
+            'production_restore_ignored_symbol = "EQ_DebugBuildTimestamp"',
+            build,
         )
 
     def test_runner_powershell_parses(self):
