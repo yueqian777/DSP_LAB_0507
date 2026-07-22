@@ -1,0 +1,15 @@
+Project 3.3 H production symbol audit
+result=PASS
+nm6x_command=D:\SoftwareDownload\CCS_20.5.0.00028_win\ccs\tools\compiler\ti-cgt-c6000_8.5.0.LTS\bin\nm6x.exe -l C:\Users\zhangyueqian\AppData\Local\Temp\DSP_LAB_0507\project33_final_acceptance\ba18ae89855f66147c6d04ad3966ac334036b2d8_20260722_113257\raw\build\H_project33_full.out
+parsed_symbol_count=8924
+parsed_object_symbol_count=704
+forbidden_measurement_symbols=NONE
+lcd_timing_compiled_state=PASS
+EQ_DebugLcdTimingCaptureCompiled address=0xc01c92a8 size_bytes=4 readonly_section=.rodata macro=EQ_ENABLE_LCD_JOB_TIMING_CAPTURE=0
+generic_capture_buffers=DISCLOSED_NOT_FAILURE
+EQ_CaptureInput address=0xc01a88c0 size_bytes=16384
+EQ_CaptureOutput address=0xc01ac8c0 size_bytes=16384
+EQ_TriggerCaptureInput address=0xc01b08c0 size_bytes=24576
+EQ_TriggerCaptureOutput address=0xc01b68c0 size_bytes=24576
+generic_capture_total_bytes=81920
+generic_capture_note=These general diagnostic capture buffers are reported separately and are not final-metrics, benchmark, transition-capture, or timing-capture arrays.

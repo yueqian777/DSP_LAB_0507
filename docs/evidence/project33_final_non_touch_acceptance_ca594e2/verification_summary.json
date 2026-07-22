@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "validated_code_sha": "ca594e2f0a4ebe0ed83c5a93fdb5b091d91a7270",
+  "hardware_evidence_sha": "ba18ae89855f66147c6d04ad3966ac334036b2d8",
+  "hardware_result_directory": "C:\\Users\\zhangyueqian\\AppData\\Local\\Temp\\DSP_LAB_0507\\project33_final_acceptance\\ba18ae89855f66147c6d04ad3966ac334036b2d8_20260722_113257",
+  "source_delta_scope": [
+    "makefile.init",
+    "tools/dss/dss_equalizer_final_acceptance.js",
+    "tools/process_equalizer_final_acceptance.py",
+    "tools/run_equalizer_final_acceptance.ps1",
+    "tools/tests/test_equalizer_final_acceptance_tooling.py",
+    "tools/tests/test_equalizer_ui_build_matrix_contract.py"
+  ],
+  "default_ccs_build": {
+    "result": "PASS",
+    "profile": "H_project33_full",
+    "project_select": 33,
+    "warning_count": 0,
+    "error_count": 0,
+    "link_errors": "0x0",
+    "out_size_bytes": 1243360,
+    "out_sha256": "c14b37dbdd26e4bd266e959019e6a3ea063bad9a5d130b8dc8983f24b9684a53"
+  },
+  "host_regression": {
+    "equalizer_test_count": 173,
+    "project33_build_evidence_test_count": 11,
+    "total_test_count": 184,
+    "failure_count": 0
+  },
+  "acceptance": {
+    "overall_result": "PASS",
+    "production_boot": "PASS",
+    "page_switch_30": "PASS",
+    "lcd_job_timing": "PASS",
+    "endurance_300s": "PASS",
+    "analyzer_reset": "PASS",
+    "operator_visual": "PASS",
+    "no_touch_120s": "WAIVED / NOT_REQUIRED",
+    "touch_hitbox_27": "WAIVED / NOT_REQUIRED"
+  },
+  "artifact_policy": {
+    "out_committed": false,
+    "map_committed": false,
+    "full_log_committed": false,
+    "wav_committed": false,
+    "external_inventory": "external_file_inventory.json"
+  },
+  "freeze_ready": true
+}

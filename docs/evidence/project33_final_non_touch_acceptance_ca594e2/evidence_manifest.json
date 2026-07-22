@@ -1,0 +1,137 @@
+{
+  "schema_version": 1,
+  "generated_at_utc": "2026-07-22T11:28:41.568109Z",
+  "overall_result": "PASS",
+  "failed_stages": [],
+  "pending_stages": [],
+  "waived_stages": [
+    "no_touch_120s",
+    "touch_hitbox_27"
+  ],
+  "measurement_boundaries": {
+    "EXTERNAL_ANALOG_THD": "NOT_MEASURED",
+    "EXTERNAL_ANALOG_SNR": "NOT_MEASURED",
+    "EXTERNAL_ANALOG_FREQUENCY_RESPONSE": "NOT_MEASURED",
+    "SPL": "NOT_MEASURED",
+    "ADC_ENOB": "NOT_MEASURED"
+  },
+  "stage_results": {
+    "build": {
+      "status": "MEASURED",
+      "result": "PASS",
+      "reason": null
+    },
+    "production_boot": {
+      "status": "MEASURED",
+      "result": "PASS",
+      "reason": null
+    },
+    "no_touch_120s": {
+      "status": "WAIVED",
+      "result": "NOT_REQUIRED",
+      "reason": "USER_REMOVED_TOUCH_RELIABILITY_FROM_ACCEPTANCE_SCOPE"
+    },
+    "touch_hitbox_27": {
+      "status": "WAIVED",
+      "result": "NOT_REQUIRED",
+      "reason": "USER_REMOVED_TOUCH_RELIABILITY_FROM_ACCEPTANCE_SCOPE"
+    },
+    "page_switch_30": {
+      "status": "MEASURED",
+      "result": "PASS",
+      "reason": null
+    },
+    "operator_visual": {
+      "status": "OPERATOR_VISUAL_OBSERVATION",
+      "result": "PASS",
+      "reason": null
+    },
+    "lcd_job_timing": {
+      "status": "MEASURED",
+      "result": "PASS",
+      "reason": null
+    },
+    "endurance_300s": {
+      "status": "MEASURED",
+      "result": "PASS",
+      "reason": null
+    },
+    "analyzer_reset": {
+      "status": "MEASURED",
+      "result": "PASS",
+      "reason": null
+    }
+  },
+  "files": [
+    {
+      "file_name": "README.md",
+      "bytes": 1464,
+      "sha256": "c386ded1bbf9a367989230aeb515b3c77ea3fac0d27214383ebfb41ddb5dc169"
+    },
+    {
+      "file_name": "build_summary.json",
+      "bytes": 6695,
+      "sha256": "96566d34989e812d9da35800a99f9faadaecaff9fd8bfdb621d0c52144586354"
+    },
+    {
+      "file_name": "memory_sections.csv",
+      "bytes": 7452,
+      "sha256": "082406998ae1823c9305aeb4b40fad837e1b2ecd93b8d9b351800304a605f0a0"
+    },
+    {
+      "file_name": "framebuffer_map.json",
+      "bytes": 1157,
+      "sha256": "3cc33faaf6a7820288081fa18b8f747efda96122135001e5beb6f740632b4e50"
+    },
+    {
+      "file_name": "production_symbol_audit.txt",
+      "bytes": 1073,
+      "sha256": "14773ac968f6cad242dae455a84c25b3ac3162dae0d76d43e5bc96872f3eccc3"
+    },
+    {
+      "file_name": "production_boot_summary.json",
+      "bytes": 553,
+      "sha256": "1042210b134b408b10f353f27850d6b1570785b785bd0b2b454a46a358dab135"
+    },
+    {
+      "file_name": "page_switch_30_scripted.json",
+      "bytes": 7510,
+      "sha256": "131fb8eb3ffbf46449670995f08e384426f478855ee2411a0c053df268f6dcd4"
+    },
+    {
+      "file_name": "operator_visual_observation.md",
+      "bytes": 587,
+      "sha256": "6dbc2342cc3b187a07f0d08c53c65fa96ed9b1051aadcd1855d5b572d5c58b60"
+    },
+    {
+      "file_name": "lcd_job_timing.csv",
+      "bytes": 36089,
+      "sha256": "5a65627458a83dea940fcae066fe881c74848ecbf5dce45eab5fa3dcc545b709"
+    },
+    {
+      "file_name": "lcd_job_timing_summary.json",
+      "bytes": 7031,
+      "sha256": "1029941bd34ba316fd628ba902d4ed3cc4409306973886b16a135d0ae1b85216"
+    },
+    {
+      "file_name": "final_non_touch_endurance_300s.json",
+      "bytes": 8197,
+      "sha256": "873bc28d2549e4f3bdec4d958a1ca128a05fe9c58cfe8b414fc4ec7d7192c46f"
+    },
+    {
+      "file_name": "analyzer_reset_board_summary.json",
+      "bytes": 10693,
+      "sha256": "45f70d139b8cf0d2a3e92295cd312ca82bb1e7330c27917036c4153ed340f5ff"
+    },
+    {
+      "file_name": "external_file_inventory.json",
+      "bytes": 19891,
+      "sha256": "8e935654006dfb7a1e7a085fbb02c3cb4d6c853d8be7e2864717e17347e044ac"
+    },
+    {
+      "file_name": "final_acceptance_summary.csv",
+      "bytes": 435,
+      "sha256": "27ef8558e3e00014cd33c604fbf9453a63581b6acf5d5662a3ec6508bbd56df1"
+    }
+  ]
+}

@@ -1,0 +1,176 @@
+{
+  "schema_version": 1,
+  "generated_at_utc": "2026-07-22T11:26:50.629611+00:00",
+  "stage": "build",
+  "status": "MEASURED",
+  "measurement_label": "BUILD_EVIDENCE",
+  "evidence_class": "BUILD_EVIDENCE",
+  "result": "PASS",
+  "profile": "H_project33_full",
+  "warning_count": 0,
+  "error_count": 0,
+  "link_errors": "0x0",
+  "diagnostic_evidence": {
+    "build_matrix_warning_count": 0,
+    "build_matrix_error_count": 0,
+    "build_log_warning_count": 0,
+    "build_log_error_count": 0
+  },
+  "macro_audit": {
+    "required_values": {
+      "DSP_LAB_PROJECT_SELECT": 33,
+      "EQ_ENABLE_AUDIO_FEATURE_ANALYZER": 1,
+      "EQ_ENABLE_SMART_BASS": 1,
+      "EQ_ENABLE_DYNAMIC_CLARITY": 1,
+      "EQ_ENABLE_HARSHNESS_GUARD": 1,
+      "EQ_ENABLE_LCD_DISPLAY": 1,
+      "EQ_ENABLE_PROJECT33_TOUCH": 1,
+      "EQ_ENABLE_TEN_BAND_EDITOR": 1,
+      "EQ_ENABLE_TEN_BAND_EDITOR_TOUCH": 1
+    },
+    "required_off": {
+      "EQ_ENABLE_FINAL_METRICS_BOARD_TEST": 0,
+      "EQ_ENABLE_DYNAMIC_CLARITY_TIMING_DIAGNOSTICS": 0,
+      "EQ_ENABLE_DYNAMIC_CLARITY_TRANSITION_CAPTURE": 0,
+      "EQ_ENABLE_HARSHNESS_GUARD_TRANSITION_CAPTURE": 0,
+      "EQ_ENABLE_HARSHNESS_GUARD_KERNEL_DIAGNOSTICS": 0,
+      "EQ_ENABLE_FOUR_WAY_TRANSITION_DIAGNOSTICS": 0,
+      "EQ_ENABLE_DYNAMIC_CLARITY_BENCHMARK": 0,
+      "EQ_ENABLE_HARSHNESS_GUARD_BENCHMARK": 0,
+      "EQ_ENABLE_LCD_JOB_TIMING_CAPTURE": 0
+    },
+    "forbidden_defined": [
+      "EQ_ALGO_ONLY",
+      "EQUALIZER_TEST_MAIN"
+    ],
+    "observed_defines": {
+      "DSP_LAB_PROJECT_SELECT": "33",
+      "EQ_USE_GENERATED_BUILD_ID": "1",
+      "EQ_ENABLE_AUDIO_FEATURE_ANALYZER": "1",
+      "EQ_ENABLE_SMART_BASS": "1",
+      "EQ_ENABLE_DYNAMIC_CLARITY": "1",
+      "EQ_ENABLE_HARSHNESS_GUARD": "1",
+      "EQ_ENABLE_LCD_DISPLAY": "1",
+      "EQ_ENABLE_PROJECT33_TOUCH": "1",
+      "EQ_ENABLE_TEN_BAND_EDITOR": "1",
+      "EQ_ENABLE_TEN_BAND_EDITOR_TOUCH": "1",
+      "EQ_UI_RUNTIME_DEFAULT_MASK": "31",
+      "EQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN": "0",
+      "EQ_ENABLE_DYNAMIC_CLARITY_TIMING_DIAGNOSTICS": "0",
+      "EQ_ENABLE_DYNAMIC_CLARITY_TRANSITION_CAPTURE": "0",
+      "EQ_ENABLE_HARSHNESS_GUARD_TRANSITION_CAPTURE": "0",
+      "EQ_ENABLE_HARSHNESS_GUARD_KERNEL_DIAGNOSTICS": "0",
+      "EQ_ENABLE_FOUR_WAY_TRANSITION_DIAGNOSTICS": "0",
+      "EQ_ENABLE_DYNAMIC_CLARITY_BENCHMARK": "0",
+      "EQ_ENABLE_HARSHNESS_GUARD_BENCHMARK": "0",
+      "EQ_ENABLE_FINAL_METRICS_BOARD_TEST": "0",
+      "EQ_ENABLE_LCD_JOB_TIMING_CAPTURE": "0",
+      "EQ_ENABLE_UART_DIAGNOSTICS": "0"
+    },
+    "result": "PASS"
+  },
+  "sections_bytes": {
+    ".text": 201920,
+    ".const": 18274,
+    ".bss": 43,
+    ".subband_l2": 20380
+  },
+  "ddr": {
+    "origin": "0xc0000000",
+    "capacity_bytes": 117440496,
+    "used_bytes": 1874909,
+    "unused_bytes": 115565587,
+    "utilization_percent": 1.596475717
+  },
+  "state_sizes_bytes": {
+    "analyzer_state": 16488,
+    "analyzer_input": 2048,
+    "smart_bass": 252,
+    "dynamic_clarity": 260,
+    "harshness_guard": 260,
+    "ui": 512,
+    "touch_total": 36,
+    "editor": 64,
+    "analyzer_total": 18536,
+    "ui_touch_editor_total": 612
+  },
+  "framebuffer_summary": {
+    "count": 2,
+    "non_overlapping": true,
+    "gap_bytes": 4,
+    "total_bytes": 1536072
+  },
+  "production_symbol_audit": {
+    "forbidden_measurement_symbol_count": 0,
+    "lcd_timing_compiled_state": {
+      "name": "EQ_DebugLcdTimingCaptureCompiled",
+      "address": "0xc01c92a8",
+      "size_bytes": 4,
+      "readonly_section": ".rodata",
+      "macro": "EQ_ENABLE_LCD_JOB_TIMING_CAPTURE=0"
+    },
+    "generic_capture_buffer_count": 4,
+    "generic_capture_total_bytes": 81920,
+    "generic_capture_buffers": [
+      {
+        "name": "EQ_CaptureInput",
+        "address": "0xc01a88c0",
+        "size_bytes": 16384
+      },
+      {
+        "name": "EQ_CaptureOutput",
+        "address": "0xc01ac8c0",
+        "size_bytes": 16384
+      },
+      {
+        "name": "EQ_TriggerCaptureInput",
+        "address": "0xc01b08c0",
+        "size_bytes": 24576
+      },
+      {
+        "name": "EQ_TriggerCaptureOutput",
+        "address": "0xc01b68c0",
+        "size_bytes": 24576
+      }
+    ]
+  },
+  "output": {
+    "size_bytes": 1243360,
+    "sha256": "c14b37dbdd26e4bd266e959019e6a3ea063bad9a5d130b8dc8983f24b9684a53"
+  },
+  "linker_banner": "TMS320C6x Linker PC v8.5.0.LTS",
+  "linked_output_file_recorded_by_linker": "C:\\Users\\zhangyueqian\\lab8\\DSP_LAB_0507\\Debug\\DSP_LAB_0507.out",
+  "inputs": {
+    "build_matrix_summary": {
+      "path": "C:\\Users\\zhangyueqian\\AppData\\Local\\Temp\\DSP_LAB_0507\\project33_default_build_ca594e2f0a4ebe0ed83c5a93fdb5b091d91a7270\\default_h_profile_summary.json",
+      "size_bytes": 2610,
+      "sha256": "c126666c1896870ae85f77dfc02cc564af21dec4362960941941dc0cc2619e74"
+    },
+    "map": {
+      "path": "C:\\Users\\zhangyueqian\\lab8\\DSP_LAB_0507\\Debug\\DSP_LAB_0507.map",
+      "size_bytes": 209248,
+      "sha256": "169379721d39a19ddeb33871ccde5deeeb57fdb61b9336f1625fc983e3721cd0"
+    },
+    "link_info_xml": {
+      "path": "C:\\Users\\zhangyueqian\\lab8\\DSP_LAB_0507\\Debug\\DSP_LAB_0507_linkInfo.xml",
+      "size_bytes": 1212876,
+      "sha256": "a339a425d7dadf4318cb1efc1704ed91966ac5812b09fadaee3ba7ed1d1ce59a"
+    },
+    "out": {
+      "path": "C:\\Users\\zhangyueqian\\lab8\\DSP_LAB_0507\\Debug\\DSP_LAB_0507.out",
+      "size_bytes": 1243360,
+      "sha256": "c14b37dbdd26e4bd266e959019e6a3ea063bad9a5d130b8dc8983f24b9684a53"
+    },
+    "build_log": {
+      "path": "C:\\Users\\zhangyueqian\\AppData\\Local\\Temp\\DSP_LAB_0507\\project33_default_build_ca594e2f0a4ebe0ed83c5a93fdb5b091d91a7270\\build.log",
+      "size_bytes": 34450,
+      "sha256": "7d14298b63047d626ac93d24bd20b43e876d9b2c763cfd8734f978c01ac61969"
+    },
+    "nm6x": {
+      "path": "D:\\SoftwareDownload\\CCS_20.5.0.00028_win\\ccs\\tools\\compiler\\ti-cgt-c6000_8.5.0.LTS\\bin\\nm6x.exe",
+      "size_bytes": 1195040,
+      "sha256": "1fd1112d772a6b9c0a7f4d647e4080653d1b50872af34f7ac763baeae8a0ac39"
+    }
+  },
+  "memory_note": "Target memory values come from TI map/XML run-time allocations; .out file size is not used as RAM."
+}
