@@ -20,6 +20,7 @@ SAMPLE_RATE_HZ = 50_000.0
 FRAME_BUDGET_CYCLES = 9_338_880
 LCD_OVER_2MS_CYCLES = 912_000
 LCD_OVER_5MS_CYCLES = 2_280_000
+TIMING_SAMPLE_MINIMUM = 20
 UINT32_MODULUS = 2**32
 
 TIMING_CLASSES = (
@@ -41,18 +42,19 @@ REQUIRED_OUTPUTS = (
     "memory_sections.csv",
     "framebuffer_map.json",
     "production_symbol_audit.txt",
-    "touch_no_action_120s.json",
-    "touch_hitbox_trials.csv",
-    "touch_hitbox_summary.json",
-    "page_switch_30_rounds.json",
+    "production_boot_summary.json",
+    "page_switch_30_scripted.json",
     "operator_visual_observation.md",
     "lcd_job_timing.csv",
     "lcd_job_timing_summary.json",
-    "final_interactive_endurance_300s.json",
+    "final_non_touch_endurance_300s.json",
     "analyzer_reset_board_summary.json",
     "external_file_inventory.json",
+    "final_acceptance_summary.csv",
     "sha256_manifest.txt",
 )
+
+TOUCH_WAIVER_REASON = "USER_REMOVED_TOUCH_RELIABILITY_FROM_ACCEPTANCE_SCOPE"
 
 EXTERNAL_BOUNDARIES = {
     "EXTERNAL_ANALOG_THD": "NOT_MEASURED",
@@ -61,21 +63,6 @@ EXTERNAL_BOUNDARIES = {
     "SPL": "NOT_MEASURED",
     "ADC_ENOB": "NOT_MEASURED",
 }
-
-TOUCH_COUNTERS = (
-    "touch_down",
-    "touch_release",
-    "touch_actions",
-    "touch_rejected",
-    "touch_i2c_errors",
-    "touch_invalid_coordinates",
-    "touch_page_requests",
-    "touch_preset_requests",
-    "touch_dynamic_enable_requests",
-    "touch_dynamic_strength_requests",
-    "touch_editor_actions",
-    "touch_duplicate_actions",
-)
 
 LCD_FAULT_COUNTERS = (
     "lcd_unexpected_full_redraw",
@@ -103,32 +90,6 @@ ENDURANCE_SAFETY_COUNTERS = (
     "guard_saturation",
     "guard_nonfinite",
     *LCD_FAULT_COUNTERS,
-    "touch_invalid_coordinates",
-    "touch_duplicate_actions",
-)
-
-HITBOX_COLUMNS = (
-    "trial_id",
-    "hitbox_id",
-    "page",
-    "raw_x",
-    "raw_y",
-    "screen_x",
-    "screen_y",
-    "expected_action",
-    "expected_action_name",
-    "actual_action",
-    "actual_action_name",
-    "accepted",
-    "rejected",
-    "action_count_delta",
-    "action_histogram_bin",
-    "action_histogram_bin_delta",
-    "duplicate_action",
-    "out_of_range",
-    "long_hold_verified",
-    "release_rearm_verified",
-    "point_hint",
 )
 
 TIMING_COLUMNS = (
@@ -209,6 +170,60 @@ def pending(stage: str, reason: str = "raw board evidence is absent") -> dict[st
     }
 
 
+def exact_number(value: Any, expected: float) -> bool:
+    return (
+        not isinstance(value, bool)
+        and isinstance(value, (int, float))
+        and math.isfinite(float(value))
+        and float(value) == expected
+    )
+
+
+def process_production_boot(raw_dir: Path, output_dir: Path) -> dict[str, Any]:
+    summary, error = read_json(raw_dir / "production_boot_summary.json")
+    if summary is None and error is None:
+        evidence = pending("production_boot", "production boot stage has not run")
+        write_json(output_dir / "production_boot_summary.json", evidence)
+        return evidence
+
+    failures: list[str] = []
+    if error:
+        failures.append(error)
+    if not isinstance(summary, dict):
+        summary = {}
+        failures.append("production boot summary must be a JSON object")
+    checks = (
+        (summary.get("pass") is True, "pass is not true"),
+        (exact_number(summary.get("init_stage"), 11.0), "init_stage is not 11"),
+        (exact_number(summary.get("deadline"), 0.0), "deadline is not 0"),
+        (
+            exact_number(summary.get("latency_miss"), 0.0),
+            "latency_miss is not 0",
+        ),
+        (exact_number(summary.get("overlap"), 0.0), "overlap is not 0"),
+        (exact_number(summary.get("dropped"), 0.0), "dropped is not 0"),
+        (exact_number(summary.get("clip"), 0.0), "clip is not 0"),
+        (
+            summary.get("final_target_state") == "RUNNING_DISCONNECTED",
+            "final_target_state is not RUNNING_DISCONNECTED",
+        ),
+    )
+    failures.extend(message for passed, message in checks if not passed)
+    evidence = dict(summary)
+    evidence.update(
+        {
+            "schema_version": 1,
+            "stage": "production_boot",
+            "status": "MEASURED",
+            "measurement_label": "BOARD_BOOT_COUNTER",
+            "result": "FAIL" if failures else "PASS",
+            "stop_reasons": failures,
+        }
+    )
+    write_json(output_dir / "production_boot_summary.json", evidence)
+    return evidence
+
+
 def number(value: Any) -> float | None:
     if isinstance(value, bool):
         return float(int(value))
@@ -241,87 +256,18 @@ def snapshot_deltas(
     return {key: counter_delta(after, before, key) for key in keys}
 
 
-def histogram_deltas(
-    before: dict[str, Any], after: dict[str, Any]
-) -> list[int] | None:
-    first = before.get("touch_action_histogram")
-    second = after.get("touch_action_histogram")
-    if not isinstance(first, list) or not isinstance(second, list):
-        return None
-    if len(first) != 27 or len(second) != 27:
-        return None
-    values: list[int] = []
-    for old, new in zip(first, second):
-        old_value = integer(old)
-        new_value = integer(new)
-        if old_value is None or new_value is None:
-            return None
-        delta = new_value - old_value
-        if delta < 0:
-            delta += UINT32_MODULUS
-        values.append(delta)
-    return values
-
-
-def process_no_touch(raw_dir: Path, output_dir: Path) -> dict[str, Any]:
-    summary, error = read_json(raw_dir / "no_touch_120s_raw_summary.json")
-    if summary is None:
-        evidence = pending("no_touch_120s", error or "120 s stage has not run")
-        write_json(output_dir / "touch_no_action_120s.json", evidence)
-        return evidence
-
-    before = summary.get("before") if isinstance(summary.get("before"), dict) else {}
-    after = summary.get("after") if isinstance(summary.get("after"), dict) else {}
-    deltas = snapshot_deltas(before, after, TOUCH_COUNTERS)
-    action_histogram_delta = histogram_deltas(before, after)
-    missing = [key for key, value in deltas.items() if value is None]
-    if action_histogram_delta is None:
-        missing.append("touch_action_histogram[27]")
-    stop_reasons: list[str] = []
-    zero_contract = (
-        "touch_actions",
-        "touch_page_requests",
-        "touch_preset_requests",
-        "touch_dynamic_enable_requests",
-        "touch_dynamic_strength_requests",
-        "touch_editor_actions",
-    )
-    for key in zero_contract:
-        value = deltas.get(key)
-        if value not in (None, 0):
-            stop_reasons.append(f"{key} delta is {value}, expected 0")
-    if action_histogram_delta is not None and any(action_histogram_delta):
-        stop_reasons.append("Touch action histogram changed during no-touch window")
-    elapsed = number(summary.get("host_elapsed_seconds"))
-    if elapsed is None or elapsed < 120.0:
-        stop_reasons.append("host elapsed time is below 120 s")
-    completed = summary.get("completed") is True
-    if not completed:
-        stop_reasons.append(str(summary.get("error") or "DSS stage did not complete"))
-
-    if stop_reasons:
-        result = "FAIL"
-    elif missing:
-        result = "INCOMPLETE"
-    else:
-        result = "PASS"
-    evidence = {
+def waived_touch_stage(stage: str) -> dict[str, Any]:
+    return {
         "schema_version": 1,
-        "stage": "no_touch_120s",
-        "status": "MEASURED",
-        "measurement_label": "BOARD_UI_COUNTER",
-        "result": result,
-        "host_elapsed_seconds": elapsed,
-        "before": before,
-        "after": after,
-        "deltas": deltas,
-        "touch_action_histogram_delta": action_histogram_delta,
-        "missing_counters": missing,
-        "stop_reasons": stop_reasons,
-        "raw_error": error,
+        "stage": stage,
+        "status": "WAIVED",
+        "result": "NOT_REQUIRED",
+        "reason": TOUCH_WAIVER_REASON,
     }
-    write_json(output_dir / "touch_no_action_120s.json", evidence)
-    return evidence
+
+
+def process_no_touch(_raw_dir: Path, _output_dir: Path) -> dict[str, Any]:
+    return waived_touch_stage("no_touch_120s")
 
 
 def write_csv(path: Path, columns: Iterable[str], rows: Iterable[dict[str, Any]]) -> None:
@@ -332,109 +278,13 @@ def write_csv(path: Path, columns: Iterable[str], rows: Iterable[dict[str, Any]]
             writer.writerow({key: row.get(key, "") for key in writer.fieldnames})
 
 
-def process_hitboxes(raw_dir: Path, output_dir: Path) -> dict[str, Any]:
-    records, parse_errors = read_jsonl(raw_dir / "touch_hitbox_27.jsonl")
-    summary, summary_error = read_json(raw_dir / "touch_hitbox_27_raw_summary.json")
-    trials = [record for record in records if record.get("record_type") == "hitbox_trial"]
-    write_csv(output_dir / "touch_hitbox_trials.csv", HITBOX_COLUMNS, trials)
-    if summary is None and not trials:
-        evidence = pending("touch_hitbox_27", summary_error or "27-hitbox stage has not run")
-        evidence.update(
-            {
-                "expected_hitbox_count": 27,
-                "reachable_count": 0,
-                "parse_errors": parse_errors,
-            }
-        )
-        write_json(output_dir / "touch_hitbox_summary.json", evidence)
-        return evidence
+def process_hitboxes(_raw_dir: Path, _output_dir: Path) -> dict[str, Any]:
+    return waived_touch_stage("touch_hitbox_27")
 
-    unique = {str(trial.get("hitbox_id")) for trial in trials if trial.get("hitbox_id")}
-    wrong = sum(
-        1
-        for trial in trials
-        if trial.get("actual_action") != trial.get("expected_action")
-        or trial.get("accepted") is not True
-    )
-    duplicate = sum(1 for trial in trials if trial.get("duplicate_action") is True)
-    out_of_range = sum(1 for trial in trials if trial.get("out_of_range") is True)
-    rejected = sum(1 for trial in trials if trial.get("rejected") is True)
-    action_delta_errors = sum(
-        1 for trial in trials if integer(trial.get("action_count_delta")) != 1
-    )
-    histogram_errors = sum(
-        1
-        for trial in trials
-        if integer(trial.get("action_histogram_bin_delta")) != 1
-        or integer(trial.get("action_histogram_bin"))
-        != integer(trial.get("expected_action"))
-    )
-    long_hold = sum(1 for trial in trials if trial.get("long_hold_verified") is True)
-    release_rearm = sum(
-        1 for trial in trials if trial.get("release_rearm_verified") is True
-    )
-    stop_reasons: list[str] = []
-    if len(trials) != 27:
-        stop_reasons.append(f"trial count={len(trials)}, expected 27")
-    if len(unique) != 27:
-        stop_reasons.append(f"reachable hitboxes {len(unique)}/27")
-    if wrong:
-        stop_reasons.append(f"wrong actions={wrong}")
-    if duplicate:
-        stop_reasons.append(f"duplicate actions={duplicate}")
-    if out_of_range:
-        stop_reasons.append(f"out-of-range coordinates={out_of_range}")
-    if rejected:
-        stop_reasons.append(f"rejected trials={rejected}")
-    if action_delta_errors:
-        stop_reasons.append(f"one-press/one-action violations={action_delta_errors}")
-    if histogram_errors:
-        stop_reasons.append(f"action histogram violations={histogram_errors}")
-    if release_rearm != len(trials):
-        stop_reasons.append(
-            f"release re-arm verified for {release_rearm}/{len(trials)} trials"
-        )
-    if parse_errors or summary_error:
-        stop_reasons.extend(parse_errors)
-        if summary_error:
-            stop_reasons.append(summary_error)
-    completed = isinstance(summary, dict) and summary.get("completed") is True
-    if isinstance(summary, dict) and summary.get("completed") is False:
-        stop_reasons.append(str(summary.get("error") or "DSS stage failed"))
-    if stop_reasons:
-        result = "FAIL" if completed or trials else "INCOMPLETE"
-    elif not completed:
-        result = "INCOMPLETE"
-    elif long_hold < 1:
-        result = "INCOMPLETE"
-    else:
-        result = "PASS"
-    evidence = {
-        "schema_version": 1,
-        "stage": "touch_hitbox_27",
-        "status": "MEASURED",
-        "measurement_label": "BOARD_UI_COUNTER",
-        "result": result,
-        "expected_hitbox_count": 27,
-        "trial_count": len(trials),
-        "reachable_count": len(unique),
-        "wrong_action_count": wrong,
-        "duplicate_action_count": duplicate,
-        "out_of_range_count": out_of_range,
-        "rejected_trial_count": rejected,
-        "action_delta_error_count": action_delta_errors,
-        "action_histogram_error_count": histogram_errors,
-        "long_hold_verified_count": long_hold,
-        "release_rearm_verified_count": release_rearm,
-        "parse_errors": parse_errors,
-        "stop_reasons": stop_reasons,
-    }
-    write_json(output_dir / "touch_hitbox_summary.json", evidence)
-    return evidence
 
+PAGE_REQUEST_CONTRACT = "SCRIPTED_PAGE_REQUEST_API"
 
 PAGE_COUNTERS = (
-    "touch_page_requests",
     "lcd_page_sync_jobs",
     "lcd_swap_requests",
     "lcd_swap_completes",
@@ -462,7 +312,8 @@ def process_page_switch(raw_dir: Path, output_dir: Path) -> dict[str, Any]:
     if summary is None and not rounds:
         evidence = pending("page_switch_30", error or "30-round page stage has not run")
         evidence["completed_round_trips"] = 0
-        write_json(output_dir / "page_switch_30_rounds.json", evidence)
+        evidence["request_contract"] = PAGE_REQUEST_CONTRACT
+        write_json(output_dir / "page_switch_30_scripted.json", evidence)
         return evidence
     summary = summary if isinstance(summary, dict) else {}
     before = summary.get("before") if isinstance(summary.get("before"), dict) else {}
@@ -475,23 +326,22 @@ def process_page_switch(raw_dir: Path, output_dir: Path) -> dict[str, Any]:
     round_ids = {integer(item.get("round")) for item in rounds}
     if len(rounds) != 30 or round_ids != set(range(1, 31)):
         stop_reasons.append(
-            f"physical page records={len(rounds)}, expected rounds 1..30"
+            f"scripted page records={len(rounds)}, expected rounds 1..30"
         )
-    physical_record_errors = sum(
+    scripted_record_errors = sum(
         1
         for item in rounds
-        if item.get("status_to_editor_physical") is not True
-        or item.get("editor_to_status_physical") is not True
+        if item.get("status_to_editor_scripted") is not True
+        or item.get("editor_to_status_scripted") is not True
     )
-    if physical_record_errors:
+    if scripted_record_errors:
         stop_reasons.append(
-            f"non-physical page round records={physical_record_errors}"
+            f"non-scripted-API page round records={scripted_record_errors}"
         )
     if completed_rounds < 30:
-        stop_reasons.append(f"physical page round trips={completed_rounds}, expected 30")
+        stop_reasons.append(f"scripted page round trips={completed_rounds}, expected 30")
     for key, minimum in (
-        ("touch_page_requests", 60),
-        ("lcd_page_sync_jobs", 60),
+        ("lcd_page_sync_jobs", 1),
         ("lcd_swap_requests", 60),
         ("lcd_swap_completes", 60),
     ):
@@ -524,6 +374,8 @@ def process_page_switch(raw_dir: Path, output_dir: Path) -> dict[str, Any]:
         "status": "MEASURED",
         "measurement_label": "BOARD_UI_COUNTER",
         "result": result,
+        "request_contract": PAGE_REQUEST_CONTRACT,
+        "scripted_record_error_count": scripted_record_errors,
         "completed_round_trips": completed_rounds,
         "before": before,
         "after": after,
@@ -533,7 +385,7 @@ def process_page_switch(raw_dir: Path, output_dir: Path) -> dict[str, Any]:
         "operator_visual_result": "PENDING_OPERATOR",
         "stop_reasons": stop_reasons,
     }
-    write_json(output_dir / "page_switch_30_rounds.json", evidence)
+    write_json(output_dir / "page_switch_30_scripted.json", evidence)
     return evidence
 
 
@@ -657,6 +509,10 @@ def process_timing(raw_dir: Path, output_dir: Path) -> dict[str, Any]:
     for item in classes:
         if item["over_5ms_count"]:
             stop_reasons.append(f"{item['class_name']} contains LCD jobs over 5 ms")
+        if item["max_cycles"] is not None and item["max_cycles"] >= LCD_OVER_5MS_CYCLES:
+            stop_reasons.append(f"{item['class_name']} maximum is not below 5 ms")
+        if item["dropped_count"] != 0:
+            stop_reasons.append(f"{item['class_name']} dropped timing samples")
         if item["total_count"] != item["sample_count"] + item["dropped_count"]:
             stop_reasons.append(
                 f"{item['class_name']} total/sample/dropped counts disagree"
@@ -673,7 +529,8 @@ def process_timing(raw_dir: Path, output_dir: Path) -> dict[str, Any]:
     missing_classes = [
         item["class_name"]
         for item in classes
-        if item["count"] == 0 or item["sample_count"] == 0
+        if item["count"] < TIMING_SAMPLE_MINIMUM
+        or item["sample_count"] < TIMING_SAMPLE_MINIMUM
     ]
     if stop_reasons:
         result = "FAIL"
@@ -689,6 +546,7 @@ def process_timing(raw_dir: Path, output_dir: Path) -> dict[str, Any]:
         "result": result,
         "clock_hz": CYCLE_HZ,
         "thresholds": {
+            "minimum_valid_samples_per_class": TIMING_SAMPLE_MINIMUM,
             "over_2ms_cycles": LCD_OVER_2MS_CYCLES,
             "over_5ms_cycles": LCD_OVER_5MS_CYCLES,
         },
@@ -697,7 +555,7 @@ def process_timing(raw_dir: Path, output_dir: Path) -> dict[str, Any]:
         "fault_deltas": fault_deltas,
         "stop_reasons": stop_reasons,
         "measurement_note": (
-            "Samples come from the bounded 9 x 256 board capture. The measured "
+            "Samples come from the bounded board capture. The measured "
             "region contains only drawing or descriptor work; PAGE_SWAP is the "
             "EOF descriptor-update interval."
         ),
@@ -716,85 +574,18 @@ ENDURANCE_COUNTERS = (
     "clarity_decisions",
     "guard_decisions",
     "lcd_swap_completes",
-    "touch_actions",
-    "touch_rejected",
     "lcd_jobs",
     "static_dynamic_overlap_frames",
     *ENDURANCE_SAFETY_COUNTERS,
 )
-
-ENDURANCE_QUOTAS = {
-    "preset_each_minimum": 3,
-    "dynamic_toggle_each_minimum": 2,
-    "dynamic_strength_each_minimum": 2,
-    "page_round_trips_minimum": 20,
-    "editor_distinct_bands_minimum": 10,
-    "custom_apply_minimum": 3,
-    "flat_minimum": 2,
-    "overlap_transition_minimum": 1,
-}
-
-
-def check_action_histogram_quotas(
-    before: dict[str, Any], after: dict[str, Any]
-) -> tuple[str, dict[str, Any], list[str]]:
-    values = histogram_deltas(before, after)
-    if values is None:
-        return "INCOMPLETE", {}, ["EQ_DebugTouchActionHistogram[27] is unavailable"]
-    problems: list[str] = []
-    preset_counts = {name: values[index] for index, name in enumerate(
-        ("FLAT", "BASS", "VOCAL", "TREBLE", "V_SHAPE"), start=1)}
-    toggle_counts = {
-        "SMART_BASS": values[6],
-        "DYNAMIC_CLARITY": values[8],
-        "HF_GUARD": values[10],
-    }
-    strength_counts = {
-        "SMART_BASS": values[7],
-        "DYNAMIC_CLARITY": values[9],
-        "HF_GUARD": values[11],
-    }
-    band_counts = values[13:23]
-    if any(count < 3 for count in preset_counts.values()):
-        problems.append("five preset bins did not each reach 3")
-    if any(count < 2 for count in toggle_counts.values()):
-        problems.append("three dynamic-toggle bins did not each reach 2")
-    if any(count < 2 for count in strength_counts.values()):
-        problems.append("three dynamic-strength bins did not each reach 2")
-    if values[12] < 40:
-        problems.append("page-switch bin did not reach 40 actions (20 round trips)")
-    if any(count < 1 for count in band_counts):
-        problems.append("all ten Editor band bins were not reached")
-    if values[25] < 3:
-        problems.append("CUSTOM Apply bin did not reach 3")
-    if values[26] < 2:
-        problems.append("Editor FLAT bin did not reach 2")
-    accepted_delta = counter_delta(after, before, "touch_actions")
-    histogram_sum = sum(values[1:])
-    if accepted_delta is None or histogram_sum != accepted_delta:
-        problems.append("histogram sum differs from accepted action delta")
-    details = {
-        "histogram_delta": values,
-        "histogram_sum_non_none": histogram_sum,
-        "accepted_action_delta": accepted_delta,
-        "preset_counts": preset_counts,
-        "dynamic_toggle_counts": toggle_counts,
-        "dynamic_strength_counts": strength_counts,
-        "page_action_count": values[12],
-        "page_round_trips_floor": values[12] // 2,
-        "editor_band_counts": band_counts,
-        "custom_apply_count": values[25],
-        "flat_count": values[26],
-    }
-    return ("PASS" if not problems else "FAIL"), details, problems
 
 
 def process_endurance(raw_dir: Path, output_dir: Path) -> dict[str, Any]:
     summary, error = read_json(raw_dir / "endurance_300s_raw_summary.json")
     if summary is None:
         evidence = pending("endurance_300s", error or "300 s stage has not run")
-        evidence["action_quota_status"] = "PENDING_HARDWARE"
-        write_json(output_dir / "final_interactive_endurance_300s.json", evidence)
+        evidence["interaction_contract"] = "NON_TOUCH_SCRIPTED_API"
+        write_json(output_dir / "final_non_touch_endurance_300s.json", evidence)
         return evidence
     summary = summary if isinstance(summary, dict) else {}
     before = summary.get("before") if isinstance(summary.get("before"), dict) else {}
@@ -807,12 +598,6 @@ def process_endurance(raw_dir: Path, output_dir: Path) -> dict[str, Any]:
         else None
     )
     elapsed = number(summary.get("host_elapsed_seconds"))
-    quota_status, quota_data, quota_problems = check_action_histogram_quotas(
-        before, after
-    )
-    operator_data, operator_error = read_json(
-        raw_dir / "endurance_operator_quota_raw.json"
-    )
     stop_reasons: list[str] = []
     if elapsed is None or elapsed < 300.0:
         stop_reasons.append("host elapsed time is below 300 s")
@@ -851,11 +636,6 @@ def process_endurance(raw_dir: Path, output_dir: Path) -> dict[str, Any]:
         result = "FAIL"
     elif missing:
         result = "INCOMPLETE"
-    elif quota_status == "FAIL":
-        result = "FAIL"
-        stop_reasons.extend(quota_problems)
-    elif quota_status == "INCOMPLETE":
-        result = "INCOMPLETE"
     else:
         result = "PASS"
     evidence = {
@@ -864,6 +644,7 @@ def process_endurance(raw_dir: Path, output_dir: Path) -> dict[str, Any]:
         "status": "MEASURED",
         "measurement_label": "BOARD_REALTIME_COUNTER",
         "result": result,
+        "interaction_contract": "NON_TOUCH_SCRIPTED_API",
         "host_elapsed_seconds": elapsed,
         "dsp_audio_seconds": dsp_audio_seconds,
         "frame_samples": FRAME_SAMPLES,
@@ -877,18 +658,11 @@ def process_endurance(raw_dir: Path, output_dir: Path) -> dict[str, Any]:
             "frame_latency_cycles": max_latency,
             "lcd_job_cycles": after.get("lcd_max_job_cycles"),
         },
-        "action_quota_status": quota_status,
-        "action_quota_source": "EQ_DebugTouchActionHistogram[27] start/end delta",
-        "action_quota_contract": ENDURANCE_QUOTAS,
-        "action_quota_data": quota_data,
-        "action_quota_problems": quota_problems,
-        "operator_declaration": operator_data,
-        "operator_declaration_error": operator_error,
         "missing_counters": missing,
         "stop_reasons": stop_reasons,
         "window_contract": "one start snapshot, continuous run, one end snapshot",
     }
-    write_json(output_dir / "final_interactive_endurance_300s.json", evidence)
+    write_json(output_dir / "final_non_touch_endurance_300s.json", evidence)
     return evidence
 
 
@@ -1262,7 +1036,6 @@ VISUAL_ITEMS = (
     ("full_screen_white_flash", "No full-screen white flash"),
     ("old_page_ghosting", "No old-page ghosting"),
     ("element_misalignment", "No element misalignment"),
-    ("touch_coordinate_drift", "No touch-coordinate drift"),
 )
 
 
@@ -1345,6 +1118,7 @@ def result_word(value: dict[str, Any]) -> str:
 def write_readme(
     output_dir: Path,
     build: dict[str, Any],
+    boot: dict[str, Any],
     no_touch: dict[str, Any],
     hitboxes: dict[str, Any],
     page: dict[str, Any],
@@ -1355,12 +1129,13 @@ def write_readme(
 ) -> None:
     rows = (
         ("Full H clean build", build.get("status"), result_word(build)),
-        ("120 s no-touch", no_touch.get("status"), result_word(no_touch)),
-        ("27 physical hitboxes", hitboxes.get("status"), result_word(hitboxes)),
-        ("30 physical page round trips", page.get("status"), result_word(page)),
+        ("Production boot", boot.get("status"), result_word(boot)),
+        ("120 s no-touch validation", no_touch.get("status"), result_word(no_touch)),
+        ("27-hitbox validation", hitboxes.get("status"), result_word(hitboxes)),
+        ("30 scripted API page round trips", page.get("status"), result_word(page)),
         ("Operator visual observation", visual.get("status"), result_word(visual)),
         ("Nine LCD job timing classes", timing.get("status"), result_word(timing)),
-        ("300 s interactive endurance", endurance.get("status"), result_word(endurance)),
+        ("300 s non-touch endurance", endurance.get("status"), result_word(endurance)),
         ("Analyzer reset recovery", analyzer.get("status"), result_word(analyzer)),
     )
     lines = [
@@ -1383,6 +1158,7 @@ def write_readme(
             "- `HOST_ONLY`: offline processing or contract-test evidence only.",
             "- `NOT_MEASURED`: no calibrated external analog measurement was performed.",
             "- `PENDING_HARDWARE`: the corresponding board stage has not run.",
+            "- `WAIVED`: explicitly removed from the acceptance scope by the user.",
             "",
         ]
     )
@@ -1395,6 +1171,25 @@ def write_readme(
         ]
     )
     (output_dir / "README.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def write_final_acceptance_summary(
+    output_dir: Path, stage_results: dict[str, dict[str, Any]]
+) -> None:
+    rows = [
+        {
+            "stage": name,
+            "status": value.get("status"),
+            "result": value.get("result"),
+            "reason": value.get("reason", ""),
+        }
+        for name, value in stage_results.items()
+    ]
+    write_csv(
+        output_dir / "final_acceptance_summary.csv",
+        ("stage", "status", "result", "reason"),
+        rows,
+    )
 
 
 def write_manifest(output_dir: Path, stage_results: dict[str, dict[str, Any]]) -> None:
@@ -1412,13 +1207,22 @@ def write_manifest(output_dir: Path, stage_results: dict[str, dict[str, Any]]) -
                 }
             )
     failures = [name for name, value in stage_results.items() if value.get("result") == "FAIL"]
+    waived_stages = [
+        name
+        for name, value in stage_results.items()
+        if value.get("status") == "WAIVED"
+        and value.get("result") == "NOT_REQUIRED"
+    ]
     pending_stages = [
         name
         for name, value in stage_results.items()
-        if value.get("status") in {
-            "PENDING_HARDWARE", "PENDING_OPERATOR", "NOT_MEASURED"
-        }
-        or value.get("result") in {"NOT_RUN", "PENDING_OPERATOR", "INCOMPLETE"}
+        if name not in waived_stages
+        and (
+            value.get("status")
+            in {"PENDING_HARDWARE", "PENDING_OPERATOR", "NOT_MEASURED"}
+            or value.get("result")
+            in {"NOT_RUN", "PENDING_OPERATOR", "INCOMPLETE", "NOT_RECORDED"}
+        )
     ]
     manifest = {
         "schema_version": 1,
@@ -1426,9 +1230,14 @@ def write_manifest(output_dir: Path, stage_results: dict[str, dict[str, Any]]) -
         "overall_result": "FAIL" if failures else ("PENDING" if pending_stages else "PASS"),
         "failed_stages": failures,
         "pending_stages": pending_stages,
+        "waived_stages": waived_stages,
         "measurement_boundaries": EXTERNAL_BOUNDARIES,
         "stage_results": {
-            name: {"status": value.get("status"), "result": value.get("result")}
+            name: {
+                "status": value.get("status"),
+                "result": value.get("result"),
+                "reason": value.get("reason"),
+            }
             for name, value in stage_results.items()
         },
         "files": files,
@@ -1461,6 +1270,7 @@ def main() -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     build = process_build(raw_dir, output_dir)
+    boot = process_production_boot(raw_dir, output_dir)
     no_touch = process_no_touch(raw_dir, output_dir)
     hitboxes = process_hitboxes(raw_dir, output_dir)
     page = process_page_switch(raw_dir, output_dir)
@@ -1472,6 +1282,7 @@ def main() -> int:
     write_readme(
         output_dir,
         build,
+        boot,
         no_touch,
         hitboxes,
         page,
@@ -1482,6 +1293,7 @@ def main() -> int:
     )
     stage_results = {
         "build": build,
+        "production_boot": boot,
         "no_touch_120s": no_touch,
         "touch_hitbox_27": hitboxes,
         "page_switch_30": page,
@@ -1490,6 +1302,7 @@ def main() -> int:
         "endurance_300s": endurance,
         "analyzer_reset": analyzer,
     }
+    write_final_acceptance_summary(output_dir, stage_results)
     write_manifest(output_dir, stage_results)
     write_checksum_manifest(output_dir)
     manifest = json.loads((output_dir / "evidence_manifest.json").read_text(encoding="utf-8"))

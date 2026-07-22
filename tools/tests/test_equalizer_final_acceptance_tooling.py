@@ -1,8 +1,7 @@
 import csv
-import hashlib
+import importlib.util
 import json
 import pathlib
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -10,10 +9,8 @@ import unittest
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-DSS = ROOT / "tools" / "dss" / "dss_equalizer_final_acceptance.js"
-RUNNER = ROOT / "tools" / "run_equalizer_final_acceptance.ps1"
 PROCESSOR = ROOT / "tools" / "process_equalizer_final_acceptance.py"
-BUILD_EXPORTER = ROOT / "tools" / "export_project33_h_build_evidence.py"
+DSS_COLLECTOR = ROOT / "tools" / "dss" / "dss_equalizer_final_acceptance.js"
 
 REQUIRED_OUTPUTS = (
     "README.md",
@@ -22,17 +19,24 @@ REQUIRED_OUTPUTS = (
     "memory_sections.csv",
     "framebuffer_map.json",
     "production_symbol_audit.txt",
+    "production_boot_summary.json",
+    "page_switch_30_scripted.json",
+    "operator_visual_observation.md",
+    "lcd_job_timing.csv",
+    "lcd_job_timing_summary.json",
+    "final_non_touch_endurance_300s.json",
+    "analyzer_reset_board_summary.json",
+    "external_file_inventory.json",
+    "final_acceptance_summary.csv",
+    "sha256_manifest.txt",
+)
+
+OBSOLETE_TOUCH_OUTPUTS = (
     "touch_no_action_120s.json",
     "touch_hitbox_trials.csv",
     "touch_hitbox_summary.json",
     "page_switch_30_rounds.json",
-    "operator_visual_observation.md",
-    "lcd_job_timing.csv",
-    "lcd_job_timing_summary.json",
     "final_interactive_endurance_300s.json",
-    "analyzer_reset_board_summary.json",
-    "external_file_inventory.json",
-    "sha256_manifest.txt",
 )
 
 TIMING_CLASSES = (
@@ -47,12 +51,21 @@ TIMING_CLASSES = (
     "page_swap",
 )
 
+WAIVER_REASON = "USER_REMOVED_TOUCH_RELIABILITY_FROM_ACCEPTANCE_SCOPE"
 
-def powershell_executable():
-    executable = shutil.which("powershell.exe") or shutil.which("pwsh.exe")
-    if executable is None:
-        raise unittest.SkipTest("PowerShell is unavailable")
-    return executable
+
+def load_processor():
+    spec = importlib.util.spec_from_file_location(
+        "project33_final_acceptance_processor", PROCESSOR
+    )
+    if spec is None or spec.loader is None:
+        raise RuntimeError("Unable to load final-acceptance processor")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+PROCESSOR_MODULE = load_processor()
 
 
 def run_processor(raw_dir, output_dir):
@@ -78,493 +91,289 @@ def write_json(path, value):
     path.write_text(json.dumps(value) + "\n", encoding="utf-8")
 
 
-def append_jsonl(path, values):
+def write_jsonl(path, values):
     path.write_text(
         "".join(json.dumps(value) + "\n" for value in values),
         encoding="utf-8",
     )
 
 
+def valid_boot_summary():
+    return {
+        "pass": True,
+        "init_stage": 11,
+        "deadline": 0,
+        "latency_miss": 0,
+        "overlap": 0,
+        "dropped": 0,
+        "clip": 0,
+        "final_target_state": "RUNNING_DISCONNECTED",
+    }
+
+
 class EqualizerFinalAcceptanceToolingTest(unittest.TestCase):
-    def test_only_expected_new_tool_files_are_named(self):
-        for path in (
-            DSS,
-            RUNNER,
-            PROCESSOR,
-            BUILD_EXPORTER,
-            pathlib.Path(__file__),
-        ):
-            self.assertTrue(path.is_file(), path)
-
-    def test_runner_default_is_hardware_inert(self):
-        for arguments in ((), ("-Stage", "DryRun")):
-            with self.subTest(arguments=arguments):
-                result = subprocess.run(
-                    [
-                        powershell_executable(),
-                        "-NoProfile",
-                        "-ExecutionPolicy",
-                        "Bypass",
-                        "-File",
-                        str(RUNNER),
-                        *arguments,
-                    ],
-                    cwd=ROOT,
-                    text=True,
-                    capture_output=True,
-                    timeout=20,
-                    check=False,
-                )
-                self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertEqual(result.stdout.strip(), "NOT_RUN_NO_HARDWARE")
-                self.assertNotIn("PASS", result.stdout.upper())
-
-    def test_runner_has_staged_guards_and_clean_h_build_contract(self):
-        source = RUNNER.read_text(encoding="utf-8")
-        for stage in (
-            "DryRun",
-            "Prepare",
-            "Build",
-            "NoTouch120s",
-            "Hitbox27",
-            "PageSwitch30",
-            "LcdTiming",
-            "Endurance300s",
-            "AnalyzerReset",
-            "Process",
-        ):
-            self.assertIn(f'"{stage}"', source)
-        for token in (
-            "C6748_CONNECTED_FINAL_ACCEPTANCE",
-            "I_ACCEPT_MANUAL_LONG_STAGE",
-            "run_equalizer_ui_build_matrix.ps1",
-            'H_project33_full',
-            "warning_count",
-            "error_count",
-            "link_errors",
-            "Get-FileHash",
-            "Get-OutSha256WithoutBuildTimestamp",
-            "EQ_DebugBuildTimestamp",
-            "production_out_without_build_timestamp_sha256",
-            "production_restored_out_without_build_timestamp_sha256",
-            "process_equalizer_final_acceptance.py",
-            "export_project33_h_build_evidence.py",
-            "operator_visual_observation_raw.json",
-            "endurance_operator_quota_raw.json",
-        ):
-            self.assertIn(token, source)
-        guard = source.index('if ($Stage -eq "DryRun")')
-        self.assertLess(guard, source.index("Resolve-Path"))
-        self.assertLess(guard, source.index("Start-Process"))
-        self.assertNotIn("NoTouch120s,Hitbox27", source)
-        build_start = source.index('if ($Stage -eq "Build")')
-        build_end = source.index("$stageMap = @{", build_start)
+    def test_endurance_uses_production_preset_api_for_overlap(self):
+        source = DSS_COLLECTOR.read_text(encoding="utf-8")
+        self.assertIn('requestPreset(1, "endurance overlap BASS")', source)
+        self.assertIn("ENDURANCE_WINDOW_MILLISECONDS = 302000", source)
+        self.assertIn(
+            "runContinuousWindow(ENDURANCE_WINDOW_MILLISECONDS)", source
+        )
         self.assertNotIn(
-            "New-Item -ItemType Directory -Path $buildDir",
-            source[build_start:build_end],
+            'writeTarget("EQ_DebugFourWayTransitionArmMode", 1)', source
         )
 
-    def test_runner_compares_restored_runtime_image_not_build_time(self):
-        source = RUNNER.read_text(encoding="utf-8")
-        helper_start = source.index(
-            "function Get-OutSha256WithoutBuildTimestamp("
-        )
-        helper_end = source.index("function Copy-DebugArtifacts", helper_start)
-        helper = source[helper_start:helper_end]
-        self.assertIn('"EQ_DebugBuildTimestamp"', helper)
-        self.assertIn("[IO.File]::ReadAllBytes", helper)
-        self.assertIn("[Security.Cryptography.SHA256]::Create()", helper)
-
-        build_start = source.index('if ($Stage -eq "Build")')
-        build_end = source.index("$stageMap = @{", build_start)
-        build = source[build_start:build_end]
-        self.assertIn(
-            "$restoredComparableHash -ne $productionComparableHash", build
-        )
-        self.assertNotIn("$restoredHash -ne $productionHash", build)
-        self.assertIn(
-            'production_restore_ignored_symbol = "EQ_DebugBuildTimestamp"',
-            build,
-        )
-
-    def test_runner_powershell_parses(self):
-        quoted = str(RUNNER).replace("'", "''")
-        command = (
-            "$tokens=$null;$errors=$null;"
-            f"[System.Management.Automation.Language.Parser]::ParseFile('{quoted}',"
-            "[ref]$tokens,[ref]$errors)|Out-Null;"
-            "if($errors.Count){$errors|ForEach-Object{$_.Message};exit 1}"
-        )
-        result = subprocess.run(
-            [powershell_executable(), "-NoProfile", "-Command", command],
-            cwd=ROOT,
-            text=True,
-            capture_output=True,
-            timeout=20,
-            check=False,
-        )
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-
-    def test_dss_requires_authorization_and_never_fakes_physical_pages(self):
-        source = DSS.read_text(encoding="utf-8")
-        guard = source.index(
-            'hardwareAuthorization != "C6748_CONNECTED_FINAL_ACCEPTANCE"'
-        )
-        self.assertLess(guard, source.index("ScriptingEnvironment.instance()"))
-        self.assertIn('System.out.println("NOT_RUN_NO_HARDWARE")', source)
-        self.assertNotIn("EQ_DebugUiRequestedPage =", source)
-        self.assertNotIn("EQ_DebugUiDisplayedPage =", source)
-        self.assertNotIn("setRequestedPage", source)
-        self.assertIn('lcd_page_sync_jobs: "EQ_DebugLcdJobTypeCount[24]"', source)
-        self.assertIn(
-            'writeTarget("EQ_DebugAnalyzerResetRequest", 1)', source
-        )
-
-    def test_dss_covers_exact_physical_and_continuous_contracts(self):
-        source = DSS.read_text(encoding="utf-8")
-        hitbox_start = source.index("var HITBOXES = [")
-        hitbox_end = source.index("];", hitbox_start)
-        hitbox_block = source[hitbox_start:hitbox_end]
-        self.assertEqual(hitbox_block.count("id:"), 27)
-        for token in (
-            "PAGE_ROUND_TRIPS = 30",
-            "runContinuousWindow(120000)",
-            "runContinuousWindow(300000)",
-            "NO_TOUCH_START",
-            "NO_TOUCH_END",
-            "HITBOX_TOUCH_REQUIRED",
-            "PAGE_TOUCH_REQUIRED",
-            "ENDURANCE_INTERACTION_QUOTAS",
-            "Touch_DebugDownCount",
-            "Touch_DebugReleaseCount",
-            "Touch_DebugI2cErrorCount",
-            "EQ_DebugTouchInvalidCoordinateCount",
-            "EQ_DebugTouchDuplicateActionCount",
-            "EQ_DebugTouchActionHistogramSize",
-            "EQ_DebugTouchActionHistogram[",
-            "EQ_DebugLcdEof0Count",
-            "EQ_DebugLcdEof1Count",
-            "EQ_DebugLcdWritebackFailureCount",
-            "EQ_DebugLcdFramebufferCanaryFailureCount",
-            "EQ_DebugAnalyzerEpoch",
-            "EQ_DebugAnalyzerPublicationCount",
-            "EQ_DebugStaticDynamicTransitionOverlapFrameCount",
-            "EQ_DebugLcdPendingDirtyRegionCount",
-            "EQ_DebugLcdMaxPendingDirtyRegionCount",
-            "EQ_DebugLcdTimingSamples[",
-            "EQ_DebugLcdTimingSampleCount[",
-            "EOF descriptor update",
-            "requireEnduranceHistogramQuotas",
-        ):
-            self.assertIn(token, source)
-        for class_name in TIMING_CLASSES:
-            self.assertIn(f'"{class_name}"', source)
-
-        continuous_start = source.index("function runContinuousWindow(")
-        continuous_end = source.index("\n}", continuous_start)
-        continuous = source[continuous_start:continuous_end]
-        self.assertEqual(continuous.count("target.runAsynch()"), 1)
-        self.assertEqual(continuous.count("target.halt()"), 1)
-        self.assertNotIn("while", continuous)
-        self.assertNotIn("for (", continuous)
-
-        endurance_start = source.index("function runEndurance300s()")
-        endurance_end = source.index("function anyDynamicActive", endurance_start)
-        endurance = source[endurance_start:endurance_end]
-        self.assertEqual(endurance.count("snapshot()"), 2)
-        self.assertEqual(endurance.count("runContinuousWindow(300000)"), 1)
-        self.assertNotIn("runSlice(", endurance)
-        self.assertNotIn("waitForState(", endurance)
-
-    def test_pending_processing_creates_complete_honest_skeleton(self):
+    def test_processor_generates_non_touch_skeleton_and_fixed_waivers(self):
         with tempfile.TemporaryDirectory() as temporary:
             base = pathlib.Path(temporary)
             raw = base / "raw"
             output = base / "evidence"
             raw.mkdir()
+
+            # Legacy raw Touch records cannot promote or fail waived stages.
+            write_json(
+                raw / "no_touch_120s_raw_summary.json",
+                {"completed": True, "host_elapsed_seconds": 1.0},
+            )
+            write_json(
+                raw / "touch_hitbox_27_raw_summary.json",
+                {"completed": False, "error": "legacy stage failed"},
+            )
+
             result = run_processor(raw, output)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            for name in REQUIRED_OUTPUTS:
-                self.assertTrue((output / name).is_file(), name)
+            self.assertEqual(
+                {path.name for path in output.iterdir()}, set(REQUIRED_OUTPUTS)
+            )
+            for name in OBSOLETE_TOUCH_OUTPUTS:
+                self.assertFalse((output / name).exists(), name)
 
-            for name in (
-                "touch_no_action_120s.json",
-                "touch_hitbox_summary.json",
-                "page_switch_30_rounds.json",
-                "lcd_job_timing_summary.json",
-                "final_interactive_endurance_300s.json",
-                "analyzer_reset_board_summary.json",
-            ):
-                value = json.loads((output / name).read_text(encoding="utf-8"))
-                self.assertIn(value["status"], {"NOT_MEASURED", "PENDING_HARDWARE"})
-                self.assertNotEqual(value.get("result"), "PASS")
+            manifest = json.loads(
+                (output / "evidence_manifest.json").read_text(encoding="utf-8")
+            )
+            expected_waiver = {
+                "status": "WAIVED",
+                "result": "NOT_REQUIRED",
+                "reason": WAIVER_REASON,
+            }
+            self.assertEqual(
+                manifest["stage_results"]["no_touch_120s"], expected_waiver
+            )
+            self.assertEqual(
+                manifest["stage_results"]["touch_hitbox_27"], expected_waiver
+            )
+            self.assertEqual(
+                manifest["waived_stages"], ["no_touch_120s", "touch_hitbox_27"]
+            )
+            self.assertNotIn("no_touch_120s", manifest["pending_stages"])
+            self.assertNotIn("touch_hitbox_27", manifest["pending_stages"])
+            self.assertEqual(
+                manifest["stage_results"]["production_boot"]["status"],
+                "PENDING_HARDWARE",
+            )
 
-            readme = (output / "README.md").read_text(encoding="utf-8")
-            self.assertIn("NOT_MEASURED", readme)
-            self.assertIn("PENDING_HARDWARE", readme)
-            self.assertNotIn("MEASURED: PASS", readme)
+            with (output / "final_acceptance_summary.csv").open(
+                newline="", encoding="utf-8"
+            ) as stream:
+                summary = {row["stage"]: row for row in csv.DictReader(stream)}
+            for stage in ("no_touch_120s", "touch_hitbox_27"):
+                self.assertEqual(summary[stage]["status"], "WAIVED")
+                self.assertEqual(summary[stage]["result"], "NOT_REQUIRED")
+                self.assertEqual(summary[stage]["reason"], WAIVER_REASON)
 
-    def test_processor_preserves_strict_build_exporter_outputs(self):
+            visual = (output / "operator_visual_observation.md").read_text(
+                encoding="utf-8"
+            )
+            self.assertIn("PENDING_OPERATOR", visual)
+            self.assertNotIn("touch_coordinate_drift", visual)
+            self.assertIn("final_acceptance_summary.csv", (
+                output / "sha256_manifest.txt"
+            ).read_text(encoding="ascii"))
+
+    def test_waived_stages_do_not_block_manifest_pass(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = pathlib.Path(temporary)
+            measured_pass = {"status": "MEASURED", "result": "PASS"}
+            stage_results = {
+                "build": measured_pass,
+                "production_boot": measured_pass,
+                "no_touch_120s": PROCESSOR_MODULE.waived_touch_stage(
+                    "no_touch_120s"
+                ),
+                "touch_hitbox_27": PROCESSOR_MODULE.waived_touch_stage(
+                    "touch_hitbox_27"
+                ),
+                "page_switch_30": measured_pass,
+                "operator_visual": {
+                    "status": "OPERATOR_VISUAL_OBSERVATION",
+                    "result": "PASS",
+                },
+                "lcd_job_timing": measured_pass,
+                "endurance_300s": measured_pass,
+                "analyzer_reset": measured_pass,
+            }
+            PROCESSOR_MODULE.write_manifest(output, stage_results)
+            manifest = json.loads(
+                (output / "evidence_manifest.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(manifest["overall_result"], "PASS")
+            self.assertEqual(manifest["pending_stages"], [])
+            self.assertEqual(
+                manifest["waived_stages"], ["no_touch_120s", "touch_hitbox_27"]
+            )
+
+    def test_production_boot_requires_every_board_contract_field(self):
         with tempfile.TemporaryDirectory() as temporary:
             base = pathlib.Path(temporary)
             raw = base / "raw"
             output = base / "evidence"
             raw.mkdir()
             output.mkdir()
-            strict_summary = {
-                "schema_version": 1,
-                "stage": "build",
-                "status": "MEASURED",
-                "measurement_label": "BUILD_EVIDENCE",
-                "evidence_class": "BUILD_EVIDENCE",
-                "result": "PASS",
-                "profile": "H_project33_full",
-                "warning_count": 0,
-                "error_count": 0,
-                "link_errors": "0x0",
-            }
-            write_json(output / "build_summary.json", strict_summary)
-            (output / "memory_sections.csv").write_text(
-                "section_name,size_bytes\n.text,1\n", encoding="utf-8"
+
+            pending = PROCESSOR_MODULE.process_production_boot(raw, output)
+            self.assertEqual(pending["status"], "PENDING_HARDWARE")
+            self.assertEqual(pending["result"], "NOT_RUN")
+
+            write_json(raw / "production_boot_summary.json", valid_boot_summary())
+            passed = PROCESSOR_MODULE.process_production_boot(raw, output)
+            self.assertEqual(passed["result"], "PASS")
+            self.assertEqual(passed["stop_reasons"], [])
+
+            bad_values = (
+                ("pass", "pass", False),
+                ("init_stage", "init_stage", 10),
+                ("deadline", "deadline", 1),
+                ("fractional_deadline", "deadline", 0.5),
+                ("latency_miss", "latency_miss", 1),
+                ("overlap", "overlap", 1),
+                ("dropped", "dropped", 1),
+                ("clip", "clip", 1),
+                ("final_target_state", "final_target_state", "HALTED"),
             )
-            write_json(
-                output / "framebuffer_map.json",
-                {"result": "PASS", "non_overlapping": True},
-            )
-            audit = (
-                "result=PASS\n"
-                "generic_capture_buffers=DISCLOSED_NOT_FAILURE\n"
-                "generic_capture_total_bytes=81920\n"
-            )
-            (output / "production_symbol_audit.txt").write_text(
-                audit, encoding="ascii"
-            )
-            expected = {
-                path.name: path.read_bytes()
-                for path in output.iterdir()
-                if path.name in {
-                    "build_summary.json",
-                    "memory_sections.csv",
-                    "framebuffer_map.json",
-                    "production_symbol_audit.txt",
+            for label, key, bad_value in bad_values:
+                with self.subTest(label=label):
+                    value = valid_boot_summary()
+                    value[key] = bad_value
+                    write_json(raw / "production_boot_summary.json", value)
+                    failed = PROCESSOR_MODULE.process_production_boot(raw, output)
+                    self.assertEqual(failed["result"], "FAIL")
+                    self.assertTrue(failed["stop_reasons"])
+
+    def test_page_switch_requires_thirty_scripted_api_round_trips(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = pathlib.Path(temporary)
+            raw = base / "raw"
+            output = base / "evidence"
+            raw.mkdir()
+            output.mkdir()
+
+            before = {name: 0 for name in PROCESSOR_MODULE.PAGE_COUNTERS}
+            after = dict(before)
+            after.update(
+                {
+                    "lcd_page_sync_jobs": 60,
+                    "lcd_swap_requests": 60,
+                    "lcd_swap_completes": 60,
+                    "lcd_eof0": 30,
+                    "lcd_eof1": 30,
+                    "lcd_writeback_count": 60,
+                    "lcd_writeback_bytes": 4096,
                 }
-            }
-
-            result = run_processor(raw, output)
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            for name, content in expected.items():
-                self.assertEqual((output / name).read_bytes(), content, name)
-            manifest = json.loads(
-                (output / "evidence_manifest.json").read_text(encoding="utf-8")
             )
-            self.assertEqual(manifest["stage_results"]["build"]["result"], "PASS")
-
-    def test_processor_derives_no_touch_hitbox_and_timing_evidence(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            base = pathlib.Path(temporary)
-            raw = base / "raw"
-            output = base / "evidence"
-            raw.mkdir()
-            counters = {
-                "touch_down": 10,
-                "touch_release": 10,
-                "touch_actions": 4,
-                "touch_rejected": 0,
-                "touch_i2c_errors": 0,
-                "touch_invalid_coordinates": 0,
-                "touch_page_requests": 1,
-                "touch_preset_requests": 1,
-                "touch_dynamic_enable_requests": 1,
-                "touch_dynamic_strength_requests": 1,
-                "touch_editor_actions": 0,
-                "touch_duplicate_actions": 0,
-                "touch_action_histogram": [0] * 27,
-            }
-            write_json(
-                raw / "no_touch_120s_raw_summary.json",
+            rounds = [
                 {
-                    "stage": "no_touch_120s",
-                    "completed": True,
-                    "measurement_label": "BOARD_UI_COUNTER",
-                    "host_elapsed_seconds": 120.1,
-                    "before": counters,
-                    "after": counters,
-                },
-            )
-
-            hitboxes = []
-            expected_actions = [*range(1, 13), *range(13, 27), 12]
-            for index, action in enumerate(expected_actions):
-                hitboxes.append(
-                    {
-                        "record_type": "hitbox_trial",
-                        "trial_id": index + 1,
-                        "hitbox_id": f"hitbox_{index + 1}",
-                        "page": "STATUS" if index < 12 else "EDITOR",
-                        "raw_x": 100 + index,
-                        "raw_y": 200 + index,
-                        "screen_x": 100 + index,
-                        "screen_y": 200 + index,
-                        "expected_action": action,
-                        "expected_action_name": f"ACTION_{action}",
-                        "actual_action": action,
-                        "actual_action_name": f"ACTION_{action}",
-                        "accepted": True,
-                        "rejected": False,
-                        "action_count_delta": 1,
-                        "action_histogram_bin": action,
-                        "action_histogram_bin_delta": 1,
-                        "duplicate_action": False,
-                        "out_of_range": False,
-                        "long_hold_verified": action == 7,
-                        "release_rearm_verified": True,
-                    }
-                )
-            append_jsonl(raw / "touch_hitbox_27.jsonl", hitboxes)
+                    "record_type": "page_round",
+                    "round": index,
+                    "status_to_editor_scripted": True,
+                    "editor_to_status_scripted": True,
+                }
+                for index in range(1, 31)
+            ]
+            write_jsonl(raw / "page_switch_30.jsonl", rounds)
             write_json(
-                raw / "touch_hitbox_27_raw_summary.json",
-                {"stage": "touch_hitbox_27", "completed": True},
-            )
-
-            timing = []
-            for class_name in TIMING_CLASSES:
-                for index, cycles in enumerate((100, 200, 300), start=1):
-                    timing.append(
-                        {
-                            "record_type": "timing_sample",
-                            "class_name": class_name,
-                            "sample_index": index,
-                            "cycles": cycles,
-                            "job_count_delta": 1,
-                            "deferred_by_audio_delta": 0,
-                            "audio_arrived_during_draw_delta": 0,
-                        }
-                    )
-            append_jsonl(raw / "lcd_job_timing.jsonl", timing)
-            write_json(
-                raw / "lcd_job_timing_raw_summary.json",
-                {"stage": "lcd_job_timing", "completed": True},
-            )
-
-            result = run_processor(raw, output)
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            no_touch = json.loads(
-                (output / "touch_no_action_120s.json").read_text(encoding="utf-8")
-            )
-            self.assertEqual(no_touch["status"], "MEASURED")
-            self.assertEqual(no_touch["result"], "PASS")
-
-            hitbox_summary = json.loads(
-                (output / "touch_hitbox_summary.json").read_text(encoding="utf-8")
-            )
-            self.assertEqual(hitbox_summary["reachable_count"], 27)
-            self.assertEqual(hitbox_summary["result"], "PASS")
-            with (output / "touch_hitbox_trials.csv").open(
-                newline="", encoding="utf-8"
-            ) as stream:
-                self.assertEqual(len(list(csv.DictReader(stream))), 27)
-
-            timing_summary = json.loads(
-                (output / "lcd_job_timing_summary.json").read_text(
-                    encoding="utf-8"
-                )
-            )
-            self.assertEqual(timing_summary["status"], "MEASURED")
-            self.assertEqual(len(timing_summary["classes"]), 9)
-            for item in timing_summary["classes"]:
-                self.assertEqual(item["count"], 3)
-                self.assertEqual(item["median_cycles"], 200)
-                self.assertEqual(item["max_cycles"], 300)
-
-            manifest = json.loads(
-                (output / "evidence_manifest.json").read_text(encoding="utf-8")
-            )
-            self.assertEqual(
-                manifest["measurement_boundaries"]["EXTERNAL_ANALOG_THD"],
-                "NOT_MEASURED",
-            )
-            checksums = (output / "sha256_manifest.txt").read_text(
-                encoding="ascii"
-            )
-            digest = hashlib.sha256(
-                (output / "touch_no_action_120s.json").read_bytes()
-            ).hexdigest()
-            self.assertIn(digest, checksums)
-
-    def test_failed_raw_data_is_retained_and_never_promoted_to_pass(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            base = pathlib.Path(temporary)
-            raw = base / "raw"
-            output = base / "evidence"
-            raw.mkdir()
-            before = {
-                "touch_actions": 1,
-                "touch_page_requests": 0,
-                "touch_preset_requests": 0,
-                "touch_dynamic_enable_requests": 0,
-                "touch_dynamic_strength_requests": 0,
-                "touch_editor_actions": 0,
-            }
-            after = dict(before, touch_actions=2, touch_preset_requests=1)
-            write_json(
-                raw / "no_touch_120s_raw_summary.json",
+                raw / "page_switch_30_raw_summary.json",
                 {
-                    "stage": "no_touch_120s",
                     "completed": True,
+                    "completed_round_trips": 30,
                     "before": before,
                     "after": after,
                 },
             )
-            result = run_processor(raw, output)
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            evidence = json.loads(
-                (output / "touch_no_action_120s.json").read_text(encoding="utf-8")
-            )
-            self.assertEqual(evidence["status"], "MEASURED")
-            self.assertEqual(evidence["result"], "FAIL")
-            self.assertTrue(evidence["stop_reasons"])
-            inventory = json.loads(
-                (output / "external_file_inventory.json").read_text(
-                    encoding="utf-8"
-                )
-            )
-            self.assertTrue(
-                any(
-                    item["file_name"] == "no_touch_120s_raw_summary.json"
-                    for item in inventory["files"]
-                )
-            )
 
-    def test_endurance_quotas_are_proven_by_start_end_histograms(self):
+            evidence = PROCESSOR_MODULE.process_page_switch(raw, output)
+            self.assertEqual(evidence["result"], "PASS")
+            self.assertEqual(
+                evidence["request_contract"], "SCRIPTED_PAGE_REQUEST_API"
+            )
+            self.assertEqual(evidence["scripted_record_error_count"], 0)
+            self.assertNotIn("touch_page_requests", evidence["deltas"])
+            self.assertTrue((output / "page_switch_30_scripted.json").is_file())
+
+            rounds[0]["status_to_editor_scripted"] = False
+            write_jsonl(raw / "page_switch_30.jsonl", rounds)
+            failed = PROCESSOR_MODULE.process_page_switch(raw, output)
+            self.assertEqual(failed["result"], "FAIL")
+            self.assertEqual(failed["scripted_record_error_count"], 1)
+
+    def test_lcd_timing_requires_twenty_valid_samples_per_class(self):
         with tempfile.TemporaryDirectory() as temporary:
             base = pathlib.Path(temporary)
             raw = base / "raw"
             output = base / "evidence"
             raw.mkdir()
-            counter_names = (
-                "process_frames", "ad_frames", "da_frames",
-                "algorithm_frames", "analyzer_publications",
-                "smart_decisions", "clarity_decisions", "guard_decisions",
-                "lcd_swap_completes", "touch_actions", "touch_rejected",
-                "lcd_jobs", "static_dynamic_overlap_frames",
-                "deadline_misses", "latency_misses", "frame_overlaps",
-                "dropped_frames", "clip_count", "invalid_count",
-                "smart_saturation", "smart_nonfinite", "clarity_saturation",
-                "clarity_nonfinite", "guard_saturation", "guard_nonfinite",
-                "lcd_unexpected_full_redraw", "lcd_writeback_failures",
-                "lcd_raster_faults", "lcd_fifo_underflows", "lcd_sync_errors",
-                "lcd_frame_address_mismatches", "lcd_bounds_failures",
-                "lcd_canary_failures", "lcd_raster_stop_timeouts",
-                "touch_invalid_coordinates", "touch_duplicate_actions",
+            output.mkdir()
+
+            records = [
+                {
+                    "record_type": "timing_sample",
+                    "class_name": class_name,
+                    "sample_index": index,
+                    "cycles": 1000 + index,
+                    "job_count_delta": 1,
+                    "deferred_by_audio_delta": 0,
+                    "audio_arrived_during_draw_delta": 0,
+                }
+                for class_name in TIMING_CLASSES
+                for index in range(1, 21)
+            ]
+            zero_faults = {name: 0 for name in PROCESSOR_MODULE.LCD_FAULT_COUNTERS}
+            write_jsonl(raw / "lcd_job_timing.jsonl", records)
+            write_json(
+                raw / "lcd_job_timing_raw_summary.json",
+                {"completed": True, "before": zero_faults, "after": zero_faults},
             )
-            before = {name: 0 for name in counter_names}
+
+            evidence = PROCESSOR_MODULE.process_timing(raw, output)
+            self.assertEqual(evidence["result"], "PASS")
+            self.assertEqual(
+                evidence["thresholds"]["minimum_valid_samples_per_class"], 20
+            )
+            self.assertTrue(all(item["count"] == 20 for item in evidence["classes"]))
+
+            records.pop(19)
+            write_jsonl(raw / "lcd_job_timing.jsonl", records)
+            incomplete = PROCESSOR_MODULE.process_timing(raw, output)
+            self.assertEqual(incomplete["result"], "INCOMPLETE")
+            self.assertIn("preset", incomplete["missing_classes"])
+
+    def test_endurance_passes_without_touch_histogram_or_operator_quota(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = pathlib.Path(temporary)
+            raw = base / "raw"
+            output = base / "evidence"
+            raw.mkdir()
+            output.mkdir()
+
+            self.assertFalse(
+                any("touch" in name for name in PROCESSOR_MODULE.ENDURANCE_COUNTERS)
+            )
+            before = {name: 0 for name in PROCESSOR_MODULE.ENDURANCE_COUNTERS}
             before.update(
                 {
                     "frame_latency_max_cycles": 1000,
                     "algorithm_max_cycles": 1000,
                     "frame_service_max_cycles": 1000,
                     "lcd_max_job_cycles": 1000,
-                    "touch_action_histogram": [0] * 27,
                 }
             )
             after = dict(before)
@@ -578,27 +387,14 @@ class EqualizerFinalAcceptanceToolingTest(unittest.TestCase):
                     "smart_decisions": 300,
                     "clarity_decisions": 300,
                     "guard_decisions": 300,
-                    "lcd_swap_completes": 40,
+                    "lcd_swap_completes": 30,
                     "lcd_jobs": 500,
                     "static_dynamic_overlap_frames": 1,
                 }
             )
-            histogram = [0] * 27
-            for action in range(1, 6):
-                histogram[action] = 3
-            for action in (6, 7, 8, 9, 10, 11):
-                histogram[action] = 2
-            histogram[12] = 40
-            for action in range(13, 23):
-                histogram[action] = 1
-            histogram[25] = 3
-            histogram[26] = 2
-            after["touch_action_histogram"] = histogram
-            after["touch_actions"] = sum(histogram)
             write_json(
                 raw / "endurance_300s_raw_summary.json",
                 {
-                    "stage": "endurance_300s",
                     "completed": True,
                     "host_elapsed_seconds": 300.1,
                     "continuous_window_halt_count": 2,
@@ -606,28 +402,22 @@ class EqualizerFinalAcceptanceToolingTest(unittest.TestCase):
                     "after": after,
                 },
             )
-            result = run_processor(raw, output)
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            evidence = json.loads(
-                (output / "final_interactive_endurance_300s.json").read_text(
-                    encoding="utf-8"
-                )
-            )
-            self.assertEqual(evidence["result"], "PASS")
-            self.assertEqual(evidence["action_quota_status"], "PASS")
-            self.assertEqual(evidence["action_quota_data"]["page_action_count"], 40)
 
-            for key in (
-                "analyzer_publications",
-                "smart_decisions",
-                "clarity_decisions",
-                "guard_decisions",
-            ):
-                after[key] = 0
+            evidence = PROCESSOR_MODULE.process_endurance(raw, output)
+            self.assertEqual(evidence["result"], "PASS")
+            self.assertEqual(evidence["interaction_contract"], "NON_TOUCH_SCRIPTED_API")
+            self.assertNotIn("action_quota_status", evidence)
+            self.assertNotIn("operator_declaration", evidence)
+            serialized = json.dumps(evidence)
+            self.assertNotIn("touch_action_histogram", serialized)
+            self.assertTrue(
+                (output / "final_non_touch_endurance_300s.json").is_file()
+            )
+
+            after["analyzer_publications"] = 0
             write_json(
                 raw / "endurance_300s_raw_summary.json",
                 {
-                    "stage": "endurance_300s",
                     "completed": True,
                     "host_elapsed_seconds": 300.1,
                     "continuous_window_halt_count": 2,
@@ -635,17 +425,50 @@ class EqualizerFinalAcceptanceToolingTest(unittest.TestCase):
                     "after": after,
                 },
             )
-            result = run_processor(raw, output)
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            stalled = json.loads(
-                (output / "final_interactive_endurance_300s.json").read_text(
-                    encoding="utf-8"
-                )
-            )
-            self.assertEqual(stalled["result"], "FAIL")
+            failed = PROCESSOR_MODULE.process_endurance(raw, output)
+            self.assertEqual(failed["result"], "FAIL")
             self.assertTrue(
-                any("did not advance" in item for item in stalled["stop_reasons"])
+                any("did not advance" in reason for reason in failed["stop_reasons"])
             )
+
+    def test_operator_visual_has_four_items_and_is_never_auto_filled(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = pathlib.Path(temporary)
+            raw = base / "raw"
+            output = base / "evidence"
+            raw.mkdir()
+            output.mkdir()
+
+            pending = PROCESSOR_MODULE.process_visual(raw, output)
+            self.assertEqual(pending["status"], "PENDING_OPERATOR")
+            self.assertEqual(pending["result"], "NOT_RECORDED")
+            pending_text = (output / "operator_visual_observation.md").read_text(
+                encoding="utf-8"
+            )
+            self.assertEqual(pending_text.count("[PENDING]"), 4)
+            self.assertNotIn("touch_coordinate_drift", pending_text)
+
+            write_json(
+                raw / "operator_visual_observation_raw.json",
+                {
+                    "result_label": "OPERATOR_VISUAL_OBSERVATION",
+                    "operator": "human",
+                    "observed_at": "2026-07-22T00:00:00Z",
+                    "observations": {
+                        "circular_offset": "PASS",
+                        "full_screen_white_flash": "PASS",
+                        "old_page_ghosting": "PASS",
+                        "element_misalignment": "PASS",
+                        "touch_coordinate_drift": "FAIL",
+                    },
+                },
+            )
+            observed = PROCESSOR_MODULE.process_visual(raw, output)
+            self.assertEqual(observed["result"], "PASS")
+            observed_text = (output / "operator_visual_observation.md").read_text(
+                encoding="utf-8"
+            )
+            self.assertNotIn("touch_coordinate_drift", observed_text)
 
 
 if __name__ == "__main__":

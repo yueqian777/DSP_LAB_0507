@@ -33,8 +33,6 @@ var enduranceStartDelaySeconds = parseInt(
     env("DSP_TEST_ENDURANCE_START_DELAY_SECONDS", "15"), 10);
 
 var STAGE_FILES = {
-    no_touch_120s: "no_touch_120s",
-    touch_hitbox_27: "touch_hitbox_27",
     page_switch_30: "page_switch_30",
     lcd_job_timing: "lcd_job_timing",
     endurance_300s: "endurance_300s",
@@ -44,6 +42,7 @@ var STAGE_FILES = {
 var PAGE_STATUS = 0;
 var PAGE_EDITOR = 1;
 var PAGE_ROUND_TRIPS = 30;
+var ENDURANCE_WINDOW_MILLISECONDS = 302000;
 var LCD_TIMING_CLASS_COUNT = 9;
 var LCD_TIMING_SAMPLE_CAPACITY = 256;
 var LCD_TIMING_CLASSES = [
@@ -138,6 +137,9 @@ var REQUIRED_SYMBOLS = {
     invalid_count: "EQ_DebugControlRejectedCount",
     static_dynamic_overlap_frames:
         "EQ_DebugStaticDynamicTransitionOverlapFrameCount",
+    applied_mode: "EQ_DebugAppliedMode",
+    control_request_token: "EQ_DebugControlRequestToken",
+    control_applied_token: "EQ_DebugControlAppliedToken",
 
     touch_down: "Touch_DebugDownCount",
     touch_release: "Touch_DebugReleaseCount",
@@ -229,7 +231,7 @@ var REQUIRED_SYMBOLS = {
     lcd_pending_dirty_regions: "EQ_DebugLcdPendingDirtyRegionCount",
     lcd_max_pending_dirty_regions:
         "EQ_DebugLcdMaxPendingDirtyRegionCount",
-    lcd_page_sync_jobs: "EQ_DebugLcdJobTypeCount[24]",
+    lcd_page_sync_jobs: "EQ_DebugLcdJobTypeCount[23]",
     lcd_timing_compiled: "EQ_DebugLcdTimingCaptureCompiled"
 };
 
@@ -364,6 +366,17 @@ function runContinuousWindow(milliseconds) {
     debugSession.target.halt();
 }
 
+function connectTargetWithRecovery() {
+    try {
+        debugSession.target.connect();
+    } catch (firstError) {
+        System.out.println("TARGET_CONNECT_RECOVERY_RETRY=" + firstError);
+        System.out.flush();
+        Thread.sleep(1000);
+        debugSession.target.connect();
+    }
+}
+
 function waitForState(label, timeoutSeconds, predicate) {
     var elapsed = 0, state = null;
     while (elapsed < timeoutSeconds * 1000) {
@@ -376,10 +389,85 @@ function waitForState(label, timeoutSeconds, predicate) {
 }
 
 function waitForPage(page, label) {
-    return waitForState(label, interactionTimeoutSeconds, function(state) {
-        return state.requested_page == page &&
-            state.displayed_page == page && state.page_building == 0;
-    });
+    var elapsed = 0, requested, displayed, building;
+    while (elapsed < interactionTimeoutSeconds * 1000) {
+        runSlice(1000);
+        elapsed += 1000;
+        requested = numberValue("EQ_DebugUiRequestedPage");
+        displayed = numberValue("EQ_DebugUiDisplayedPage");
+        building = numberValue("EQ_DebugUiPageBuilding");
+        if (requested == page && displayed == page && building == 0) {
+            return {
+                requested_page: requested,
+                displayed_page: displayed,
+                page_building: building
+            };
+        }
+    }
+    throw label + " timed out after " + interactionTimeoutSeconds +
+        " seconds";
+}
+
+function requestPage(page, label) {
+    writeTarget("EQ_DebugUiRequestedPage", page);
+    return waitForPage(page, label);
+}
+
+function requestPreset(preset, label) {
+    var beforeToken = numberValue("EQ_DebugControlAppliedToken");
+    var elapsed = 0, appliedToken, appliedMode;
+    writeTarget("EQ_DebugDiagPath", 4);
+    writeTarget("EQ_DebugMode", preset);
+    while (elapsed < interactionTimeoutSeconds * 1000) {
+        runSlice(250);
+        elapsed += 250;
+        appliedToken = numberValue("EQ_DebugControlAppliedToken");
+        appliedMode = numberValue("EQ_DebugAppliedMode");
+        if (appliedMode == preset && appliedToken != beforeToken) {
+            return {applied_mode: appliedMode,
+                    control_applied_token: appliedToken};
+        }
+    }
+    throw label + " timed out after " + interactionTimeoutSeconds +
+        " seconds";
+}
+
+function publishCustom(gains) {
+    var current = numberValue("EQ_ControlMailbox.sequence");
+    var odd, even, band;
+    requireCondition((current % 2) == 0,
+        "control mailbox sequence is odd while target is halted");
+    odd = current >= 4294967294 ? 1 : current + 1;
+    even = current >= 4294967294 ? 2 : current + 2;
+    writeTarget("EQ_ControlMailbox.sequence", odd);
+    writeTarget("EQ_ControlMailbox.command", 4);
+    writeTarget("EQ_ControlMailbox.band", 0);
+    writeTarget("EQ_ControlMailbox.preset", 5);
+    writeTarget("EQ_ControlMailbox.value_db", 0.0);
+    writeTarget("EQ_ControlMailbox.step_db", 0.0);
+    for (band = 0; band < 10; band++) {
+        writeTarget("EQ_ControlMailbox.shadow_gain_db[" + band + "]",
+            gains[band]);
+    }
+    writeTarget("EQ_ControlMailbox.sequence", even);
+    return even;
+}
+
+function requestCustom(gains, label) {
+    var token = publishCustom(gains);
+    var elapsed = 0, appliedToken, appliedMode;
+    while (elapsed < interactionTimeoutSeconds * 1000) {
+        runSlice(1500);
+        elapsed += 1500;
+        appliedToken = numberValue("EQ_DebugControlAppliedToken");
+        appliedMode = numberValue("EQ_DebugAppliedMode");
+        if (appliedToken == token && appliedMode == 5) {
+            return {applied_mode: appliedMode,
+                    control_applied_token: appliedToken};
+        }
+    }
+    throw label + " timed out after " + interactionTimeoutSeconds +
+        " seconds";
 }
 
 function actionName(action) {
@@ -592,51 +680,31 @@ function statusRoundAction(round) {
 }
 
 function runPageSwitch30() {
-    var before = snapshot(), round, roundBefore, roundAfter;
-    var band, field, extra;
+    var before = snapshot(), round;
     requireCondition(before.displayed_page == PAGE_STATUS &&
         before.page_building == 0,
         "page-switch stage must start on STATUS");
     System.out.println("OPERATOR_VISUAL_OBSERVATION_REQUIRED=" +
-        "watch drift, white flash, ghosting, alignment, and touch drift");
+        "watch circular offset, white flash, ghosting, and alignment");
     System.out.flush();
     for (round = 1; round <= PAGE_ROUND_TRIPS; round++) {
-        roundBefore = snapshot();
-        waitForPhysicalAction(findHitbox("status_editor"),
-            "PAGE_TOUCH_REQUIRED", "page_action");
-        band = findHitbox("editor_band_" +
-            ["31", "63", "125", "250", "500", "1k", "2k", "4k",
-             "8k", "16k"][(round - 1) % 10]);
-        waitForPhysicalAction(band, "PAGE_INTERACTION_REQUIRED", "page_action");
-        field = (round % 2 == 0) ? findHitbox("editor_plus") :
-            findHitbox("editor_minus");
-        waitForPhysicalAction(field, "PAGE_INTERACTION_REQUIRED", "page_action");
-        if (round % 10 == 0) {
-            extra = findHitbox("editor_apply");
-            waitForPhysicalAction(extra, "PAGE_INTERACTION_REQUIRED", "page_action");
-        }
-        if (round % 15 == 0) {
-            extra = findHitbox("editor_flat");
-            waitForPhysicalAction(extra, "PAGE_INTERACTION_REQUIRED", "page_action");
-        }
-        waitForPhysicalAction(findHitbox("editor_status"),
-            "PAGE_TOUCH_REQUIRED", "page_action");
-        waitForPhysicalAction(statusRoundAction(round),
-            "PAGE_INTERACTION_REQUIRED", "page_action");
-        roundAfter = snapshot();
+        requestPage(PAGE_EDITOR,
+            "scripted STATUS-to-EDITOR round " + round);
+        requestPage(PAGE_STATUS,
+            "scripted EDITOR-to-STATUS round " + round);
         logRecord({
             record_type: "page_round",
             round: round,
-            status_to_editor_physical: true,
-            editor_to_status_physical: true,
-            before: roundBefore,
-            after: roundAfter
+            status_to_editor_scripted: true,
+            editor_to_status_scripted: true,
+            request_api: "EQ_DebugUiRequestedPage"
         });
     }
     currentStageData = {
         completed_round_trips: PAGE_ROUND_TRIPS,
         before: before,
         after: snapshot(),
+        control_method: "SCRIPTED_PAGE_REQUEST_API",
         operator_visual_result: "PENDING_OPERATOR"
     };
     requireZeroDeltas(before, currentStageData.after, [
@@ -653,21 +721,87 @@ function timingCount(timingClass) {
     return numberValue("EQ_DebugLcdTimingSampleCount[" + timingClass + "]");
 }
 
-function waitForTimingClass(timingClass, prompt) {
+function waitForTimingClass(timingClass) {
     var elapsed = 0, count = timingCount(timingClass);
+    var mode, page, toggle = 0;
     if (count >= timingSamplesPerClass) return;
-    System.out.println("TIMING_INTERACTION_REQUIRED=" + prompt +
-        ";class=" + LCD_TIMING_CLASSES[timingClass] +
+    System.out.println("TIMING_AUTOMATIC_WAIT=" +
+        LCD_TIMING_CLASSES[timingClass] +
         ";target_samples=" + timingSamplesPerClass);
     System.out.flush();
     while (elapsed < interactionTimeoutSeconds * 1000) {
-        runSlice(250);
-        elapsed += 250;
+        toggle++;
+        if (timingClass == 0 || timingClass == 5 || timingClass == 6) {
+            if ((timingClass == 5 || timingClass == 6) &&
+                numberValue("EQ_DebugUiDisplayedPage") != PAGE_EDITOR) {
+                requestPage(PAGE_EDITOR, "timing fallback editor");
+            }
+            mode = (numberValue("EQ_DebugAppliedMode") + 1) % 5;
+            writeTarget("EQ_DebugMode", mode);
+        } else if (timingClass == 2 || timingClass == 4) {
+            writeTarget("EQ_DebugSmartBassEnabled", toggle % 2);
+        } else if (timingClass == 3) {
+            writeTarget("EQ_DebugSmartBassStrength", (toggle % 3) + 1);
+        } else if (timingClass == 7 || timingClass == 8) {
+            mode = (numberValue("EQ_DebugAppliedMode") + 1) % 5;
+            requestPreset(mode, "timing fallback page dirtiness");
+            page = (numberValue("EQ_DebugUiDisplayedPage") == PAGE_STATUS) ?
+                PAGE_EDITOR : PAGE_STATUS;
+            requestPage(page, "timing fallback page");
+        }
+        runSlice(750);
+        elapsed += 750;
         count = timingCount(timingClass);
         if (count >= timingSamplesPerClass) return;
     }
     throw "timing class " + LCD_TIMING_CLASSES[timingClass] +
         " did not reach " + timingSamplesPerClass + " samples";
+}
+
+function driveLcdTimingRequests() {
+    var index, enabled, strength, mode;
+
+    requestPage(PAGE_STATUS, "timing start STATUS");
+    for (index = 0; index < timingSamplesPerClass + 12; index++) {
+        if (timingCount(0) >= timingSamplesPerClass &&
+            timingCount(1) >= timingSamplesPerClass &&
+            timingCount(2) >= timingSamplesPerClass &&
+            timingCount(3) >= timingSamplesPerClass &&
+            timingCount(4) >= timingSamplesPerClass) break;
+        mode = (index + 1) % 5;
+        requestPreset(mode, "timing preset " + index);
+        enabled = (index % 2 == 0) ? 1 : 0;
+        strength = (index % 3) + 1;
+        writeTarget("EQ_DebugSmartBassEnabled", enabled);
+        writeTarget("EQ_DebugDynamicClarityEnabled", enabled);
+        writeTarget("EQ_DebugHarshnessGuardEnabled", enabled);
+        writeTarget("EQ_DebugSmartBassStrength", strength);
+        writeTarget("EQ_DebugDynamicClarityStrength", strength);
+        writeTarget("EQ_DebugHarshnessGuardStrength", strength);
+        runSlice(500);
+    }
+    for (index = 0; index <= 4; index++) {
+        waitForTimingClass(index);
+    }
+    writeTarget("EQ_DebugAnalyzerEnabled", 0);
+    runSlice(500);
+
+    for (index = 0; index < timingSamplesPerClass + 12; index++) {
+        if (timingCount(7) >= timingSamplesPerClass &&
+            timingCount(8) >= timingSamplesPerClass) break;
+        mode = (numberValue("EQ_DebugAppliedMode") + 1) % 5;
+        requestPreset(mode, "timing page dirtiness " + index);
+        requestPage((index % 2 == 0) ? PAGE_EDITOR : PAGE_STATUS,
+            "timing scripted page request " + index);
+    }
+    requestPage(PAGE_EDITOR, "timing editor jobs");
+    for (index = 0; index < timingSamplesPerClass + 12; index++) {
+        if (timingCount(5) >= timingSamplesPerClass &&
+            timingCount(6) >= timingSamplesPerClass) break;
+        mode = (numberValue("EQ_DebugAppliedMode") + 1) % 5;
+        requestPreset(mode, "timing editor update " + index);
+        runSlice(1000);
+    }
 }
 
 function exportTimingSamples() {
@@ -741,18 +875,10 @@ function runLcdTiming() {
         "LCD timing class count is not 9");
     requireCondition(numberValue("EQ_DebugLcdTimingSampleCapacity") == 256,
         "LCD timing sample capacity is not 256");
-    waitForTimingClass(1, "keep music input active for Analyzer strips");
-    waitForTimingClass(0, "touch preset controls repeatedly on STATUS");
-    waitForTimingClass(2, "toggle all three dynamic modules on STATUS");
-    waitForTimingClass(3, "change all three dynamic strengths on STATUS");
-    waitForTimingClass(4,
-        "use signal changes that toggle at least one dynamic active indicator");
-    waitForTimingClass(7,
-        "physically switch STATUS and EDITOR; do not wait on one page");
-    waitForTimingClass(8,
-        "continue physical page switches for EOF descriptor updates");
-    waitForTimingClass(5, "on EDITOR, select multiple frequency bands");
-    waitForTimingClass(6, "on EDITOR, press plus/minus/apply/flat fields");
+    driveLcdTimingRequests();
+    for (index = 0; index < LCD_TIMING_CLASS_COUNT; index++) {
+        waitForTimingClass(index);
+    }
     summaries = exportTimingSamples();
     after = snapshot();
     currentStageData = {
@@ -761,6 +887,7 @@ function runLcdTiming() {
         timing_class_count: LCD_TIMING_CLASS_COUNT,
         timing_sample_capacity: LCD_TIMING_SAMPLE_CAPACITY,
         class_summaries: summaries,
+        control_method: "SCRIPTED_REQUEST_AND_MAILBOX_APIS",
         page_swap_measurement_region: "EOF descriptor update only"
     };
     for (index = 0; index < summaries.length; index++) {
@@ -781,47 +908,81 @@ function allDynamicsEnabled(state) {
         state.clarity_enabled == 1 && state.guard_enabled == 1;
 }
 
-function requireEnduranceHistogramQuotas(before, after) {
-    var index;
-    for (index = 1; index <= 5; index++) {
-        requireCondition(histogramBinDelta(after, before, index) >= 3,
-            "preset action " + index + " did not reach 3");
+function runNonTouchControlSequence() {
+    var preset, index;
+    var custom = [1.0, -0.5, 0.5, 0.0, -1.0,
+                  1.0, 0.5, -0.5, 0.5, -1.0];
+
+    requestPage(PAGE_STATUS, "endurance scripted start STATUS");
+    for (preset = 1; preset < 5; preset++) {
+        requestPreset(preset, "endurance preset " + preset);
     }
-    for (index = 6; index <= 10; index += 2) {
-        requireCondition(histogramBinDelta(after, before, index) >= 2,
-            "dynamic toggle action " + index + " did not reach 2");
-        requireCondition(histogramBinDelta(after, before, index + 1) >= 2,
-            "dynamic strength action " + (index + 1) + " did not reach 2");
+    requestPreset(0, "endurance preset FLAT");
+
+    writeTarget("EQ_DebugSmartBassEnabled", 1);
+    writeTarget("EQ_DebugDynamicClarityEnabled", 1);
+    writeTarget("EQ_DebugHarshnessGuardEnabled", 1);
+    writeTarget("EQ_DebugSmartBassStrength", 2);
+    writeTarget("EQ_DebugDynamicClarityStrength", 2);
+    writeTarget("EQ_DebugHarshnessGuardStrength", 2);
+    runSlice(1000);
+    writeTarget("EQ_DebugSmartBassStrength", 3);
+    writeTarget("EQ_DebugDynamicClarityStrength", 3);
+    writeTarget("EQ_DebugHarshnessGuardStrength", 3);
+    runSlice(1000);
+    writeTarget("EQ_DebugSmartBassEnabled", 0);
+    writeTarget("EQ_DebugDynamicClarityEnabled", 0);
+    writeTarget("EQ_DebugHarshnessGuardEnabled", 0);
+    runSlice(500);
+    writeTarget("EQ_DebugSmartBassEnabled", 1);
+    writeTarget("EQ_DebugDynamicClarityEnabled", 1);
+    writeTarget("EQ_DebugHarshnessGuardEnabled", 1);
+    runSlice(1000);
+
+    requestCustom(custom, "endurance CUSTOM Apply");
+    requestPreset(1, "endurance post-CUSTOM BASS");
+    requestPreset(0, "endurance final FLAT");
+    for (index = 0; index < 5; index++) {
+        requestPage(PAGE_EDITOR,
+            "endurance scripted STATUS-to-EDITOR " + index);
+        requestPage(PAGE_STATUS,
+            "endurance scripted EDITOR-to-STATUS " + index);
     }
-    requireCondition(histogramBinDelta(after, before, 12) >= 40,
-        "STATUS/EDITOR page actions did not reach 40");
-    for (index = 13; index <= 22; index++) {
-        requireCondition(histogramBinDelta(after, before, index) >= 1,
-            "Editor band action " + index + " was not observed");
-    }
-    requireCondition(histogramBinDelta(after, before, 25) >= 3,
-        "CUSTOM Apply actions did not reach 3");
-    requireCondition(histogramBinDelta(after, before, 26) >= 2,
-        "Editor FLAT actions did not reach 2");
+    return {
+        preset_each_minimum: 1,
+        dynamic_enabled_each_changed: true,
+        dynamic_strength_each_changed: true,
+        custom_apply_count: 1,
+        flat_count: 2,
+        page_request_count: 10,
+        control_method: "DEBUG_REQUEST_MAILBOX_AND_PAGE_APIS"
+    };
 }
 
 function runEndurance300s() {
-    var before, after, started, elapsed;
-    System.out.println("ENDURANCE_INTERACTION_QUOTAS=" +
-        "each preset>=3;each dynamic toggle>=2;each strength>=2;" +
-        "page round trips>=20;all 10 bands;CUSTOM>=3;FLAT>=2;" +
-        "static+dynamic transition overlap>=1");
+    var before, after, started, elapsed, scriptedControls;
+    System.out.println("ENDURANCE_CONTROL=SCRIPTED_NON_TOUCH");
     System.out.println("ENDURANCE_START_DELAY_SECONDS=" +
         enduranceStartDelaySeconds);
     System.out.flush();
     Thread.sleep(enduranceStartDelaySeconds * 1000);
+    scriptedControls = runNonTouchControlSequence();
+    waitForState("all dynamic modules ready", interactionTimeoutSeconds,
+        function(state) {
+            return allDynamicsEnabled(state) &&
+                state.analyzer_valid == 1 && state.analyzer_warm == 1;
+        });
     before = snapshot();
     requireCondition(allDynamicsEnabled(before),
         "enable Analyzer and all three dynamic modules before endurance");
     logRecord({record_type: "snapshot", marker: "ENDURANCE_START",
         snapshot: before});
+    writeTarget("EQ_DebugSmartBassStrength", 1);
+    writeTarget("EQ_DebugDynamicClarityStrength", 1);
+    writeTarget("EQ_DebugHarshnessGuardStrength", 1);
+    requestPreset(1, "endurance overlap BASS");
     started = System.currentTimeMillis();
-    runContinuousWindow(300000);
+    runContinuousWindow(ENDURANCE_WINDOW_MILLISECONDS);
     elapsed = Number(System.currentTimeMillis() - started) / 1000.0;
     after = snapshot();
     logRecord({record_type: "snapshot", marker: "ENDURANCE_END",
@@ -833,9 +994,9 @@ function runEndurance300s() {
         continuous_window_halt_count: 2,
         before: before,
         after: after,
-        touch_action_histogram_delta: histogramDeltas(after, before),
-        action_quota_source: "EQ_DebugTouchActionHistogram[27]",
-        operator_quota_result: "BOARD_HISTOGRAM_PENDING_VALIDATION"
+        scripted_control_counts: scriptedControls,
+        action_quota_source: "SCRIPTED_REQUEST_AND_MAILBOX_APIS",
+        operator_quota_result: "NOT_REQUIRED"
     };
     requireZeroDeltas(before, after, [
         "deadline_misses", "latency_misses", "frame_overlaps",
@@ -845,8 +1006,7 @@ function runEndurance300s() {
         "lcd_unexpected_full_redraw", "lcd_writeback_failures",
         "lcd_raster_faults", "lcd_fifo_underflows", "lcd_sync_errors",
         "lcd_frame_address_mismatches", "lcd_bounds_failures",
-        "lcd_canary_failures", "lcd_raster_stop_timeouts",
-        "touch_invalid_coordinates", "touch_duplicate_actions"
+        "lcd_canary_failures", "lcd_raster_stop_timeouts"
     ], "endurance stop condition");
     requireCondition(after.frame_latency_max_cycles < 9338880,
         "maximum frame latency is not below 20.48 ms");
@@ -862,11 +1022,7 @@ function runEndurance300s() {
     requireCondition(counterDelta(after, before,
         "static_dynamic_overlap_frames") >= 1,
         "no static/dynamic transition overlap frame was observed");
-    requireEnduranceHistogramQuotas(before, after);
-    requireCondition(histogramDeltaSum(after, before) ==
-        counterDelta(after, before, "touch_actions"),
-        "Touch action histogram sum differs from accepted action delta");
-    currentStageData.operator_quota_result = "BOARD_HISTOGRAM_PASS";
+    currentStageData.operator_quota_result = "NOT_REQUIRED";
     return currentStageData;
 }
 
@@ -932,8 +1088,6 @@ function addStageData(destination, data) {
 }
 
 function executeStage() {
-    if (stage == "no_touch_120s") return runNoTouch120s();
-    if (stage == "touch_hitbox_27") return runHitbox27();
     if (stage == "page_switch_30") return runPageSwitch30();
     if (stage == "lcd_job_timing") return runLcdTiming();
     if (stage == "endurance_300s") return runEndurance300s();
@@ -964,7 +1118,7 @@ try {
     debugServer = script.getServer("DebugServer.1");
     debugServer.setConfig(ccxml);
     debugSession = debugServer.openSession(".*C674X_0");
-    debugSession.target.connect();
+    connectTargetWithRecovery();
     debugSession.target.reset();
     Thread.sleep(500);
     debugSession.memory.loadProgram(program);
@@ -979,8 +1133,7 @@ try {
         stage: stage,
         completed: true,
         result_label: "MEASURED_ON_CONNECTED_BOARD",
-        measurement_label: stage == "no_touch_120s" ||
-            stage == "touch_hitbox_27" || stage == "page_switch_30" ||
+        measurement_label: stage == "page_switch_30" ||
             stage == "lcd_job_timing" ?
             "BOARD_UI_COUNTER" : "BOARD_REALTIME_COUNTER",
         exact_commit_sha: expectedSha,

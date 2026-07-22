@@ -1,9 +1,8 @@
 [CmdletBinding()]
 param(
     [ValidateSet(
-        "DryRun", "Prepare", "Build", "NoTouch120s", "Hitbox27",
-        "PageSwitch30", "LcdTiming", "Endurance300s", "AnalyzerReset",
-        "Process")]
+        "DryRun", "Prepare", "Build", "ProductionBoot", "PageSwitch30",
+        "LcdTiming", "Endurance300s", "AnalyzerReset", "Process")]
     [string]$Stage = "DryRun",
     [string]$ExpectedSha = "",
     [string]$ConfirmHardware = "",
@@ -17,8 +16,8 @@ param(
     [string]$EnduranceOperatorQuotaFile = "",
     [ValidateRange(30, 900)]
     [int]$InteractionTimeoutSeconds = 180,
-    [ValidateRange(1, 256)]
-    [int]$TimingSamplesPerClass = 8,
+    [ValidateRange(20, 256)]
+    [int]$TimingSamplesPerClass = 20,
     [ValidateRange(5, 120)]
     [int]$EnduranceStartDelaySeconds = 15,
     [ValidateRange(5, 300)]
@@ -37,9 +36,11 @@ if ($Stage -eq "DryRun") {
 $root = if ($RepoRoot) { (Resolve-Path -LiteralPath $RepoRoot).Path } else {
     (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
 }
-$processor = Join-Path $root "tools\process_equalizer_final_acceptance.py"
-$buildExporter = Join-Path $root "tools\export_project33_h_build_evidence.py"
-$dssScript = Join-Path $root "tools\dss\dss_equalizer_final_acceptance.js"
+$toolRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
+$processor = Join-Path $toolRoot "tools\process_equalizer_final_acceptance.py"
+$buildExporter = Join-Path $toolRoot "tools\export_project33_h_build_evidence.py"
+$dssScript = Join-Path $toolRoot "tools\dss\dss_equalizer_final_acceptance.js"
+$bootDssScript = Join-Path $toolRoot "tools\dss\dss_project33_leave_running.js"
 $buildMatrix = Join-Path $root "tools\run_equalizer_ui_build_matrix.ps1"
 $ccxml = Join-Path $root "TargetConfig\C6748.ccxml"
 $dss = Join-Path $CcsRoot "ccs_base\scripting\bin\dss.bat"
@@ -47,7 +48,7 @@ $gmakePath = Join-Path $CcsRoot "utils\bin\gmake.exe"
 $nmPath = Join-Path $CcsRoot `
     "tools\compiler\ti-cgt-c6000_8.5.0.LTS\bin\nm6x.exe"
 
-foreach ($path in @($processor, $buildExporter, $dssScript)) {
+foreach ($path in @($processor, $buildExporter, $dssScript, $bootDssScript)) {
     if (-not (Test-Path -LiteralPath $path)) {
         throw "Missing final-acceptance tool: $path"
     }
@@ -122,34 +123,9 @@ function Ensure-OperatorTemplates {
                 full_screen_white_flash = "PENDING"
                 old_page_ghosting = "PENDING"
                 element_misalignment = "PENDING"
-                touch_coordinate_drift = "PENDING"
             }
             notes = ""
         } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $visualPath `
-            -Encoding utf8
-    }
-    $quotaPath = Join-Path $rawDir "endurance_operator_quota_raw.json"
-    if (-not (Test-Path -LiteralPath $quotaPath)) {
-        [ordered]@{
-            result_label = "PENDING_OPERATOR"
-            operator = ""
-            observed_at = ""
-            preset_counts = [ordered]@{
-                FLAT = 0; BASS = 0; VOCAL = 0; TREBLE = 0; V_SHAPE = 0
-            }
-            dynamic_toggle_counts = [ordered]@{
-                SMART_BASS = 0; DYNAMIC_CLARITY = 0; HF_GUARD = 0
-            }
-            dynamic_strength_counts = [ordered]@{
-                SMART_BASS = 0; DYNAMIC_CLARITY = 0; HF_GUARD = 0
-            }
-            page_round_trips = 0
-            editor_distinct_bands = 0
-            custom_apply_count = 0
-            flat_count = 0
-            overlap_transition_count = 0
-            notes = ""
-        } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $quotaPath `
             -Encoding utf8
     }
 }
@@ -457,8 +433,7 @@ if ($Stage -eq "Build") {
 }
 
 $stageMap = @{
-    NoTouch120s = "no_touch_120s"
-    Hitbox27 = "touch_hitbox_27"
+    ProductionBoot = "production_boot"
     PageSwitch30 = "page_switch_30"
     LcdTiming = "lcd_job_timing"
     Endurance300s = "endurance_300s"
@@ -469,11 +444,6 @@ if (-not $stageMap.ContainsKey($Stage)) {
 }
 if ($ConfirmHardware -ne "C6748_CONNECTED_FINAL_ACCEPTANCE") {
     throw "Hardware stage requires -ConfirmHardware C6748_CONNECTED_FINAL_ACCEPTANCE"
-}
-$manualStages = @("Hitbox27", "PageSwitch30", "LcdTiming", "Endurance300s")
-if (($manualStages -contains $Stage) -and
-    ($ConfirmLongManualStage -ne "I_ACCEPT_MANUAL_LONG_STAGE")) {
-    throw "Manual stage requires -ConfirmLongManualStage I_ACCEPT_MANUAL_LONG_STAGE"
 }
 Assert-ExactGitState "pre-hardware" | Out-Null
 foreach ($path in @($dss, $ccxml, $nmPath)) {
@@ -558,7 +528,11 @@ if (-not $AudioFile -and -not (Test-Path -LiteralPath $wavePath)) {
 
 $rawStem = $stageMap[$Stage]
 $existingRaw = Join-Path $rawDir ($rawStem + ".jsonl")
-$existingSummary = Join-Path $rawDir ($rawStem + "_raw_summary.json")
+$existingSummary = if ($Stage -eq "ProductionBoot") {
+    Join-Path $rawDir "production_boot_summary.json"
+} else {
+    Join-Path $rawDir ($rawStem + "_raw_summary.json")
+}
 if ((Test-Path -LiteralPath $existingRaw) -or
     (Test-Path -LiteralPath $existingSummary)) {
     $archiveDir = Join-Path $rawDir `
@@ -586,6 +560,7 @@ try {
     $env:DSP_TEST_RAW_DIR = $rawDir -replace '\\', '/'
     $env:DSP_TEST_EXPECTED_SHA = $ExpectedSha.ToLowerInvariant()
     $env:DSP_TEST_PROGRAM_SHA256 = $programHash
+    $env:DSP_TEST_RESULT_PATH = $existingSummary -replace '\\', '/'
     $env:DSP_TEST_INTERACTION_TIMEOUT_SECONDS = `
         [string]$InteractionTimeoutSeconds
     $env:DSP_TEST_TIMING_SAMPLES_PER_CLASS = `
@@ -596,10 +571,18 @@ try {
     Write-Output "RESULT_DIR=$resultDir"
     Write-Output "RAW_DIR=$rawDir"
     Write-Output "STAGE=$Stage"
-    Write-Output "Wait for each *_REQUIRED prompt before touching the LCD."
-    $arguments = @('/d', '/s', '/c', ('""{0}" "{1}""' -f $dss, $dssScript))
+    Write-Output "CONTROL_MODE=SCRIPTED_NON_TOUCH"
+    $selectedDssScript = if ($Stage -eq "ProductionBoot") {
+        $bootDssScript
+    } else {
+        $dssScript
+    }
+    $arguments = @('/d', '/s', '/c', ('""{0}" "{1}""' -f $dss, $selectedDssScript))
     $dssProcess = Start-Process -FilePath $env:ComSpec `
         -ArgumentList $arguments -PassThru -NoNewWindow
+    # Cache the native handle before exit so Windows PowerShell 5.1 retains
+    # a reliable ExitCode on the returned Process object.
+    $null = $dssProcess.Handle
     if (-not $dssProcess.WaitForExit($DssTimeoutMinutes * 60 * 1000)) {
         & taskkill.exe /PID $dssProcess.Id /T /F | Out-Null
         throw "DSS exceeded the $DssTimeoutMinutes-minute timeout"
@@ -620,6 +603,7 @@ finally {
         Env:DSP_FINAL_ACCEPTANCE_STAGE, Env:DSP_TEST_ROOT,
         Env:DSP_TEST_CCXML, Env:DSP_TEST_PROGRAM, Env:DSP_TEST_RAW_DIR,
         Env:DSP_TEST_EXPECTED_SHA, Env:DSP_TEST_PROGRAM_SHA256,
+        Env:DSP_TEST_RESULT_PATH,
         Env:DSP_TEST_INTERACTION_TIMEOUT_SECONDS,
         Env:DSP_TEST_TIMING_SAMPLES_PER_CLASS,
         Env:DSP_TEST_ENDURANCE_START_DELAY_SECONDS `
@@ -631,12 +615,20 @@ Assert-ExactGitState "post-hardware" | Out-Null
 if ($null -ne $runError) {
     throw $runError
 }
-$summaryPath = Join-Path $rawDir ($rawStem + "_raw_summary.json")
+$summaryPath = if ($Stage -eq "ProductionBoot") {
+    Join-Path $rawDir "production_boot_summary.json"
+} else {
+    Join-Path $rawDir ($rawStem + "_raw_summary.json")
+}
 if (-not (Test-Path -LiteralPath $summaryPath)) {
     throw "DSS produced no raw stage summary"
 }
 $summary = Get-Content -Raw -LiteralPath $summaryPath | ConvertFrom-Json
-if ($summary.completed -ne $true) {
+if ($Stage -eq "ProductionBoot") {
+    if ($summary.pass -ne $true) {
+        throw "Production boot failed; raw evidence retained: $($summary.error)"
+    }
+} elseif ($summary.completed -ne $true) {
     throw "DSS stage failed; raw evidence retained: $($summary.error)"
 }
 Write-Output "RAW_STAGE_RESULT=MEASURED"

@@ -1,5 +1,10 @@
 # CCS-generated Debug/makefile includes this file after defining an empty
-# GEN_OPTS__FLAG. Keep explicit build-matrix and diagnostic flags authoritative.
+# GEN_OPTS__FLAG. When no explicit profile is supplied, mirror Code/main.c so
+# the source-level 32/33 selector remains authoritative in normal CCS builds.
+EQ_PROJECT_SELECT_FROM_MAIN := $(strip $(shell powershell -NoProfile -Command "(Select-String -Path '../Code/main.c' -Pattern 'DSP_LAB_PROJECT_SELECT[ \t]+(32|33)' | Select-Object -First 1).Matches[0].Groups[1].Value"))
+
+EQ_PROJECT32_FLAGS := --define=DSP_LAB_PROJECT_SELECT=32
+
 EQ_PROJECT33_H_PRODUCTION_FLAGS := \
 --define=DSP_LAB_PROJECT_SELECT=33 \
 --define=EQ_USE_GENERATED_BUILD_ID=1 \
@@ -25,5 +30,11 @@ EQ_PROJECT33_H_PRODUCTION_FLAGS := \
 --define=EQ_ENABLE_UART_DIAGNOSTICS=0
 
 ifeq ($(strip $(GEN_OPTS__FLAG)),)
+ifeq ($(EQ_PROJECT_SELECT_FROM_MAIN),32)
+GEN_OPTS__FLAG := $(EQ_PROJECT32_FLAGS)
+else ifeq ($(EQ_PROJECT_SELECT_FROM_MAIN),33)
 GEN_OPTS__FLAG := $(EQ_PROJECT33_H_PRODUCTION_FLAGS)
+else
+$(error Code/main.c must define DSP_LAB_PROJECT_SELECT as 32 or 33)
+endif
 endif

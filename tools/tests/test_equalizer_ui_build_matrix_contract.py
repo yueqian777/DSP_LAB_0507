@@ -45,16 +45,28 @@ class EqualizerUiBuildMatrixContractTest(unittest.TestCase):
         self.assertIn("foreach ($profile in $profilesToBuild)", self.script)
         self.assertNotIn("$profiles = @($profiles | Where-Object", self.script)
 
-    def test_empty_ccs_build_defaults_to_project33_h(self) -> None:
+    def test_empty_ccs_build_follows_main_project_selector(self) -> None:
         guard = "ifeq ($(strip $(GEN_OPTS__FLAG)),)"
-        assignment = (
+        project32_assignment = (
+            "GEN_OPTS__FLAG := $(EQ_PROJECT32_FLAGS)"
+        )
+        project33_assignment = (
             "GEN_OPTS__FLAG := $(EQ_PROJECT33_H_PRODUCTION_FLAGS)"
         )
         guard_index = self.default_make_init.index(guard)
-        assignment_index = self.default_make_init.index(assignment)
-        endif_index = self.default_make_init.index("endif", assignment_index)
-        self.assertLess(guard_index, assignment_index)
-        self.assertLess(assignment_index, endif_index)
+        project32_index = self.default_make_init.index(project32_assignment)
+        project33_index = self.default_make_init.index(project33_assignment)
+        self.assertIn("EQ_PROJECT_SELECT_FROM_MAIN", self.default_make_init)
+        self.assertIn("DSP_LAB_PROJECT_SELECT[ \\t]+(32|33)",
+                      self.default_make_init)
+        self.assertIn("ifeq ($(EQ_PROJECT_SELECT_FROM_MAIN),32)",
+                      self.default_make_init)
+        self.assertIn("else ifeq ($(EQ_PROJECT_SELECT_FROM_MAIN),33)",
+                      self.default_make_init)
+        self.assertLess(guard_index, project32_index)
+        self.assertLess(project32_index, project33_index)
+        self.assertIn("--define=DSP_LAB_PROJECT_SELECT=32",
+                      self.default_make_init)
 
         for token in (
             "--define=DSP_LAB_PROJECT_SELECT=33",
