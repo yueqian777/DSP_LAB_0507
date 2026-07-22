@@ -5,12 +5,14 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 MATRIX = ROOT / "tools/run_equalizer_ui_build_matrix.ps1"
+DEFAULT_MAKE_INIT = ROOT / "makefile.init"
 
 
 class EqualizerUiBuildMatrixContractTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.script = MATRIX.read_text(encoding="utf-8")
+        cls.default_make_init = DEFAULT_MAKE_INIT.read_text(encoding="utf-8")
 
     def profile(self, name: str, next_name: str | None = None) -> str:
         start = self.script.index(f'name = "{name}"')
@@ -42,6 +44,49 @@ class EqualizerUiBuildMatrixContractTest(unittest.TestCase):
         self.assertIn("Unknown build profile", self.script)
         self.assertIn("foreach ($profile in $profilesToBuild)", self.script)
         self.assertNotIn("$profiles = @($profiles | Where-Object", self.script)
+
+    def test_empty_ccs_build_defaults_to_project33_h(self) -> None:
+        guard = "ifeq ($(strip $(GEN_OPTS__FLAG)),)"
+        assignment = (
+            "GEN_OPTS__FLAG := $(EQ_PROJECT33_H_PRODUCTION_FLAGS)"
+        )
+        guard_index = self.default_make_init.index(guard)
+        assignment_index = self.default_make_init.index(assignment)
+        endif_index = self.default_make_init.index("endif", assignment_index)
+        self.assertLess(guard_index, assignment_index)
+        self.assertLess(assignment_index, endif_index)
+
+        for token in (
+            "--define=DSP_LAB_PROJECT_SELECT=33",
+            "--define=EQ_USE_GENERATED_BUILD_ID=1",
+            "--define=EQ_ENABLE_AUDIO_FEATURE_ANALYZER=1",
+            "--define=EQ_ENABLE_SMART_BASS=1",
+            "--define=EQ_ENABLE_DYNAMIC_CLARITY=1",
+            "--define=EQ_ENABLE_HARSHNESS_GUARD=1",
+            "--define=EQ_ENABLE_LCD_DISPLAY=1",
+            "--define=EQ_ENABLE_PROJECT33_TOUCH=1",
+            "--define=EQ_ENABLE_TEN_BAND_EDITOR=1",
+            "--define=EQ_ENABLE_TEN_BAND_EDITOR_TOUCH=1",
+            "--define=EQ_UI_RUNTIME_DEFAULT_MASK=31",
+        ):
+            self.assertIn(token, self.default_make_init)
+
+    def test_default_ccs_flags_keep_diagnostics_off_and_allow_overrides(
+            self) -> None:
+        for token in (
+            "--define=EQ_ENABLE_DYNAMIC_CLARITY_TIMING_DIAGNOSTICS=0",
+            "--define=EQ_ENABLE_DYNAMIC_CLARITY_TRANSITION_CAPTURE=0",
+            "--define=EQ_ENABLE_HARSHNESS_GUARD_TRANSITION_CAPTURE=0",
+            "--define=EQ_ENABLE_HARSHNESS_GUARD_KERNEL_DIAGNOSTICS=0",
+            "--define=EQ_ENABLE_FOUR_WAY_TRANSITION_DIAGNOSTICS=0",
+            "--define=EQ_ENABLE_DYNAMIC_CLARITY_BENCHMARK=0",
+            "--define=EQ_ENABLE_HARSHNESS_GUARD_BENCHMARK=0",
+            "--define=EQ_ENABLE_FINAL_METRICS_BOARD_TEST=0",
+            "--define=EQ_ENABLE_LCD_JOB_TIMING_CAPTURE=0",
+            "--define=EQ_ENABLE_UART_DIAGNOSTICS=0",
+        ):
+            self.assertIn(token, self.default_make_init)
+        self.assertNotIn("override GEN_OPTS__FLAG", self.default_make_init)
 
     def test_build_id_generation_must_preserve_clean_state(self) -> None:
         generate = self.script.index("generate_equalizer_build_id.ps1")
