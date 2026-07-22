@@ -144,9 +144,12 @@ SECTION ALLOCATION MAP
     <logical_group id="lg-1"><name>.subband_l2</name><run_address>0x00800000</run_address><size>0x4f9c</size><readonly>false</readonly><executable>false</executable></logical_group>
     <logical_group id="lg-2"><name>offscreen_buffer</name><run_address>0xc0000000</run_address><size>0x17704c</size><readonly>false</readonly><executable>false</executable></logical_group>
     <logical_group id="lg-3"><name>.text</name><run_address>0xc0178000</run_address><load_address>0xc0178000</load_address><size>0x1000</size><readonly>true</readonly><executable>true</executable></logical_group>
-    <logical_group id="lg-4"><name>.const</name><run_address>0xc0179000</run_address><load_address>0xc0179000</load_address><size>0x200</size><readonly>true</readonly><executable>false</executable></logical_group>
+    <logical_group id="lg-4"><name>.const</name><run_address>0xc0179000</run_address><load_address>0xc0179000</load_address><size>0x200</size><contents><object_component_ref idref="oc-const"/></contents></logical_group>
     <logical_group id="lg-5"><name>.bss</name><run_address>0xc0179200</run_address><size>0x80</size><readonly>false</readonly><executable>false</executable></logical_group>
   </logical_group_list>
+  <object_component_list>
+    <object_component id="oc-const"><name>.const</name><run_address>0xc0179000</run_address><size>0x200</size><readonly>true</readonly></object_component>
+  </object_component_list>
   <symbol_table>
     <symbol><name>Lcd_Buffer</name><value>0xc0000000</value></symbol>
     <symbol><name>EQ_LcdEditorBuffer</name><value>{second_framebuffer}</value></symbol>

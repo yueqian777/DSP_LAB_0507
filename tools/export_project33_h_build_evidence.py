@@ -335,6 +335,11 @@ def _parse_link_info(
         raise EvidenceError(f"Cannot parse TI link-info XML: {path}: {exc}") from exc
 
     link_errors = _hex_int(root.findtext("link_errors"), "link_errors")
+    object_components = {
+        component.get("id"): component
+        for component in root.findall(".//object_component")
+        if component.get("id")
+    }
     sections: list[dict[str, Any]] = []
     for group in root.findall("./logical_group_list/logical_group"):
         name = (group.findtext("name") or "").strip()
@@ -354,6 +359,32 @@ def _parse_link_info(
         if size == 0 or region is None:
             continue
         load_text = group.findtext("load_address")
+        component_refs = [
+            reference.get("idref")
+            for reference in group.findall("./contents/object_component_ref")
+            if reference.get("idref")
+        ]
+        components = [
+            object_components[reference]
+            for reference in component_refs
+            if reference in object_components
+        ]
+        if component_refs and len(components) != len(component_refs):
+            raise EvidenceError(
+                f"Unresolved object-component reference in logical group {name}"
+            )
+        if components:
+            readonly = all(
+                component.findtext("readonly") == "true"
+                for component in components
+            )
+            executable = any(
+                component.findtext("executable") == "true"
+                for component in components
+            )
+        else:
+            readonly = group.findtext("readonly") == "true"
+            executable = group.findtext("executable") == "true"
         sections.append(
             {
                 "section_name": name,
@@ -373,8 +404,8 @@ def _parse_link_info(
                 "region_used_bytes": region["used_bytes"],
                 "region_unused_bytes": region["unused_bytes"],
                 "region_utilization_percent": region["utilization_percent"],
-                "readonly": group.findtext("readonly") == "true",
-                "executable": group.findtext("executable") == "true",
+                "readonly": readonly,
+                "executable": executable,
                 "evidence_source": "TI_LINK_INFO_XML_AND_MAP_REGION",
             }
         )
