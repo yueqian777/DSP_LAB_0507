@@ -78,6 +78,20 @@ class EqualizerEditorTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout)
         self.assertIn("failures=0", result.stdout)
 
+    def test_production_renderer_excludes_timing_sample_arrays(self) -> None:
+        result = run_msys(
+            "gcc -std=c89 -pedantic -Wall -Wextra -Werror -DEQ_ALGO_ONLY "
+            "-DEQ_ENABLE_LCD_DISPLAY=1 -DEQ_ENABLE_TEN_BAND_EDITOR=1 "
+            "-ICode/User/user_dsp -x c -c "
+            "Code/User/user_dsp/user_equalizer_display.c "
+            "-o /tmp/equalizer_display_production.o && "
+            "nm /tmp/equalizer_display_production.o"
+        )
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("EQ_DebugLcdTimingCaptureCompiled", result.stdout)
+        self.assertNotIn("EQ_DebugLcdTimingSamples", result.stdout)
+        self.assertNotIn("EQ_DebugLcdTimingSampleCount", result.stdout)
+
     def test_default_is_disabled_and_mask_fits(self) -> None:
         self.assertIn("#define EQ_ENABLE_TEN_BAND_EDITOR 0", self.ui_header)
         self.assertIn("#define EQ_UI_JOB_PAGE_SYNC     24", self.ui_header)

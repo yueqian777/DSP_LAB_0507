@@ -51,6 +51,8 @@ $diagnosticsOff = @(
     "--define=EQ_ENABLE_FOUR_WAY_TRANSITION_DIAGNOSTICS=0"
     "--define=EQ_ENABLE_DYNAMIC_CLARITY_BENCHMARK=0"
     "--define=EQ_ENABLE_HARSHNESS_GUARD_BENCHMARK=0"
+    "--define=EQ_ENABLE_FINAL_METRICS_BOARD_TEST=0"
+    "--define=EQ_ENABLE_LCD_JOB_TIMING_CAPTURE=0"
     "--define=EQ_ENABLE_UART_DIAGNOSTICS=0"
 ) -join " "
 $project33 = @(

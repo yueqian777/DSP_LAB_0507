@@ -139,6 +139,17 @@ static int test_cardinality_static_and_cache(void)
         EQ_DebugLcdWritebackBytes == 0UL &&
         EQ_DebugLcdWritebackFailureCount == 0UL,
         "noncacheable framebuffer skips writeback");
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+    failures += require_true(
+        EQ_DebugLcdPendingDirtyRegionCount == 0U &&
+        EQ_DebugLcdMaxPendingDirtyRegionCount == 2U,
+        "startup tracks both bounded dirty regions");
+#else
+    failures += require_true(
+        EQ_DebugLcdPendingDirtyRegionCount == 0U &&
+        EQ_DebugLcdMaxPendingDirtyRegionCount == 1U,
+        "startup tracks the bounded dirty region");
+#endif
     failures += require_true(!EqualizerDisplay_HasPendingJob(),
                              "both startup pages are rendered");
     primitives = EqualizerDisplay_TestPrimitiveCount();
@@ -178,6 +189,56 @@ static int test_cardinality_static_and_cache(void)
     return failures;
 }
 
+#if EQ_ENABLE_LCD_JOB_TIMING_CAPTURE != 0
+static int test_bounded_timing_capture(void)
+{
+    unsigned int timing_class;
+    unsigned int sample;
+    int failures;
+
+    failures = 0;
+    EqualizerDisplay_Init();
+    failures += require_true(
+        EQ_DebugLcdTimingCaptureCompiled == 1U &&
+        EQ_DebugLcdTimingClassCount == EQ_LCD_TIMING_CLASS_COUNT &&
+        EQ_DebugLcdTimingSampleCapacity ==
+            EQ_LCD_TIMING_SAMPLE_CAPACITY,
+        "timing capture reports retained cardinalities");
+    for (timing_class = 0U;
+         timing_class < EQ_LCD_TIMING_CLASS_COUNT;
+         timing_class++)
+    {
+        for (sample = 0U;
+             sample < EQ_LCD_TIMING_SAMPLE_CAPACITY + 2U;
+             sample++)
+        {
+            EqualizerDisplay_TestRecordTimingSample(
+                timing_class, (unsigned long)sample + 1UL);
+        }
+        failures += require_true(
+            EQ_DebugLcdTimingTotalCount[timing_class] ==
+                EQ_LCD_TIMING_SAMPLE_CAPACITY + 2UL &&
+            EQ_DebugLcdTimingSampleCount[timing_class] ==
+                EQ_LCD_TIMING_SAMPLE_CAPACITY &&
+            EQ_DebugLcdTimingDroppedCount[timing_class] == 2UL &&
+            EQ_DebugLcdTimingMinCycles[timing_class] == 1UL &&
+            EQ_DebugLcdTimingMaxCycles[timing_class] ==
+                EQ_LCD_TIMING_SAMPLE_CAPACITY + 2UL &&
+            EQ_DebugLcdTimingSamples[timing_class][0] == 1UL &&
+            EQ_DebugLcdTimingSamples[timing_class]
+                [EQ_LCD_TIMING_SAMPLE_CAPACITY - 1U] ==
+                EQ_LCD_TIMING_SAMPLE_CAPACITY,
+            "timing capture is bounded and preserves exact extrema");
+    }
+    EqualizerDisplay_RecordAudioArrivalDuringDraw();
+    failures += require_true(
+        EQ_DebugLcdTimingAudioArrivedDuringDrawCount
+            [EQ_LCD_TIMING_CLASS_COUNT - 1U] == 1UL,
+        "audio-during-draw is attributed to the last measured class");
+    return failures;
+}
+#endif
+
 static int test_runtime_bar_and_active(void)
 {
     EQ_UI_SNAPSHOT snapshot;
@@ -201,6 +262,12 @@ static int test_runtime_bar_and_active(void)
         EQ_DebugLcdAnalyzerLastField == EQ_UI_ANALYZER_FIELD_BAR &&
         EQ_DebugLcdAnalyzerStripCount == strip_count + 1UL,
         "analyzer runtime draws one bar strip and no dB text");
+#if EQ_ENABLE_LCD_JOB_TIMING_CAPTURE != 0
+    failures += require_true(
+        EQ_DebugLcdTimingTotalCount
+            [EQ_LCD_TIMING_CLASS_ANALYZER_STRIP] == 1UL,
+        "analyzer differential strip has its own timing class");
+#endif
     failures += require_true(
         EQ_DebugLcdAnalyzerLastStripHeight <=
             EQ_UI_ANALYZER_MAX_STRIP_HEIGHT &&
@@ -216,6 +283,12 @@ static int test_runtime_bar_and_active(void)
     failures += require_true(flush_jobs(2000UL, 8) == 1 &&
         EQ_DebugLcdLastJob == EQ_UI_JOB_DYNAMIC_0,
         "dynamic ACTIVE indicator is one bounded job");
+#if EQ_ENABLE_LCD_JOB_TIMING_CAPTURE != 0
+    failures += require_true(
+        EQ_DebugLcdTimingTotalCount
+            [EQ_LCD_TIMING_CLASS_DYNAMIC_ACTIVE] == 1UL,
+        "dynamic active field has its own timing class");
+#endif
 
     snapshot.clarity_active = 1;
     EqualizerDisplay_RequestSnapshot(&snapshot, 3000UL);
@@ -302,6 +375,13 @@ static int test_permanent_pages_and_swap_trace(void)
             EQ_UI_PAGE_DYNAMIC_STATUS &&
         EQ_DebugLcdSwapRequestCount == 0UL,
         "last PAGE_SYNC leaves swap for next service boundary");
+#if EQ_ENABLE_LCD_JOB_TIMING_CAPTURE != 0
+    failures += require_true(
+        EQ_DebugLcdTimingTotalCount
+            [EQ_LCD_TIMING_CLASS_PAGE_SYNC] ==
+            (unsigned long)sync_count,
+        "PAGE_SYNC timing counts actual hidden-page draws");
+#endif
     failures += require_true(EQ_DebugLcdWritebackCount > writebacks &&
         EQ_DebugLcdWritebackFailureCount == 0UL,
         "hidden dirty regions are written back before swap");
@@ -355,6 +435,12 @@ static int test_permanent_pages_and_swap_trace(void)
         EQ_DebugLcdSwapTrace[2].descriptor_mask == 3U &&
         EQ_DebugLcdSwapTrace[2].swap_complete == 1U,
         "swap ring records request and both EOF boundaries");
+#if EQ_ENABLE_LCD_JOB_TIMING_CAPTURE != 0
+    failures += require_true(
+        EQ_DebugLcdTimingTotalCount
+            [EQ_LCD_TIMING_CLASS_PAGE_SWAP] == 2UL,
+        "PAGE_SWAP timing counts descriptor updates, not polling jobs");
+#endif
     failures += require_true(
         EQ_DebugLcdPageRenderedVersion[EQ_UI_PAGE_EQ_EDITOR] ==
             EQ_DebugLcdPageRequestedVersion[EQ_UI_PAGE_EQ_EDITOR],
@@ -463,6 +549,9 @@ int main(void)
     failures += test_swap_ring_wrap();
 #endif
     failures += test_hardware_fault_contract();
+#if EQ_ENABLE_LCD_JOB_TIMING_CAPTURE != 0
+    failures += test_bounded_timing_capture();
+#endif
     printf("equalizer_display failures=%d\n", failures);
     return (failures == 0) ? 0 : 1;
 }

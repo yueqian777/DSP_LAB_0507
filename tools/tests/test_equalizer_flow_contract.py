@@ -614,6 +614,46 @@ class EqualizerFlowContractTest(unittest.TestCase):
         self.assertNotIn("Equalizer_Set", service)
         self.assertNotIn("Equalizer_Apply", service)
 
+    def test_analyzer_reset_and_transition_overlap_have_monotonic_evidence(
+            self) -> None:
+        for symbol in (
+            "EQ_DebugAnalyzerEpoch",
+            "EQ_DebugAnalyzerPublicationCount",
+            "EQ_DebugStaticDynamicTransitionOverlapFrameCount",
+        ):
+            self.assertIn(
+                f"extern volatile unsigned long {symbol};", self.header)
+            self.assertIn(
+                f"volatile unsigned long {symbol} = 0UL;", self.source)
+
+        reset_start = self.source.index(
+            "static void EQ_ResetAnalyzerRuntime(void)")
+        reset_end = self.source.index(
+            "static int EQ_ServiceAnalyzerControl(", reset_start)
+        reset = self.source[reset_start:reset_end]
+        self.assertIn("EQ_DebugAnalyzerEpoch++;", reset)
+        self.assertNotIn("EQ_DebugAnalyzerPublicationCount =", reset)
+
+        publish_start = self.source.index(
+            "static void EQ_PublishAnalyzerSnapshot(void)")
+        publish_end = self.source.index(
+            "static int EQ_ServiceAnalyzer(void)", publish_start)
+        publish = self.source[publish_start:publish_end]
+        self.assertEqual(
+            publish.count("EQ_DebugAnalyzerPublicationCount++;"), 1)
+
+        capture_start = self.source.index(
+            "static void EQ_CaptureAdcFrame(void)")
+        capture_end = self.source.index(
+            "static void EQ_FillDacPingBuffer(void)", capture_start)
+        capture = self.source[capture_start:capture_end]
+        self.assertIn("Equalizer_GetTransitionRemaining(&EQ_BoardState)",
+                      capture)
+        self.assertIn(
+            "EQ_DebugStaticDynamicTransitionOverlapFrameCount++;",
+            capture)
+        self.assertNotIn("EQ_DebugFrameServiceOverlapCount++", capture)
+
     def test_uart_audit_completes_after_frame_service(self) -> None:
         da_start = self.source.index(
             "if ((FLAG_DA == 1) && (flag_ad_done == 1))"

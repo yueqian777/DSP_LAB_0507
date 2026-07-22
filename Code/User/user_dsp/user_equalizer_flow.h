@@ -37,6 +37,8 @@
 #define EQ_ENABLE_TEN_BAND_EDITOR_TOUCH 0
 #endif
 
+#define EQ_TOUCH_ACTION_DIAGNOSTIC_COUNT 27U
+
 #ifndef EQ_ENABLE_DYNAMIC_CLARITY_TIMING_DIAGNOSTICS
 #define EQ_ENABLE_DYNAMIC_CLARITY_TIMING_DIAGNOSTICS 0
 #endif
@@ -217,6 +219,7 @@ extern volatile unsigned long EQ_DebugDeadlineMissCount;
 extern volatile unsigned long EQ_DebugFrameLatencyDeadlineMissCount;
 extern volatile unsigned long EQ_DebugFrameServiceOverlapCount;
 extern volatile unsigned long EQ_DebugFrameServiceDroppedCount;
+extern volatile unsigned long EQ_DebugStaticDynamicTransitionOverlapFrameCount;
 #if EQ_ENABLE_PROJECT33_TOUCH != 0
 extern volatile unsigned int EQ_DebugTouchRawX;
 extern volatile unsigned int EQ_DebugTouchRawY;
@@ -226,6 +229,15 @@ extern volatile unsigned int EQ_DebugTouchPressed;
 extern volatile int EQ_DebugTouchLastAction;
 extern volatile unsigned long EQ_DebugTouchActionCount;
 extern volatile unsigned long EQ_DebugTouchRejectedCount;
+extern volatile unsigned long EQ_DebugTouchInvalidCoordinateCount;
+extern volatile unsigned long EQ_DebugTouchPresetRequestCount;
+extern volatile unsigned long EQ_DebugTouchDynamicEnableRequestCount;
+extern volatile unsigned long EQ_DebugTouchDynamicStrengthRequestCount;
+extern volatile unsigned long EQ_DebugTouchEditorActionCount;
+extern volatile unsigned long EQ_DebugTouchDuplicateActionCount;
+extern volatile const unsigned int EQ_DebugTouchActionHistogramSize;
+extern volatile unsigned long
+    EQ_DebugTouchActionHistogram[EQ_TOUCH_ACTION_DIAGNOSTIC_COUNT];
 extern volatile unsigned long EQ_DebugTouchLastCycles;
 extern volatile unsigned long EQ_DebugTouchMaxCycles;
 extern volatile const unsigned long EQ_DebugTouchStateBytes;
@@ -260,6 +272,8 @@ extern volatile unsigned int EQ_DebugAnalyzerValid;
 extern volatile unsigned int EQ_DebugAnalyzerWarmup;
 extern volatile unsigned long EQ_DebugAnalyzerRunCount;
 extern volatile unsigned long EQ_DebugAnalyzerAnalysisCount;
+extern volatile unsigned long EQ_DebugAnalyzerEpoch;
+extern volatile unsigned long EQ_DebugAnalyzerPublicationCount;
 extern volatile unsigned long EQ_DebugAnalyzerDeferredCount;
 extern volatile unsigned long EQ_DebugAnalyzerPendingOverwriteCount;
 extern volatile unsigned long EQ_DebugAnalyzerAudioArrivedCount;

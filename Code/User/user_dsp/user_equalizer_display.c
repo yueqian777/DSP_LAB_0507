@@ -334,6 +334,8 @@ volatile unsigned long EQ_DebugLcdEditorBufferMar = 0UL;
 volatile unsigned long EQ_DebugLcdWritebackCount = 0UL;
 volatile unsigned long EQ_DebugLcdWritebackBytes = 0UL;
 volatile unsigned long EQ_DebugLcdWritebackFailureCount = 0UL;
+volatile unsigned int EQ_DebugLcdPendingDirtyRegionCount = 0U;
+volatile unsigned int EQ_DebugLcdMaxPendingDirtyRegionCount = 0U;
 volatile unsigned int EQ_DebugLcdPagePhase = 0U;
 volatile unsigned long EQ_DebugLcdDynamicDirtyMask = 0UL;
 volatile unsigned long EQ_DebugLcdEditorDirtyMask = 0UL;
@@ -413,12 +415,57 @@ volatile EQ_LCD_HW_SNAPSHOT EQ_DebugLcdHwSnapshot;
 volatile const unsigned int EQ_DebugLcdAlignmentPatternEnabled =
     EQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN;
 #if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+#pragma RETAIN(EQ_DebugLcdTimingCaptureCompiled)
+#endif
+volatile const unsigned int EQ_DebugLcdTimingCaptureCompiled =
+    EQ_ENABLE_LCD_JOB_TIMING_CAPTURE;
+#if EQ_ENABLE_LCD_JOB_TIMING_CAPTURE != 0
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
+#pragma RETAIN(EQ_DebugLcdTimingClassCount)
+#pragma RETAIN(EQ_DebugLcdTimingSampleCapacity)
+#pragma DATA_SECTION(EQ_DebugLcdTimingSamples, ".far")
+#endif
+volatile const unsigned int EQ_DebugLcdTimingClassCount =
+    EQ_LCD_TIMING_CLASS_COUNT;
+volatile const unsigned int EQ_DebugLcdTimingSampleCapacity =
+    EQ_LCD_TIMING_SAMPLE_CAPACITY;
+volatile unsigned long
+    EQ_DebugLcdTimingSamples[EQ_LCD_TIMING_CLASS_COUNT]
+                            [EQ_LCD_TIMING_SAMPLE_CAPACITY];
+volatile unsigned long
+    EQ_DebugLcdTimingTotalCount[EQ_LCD_TIMING_CLASS_COUNT];
+volatile unsigned int
+    EQ_DebugLcdTimingSampleCount[EQ_LCD_TIMING_CLASS_COUNT];
+volatile unsigned long
+    EQ_DebugLcdTimingDroppedCount[EQ_LCD_TIMING_CLASS_COUNT];
+volatile unsigned long
+    EQ_DebugLcdTimingMinCycles[EQ_LCD_TIMING_CLASS_COUNT];
+volatile unsigned long
+    EQ_DebugLcdTimingMaxCycles[EQ_LCD_TIMING_CLASS_COUNT];
+volatile unsigned long
+    EQ_DebugLcdTimingOver2msCount[EQ_LCD_TIMING_CLASS_COUNT];
+volatile unsigned long
+    EQ_DebugLcdTimingOver5msCount[EQ_LCD_TIMING_CLASS_COUNT];
+volatile unsigned long
+    EQ_DebugLcdTimingDeferredByAudioCount[EQ_LCD_TIMING_CLASS_COUNT];
+volatile unsigned long
+    EQ_DebugLcdTimingAudioArrivedDuringDrawCount
+        [EQ_LCD_TIMING_CLASS_COUNT];
+volatile unsigned int EQ_DebugLcdTimingLastClass =
+    EQ_LCD_TIMING_CLASS_NONE;
+#endif
+#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
 #pragma RETAIN(EQ_DebugUiStateBytes)
 #endif
 volatile const unsigned long EQ_DebugUiStateBytes =
     (unsigned long)sizeof(EQ_UI_STATE);
 
 static EQ_UI_STATE s_ui_state;
+#if EQ_ENABLE_LCD_JOB_TIMING_CAPTURE != 0
+static EQ_UI_STATE s_timing_peek_state;
+static unsigned int s_timing_last_service_class =
+    EQ_LCD_TIMING_CLASS_NONE;
+#endif
 static volatile int s_lcd_busy = 0;
 static int s_layout_drawn = 0;
 static int s_runtime_started = 0;
@@ -469,6 +516,137 @@ static unsigned long s_mock_trace_frame = 0UL;
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
 static unsigned int s_mock_next_eof_descriptor = EQ_LCD_DESCRIPTOR_FB0;
 #endif
+#endif
+
+#if EQ_ENABLE_LCD_JOB_TIMING_CAPTURE != 0
+static unsigned long EQ_ReadCycles(void);
+
+static unsigned int EQ_LcdTimingClassForJob(
+    int job, unsigned int completed_fields)
+{
+    if ((job >= EQ_UI_JOB_PRESET_0) && (job <= EQ_UI_JOB_PRESET_4))
+    {
+        return EQ_LCD_TIMING_CLASS_PRESET;
+    }
+    if ((job >= EQ_UI_JOB_ANALYZER_0) &&
+        (job <= EQ_UI_JOB_ANALYZER_3) &&
+        ((completed_fields & EQ_UI_ANALYZER_FIELD_BAR) != 0U))
+    {
+        return EQ_LCD_TIMING_CLASS_ANALYZER_STRIP;
+    }
+    if ((job >= EQ_UI_JOB_DYNAMIC_0) && (job <= EQ_UI_JOB_DYNAMIC_2))
+    {
+        if ((completed_fields & EQ_UI_DYNAMIC_FIELD_ENABLED) != 0U)
+        {
+            return EQ_LCD_TIMING_CLASS_DYNAMIC_ENABLED;
+        }
+        if ((completed_fields & EQ_UI_DYNAMIC_FIELD_STRENGTH) != 0U)
+        {
+            return EQ_LCD_TIMING_CLASS_DYNAMIC_STRENGTH;
+        }
+        if ((completed_fields & EQ_UI_DYNAMIC_FIELD_ACTIVE) != 0U)
+        {
+            return EQ_LCD_TIMING_CLASS_DYNAMIC_ACTIVE;
+        }
+    }
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+    if ((job >= EQ_UI_JOB_EDITOR_BAND_0) &&
+        (job <= EQ_UI_JOB_EDITOR_BAND_9))
+    {
+        return EQ_LCD_TIMING_CLASS_EDITOR_BAND;
+    }
+    if ((job == EQ_UI_JOB_EDITOR_FIELDS) && (completed_fields != 0U))
+    {
+        return EQ_LCD_TIMING_CLASS_EDITOR_FIELD;
+    }
+    if (job == EQ_UI_JOB_PAGE_SYNC)
+    {
+        return EQ_LCD_TIMING_CLASS_PAGE_SYNC;
+    }
+    if (job == EQ_UI_JOB_PAGE_SWAP)
+    {
+        return EQ_LCD_TIMING_CLASS_PAGE_SWAP;
+    }
+#endif
+    return EQ_LCD_TIMING_CLASS_NONE;
+}
+
+static unsigned int EQ_LcdTimingNextFieldForJob(
+    const EQ_UI_STATE *state, int job)
+{
+    unsigned int fields;
+
+    if ((job >= EQ_UI_JOB_DYNAMIC_0) && (job <= EQ_UI_JOB_DYNAMIC_2))
+    {
+        fields = EqualizerUiLogic_DynamicFieldMask(
+            state, job - EQ_UI_JOB_DYNAMIC_0);
+        if ((fields & EQ_UI_DYNAMIC_FIELD_ENABLED) != 0U)
+        {
+            return EQ_UI_DYNAMIC_FIELD_ENABLED;
+        }
+        if ((fields & EQ_UI_DYNAMIC_FIELD_STRENGTH) != 0U)
+        {
+            return EQ_UI_DYNAMIC_FIELD_STRENGTH;
+        }
+        return fields & EQ_UI_DYNAMIC_FIELD_ACTIVE;
+    }
+    if ((job >= EQ_UI_JOB_ANALYZER_0) &&
+        (job <= EQ_UI_JOB_ANALYZER_3))
+    {
+        return EqualizerUiLogic_AnalyzerNextField(
+            state, job - EQ_UI_JOB_ANALYZER_0);
+    }
+#if EQ_ENABLE_TEN_BAND_EDITOR != 0
+    if (job == EQ_UI_JOB_EDITOR_FIELDS)
+    {
+        return EqualizerUiLogic_EditorNextField(state);
+    }
+#endif
+    return 0U;
+}
+
+static void EQ_RecordLcdTimingSample(
+    unsigned int timing_class, unsigned long cycles)
+{
+    unsigned int sample_index;
+    unsigned long count;
+
+    if (timing_class >= EQ_LCD_TIMING_CLASS_COUNT)
+    {
+        return;
+    }
+    count = EQ_DebugLcdTimingTotalCount[timing_class];
+    if ((count == 0UL) ||
+        (cycles < EQ_DebugLcdTimingMinCycles[timing_class]))
+    {
+        EQ_DebugLcdTimingMinCycles[timing_class] = cycles;
+    }
+    if ((count == 0UL) ||
+        (cycles > EQ_DebugLcdTimingMaxCycles[timing_class]))
+    {
+        EQ_DebugLcdTimingMaxCycles[timing_class] = cycles;
+    }
+    EQ_DebugLcdTimingTotalCount[timing_class] = count + 1UL;
+    sample_index = EQ_DebugLcdTimingSampleCount[timing_class];
+    if (sample_index < EQ_LCD_TIMING_SAMPLE_CAPACITY)
+    {
+        EQ_DebugLcdTimingSamples[timing_class][sample_index] = cycles;
+        EQ_DebugLcdTimingSampleCount[timing_class] = sample_index + 1U;
+    }
+    else
+    {
+        EQ_DebugLcdTimingDroppedCount[timing_class]++;
+    }
+    if (cycles > EQ_LCD_JOB_ACCEPTANCE_CYCLES)
+    {
+        EQ_DebugLcdTimingOver2msCount[timing_class]++;
+    }
+    if (cycles > EQ_LCD_JOB_HARD_CYCLES)
+    {
+        EQ_DebugLcdTimingOver5msCount[timing_class]++;
+    }
+    EQ_DebugLcdTimingLastClass = timing_class;
+}
 #endif
 
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
@@ -1016,6 +1194,10 @@ static void EQ_HandleEofStatus(unsigned long status)
 {
     unsigned long eof_status;
     unsigned int descriptor;
+#if EQ_ENABLE_LCD_JOB_TIMING_CAPTURE != 0
+    unsigned long descriptor_start_cycles;
+    unsigned long descriptor_end_cycles;
+#endif
 
     eof_status = status & EQ_LCD_STATUS_EOF_MASK;
     if (eof_status == 0UL)
@@ -1053,11 +1235,20 @@ static void EQ_HandleEofStatus(unsigned long status)
     }
     descriptor = ((eof_status & EQ_LCD_STATUS_EOF0_MASK) != 0UL) ?
         EQ_LCD_DESCRIPTOR_FB0 : EQ_LCD_DESCRIPTOR_FB1;
+#if EQ_ENABLE_LCD_JOB_TIMING_CAPTURE != 0
+    descriptor_start_cycles = EQ_ReadCycles();
+#endif
     EQ_ConfigSwapDescriptor(descriptor);
     if (s_swap_descriptor_mask == EQ_LCD_DESCRIPTOR_BOTH)
     {
         EQ_CompleteFrontPage();
     }
+#if EQ_ENABLE_LCD_JOB_TIMING_CAPTURE != 0
+    descriptor_end_cycles = EQ_ReadCycles();
+    EQ_RecordLcdTimingSample(
+        EQ_LCD_TIMING_CLASS_PAGE_SWAP,
+        descriptor_end_cycles - descriptor_start_cycles);
+#endif
     EQ_RecordSwapTrace(eof_status);
 }
 
@@ -1340,6 +1531,27 @@ static void EQ_ResetDirtyBounds(void)
         s_dirty_x1[page] = 0;
         s_dirty_y1[page] = 0;
     }
+    EQ_DebugLcdPendingDirtyRegionCount = 0U;
+}
+
+static void EQ_UpdatePendingDirtyRegionCount(void)
+{
+    int page;
+    unsigned int count;
+
+    count = 0U;
+    for (page = 0; page < EQ_LCD_PAGE_COUNT; page++)
+    {
+        if (s_dirty_valid[page] != 0U)
+        {
+            count++;
+        }
+    }
+    EQ_DebugLcdPendingDirtyRegionCount = count;
+    if (count > EQ_DebugLcdMaxPendingDirtyRegionCount)
+    {
+        EQ_DebugLcdMaxPendingDirtyRegionCount = count;
+    }
 }
 
 static void EQ_RecordDirtyRect(int x, int y, int w, int h)
@@ -1367,6 +1579,7 @@ static void EQ_RecordDirtyRect(int x, int y, int w, int h)
         s_dirty_x1[page] = x1;
         s_dirty_y1[page] = y1;
         s_dirty_valid[page] = 1U;
+        EQ_UpdatePendingDirtyRegionCount();
         return;
     }
     if (x < s_dirty_x0[page])
@@ -2878,6 +3091,8 @@ void EqualizerDisplay_Init(void)
     EQ_DebugLcdWritebackCount = 0UL;
     EQ_DebugLcdWritebackBytes = 0UL;
     EQ_DebugLcdWritebackFailureCount = 0UL;
+    EQ_DebugLcdPendingDirtyRegionCount = 0U;
+    EQ_DebugLcdMaxPendingDirtyRegionCount = 0U;
     EQ_DebugLcdPagePhase = 0U;
     EQ_DebugLcdDynamicDirtyMask = 0UL;
     EQ_DebugLcdEditorDirtyMask = 0UL;
@@ -2955,6 +3170,30 @@ void EqualizerDisplay_Init(void)
         EQ_DebugLcdJobTypeLastCycles[index] = 0UL;
         EQ_DebugLcdJobTypeMaxCycles[index] = 0UL;
     }
+#if EQ_ENABLE_LCD_JOB_TIMING_CAPTURE != 0
+    memset((void *)EQ_DebugLcdTimingSamples, 0,
+           sizeof(EQ_DebugLcdTimingSamples));
+    memset((void *)EQ_DebugLcdTimingTotalCount, 0,
+           sizeof(EQ_DebugLcdTimingTotalCount));
+    memset((void *)EQ_DebugLcdTimingSampleCount, 0,
+           sizeof(EQ_DebugLcdTimingSampleCount));
+    memset((void *)EQ_DebugLcdTimingDroppedCount, 0,
+           sizeof(EQ_DebugLcdTimingDroppedCount));
+    memset((void *)EQ_DebugLcdTimingMinCycles, 0,
+           sizeof(EQ_DebugLcdTimingMinCycles));
+    memset((void *)EQ_DebugLcdTimingMaxCycles, 0,
+           sizeof(EQ_DebugLcdTimingMaxCycles));
+    memset((void *)EQ_DebugLcdTimingOver2msCount, 0,
+           sizeof(EQ_DebugLcdTimingOver2msCount));
+    memset((void *)EQ_DebugLcdTimingOver5msCount, 0,
+           sizeof(EQ_DebugLcdTimingOver5msCount));
+    memset((void *)EQ_DebugLcdTimingDeferredByAudioCount, 0,
+           sizeof(EQ_DebugLcdTimingDeferredByAudioCount));
+    memset((void *)EQ_DebugLcdTimingAudioArrivedDuringDrawCount, 0,
+           sizeof(EQ_DebugLcdTimingAudioArrivedDuringDrawCount));
+    EQ_DebugLcdTimingLastClass = EQ_LCD_TIMING_CLASS_NONE;
+    s_timing_last_service_class = EQ_LCD_TIMING_CLASS_NONE;
+#endif
 #if defined(EQ_ALGO_ONLY)
     s_mock_primitive_count = 0UL;
     s_mock_cycle_clock = 0UL;
@@ -3220,6 +3459,35 @@ int EqualizerDisplay_HasEligibleJob(unsigned long process_frame)
 #endif
 }
 
+#if EQ_ENABLE_LCD_JOB_TIMING_CAPTURE != 0
+void EqualizerDisplay_RecordDeferredByAudio(unsigned long process_frame)
+{
+    int job;
+    unsigned int completed_fields;
+    unsigned int timing_class;
+
+    s_timing_peek_state = s_ui_state;
+    job = EqualizerUiLogic_SelectJob(
+        &s_timing_peek_state, process_frame);
+    completed_fields = EQ_LcdTimingNextFieldForJob(
+        &s_timing_peek_state, job);
+    timing_class = EQ_LcdTimingClassForJob(job, completed_fields);
+    if (timing_class < EQ_LCD_TIMING_CLASS_COUNT)
+    {
+        EQ_DebugLcdTimingDeferredByAudioCount[timing_class]++;
+    }
+}
+
+void EqualizerDisplay_RecordAudioArrivalDuringDraw(void)
+{
+    if (s_timing_last_service_class < EQ_LCD_TIMING_CLASS_COUNT)
+    {
+        EQ_DebugLcdTimingAudioArrivedDuringDrawCount
+            [s_timing_last_service_class]++;
+    }
+}
+#endif
+
 int EqualizerDisplay_ServiceOneJob(unsigned long process_frame)
 {
     int job;
@@ -3231,6 +3499,9 @@ int EqualizerDisplay_ServiceOneJob(unsigned long process_frame)
     unsigned long tenths_ms;
     unsigned int completed_fields;
     int force_hardware_audit;
+#if EQ_ENABLE_LCD_JOB_TIMING_CAPTURE != 0
+    unsigned int timing_class;
+#endif
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
     int swap_completed;
     int sync_data_job;
@@ -3247,6 +3518,9 @@ int EqualizerDisplay_ServiceOneJob(unsigned long process_frame)
         EqualizerUiLogic_GetPageSyncJob(&s_ui_state) : EQ_UI_JOB_NONE;
 #endif
     completed_fields = 0U;
+#if EQ_ENABLE_LCD_JOB_TIMING_CAPTURE != 0
+    s_timing_last_service_class = EQ_LCD_TIMING_CLASS_NONE;
+#endif
     start_cycles = EQ_ReadCycles();
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
     if (job == EQ_UI_JOB_PAGE_SWAP)
@@ -3274,6 +3548,15 @@ int EqualizerDisplay_ServiceOneJob(unsigned long process_frame)
     }
     end_cycles = EQ_ReadCycles();
     elapsed_cycles = end_cycles - start_cycles;
+#if EQ_ENABLE_LCD_JOB_TIMING_CAPTURE != 0
+    timing_class = EQ_LcdTimingClassForJob(job, completed_fields);
+    if ((timing_class < EQ_LCD_TIMING_CLASS_COUNT) &&
+        (timing_class != EQ_LCD_TIMING_CLASS_PAGE_SWAP))
+    {
+        EQ_RecordLcdTimingSample(timing_class, elapsed_cycles);
+        s_timing_last_service_class = timing_class;
+    }
+#endif
     force_hardware_audit = 0;
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
     swap_completed = 0;
@@ -3508,6 +3791,15 @@ void EqualizerDisplay_TestDrawRect(int x, int y, int w, int h)
 {
     EQ_LcdFillRect(x, y, w, h, EQ_COLOR_BG);
 }
+
+#if EQ_ENABLE_LCD_JOB_TIMING_CAPTURE != 0
+void EqualizerDisplay_TestRecordTimingSample(
+    unsigned int timing_class, unsigned long cycles)
+{
+    EQ_RecordLcdTimingSample(timing_class, cycles);
+    s_timing_last_service_class = timing_class;
+}
+#endif
 
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
 void EqualizerDisplay_TestInjectEofStatus(unsigned long status)

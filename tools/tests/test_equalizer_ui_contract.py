@@ -12,6 +12,7 @@ LOGIC_HEADER = DSP / "user_equalizer_ui_logic.h"
 DISPLAY = DSP / "user_equalizer_display.c"
 DISPLAY_HEADER = DSP / "user_equalizer_display.h"
 FLOW = DSP / "user_equalizer_flow.c"
+FLOW_HEADER = DSP / "user_equalizer_flow.h"
 LOGIC_HARNESS = ROOT / "tools/tests/equalizer_ui_logic_test.c.host"
 DISPLAY_HARNESS = ROOT / "tools/tests/equalizer_display_test.c.host"
 ALIGNMENT_HARNESS = ROOT / "tools/tests/equalizer_lcd_alignment_test.c.host"
@@ -83,6 +84,15 @@ class EqualizerUiHostTest(unittest.TestCase):
                     "-DEQ_LCD_DIAGNOSTIC_ALIGNMENT_PATTERN=1",
                     "equalizer_lcd_alignment failures=0",
                 ),
+                (
+                    "display_timing",
+                    f"{msys_path(DISPLAY_HARNESS)} {msys_path(LOGIC)} "
+                    f"{msys_path(DISPLAY)}",
+                    "-DEQ_ENABLE_LCD_DISPLAY=1 "
+                    "-DEQ_ENABLE_TEN_BAND_EDITOR=1 "
+                    "-DEQ_ENABLE_LCD_JOB_TIMING_CAPTURE=1",
+                    "equalizer_display failures=0",
+                ),
             )
             for name, sources, defines, expected in cases:
                 exe = msys_path(output / f"{name}.exe")
@@ -138,6 +148,75 @@ class EqualizerUiSourceContractTest(unittest.TestCase):
         cls.display = DISPLAY.read_text(encoding="utf-8")
         cls.header = DISPLAY_HEADER.read_text(encoding="utf-8")
         cls.flow = FLOW.read_text(encoding="utf-8")
+        cls.flow_header = FLOW_HEADER.read_text(encoding="utf-8")
+
+    def test_final_acceptance_diagnostics_are_bounded_and_noninvasive(
+            self) -> None:
+        touch_counters = (
+            "EQ_DebugTouchInvalidCoordinateCount",
+            "EQ_DebugTouchPresetRequestCount",
+            "EQ_DebugTouchDynamicEnableRequestCount",
+            "EQ_DebugTouchDynamicStrengthRequestCount",
+            "EQ_DebugTouchEditorActionCount",
+            "EQ_DebugTouchDuplicateActionCount",
+        )
+        for counter in touch_counters:
+            self.assertIn(f"extern volatile unsigned long {counter};",
+                          self.flow_header)
+            self.assertIn(f"volatile unsigned long {counter} = 0UL;",
+                          self.flow)
+            self.assertIn(f"{counter} = 0UL;", self.flow)
+
+        touch_start = self.flow.index("static int EQ_ServiceUiTouch(")
+        touch_end = self.flow.index("static void EQ_FillControlRequest(",
+                                    touch_start)
+        touch = self.flow[touch_start:touch_end]
+        self.assertIn("EQ_RecordAcceptedTouchAction(action);", touch)
+        self.assertIn("EQ_TouchAcceptedThisPress = 0U;", touch)
+        self.assertIn("EQ_DebugTouchInvalidCoordinateCount++", touch)
+        self.assertNotIn("EQ_UI_DYNAMIC_HITBOXES", touch)
+        self.assertNotIn("EQ_UI_EDITOR_HITBOXES", touch)
+        self.assertIn("#define EQ_TOUCH_ACTION_DIAGNOSTIC_COUNT",
+                      self.flow_header)
+        for token in (
+            "EQ_DebugTouchActionHistogramSize",
+            "EQ_DebugTouchActionHistogram[EQ_TOUCH_ACTION_DIAGNOSTIC_COUNT]",
+        ):
+            self.assertIn(token, self.flow_header)
+            self.assertIn(token.split("[")[0], self.flow)
+        self.assertIn("EQ_DebugTouchActionHistogram[action]++;", touch)
+
+        for token in (
+            "#define EQ_ENABLE_LCD_JOB_TIMING_CAPTURE 0",
+            "#define EQ_LCD_TIMING_CLASS_COUNT 9U",
+            "#define EQ_LCD_TIMING_SAMPLE_CAPACITY 256U",
+            "EQ_DebugLcdPendingDirtyRegionCount",
+            "EQ_DebugLcdMaxPendingDirtyRegionCount",
+            "EQ_DebugLcdTimingCaptureCompiled",
+        ):
+            self.assertIn(token, self.header)
+        timing_arrays = (
+            "EQ_DebugLcdTimingSamples",
+            "EQ_DebugLcdTimingTotalCount",
+            "EQ_DebugLcdTimingSampleCount",
+            "EQ_DebugLcdTimingDroppedCount",
+            "EQ_DebugLcdTimingMinCycles",
+            "EQ_DebugLcdTimingMaxCycles",
+            "EQ_DebugLcdTimingOver2msCount",
+            "EQ_DebugLcdTimingOver5msCount",
+            "EQ_DebugLcdTimingDeferredByAudioCount",
+            "EQ_DebugLcdTimingAudioArrivedDuringDrawCount",
+        )
+        for array in timing_arrays:
+            self.assertIn(array, self.header)
+            self.assertIn(array, self.display)
+        self.assertIn("#if EQ_ENABLE_LCD_JOB_TIMING_CAPTURE != 0",
+                      self.header)
+        self.assertIn("EQ_RecordLcdTimingSample", self.display)
+        self.assertIn("EQ_LcdTimingClassForJob", self.display)
+        self.assertIn("EqualizerDisplay_RecordDeferredByAudio(", self.display)
+        self.assertIn("EqualizerDisplay_RecordAudioArrivalDuringDraw(",
+                      self.display)
 
     def test_request_is_pure_and_service_is_single_job(self) -> None:
         start = self.display.index("void EqualizerDisplay_RequestSnapshot(")

@@ -17,6 +17,10 @@
 #define EQ_ENABLE_PROJECT33_TOUCH 0
 #endif
 
+#ifndef EQ_ENABLE_LCD_JOB_TIMING_CAPTURE
+#define EQ_ENABLE_LCD_JOB_TIMING_CAPTURE 0
+#endif
+
 #if (EQ_ENABLE_PROJECT33_TOUCH != 0) && (EQ_ENABLE_LCD_DISPLAY == 0)
 #error Project 3.3 Touch requires the Project 3.3 LCD UI.
 #endif
@@ -97,6 +101,19 @@
 #define EQ_LCD_CACHE_CACHEABLE    2U
 #define EQ_LCD_CACHE_MIXED        3U
 #define EQ_LCD_SWAP_TRACE_DEPTH   64U
+
+#define EQ_LCD_TIMING_CLASS_PRESET           0U
+#define EQ_LCD_TIMING_CLASS_ANALYZER_STRIP   1U
+#define EQ_LCD_TIMING_CLASS_DYNAMIC_ENABLED  2U
+#define EQ_LCD_TIMING_CLASS_DYNAMIC_STRENGTH 3U
+#define EQ_LCD_TIMING_CLASS_DYNAMIC_ACTIVE   4U
+#define EQ_LCD_TIMING_CLASS_EDITOR_BAND      5U
+#define EQ_LCD_TIMING_CLASS_EDITOR_FIELD     6U
+#define EQ_LCD_TIMING_CLASS_PAGE_SYNC        7U
+#define EQ_LCD_TIMING_CLASS_PAGE_SWAP        8U
+#define EQ_LCD_TIMING_CLASS_COUNT 9U
+#define EQ_LCD_TIMING_CLASS_NONE 0xFFFFFFFFU
+#define EQ_LCD_TIMING_SAMPLE_CAPACITY 256U
 
 #define EQ_LCD_CATEGORY_PRESET   0
 #define EQ_LCD_CATEGORY_DYNAMIC  1
@@ -192,6 +209,8 @@ extern volatile unsigned long EQ_DebugLcdEditorBufferMar;
 extern volatile unsigned long EQ_DebugLcdWritebackCount;
 extern volatile unsigned long EQ_DebugLcdWritebackBytes;
 extern volatile unsigned long EQ_DebugLcdWritebackFailureCount;
+extern volatile unsigned int EQ_DebugLcdPendingDirtyRegionCount;
+extern volatile unsigned int EQ_DebugLcdMaxPendingDirtyRegionCount;
 extern volatile unsigned int EQ_DebugLcdPagePhase;
 extern volatile unsigned long EQ_DebugLcdDynamicDirtyMask;
 extern volatile unsigned long EQ_DebugLcdEditorDirtyMask;
@@ -252,6 +271,34 @@ extern volatile unsigned int EQ_DebugLcdFaultLatched;
 extern volatile unsigned int EQ_DebugLcdHardwareAuditRequest;
 extern volatile EQ_LCD_HW_SNAPSHOT EQ_DebugLcdHwSnapshot;
 extern volatile const unsigned int EQ_DebugLcdAlignmentPatternEnabled;
+extern volatile const unsigned int EQ_DebugLcdTimingCaptureCompiled;
+#if EQ_ENABLE_LCD_JOB_TIMING_CAPTURE != 0
+extern volatile const unsigned int EQ_DebugLcdTimingClassCount;
+extern volatile const unsigned int EQ_DebugLcdTimingSampleCapacity;
+extern volatile unsigned long
+    EQ_DebugLcdTimingSamples[EQ_LCD_TIMING_CLASS_COUNT]
+                            [EQ_LCD_TIMING_SAMPLE_CAPACITY];
+extern volatile unsigned long
+    EQ_DebugLcdTimingTotalCount[EQ_LCD_TIMING_CLASS_COUNT];
+extern volatile unsigned int
+    EQ_DebugLcdTimingSampleCount[EQ_LCD_TIMING_CLASS_COUNT];
+extern volatile unsigned long
+    EQ_DebugLcdTimingDroppedCount[EQ_LCD_TIMING_CLASS_COUNT];
+extern volatile unsigned long
+    EQ_DebugLcdTimingMinCycles[EQ_LCD_TIMING_CLASS_COUNT];
+extern volatile unsigned long
+    EQ_DebugLcdTimingMaxCycles[EQ_LCD_TIMING_CLASS_COUNT];
+extern volatile unsigned long
+    EQ_DebugLcdTimingOver2msCount[EQ_LCD_TIMING_CLASS_COUNT];
+extern volatile unsigned long
+    EQ_DebugLcdTimingOver5msCount[EQ_LCD_TIMING_CLASS_COUNT];
+extern volatile unsigned long
+    EQ_DebugLcdTimingDeferredByAudioCount[EQ_LCD_TIMING_CLASS_COUNT];
+extern volatile unsigned long
+    EQ_DebugLcdTimingAudioArrivedDuringDrawCount
+        [EQ_LCD_TIMING_CLASS_COUNT];
+extern volatile unsigned int EQ_DebugLcdTimingLastClass;
+#endif
 #endif
 
 void EqualizerDisplay_Init(void);
@@ -267,6 +314,10 @@ int EqualizerDisplay_ServiceOneJob(unsigned long process_frame);
 void EqualizerDisplay_AuditHardware(unsigned long process_frame, int force);
 void EqualizerDisplay_CancelRuntimeJobs(void);
 void EqualizerDisplay_AutoDisable(unsigned long reason);
+#if EQ_ENABLE_LCD_JOB_TIMING_CAPTURE != 0
+void EqualizerDisplay_RecordDeferredByAudio(unsigned long process_frame);
+void EqualizerDisplay_RecordAudioArrivalDuringDraw(void);
+#endif
 
 #if defined(EQ_ALGO_ONLY)
 unsigned long EqualizerDisplay_TestPrimitiveCount(void);
@@ -279,6 +330,10 @@ void EqualizerDisplay_TestSetHardwareSnapshot(
 void EqualizerDisplay_TestSetCanaryFailure(int failed);
 void EqualizerDisplay_TestSetCacheMode(unsigned int mode);
 void EqualizerDisplay_TestDrawRect(int x, int y, int w, int h);
+#if EQ_ENABLE_LCD_JOB_TIMING_CAPTURE != 0
+void EqualizerDisplay_TestRecordTimingSample(
+    unsigned int timing_class, unsigned long cycles);
+#endif
 #if EQ_ENABLE_TEN_BAND_EDITOR != 0
 void EqualizerDisplay_TestInjectEofStatus(unsigned long status);
 #endif

@@ -54,6 +54,22 @@ class EqualizerUiBuildMatrixContractTest(unittest.TestCase):
             self.script,
         )
 
+    def test_production_profiles_explicitly_disable_measurement_arrays(
+            self) -> None:
+        diagnostics_start = self.script.index("$diagnosticsOff = @(")
+        diagnostics_end = self.script.index(") -join \" \"",
+                                            diagnostics_start)
+        diagnostics = self.script[diagnostics_start:diagnostics_end]
+        for token in (
+            "--define=EQ_ENABLE_FINAL_METRICS_BOARD_TEST=0",
+            "--define=EQ_ENABLE_DYNAMIC_CLARITY_BENCHMARK=0",
+            "--define=EQ_ENABLE_HARSHNESS_GUARD_BENCHMARK=0",
+            "--define=EQ_ENABLE_DYNAMIC_CLARITY_TRANSITION_CAPTURE=0",
+            "--define=EQ_ENABLE_HARSHNESS_GUARD_TRANSITION_CAPTURE=0",
+            "--define=EQ_ENABLE_LCD_JOB_TIMING_CAPTURE=0",
+        ):
+            self.assertIn(token, diagnostics)
+
     def test_editor_profile_defines_and_runtime_masks(self) -> None:
         cases = (
             ("D_project33_dynamic", "E_project33_touch", 1, 0, 0, 0, 7),
