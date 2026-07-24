@@ -6,7 +6,7 @@
 
 #include "user_subband_wola.h"
 #include "user_subband_denoise.h"
-#include "user_subband_eval.h"
+#include "user_subband_diagnostics.h"
 #include "user_subband_codec_loopback.h"
 #include "user_spectral_fft.h"
 #include "math.h"

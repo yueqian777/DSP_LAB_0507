@@ -51,6 +51,9 @@ MEMORY
     DA_Ch7Buf1          : origin = 0xC7078000, length = 0x4000
     DA_Ch8Buf1          : origin = 0xC707C000, length = 0x4000
 
+    /* --- Project 3.4 foreground capture queue --- */
+    Project34AudioQueue : origin = 0xC7080000, length = 0x40000
+
     /* --- User Buffers --- */
     User_Buf1           : origin = 0x80000000, length = 0x8000
     User_Buf2           : origin = 0x80008000, length = 0x8000
@@ -107,6 +110,8 @@ SECTIONS
     DA_Ch6Buf1_File     : > DA_Ch6Buf1
     DA_Ch7Buf1_File     : > DA_Ch7Buf1
     DA_Ch8Buf1_File     : > DA_Ch8Buf1
+
+    project3_audio_queue : > Project34AudioQueue
 
     /* --- User Sections --- */
     User_Buf1File       : > User_Buf1

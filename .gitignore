@@ -4,27 +4,42 @@
 /graphify-out/
 
 # Local temporary extraction/diagnostic files
+/.codex_*/
 /tmp/
-/test_vectors/subband_eval_audio/
+/tools/
+/test_vectors/
+/outputs/
+/projects/
 Code/User/user_dsp/equalizer_build_id_generated.h
 
-# Generated local audio diagnostics
-subband_eval_report.csv
-subband_codec_eval_report.csv
-subband_denoise_ms_eval_report.csv
-equalizer_band_response.csv
-equalizer_system_response.csv
-equalizer_thd_report.csv
-equalizer_group_delay_report.csv
-compare_audio_metrics.csv
+# Test-only source retained outside the submitted production tree
+/Code/User/user_dsp/user_dynamic_clarity_benchmark.[ch]
+/Code/User/user_dsp/user_equalizer_eval.[ch]
+/Code/User/user_dsp/user_subband_audio_compare.[ch]
+/Code/User/user_dsp/user_subband_codec.[ch]
+/Code/User/user_dsp/user_subband_codec_eval.[ch]
+/Code/User/user_dsp/user_subband_codec_loopback_eval.[ch]
+/Code/User/user_dsp/user_subband_denoise_mcra_eval.[ch]
+/Code/User/user_dsp/user_subband_denoise_ms_eval.[ch]
+/Code/User/user_dsp/user_subband_eval.[ch]
+/Code/User/user_dsp/user_subband_test.[ch]
+/Code/User/user_dsp/user_subband_touch_check.[ch]
+
+# Generated reports, evidence captures and board/host recordings
+/board_audio_test_outputs/
+/results/
+/docs/eval_baseline/
+/docs/eval_outputs/
+/docs/evidence/
+/docs/superpowers/
+/*.csv
+/*.zip
+/codex.html
 compare_*.wav
 *.wav
 *.mp3
 *.raw
-
-# Reproducible THD outputs are generated locally; keep only the directory.
-/results/thd/*
-!/results/thd/.gitkeep
+*.log
 
 # OS/editor noise
 .DS_Store
@@ -32,3 +47,4 @@ Thumbs.db
 desktop.ini
 **/__pycache__/
 *.py[cod]
+.pytest_cache/

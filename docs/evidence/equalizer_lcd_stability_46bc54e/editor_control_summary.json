@@ -1,9 +1,0 @@
-{
-  "schema_version": 1,
-  "stage": "A",
-  "stage_a_complete": false,
-  "stage_b_allowed": false,
-  "ten_band_editor_status": "NOT_STARTED",
-  "draft_submitted_applied_model": "NOT_IMPLEMENTED_IN_THIS_STAGE",
-  "reason": "Dynamic Status, Touch and combined Stage A hardware gates remain pending"
-}

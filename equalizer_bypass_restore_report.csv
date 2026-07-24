@@ -1,6 +1,0 @@
-case_id,active_before,target_before,pending_before,latest_before,bypass_on_transparent,bypass_off_target,active_after,target_after,max_response_error_db,max_sample_delta,clip_count,pass
-stable_bass,1,1,-1,0,1,1,1,1,0.000000000,0.012533308007,0,PASS
-half_bass_to_vocal,1,2,2,0,1,2,2,2,0.000000000,0.012533287518,0,PASS
-latest_treble,1,3,2,1,1,3,3,3,0.000000000,0.012533728965,0,PASS
-stable_v_shape,4,4,-1,0,1,4,4,4,0.000000000,0.012533764355,0,PASS
-custom_gain,-1,5,-1,0,1,5,-1,5,0.000000000,0.012533733621,0,PASS

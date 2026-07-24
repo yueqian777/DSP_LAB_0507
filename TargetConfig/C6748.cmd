@@ -37,7 +37,11 @@ MEMORY
 SECTIONS                                       
 {                                              
     .text          >  DDR2
-    .subband_l2    >  DSPL2RAM
+    UNION
+    {
+        .subband_l2
+        project3_l2_data
+    } > DSPL2RAM
     .stack         >  DDR2
     //.bss           >  DDR2
     .cio           >  DDR2

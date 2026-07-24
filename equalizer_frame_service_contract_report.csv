@@ -1,2 +1,0 @@
-frame_samples,sample_rate_hz,budget_ms,cpu_cycles_per_ms,budget_cycles,latency_start,latency_end,active_service_scope,deadline_source,adc_channels,dac_channels,mode_service_separate,audio_idle_gate,pass
-1024,50000.0,20.480000,456000,9338880,FLAG_AD_detected,DAC_inactive_buffer_written,ADC_copy_plus_algo_plus_DAC_copy,active_frame_service,8,8,1,1,PASS

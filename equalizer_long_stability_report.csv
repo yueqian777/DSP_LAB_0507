@@ -1,6 +1,0 @@
-signal,sample_count,max_output_peak,max_internal_state,clip_count,nan_inf,pass
-white,3000000,3347.000000,280.169128,0,0,PASS
-pink,3000000,2295.000000,78.479797,0,0,PASS
-multitone,3000000,3327.000000,251.581177,0,0,PASS
-speech_like,3000000,2959.000000,54.846085,0,0,PASS
-music_like,3000000,3494.000000,183.711700,0,0,PASS

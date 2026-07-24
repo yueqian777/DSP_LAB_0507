@@ -1,6 +1,0 @@
-﻿category,production_bytes,thd_test_bytes,test_only_increment_bytes
-program_code_and_readonly,139772,141156,1384
-static_readwrite_ram,1572145,3579409,2007264
-stack_mapped_reserved,2048,2048,0
-heap_mapped_reserved,0,0,0
-total_runtime_ram,1713965,3722613,2008648

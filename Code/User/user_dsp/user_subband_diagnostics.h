@@ -1,0 +1,13 @@
+#ifndef _USER_SUBBAND_DIAGNOSTICS_H_
+#define _USER_SUBBAND_DIAGNOSTICS_H_
+
+extern volatile unsigned long SUBBAND_EVAL_DebugAdFrames;
+extern volatile unsigned long SUBBAND_EVAL_DebugDaFrames;
+extern volatile unsigned long SUBBAND_EVAL_DebugWolaFrames;
+extern volatile unsigned long SUBBAND_EVAL_DebugDenoiseFrames;
+extern volatile float SUBBAND_EVAL_DebugFrameBudgetMs;
+extern volatile float SUBBAND_EVAL_DebugDenoiseLastMs;
+extern volatile float SUBBAND_EVAL_DebugDenoiseMaxMs;
+extern volatile float SUBBAND_EVAL_DebugCpuUsagePercent;
+
+#endif

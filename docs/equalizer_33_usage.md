@@ -93,7 +93,7 @@ DSP_LAB_PROJECT_SELECT=33
 For the generated command-line build on this workstation:
 
 ```powershell
-.\tools\generate_equalizer_build_id.ps1
+.\BuildSupport\generate_equalizer_build_id.ps1
 & 'D:\SoftwareDownload\CCS_20.5.0.00028_win\ccs\utils\bin\gmake.exe' -B -C Debug all 'GEN_OPTS__FLAG=--define=DSP_LAB_PROJECT_SELECT=33 --define=EQ_USE_GENERATED_BUILD_ID=1'
 ```
 

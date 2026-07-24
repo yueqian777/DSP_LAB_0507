@@ -8,7 +8,7 @@
 #include "user_subband_flow.h"
 #include "user_subband_wola.h"
 #include "user_subband_denoise.h"
-#include "user_subband_eval.h"
+#include "user_subband_diagnostics.h"
 #include "user_subband_codec_loopback.h"
 #include "user_subband_polyphase.h"
 #include "math.h"
@@ -28,9 +28,6 @@
 #include "timer_api.h"
 #include "touch_api.h"
 #include "user_subband_ui.h"
-#if SUBBAND_THD_BOARD_TEST
-#include "equalizer_build_id.h"
-#endif
 #endif
 
 #if defined(SUBBAND_FLOW_ALGO_ONLY) && defined(SUBBAND_OFFLINE_TEST_MAIN)
@@ -119,34 +116,6 @@ volatile short SUBBAND_DebugAdFirstSample = 0;
 volatile short SUBBAND_DebugDaFirstSample = 0;
 volatile int SUBBAND_DebugAdPeak = 0;
 volatile int SUBBAND_DebugDaPeak = 0;
-
-#if SUBBAND_THD_BOARD_TEST
-#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
-#pragma DATA_SECTION(SUBBAND_THD_InputPacked, ".far")
-#pragma DATA_SECTION(SUBBAND_THD_OutputPacked, ".far")
-#pragma DATA_SECTION(SUBBAND_THD_FrameInput, ".far")
-#pragma DATA_SECTION(SUBBAND_THD_FrameOutput, ".far")
-#pragma DATA_SECTION(SUBBAND_THD_TonePeriod, ".far")
-#pragma DATA_ALIGN(SUBBAND_THD_InputPacked, 8)
-#pragma DATA_ALIGN(SUBBAND_THD_OutputPacked, 8)
-#pragma DATA_ALIGN(SUBBAND_THD_FrameInput, 8)
-#pragma DATA_ALIGN(SUBBAND_THD_FrameOutput, 8)
-#pragma DATA_ALIGN(SUBBAND_THD_TonePeriod, 8)
-#endif
-unsigned int SUBBAND_THD_InputPacked[SUBBAND_THD_PROCESSED_SAMPLES / 2];
-unsigned int SUBBAND_THD_OutputPacked[SUBBAND_THD_PROCESSED_SAMPLES / 2];
-static short SUBBAND_THD_FrameInput[SUBBAND_FRM_LEN];
-static short SUBBAND_THD_FrameOutput[SUBBAND_FRM_LEN];
-static short SUBBAND_THD_TonePeriod[100];
-volatile unsigned int SUBBAND_THD_DebugRequest = 0U;
-volatile unsigned int SUBBAND_THD_DebugFrequencyHz = 0U;
-volatile unsigned int SUBBAND_THD_DebugStatus = SUBBAND_THD_STATUS_BOOT;
-volatile unsigned long SUBBAND_THD_DebugFrames = 0UL;
-volatile unsigned long SUBBAND_THD_DebugCycleCount = 0UL;
-volatile unsigned long SUBBAND_THD_DebugMaxFrameCycles = 0UL;
-volatile const char SUBBAND_THD_DebugBuildGitSha[] = EQ_BUILD_GIT_SHA;
-volatile const int SUBBAND_THD_DebugBuildDirty = EQ_BUILD_DIRTY;
-#endif
 
 #endif
 
@@ -1093,125 +1062,6 @@ static void Fill_Dac_Inactive_Buffer(void)
         Fill_Dac_Pong_Buffer();
     }
 }
-
-#if SUBBAND_THD_BOARD_TEST
-static void Subband_THD_PrepareTonePeriod(void)
-{
-    const double peak = 8230.69827012744;
-    unsigned long index;
-    double value;
-
-    for (index = 0UL; index < 100UL; index++)
-    {
-        value = peak * sin(
-            2.0 * SUBBAND_PI * (double)SUBBAND_THD_DebugFrequencyHz *
-            (double)index / 50000.0);
-        SUBBAND_THD_TonePeriod[index] =
-            (short)(value >= 0.0 ? value + 0.5 : value - 0.5);
-    }
-}
-
-static short Subband_THD_GenerateSample(unsigned long index)
-{
-    return index < SUBBAND_THD_INPUT_SAMPLES ?
-        SUBBAND_THD_TonePeriod[index % 100UL] : 0;
-}
-
-void Subband_THD_Board_Test_Example(void)
-{
-    unsigned long frame;
-    unsigned long sample;
-    unsigned long absolute_index;
-    unsigned long packed_index;
-
-    /* Volatile reads keep the JTAG-visible identity symbols in the image. */
-    if ((SUBBAND_THD_DebugBuildDirty != 0) ||
-        (SUBBAND_THD_DebugBuildGitSha[0] == '\0'))
-    {
-        SUBBAND_THD_DebugStatus = SUBBAND_THD_STATUS_BOOT;
-        while (1)
-        {
-        }
-    }
-    /* GEL has initialized the core and DDR; no ADC/DAC or timer setup is needed. */
-    SubbandWOLA_Init();
-    SubbandWOLA_ResetStream();
-    SubbandWOLA_ResetAllGains();
-    SubbandWOLA_SetBypass(0);
-    SubbandCodecLoopback_SetEnabled(0);
-    SubbandDenoise_StopLearning();
-    SubbandDenoise_SetEnabled(0);
-    memset(SUBBAND_THD_InputPacked, 0, sizeof(SUBBAND_THD_InputPacked));
-    memset(SUBBAND_THD_OutputPacked, 0, sizeof(SUBBAND_THD_OutputPacked));
-
-    SUBBAND_THD_DebugFrames = 0UL;
-    SUBBAND_THD_DebugCycleCount = 0UL;
-    SUBBAND_THD_DebugMaxFrameCycles = 0UL;
-    SUBBAND_THD_DebugStatus = SUBBAND_THD_STATUS_WAITING;
-    while (SUBBAND_THD_DebugRequest == 0U)
-    {
-    }
-    if ((SUBBAND_THD_DebugFrequencyHz != 500U) &&
-        (SUBBAND_THD_DebugFrequencyHz != 1000U) &&
-        (SUBBAND_THD_DebugFrequencyHz != 3000U) &&
-        (SUBBAND_THD_DebugFrequencyHz != 4000U) &&
-        (SUBBAND_THD_DebugFrequencyHz != 8000U))
-    {
-        SUBBAND_THD_DebugStatus = SUBBAND_THD_STATUS_BOOT;
-        while (1)
-        {
-        }
-    }
-    Subband_THD_PrepareTonePeriod();
-
-    SUBBAND_THD_DebugStatus = SUBBAND_THD_STATUS_RUNNING;
-    for (frame = 0UL; frame < SUBBAND_THD_FRAME_COUNT; frame++)
-    {
-        packed_index = frame * (SUBBAND_FRM_LEN / 2);
-        for (sample = 0UL; sample < SUBBAND_FRM_LEN; sample++)
-        {
-            absolute_index = frame * SUBBAND_FRM_LEN + sample;
-            SUBBAND_THD_FrameInput[sample] =
-                Subband_THD_GenerateSample(absolute_index);
-        }
-        for (sample = 0UL; sample < SUBBAND_FRM_LEN; sample += 2UL)
-        {
-            SUBBAND_THD_InputPacked[packed_index++] =
-                (unsigned int)(unsigned short)SUBBAND_THD_FrameInput[sample] |
-                ((unsigned int)(unsigned short)SUBBAND_THD_FrameInput[sample + 1UL] << 16);
-        }
-#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
-        unsigned int start_cycles;
-        unsigned long frame_cycles;
-
-        start_cycles = TSCL;
-#endif
-        SubbandWOLA_ProcessFrame(
-            SUBBAND_THD_FrameInput,
-            SUBBAND_THD_FrameOutput);
-        packed_index = frame * (SUBBAND_FRM_LEN / 2);
-        for (sample = 0UL; sample < SUBBAND_FRM_LEN; sample += 2UL)
-        {
-            SUBBAND_THD_OutputPacked[packed_index++] =
-                (unsigned int)(unsigned short)SUBBAND_THD_FrameOutput[sample] |
-                ((unsigned int)(unsigned short)SUBBAND_THD_FrameOutput[sample + 1UL] << 16);
-        }
-#if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
-        frame_cycles = (unsigned long)(TSCL - start_cycles);
-        SUBBAND_THD_DebugCycleCount += frame_cycles;
-        if (frame_cycles > SUBBAND_THD_DebugMaxFrameCycles)
-        {
-            SUBBAND_THD_DebugMaxFrameCycles = frame_cycles;
-        }
-#endif
-        SUBBAND_THD_DebugFrames = frame + 1UL;
-    }
-    SUBBAND_THD_DebugStatus = SUBBAND_THD_STATUS_READY;
-    while (1)
-    {
-    }
-}
-#endif
 
 void Subband_Flow_Example(void)
 {

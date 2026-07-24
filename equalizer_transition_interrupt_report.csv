@@ -1,4 +1,0 @@
-action,pending_before,pending_after,max_abs_error,float_copy_max_error,raw_copy_mismatch,clip_count,pass
-raw_copy,1,0,0.000000,0.000000,0,0,PASS
-hard_bypass,1,0,0.000000,0.000000,0,0,PASS
-float_copy,1,0,0.000000,0.000000,0,0,PASS

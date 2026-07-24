@@ -12,9 +12,7 @@
 #include "user_smart_bass.h"
 #include "user_dynamic_clarity.h"
 #include "user_harshness_guard.h"
-#include "user_dynamic_clarity_benchmark.h"
 #include "user_equalizer_display.h"
-#include "user_equalizer_eval.h"
 #include "user_equalizer_response.h"
 #include "equalizer_build_id.h"
 #include "string.h"
@@ -44,10 +42,6 @@
 
 #if defined(__TI_COMPILER_VERSION__) || defined(__TMS320C6X__)
 #include "c6x.h"
-#if EQ_ENABLE_FINAL_METRICS_BOARD_TEST != 0
-/* The dedicated entry intentionally leaves production scheduler roots unused. */
-#pragma diag_suppress 179
-#endif
 #endif
 
 #define EQ_CPU_CYCLES_PER_MS 456000.0f
@@ -106,9 +100,7 @@ static unsigned int EQ_HarshnessGuardCapturePrerollRemaining = 0U;
 #endif
 #endif
 static EQ_CONTROL_STATE EQ_BoardControl;
-#if EQ_ENABLE_FINAL_METRICS_BOARD_TEST == 0
 static EQ_BACKGROUND_SERVICE_STATE EQ_BackgroundService;
-#endif
 #if (EQ_ENABLE_LCD_DISPLAY != 0) && (EQ_ENABLE_TEN_BAND_EDITOR != 0)
 typedef struct
 {
@@ -3254,9 +3246,6 @@ static void EQ_FillDacInactiveBuffer(void)
 
 void Equalizer_Flow_Example(void)
 {
-#if EQ_ENABLE_FINAL_METRICS_BOARD_TEST != 0
-    EqualizerEval_BoardFinalMetrics();
-#else
     unsigned char flag_ad_done;
 #if EQ_ENABLE_LCD_DISPLAY != 0
     int audio_serviced;
@@ -3296,9 +3285,6 @@ void Equalizer_Flow_Example(void)
 #endif
 
     flag_ad_done = 0;
-#if EQ_ENABLE_DYNAMIC_CLARITY_BENCHMARK != 0
-    DynamicClarityBenchmark_Run();
-#endif
     EQ_DebugInitStage = 1UL;
     EQ_DebugFlagAdDone = 0U;
 #if EQ_ENABLE_LCD_DISPLAY != 0
@@ -3927,7 +3913,6 @@ void Equalizer_Flow_Example(void)
         }
 #endif
     }
-#endif
 }
 
 #else

@@ -39,6 +39,18 @@
 
 extern unsigned char Lcd_Buffer[];
 
+#define LCD_RASTER_FAULT_SYNC_LOST       (1u << 0)
+#define LCD_RASTER_FAULT_FIFO_UNDERFLOW  (1u << 1)
+
+unsigned char Lcd_WaitForEndOfFrame(void);
+unsigned int Lcd_GetRasterFaultStatus(void);
+void Lcd_ServiceRasterHealth(void);
+unsigned char Lcd_UpdateRegionToBothBuffers(const unsigned char *src,
+                                            unsigned int x,
+                                            unsigned int y,
+                                            unsigned int width,
+                                            unsigned int height,
+                                            unsigned int src_row_bytes);
 
 /**
  * @brief LCD DMA初始化函数

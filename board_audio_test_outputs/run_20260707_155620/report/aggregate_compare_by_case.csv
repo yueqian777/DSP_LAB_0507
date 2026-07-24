@@ -1,9 +1,0 @@
-﻿case,rows,min_energy_ratio,max_clipping,max_invalid
-01_clean_music_melody,9,0.273904932,0,0
-02_white_snr10_first2s_noise,9,0.855157932,0,0
-03_fan_snr10_first2s_noise,9,0.616380451,0,0
-04_hum_snr10_first2s_noise,9,0.727009659,0,0
-05_hiss_snr10_first2s_noise,9,0.909620275,0,0
-06_stepup_snr10_first2s_noise,9,0.586450913,0,0
-07_ramp_snr10_first2s_noise,9,0.877801863,0,0
-08_learning_polluted_snr10,9,0.247232588,0,0

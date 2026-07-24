@@ -1,7 +1,0 @@
-﻿module,code_readonly_bytes,code_readonly_kib,static_ram_bytes,static_ram_kib,granularity
-WOLA / FFT,11488,11.21875,19128,18.679688,TI linker object-file contribution; linker holes assigned to platform/shared
-Denoise,12640,12.34375,19796,19.332031,TI linker object-file contribution; linker holes assigned to platform/shared
-Compression,5120,5.0,332,0.324219,TI linker object-file contribution; linker holes assigned to platform/shared
-Main chain and audio buffers,11496,11.226562,761161,743.321289,TI linker object-file contribution; linker holes assigned to platform/shared
-UI and display,49999,48.827148,769997,751.950195,TI linker object-file contribution; linker holes assigned to platform/shared
-Platform and shared runtime,49029,47.879883,1731,1.69043,TI linker object-file contribution; linker holes assigned to platform/shared

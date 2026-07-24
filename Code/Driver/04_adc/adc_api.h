@@ -137,7 +137,13 @@ extern short AD_CH8_Buf1[];  //!< 通道8 Pong缓冲区
  * @param clkFreq 采样频率
  * @param sampleLen 采样长度
  */
+typedef void (*ADC_BLOCK_CALLBACK)(unsigned char completedBuffer,
+                                   unsigned int sampleLen);
+
 void Adc_Init(unsigned int clkFreq, unsigned int sampleLen);
+
+/* The callback runs in the ADC EDMA ISR and therefore must stay bounded. */
+void Adc_RegisterBlockCallback(ADC_BLOCK_CALLBACK callback);
 
 /**
  * @brief ADC启动函数

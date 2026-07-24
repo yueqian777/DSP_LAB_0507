@@ -33,32 +33,27 @@
 #include "user_touch.h"
 // ADDA驱动
 #include "user_adda.h"
-// Subband flow test
+// Project 3.2 subband processing
 #include "user_subband_flow.h"
 #include "user_subband_ui.h"
-#include "user_subband_touch_check.h"
 #include "user_subband_wola.h"
 #include "user_subband_denoise.h"
-#include "user_subband_eval.h"
-#include "user_subband_codec.h"
-#include "user_subband_codec_eval.h"
-#include "user_subband_audio_compare.h"
-#include "user_subband_denoise_ms_eval.h"
+#include "user_subband_diagnostics.h"
+#include "user_subband_codec_loopback.h"
+// Project 3.3 dynamic equalizer
 #include "user_equalizer_flow.h"
 #include "user_equalizer.h"
 #include "user_equalizer_control.h"
 #include "user_equalizer_response.h"
 #include "user_equalizer_ui_logic.h"
 #include "user_equalizer_display.h"
-#include "user_equalizer_eval.h"
 #include "user_audio_feature_analyzer.h"
 #include "user_smart_bass.h"
 #include "user_dynamic_clarity.h"
 #include "user_harshness_guard.h"
 #include "user_spectral_fft.h"
-#ifdef SUBBAND_ALGO_ONLY
-#include "user_subband_test.h"
-#endif
+// Project 3.4 keyword recognition and music control
+#include "user_project34_flow.h"
 
 
 
